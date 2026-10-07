@@ -58,6 +58,8 @@ class JvmWifiP2pManager : WifiP2pManager {
     private val _isDiscovering = MutableStateFlow(false)
     override val isDiscovering: StateFlow<Boolean> = _isDiscovering.asStateFlow()
     override val isAvailable: Boolean = true
+    override val isGroupFormed = kotlinx.coroutines.flow.MutableStateFlow(false).asStateFlow()
+    override val groupOwnerIp = kotlinx.coroutines.flow.MutableStateFlow("").asStateFlow()
 
     override suspend fun discoverPeers(timeoutMs: Long) {
         _isDiscovering.value = true
@@ -79,3 +81,5 @@ class JvmWifiP2pManager : WifiP2pManager {
 
 actual fun createWifiConnectionManager(): WifiConnectionManager = JvmWifiConnectionManager()
 actual fun createWifiP2pManager(): WifiP2pManager = JvmWifiP2pManager()
+
+

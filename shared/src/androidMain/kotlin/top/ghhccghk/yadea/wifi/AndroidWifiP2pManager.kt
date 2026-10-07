@@ -5,9 +5,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.NetworkInfo
 import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pDeviceList
+import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
 import kotlinx.coroutines.flow.*
 import top.ghhccghk.yadea.wifi.WifiP2pManager as CommonP2pManager
@@ -15,10 +17,10 @@ import top.ghhccghk.yadea.wifi.WifiP2pManager as CommonP2pManager
 /**
  * Android WiFi P2P 管理实现
  *
- * 使用 android.net.wifi.p2p.WifiP2pManager 实现:
- * - 设备发现 (discoverPeers)
- * - P2P 连接 (connect)
- * - 广播接收器监听 P2P 状态
+ * 完整流程:
+ * 1. discoverPeers: 清理旧连接 → 发现设备 → 广播更新列表
+ * 2. connect: 发起连接 → WIFI_P2P_CONNECTION_CHANGED → requestConnectionInfo 获取 GroupOwner IP
+ * 3. disconnect: cancelConnect + removeGroup
  */
 @SuppressLint("MissingPermission")
 class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
@@ -36,29 +38,38 @@ class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
     private val _isDiscovering = MutableStateFlow(false)
     override val isDiscovering: StateFlow<Boolean> = _isDiscovering.asStateFlow()
 
+    private val _isGroupFormed = MutableStateFlow(false)
+    override val isGroupFormed: StateFlow<Boolean> = _isGroupFormed.asStateFlow()
+
+    private val _groupOwnerIp = MutableStateFlow("")
+    override val groupOwnerIp: StateFlow<String> = _groupOwnerIp.asStateFlow()
+
     override val isAvailable: Boolean get() = true
 
     init {
         channel = systemManager.initialize(context, context.mainLooper) {
-            // Channel 断开回调
             _connectionState.value = P2pStatus.Failed
         }
         registerReceiver()
     }
 
+    // ==================== 发现 ====================
+
     override suspend fun discoverPeers(timeoutMs: Long) {
+        // 1. 清理旧连接，确保干净的发现环境
+        cleanupBeforeDiscovery()
+
         _isDiscovering.value = true
 
         systemManager.discoverPeers(channel, object : WifiP2pManager.ActionListener {
             override fun onSuccess() {
-                // 发现流程启动，等待 WIFI_P2P_PEERS_CHANGED_ACTION 广播
+                // 等待 WIFI_P2P_PEERS_CHANGED_ACTION 广播
             }
             override fun onFailure(reason: Int) {
                 _isDiscovering.value = false
             }
         })
 
-        // 超时自动停止
         if (timeoutMs > 0) {
             kotlinx.coroutines.delay(timeoutMs)
             if (_isDiscovering.value) {
@@ -67,12 +78,22 @@ class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
         }
     }
 
+    private fun cleanupBeforeDiscovery() {
+        // 断开旧 P2P 连接
+        systemManager.cancelConnect(channel, null)
+        systemManager.removeGroup(channel, null)
+        _isGroupFormed.value = false
+        _groupOwnerIp.value = ""
+    }
+
     private fun stopDiscovery() {
         systemManager.stopPeerDiscovery(channel, object : WifiP2pManager.ActionListener {
             override fun onSuccess() { _isDiscovering.value = false }
             override fun onFailure(reason: Int) { _isDiscovering.value = false }
         })
     }
+
+    // ==================== 连接 ====================
 
     override suspend fun connect(device: P2pDevice): Boolean {
         _connectionState.value = P2pStatus.Invited
@@ -84,7 +105,7 @@ class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
         return try {
             systemManager.connect(channel, config, object : WifiP2pManager.ActionListener {
                 override fun onSuccess() {
-                    _connectionState.value = P2pStatus.Connected
+                    // 等待 WIFI_P2P_CONNECTION_CHANGED_ACTION 广播确认连接
                 }
                 override fun onFailure(reason: Int) {
                     _connectionState.value = P2pStatus.Failed
@@ -97,9 +118,28 @@ class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
         }
     }
 
+    /**
+     * 连接确认后，获取 GroupOwner IP 地址
+     * 这是后续 TCP/UDP 通信的关键
+     */
+    private fun onConnectionEstablished() {
+        systemManager.requestConnectionInfo(channel) { info: WifiP2pInfo? ->
+            if (info != null && info.groupFormed) {
+                _isGroupFormed.value = true
+                val ownerAddress = info.groupOwnerAddress
+                _groupOwnerIp.value = ownerAddress?.hostAddress ?: ""
+                _connectionState.value = P2pStatus.Connected
+            }
+        }
+    }
+
     override suspend fun disconnect() {
         systemManager.cancelConnect(channel, object : WifiP2pManager.ActionListener {
-            override fun onSuccess() { _connectionState.value = P2pStatus.Available }
+            override fun onSuccess() {
+                _connectionState.value = P2pStatus.Available
+                _isGroupFormed.value = false
+                _groupOwnerIp.value = ""
+            }
             override fun onFailure(reason: Int) {}
         })
         systemManager.removeGroup(channel, null)
@@ -109,7 +149,7 @@ class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
         unregisterReceiver()
     }
 
-    // ---- 广播接收器 ----
+    // ==================== 广播接收器 ====================
 
     private fun registerReceiver() {
         val filter = IntentFilter().apply {
@@ -122,16 +162,28 @@ class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
             override fun onReceive(ctx: Context, intent: Intent) {
                 when (intent.action) {
                     WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION -> {
+                        @Suppress("DEPRECATION")
                         val peers = intent.getParcelableExtra<WifiP2pDeviceList>(
                             WifiP2pManager.EXTRA_P2P_DEVICE_LIST
                         )
                         peers?.let { updatePeers(it) }
                     }
                     WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
-                        val connected = intent.getBooleanExtra(
-                            WifiP2pManager.EXTRA_NETWORK_INFO, false
+                        @Suppress("DEPRECATION")
+                        val networkInfo = intent.getParcelableExtra<NetworkInfo>(
+                            WifiP2pManager.EXTRA_NETWORK_INFO
                         )
-                        _connectionState.value = if (connected) P2pStatus.Connected else P2pStatus.Available
+                        if (networkInfo != null && networkInfo.isConnected) {
+                            // 连接已建立，获取 GroupOwner IP
+                            onConnectionEstablished()
+                        } else {
+                            _connectionState.value = P2pStatus.Available
+                            _isGroupFormed.value = false
+                            _groupOwnerIp.value = ""
+                        }
+                    }
+                    WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION -> {
+                        // 本机状态变化，可选处理
                     }
                 }
             }
@@ -165,4 +217,3 @@ class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
 actual fun createWifiP2pManager(): CommonP2pManager {
     throw UnsupportedOperationException("AndroidWifiP2pManager requires Context; instantiate directly")
 }
-
