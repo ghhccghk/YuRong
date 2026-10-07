@@ -34,7 +34,9 @@ enum class MirrorState {
     /** 运行中 */
     Running,
     /** 已停止 */
-    Stopped
+    Stopped,
+    /** 失败 */
+    Failed
 }
 
 /**
@@ -220,3 +222,6 @@ class MirrorEngine(
         frameBus.clear()
     }
 }
+
+
+
