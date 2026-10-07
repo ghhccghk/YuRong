@@ -20,15 +20,21 @@ import top.ghhccghk.yadea.network.createTcpTransport
 import top.ghhccghk.yadea.network.createUdpTransport
 import top.ghhccghk.yadea.wifi.*
 
-/**
- * AppViewModel - 应用全局状态管理
- */
 class AppViewModel(
     private val wifiManager: WifiConnectionManager? = null,
     private val bleAdapter: BleAdapter? = null,
     private val p2pManager: WifiP2pManager? = null
 ) {
     val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    // Debug
+    private val _debugLog = MutableStateFlow<List<String>>(emptyList())
+    val debugLog: StateFlow<List<String>> = _debugLog.asStateFlow()
+
+    private fun debug(msg: String) {
+        val line = "[${System.currentTimeMillis() % 100000}] $msg"
+        _debugLog.value = (_debugLog.value + line).takeLast(20)
+    }
 
     // WiFi
     private val _wifiState = MutableStateFlow(WifiConnectionState.Disconnected)
@@ -57,6 +63,8 @@ class AppViewModel(
     val p2pDevices: StateFlow<List<P2pDevice>> = _p2pDevices.asStateFlow()
     private val _p2pConnected = MutableStateFlow(false)
     val p2pConnected: StateFlow<Boolean> = _p2pConnected.asStateFlow()
+    private val _p2pScanStatus = MutableStateFlow("空闲")
+    val p2pScanStatus: StateFlow<String> = _p2pScanStatus.asStateFlow()
     val p2pGroupOwnerIp: StateFlow<String> = p2pManager?.groupOwnerIp ?: MutableStateFlow("")
     val p2pGroupFormed: StateFlow<Boolean> = p2pManager?.isGroupFormed ?: MutableStateFlow(false)
 
@@ -72,29 +80,38 @@ class AppViewModel(
     private val _navConfig = MutableStateFlow(NavDisplayConfig())
     val navConfig: StateFlow<NavDisplayConfig> = _navConfig.asStateFlow()
 
-    // Source & Crop
     private val _selectedSource = MutableStateFlow(0)
     val selectedSource: StateFlow<Int> = _selectedSource.asStateFlow()
     private val _cropConfig = MutableStateFlow(FrameCropConfig.FULL)
     val cropConfig: StateFlow<FrameCropConfig> = _cropConfig.asStateFlow()
 
-    // Internal
     val frameBus = FrameBus()
     private var mirrorEngine: MirrorEngine? = null
     private var tcpTransport: TcpTransport? = null
     private var udpTransport: UdpTransport? = null
 
     init {
-        // 持续收集 P2P 设备列表变化
+        debug("AppViewModel 初始化, p2pManager=${if (p2pManager != null) "OK" else "NULL"}")
+        debug("wifiManager=${if (wifiManager != null) "OK" else "NULL"}, bleAdapter=${if (bleAdapter != null) "OK" else "NULL"}")
+
         if (p2pManager != null) {
+            debug("开始收集 P2P 设备列表...")
             scope.launch {
                 p2pManager.discoveredPeers.collect { peers ->
+                    debug("P2P 设备列表更新: ${peers.size} 个设备")
                     _p2pDevices.value = peers
                 }
             }
             scope.launch {
                 p2pManager.connectionState.collect { state ->
+                    debug("P2P 连接状态: $state")
                     _p2pConnected.value = (state == P2pStatus.Connected)
+                }
+            }
+            scope.launch {
+                p2pManager.isDiscovering.collect { discovering ->
+                    debug("P2P 扫描状态: ${if (discovering) "扫描中" else "空闲"}")
+                    _p2pScanStatus.value = if (discovering) "扫描中..." else "空闲"
                 }
             }
         }
@@ -163,15 +180,30 @@ class AppViewModel(
 
     // ==================== P2P ====================
     fun scanP2p() {
-        if (p2pManager == null) return
+        debug("scanP2p() 被调用, p2pManager=${if (p2pManager != null) "OK" else "NULL"}")
+        if (p2pManager == null) {
+            _p2pScanStatus.value = "P2P 管理器未初始化!"
+            return
+        }
         scope.launch {
-            p2pManager.discoverPeers(15_000)
+            _p2pScanStatus.value = "正在扫描..."
+            debug("开始 P2P 扫描 (15秒超时)")
+            try {
+                p2pManager.discoverPeers(15_000)
+                debug("P2P 扫描结束, 当前设备数=${_p2pDevices.value.size}")
+                _p2pScanStatus.value = "扫描完成, 发现 ${_p2pDevices.value.size} 个设备"
+            } catch (e: Exception) {
+                debug("P2P 扫描异常: ${e.message}")
+                _p2pScanStatus.value = "扫描失败: ${e.message}"
+            }
         }
     }
 
     fun connectP2p(device: P2pDevice) {
+        debug("连接 P2P 设备: ${device.name} (${device.address})")
         scope.launch {
             val ok = p2pManager?.connect(device) ?: false
+            debug("P2P 连接结果: $ok")
             _p2pConnected.value = ok
         }
     }
@@ -184,12 +216,10 @@ class AppViewModel(
         scope.launch {
             _mirrorState.value = MirrorState.Negotiating
             _mirrorStatus.value = "正在连接仪表..."
-
             val tcp = createTcpTransport()
             val udp = createUdpTransport()
             tcpTransport = tcp
             udpTransport = udp
-
             try {
                 tcp.connect(targetHost, targetPort)
             } catch (e: Exception) {
@@ -197,20 +227,13 @@ class AppViewModel(
                 _mirrorStatus.value = "连接失败: ${e.message}"
                 return@launch
             }
-
             val sender = FrameSender(tcp, udp)
             val engine = MirrorEngine(sender, frameBus) { _mirrorStatus.value = it }
             mirrorEngine = engine
-
             val success = engine.start(
-                targetHost = targetHost,
-                targetPort = targetPort,
-                scope = scope,
-                currentTimeProvider = {
-                    DateTimeParts(2026, 10, 8, 12, 0, 0)
-                }
+                targetHost = targetHost, targetPort = targetPort, scope = scope,
+                currentTimeProvider = { DateTimeParts(2026, 10, 8, 12, 0, 0) }
             )
-
             if (success) {
                 _mirrorState.value = MirrorState.Running
                 _navConfig.value = engine.currentConfig

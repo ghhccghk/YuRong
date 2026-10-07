@@ -9,6 +9,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import top.ghhccghk.yadea.ble.BleConnectionState
 import top.ghhccghk.yadea.wifi.P2pStatus
 import top.ghhccghk.yadea.wifi.WifiConnectionState
@@ -31,6 +32,8 @@ fun ConnectionScreen(viewModel: AppViewModel) {
 
     val p2pDevices by viewModel.p2pDevices.collectAsState()
     val p2pConnected by viewModel.p2pConnected.collectAsState()
+    val p2pScanStatus by viewModel.p2pScanStatus.collectAsState()
+    val debugLog by viewModel.debugLog.collectAsState()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -100,13 +103,16 @@ fun ConnectionScreen(viewModel: AppViewModel) {
                             Text("P2P 设备发现", style = MaterialTheme.typography.titleLarge)
                             StatusChip(p2pConnected, if (p2pConnected) "已连接" else "未连接")
                         }
-                        Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { viewModel.scanP2p() }, modifier = Modifier.weight(1f)) {
-                                Text("扫描 P2P 设备")
-                            }
+                        Text("状态: $p2pScanStatus", style = MaterialTheme.typography.bodySmall)
+                        Button(
+                            onClick = { viewModel.scanP2p() },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("扫描 P2P 设备 (15秒)")
                         }
+                        Text("发现 ${p2pDevices.size} 个设备", style = MaterialTheme.typography.titleSmall)
                         if (p2pDevices.isEmpty()) {
-                            Text("暂无发现的 P2P 设备，请确保对方设备已开启 WiFi Direct",
+                            Text("暂无设备。请确保对方设备已开启 WiFi Direct 并处于可发现状态",
                                 style = MaterialTheme.typography.bodySmall)
                         } else {
                             p2pDevices.forEach { device ->
@@ -165,6 +171,18 @@ fun ConnectionScreen(viewModel: AppViewModel) {
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("调试日志", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    debugLog.reversed().forEach { line ->
+                        Text(line, fontSize = 10.sp, lineHeight = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

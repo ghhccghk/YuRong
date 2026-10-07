@@ -1,6 +1,7 @@
 package top.ghhccghk.yadea.wifi
 
 import android.annotation.SuppressLint
+import android.util.Log
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -16,6 +17,7 @@ import top.ghhccghk.yadea.wifi.WifiP2pManager as CommonP2pManager
 
 @SuppressLint("MissingPermission")
 class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
+    private fun d(msg: String) { Log.d("P2P", msg) }
 
     private val systemManager = context.getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
     private var channel: WifiP2pManager.Channel? = null
@@ -46,24 +48,24 @@ class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
     }
 
     override suspend fun discoverPeers(timeoutMs: Long) {
+        d("discoverPeers 开始, timeoutMs=$timeoutMs")
         // 清理旧连接
+        d("清理旧连接...")
         systemManager.cancelConnect(channel, null)
         systemManager.removeGroup(channel, null)
         _isGroupFormed.value = false
         _groupOwnerIp.value = ""
 
         // 等待清理完成
+        d("等待清理完成 1.5s...")
         kotlinx.coroutines.delay(1500)
 
         _isDiscovering.value = true
 
+        d("调用 systemManager.discoverPeers...")
         systemManager.discoverPeers(channel, object : WifiP2pManager.ActionListener {
-            override fun onSuccess() {
-                // 等待 WIFI_P2P_PEERS_CHANGED_ACTION 广播
-            }
-            override fun onFailure(reason: Int) {
-                _isDiscovering.value = false
-            }
+            override fun onSuccess() { d("discoverPeers onSuccess") }
+            override fun onFailure(reason: Int) { d("discoverPeers onFailure: reason=$reason"); _isDiscovering.value = false }
         })
 
         if (timeoutMs > 0) {
@@ -105,6 +107,7 @@ class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
     }
 
     override suspend fun disconnect() {
+        d("清理旧连接...")
         systemManager.cancelConnect(channel, null)
         systemManager.removeGroup(channel, null)
         _connectionState.value = P2pStatus.Available
@@ -131,7 +134,8 @@ class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
                         val peers = intent.getParcelableExtra<WifiP2pDeviceList>(
                             WifiP2pManager.EXTRA_P2P_DEVICE_LIST
                         )
-                        peers?.let { updatePeers(it) }
+                        d("收到 PEERS_CHANGED 广播")
+                        peers?.let { d("设备列表: ${it.deviceList.size} 个"); updatePeers(it) }
                     }
                     WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
                         @Suppress("DEPRECATION")
@@ -177,3 +181,4 @@ class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
 actual fun createWifiP2pManager(): CommonP2pManager {
     throw UnsupportedOperationException("AndroidWifiP2pManager requires Context; instantiate directly")
 }
+
