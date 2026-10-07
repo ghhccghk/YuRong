@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import top.ghhccghk.yadea.mirror.MirrorPreviewPanel
 
 /**
@@ -21,6 +22,7 @@ fun MirrorScreen() {
     var status by remember { mutableStateOf("待命") }
     var frameCount by remember { mutableIntStateOf(0) }
     var bytesSent by remember { mutableLongStateOf(0L) }
+    var cropConfig by remember { mutableStateOf(top.ghhccghk.yadea.mirror.FrameCropConfig.FULL) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -30,6 +32,7 @@ fun MirrorScreen() {
             Text("投屏控制", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         }
 
+        // 投屏状态卡片
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -56,6 +59,7 @@ fun MirrorScreen() {
             }
         }
 
+        // 投屏源选择
         item {
             Text("投屏源", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
@@ -69,20 +73,19 @@ fun MirrorScreen() {
             }
         }
 
+        // 投屏区域裁剪
         item {
             Text("投屏区域", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
 
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MirrorPreviewPanel(
-                        onCropChange = { }
-                    )
-                }
-            }
+            MirrorPreviewPanel(
+                cropConfig = cropConfig,
+                onCropChange = { cropConfig = it }
+            )
         }
 
+        // 控制按钮
         item {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -90,15 +93,27 @@ fun MirrorScreen() {
             ) {
                 if (isMirroring) {
                     Button(
-                        onClick = { isMirroring = false; status = "已停止" },
+                        onClick = {
+                            isMirroring = false
+                            status = "已停止"
+                        },
                         modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) { Text("⏹ 停止投屏", fontSize = 18.sp) }
+                    ) {
+                        Text("⏹ 停止投屏", fontSize = 18.sp)
+                    }
                 } else {
                     Button(
-                        onClick = { isMirroring = true; status = "投屏进行中..." },
+                        onClick = {
+                            isMirroring = true
+                            status = "投屏进行中..."
+                            frameCount = 0
+                            bytesSent = 0L
+                        },
                         modifier = Modifier.weight(1f).height(56.dp)
-                    ) { Text("▶ 开始投屏", fontSize = 18.sp) }
+                    ) {
+                        Text("▶ 开始投屏", fontSize = 18.sp)
+                    }
                 }
             }
         }
@@ -134,12 +149,16 @@ fun SourceButton(text: String, selected: Boolean, modifier: Modifier = Modifier,
     }
 }
 
-private fun formatBytes(bytes: Long): String {
+/**
+ * 跨平台字节格式化
+ */
+internal fun formatBytes(bytes: Long): String {
     return when {
         bytes < 1024 -> "$bytes B"
         bytes < 1024 * 1024 -> "${bytes / 1024} KB"
-        else -> "${"%.1f".format(bytes / 1024.0 / 1024.0)} MB"
+        else -> {
+            val mb = (bytes * 10 / (1024 * 1024)) // 保留一位小数
+            "${mb / 10}.${mb % 10} MB"
+        }
     }
 }
-
-
