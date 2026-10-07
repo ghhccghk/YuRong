@@ -25,7 +25,8 @@ import top.ghhccghk.yadea.wifi.*
  */
 class AppViewModel(
     private val wifiManager: WifiConnectionManager? = null,
-    private val bleAdapter: BleAdapter? = null
+    private val bleAdapter: BleAdapter? = null,
+    private val p2pManager: WifiP2pManager? = null
 ) {
     val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -56,7 +57,8 @@ class AppViewModel(
     val p2pDevices: StateFlow<List<P2pDevice>> = _p2pDevices.asStateFlow()
     private val _p2pConnected = MutableStateFlow(false)
     val p2pConnected: StateFlow<Boolean> = _p2pConnected.asStateFlow()
-    private val p2pManager: WifiP2pManager? = try { createWifiP2pManager() } catch (_: Throwable) { null }
+    val p2pGroupOwnerIp: StateFlow<String> = p2pManager?.groupOwnerIp ?: MutableStateFlow("")
+    val p2pGroupFormed: StateFlow<Boolean> = p2pManager?.isGroupFormed ?: MutableStateFlow(false)
 
     // Mirror
     private val _mirrorState = MutableStateFlow(MirrorState.Idle)
@@ -81,6 +83,22 @@ class AppViewModel(
     private var mirrorEngine: MirrorEngine? = null
     private var tcpTransport: TcpTransport? = null
     private var udpTransport: UdpTransport? = null
+
+    init {
+        // 持续收集 P2P 设备列表变化
+        if (p2pManager != null) {
+            scope.launch {
+                p2pManager.discoveredPeers.collect { peers ->
+                    _p2pDevices.value = peers
+                }
+            }
+            scope.launch {
+                p2pManager.connectionState.collect { state ->
+                    _p2pConnected.value = (state == P2pStatus.Connected)
+                }
+            }
+        }
+    }
 
     // ==================== WiFi ====================
     fun scanWifi() {
@@ -145,9 +163,9 @@ class AppViewModel(
 
     // ==================== P2P ====================
     fun scanP2p() {
+        if (p2pManager == null) return
         scope.launch {
-            p2pManager?.discoverPeers(10_000)
-            _p2pDevices.value = p2pManager?.discoveredPeers?.value ?: emptyList()
+            p2pManager.discoverPeers(15_000)
         }
     }
 
@@ -189,7 +207,6 @@ class AppViewModel(
                 targetPort = targetPort,
                 scope = scope,
                 currentTimeProvider = {
-                    val now = kotlin.time.Clock.System.now()
                     DateTimeParts(2026, 10, 8, 12, 0, 0)
                 }
             )

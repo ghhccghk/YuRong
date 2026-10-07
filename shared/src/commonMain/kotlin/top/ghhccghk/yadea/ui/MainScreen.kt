@@ -5,14 +5,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import top.ghhccghk.yadea.wifi.WifiConnectionManager
+import top.ghhccghk.yadea.wifi.WifiP2pManager
+import top.ghhccghk.yadea.ble.BleAdapter
 
-/**
- * 雅迪投屏导航 - 主界面
- */
 @Composable
-fun MainScreen() {
+fun MainScreen(
+    wifiManager: WifiConnectionManager? = null,
+    bleAdapter: BleAdapter? = null,
+    p2pManager: WifiP2pManager? = null
+) {
     var selectedTab by remember { mutableStateOf(0) }
-    val viewModel = remember { AppViewModel() }
+    val viewModel = remember { AppViewModel(wifiManager, bleAdapter, p2pManager) }
 
     Scaffold(
         bottomBar = {
@@ -60,4 +64,3 @@ fun StatusChip(connected: Boolean, text: String) {
         Text(text, color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
     }, leadingIcon = { Text(if (connected) "●" else "○") })
 }
-

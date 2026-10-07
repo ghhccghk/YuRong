@@ -8,9 +8,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import top.ghhccghk.yadea.ui.MainScreen
+import top.ghhccghk.yadea.wifi.AndroidWifiP2pManager
 
 class MainActivity : ComponentActivity() {
 
@@ -31,9 +31,7 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val allGranted = permissions.values.all { it }
-        if (allGranted) {
-            // 权限已全部授予
-        } else {
+        if (!allGranted) {
             // 部分权限被拒绝
         }
     }
@@ -44,9 +42,15 @@ class MainActivity : ComponentActivity() {
 
         requestPermissionsIfNeeded()
 
+        val p2pManager = AndroidWifiP2pManager(this)
+
         setContent {
-            MainScreen()
+            MainScreen(p2pManager = p2pManager)
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
     }
 
     private fun requestPermissionsIfNeeded() {
