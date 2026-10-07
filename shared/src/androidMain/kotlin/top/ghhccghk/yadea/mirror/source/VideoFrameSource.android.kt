@@ -5,8 +5,10 @@ import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
 import android.media.MediaPlayer
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.view.PixelCopy
 import android.view.Surface
 import android.view.TextureView
 import top.ghhccghk.yadea.mirror.FrameCropConfig
@@ -16,12 +18,8 @@ import top.ghhccghk.yadea.mirror.PlatformBitmap
 /**
  * VideoFrameSource - 视频/图片帧源
  *
- * 特性:
- * - MediaPlayer 解码视频/图片
- * - TextureView 帧捕获
- * - 支持裁剪区域配置
- * - 前台 10fps 帧率控制
- * - 支持播放/暂停/seek
+ * 使用 MediaPlayer + TextureView 渲染视频，
+ * 通过 PixelCopy (API 24+) 或 TextureView.getBitmap() 捕获帧。
  */
 class VideoFrameSource(
     private val context: Context,
@@ -29,27 +27,23 @@ class VideoFrameSource(
     frameIntervalMs: Long = 100
 ) : FrameSource {
 
+    /** 供调用方添加到视图层级的 TextureView */
+    val textureView: TextureView = TextureView(context)
+
     private var mediaPlayer: MediaPlayer? = null
-    private var textureView: TextureView? = null
     private var surface: Surface? = null
-    private var surfaceTexture: SurfaceTexture? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private var running = false
     private var lastFrameAt = 0L
     private val frameIntervalMs = frameIntervalMs.coerceAtLeast(50)
     private var framePump: Runnable? = null
 
-    /** 裁剪区域配置 */
     var cropConfig: FrameCropConfig = FrameCropConfig.FULL
 
-    /** 是否正在播放 */
     var isPlaying: Boolean = false
         private set
 
-    /** 视频时长 (ms) */
     val durationMs: Long get() = mediaPlayer?.duration?.toLong() ?: 0L
-
-    /** 当前播放位置 (ms) */
     val positionMs: Long get() = mediaPlayer?.currentPosition?.toLong() ?: 0L
 
     override val isRunning: Boolean get() = running
@@ -58,24 +52,39 @@ class VideoFrameSource(
         if (running) return
         running = true
 
-        val st = SurfaceTexture(0)
-        surfaceTexture = st
+        if (textureView.isAvailable) {
+            setupPlayer(onFrame)
+        } else {
+            textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
+                    setupPlayer(onFrame)
+                }
+                override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {}
+                override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean = true
+                override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
+            }
+        }
+    }
+
+    private fun setupPlayer(onFrame: (PlatformBitmap) -> Unit) {
+        val st = textureView.surfaceTexture ?: return
         val sf = Surface(st)
         surface = sf
 
+        val self = this
         val player = MediaPlayer().apply {
             setDataSource(context, uri)
             setSurface(sf)
             setOnPreparedListener { mp ->
                 mp.start()
-                isPlaying = true
+                self.isPlaying = true
                 startFramePump(onFrame)
             }
             setOnCompletionListener {
-                isPlaying = false
+                self.isPlaying = false
             }
             setOnErrorListener { _, _, _ ->
-                isPlaying = false
+                self.isPlaying = false
                 true
             }
             prepareAsync()
@@ -92,15 +101,13 @@ class VideoFrameSource(
         mediaPlayer = null
         surface?.release()
         surface = null
-        surfaceTexture?.release()
-        surfaceTexture = null
     }
 
     fun play() {
         mediaPlayer?.let {
             if (!it.isPlaying) {
                 it.start()
-                isPlaying = true
+                this.isPlaying = true
             }
         }
     }
@@ -109,7 +116,7 @@ class VideoFrameSource(
         mediaPlayer?.let {
             if (it.isPlaying) {
                 it.pause()
-                isPlaying = false
+                this.isPlaying = false
             }
         }
     }
@@ -136,19 +143,36 @@ class VideoFrameSource(
 
     private fun captureFrame(onFrame: (PlatformBitmap) -> Unit) {
         try {
-            val st = surfaceTexture ?: return
-            val bmp = Bitmap.createBitmap(st.textureWidth.coerceAtLeast(1),
-                st.textureHeight.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
-            // SurfaceTexture.getBitmap() is API 26+, fallback to canvas draw for older
-            if (android.os.Build.VERSION.SDK_INT >= 26) {
-                st.getBitmap(bmp)
+            val bmp = Bitmap.createBitmap(
+                textureView.width.coerceAtLeast(1),
+                textureView.height.coerceAtLeast(1),
+                Bitmap.Config.ARGB_8888
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                val s = surface ?: return
+                PixelCopy.request(s, bmp, { result ->
+                    if (result == PixelCopy.SUCCESS) {
+                        onFrameDeliver(bmp, onFrame)
+                    } else {
+                        bmp.recycle()
+                    }
+                }, mainHandler)
+            } else {
+                val tvBmp = textureView.getBitmap(bmp)
+                if (tvBmp != null) {
+                    onFrameDeliver(tvBmp, onFrame)
+                } else {
+                    bmp.recycle()
+                }
             }
-            val cropped = applyCrop(bmp)
-            onFrame(PlatformBitmap(cropped))
-            if (cropped !== bmp) bmp.recycle()
         } catch (_: Exception) {
-            // 帧捕获失败时跳过
         }
+    }
+
+    private fun onFrameDeliver(bmp: Bitmap, onFrame: (PlatformBitmap) -> Unit) {
+        val cropped = applyCrop(bmp)
+        onFrame(PlatformBitmap(cropped))
+        if (cropped !== bmp) bmp.recycle()
     }
 
     private fun applyCrop(bitmap: Bitmap): Bitmap {
