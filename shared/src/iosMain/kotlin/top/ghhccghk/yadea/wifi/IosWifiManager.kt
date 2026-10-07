@@ -1,0 +1,28 @@
+package top.ghhccghk.yadea.wifi
+import kotlinx.coroutines.flow.*
+class IosWifiConnectionManager : WifiConnectionManager {
+    private val _cs = MutableStateFlow(WifiConnectionState.Disconnected); override val connectionState: StateFlow<WifiConnectionState> = _cs.asStateFlow()
+    private val _cn = MutableStateFlow<WifiNetworkInfo?>(null); override val currentNetwork: StateFlow<WifiNetworkInfo?> = _cn.asStateFlow()
+    private val _sr = MutableStateFlow<List<WifiNetworkInfo>>(emptyList()); override val scanResults: StateFlow<List<WifiNetworkInfo>> = _sr.asStateFlow()
+    private val _sc = MutableStateFlow(false); override val isScanning: StateFlow<Boolean> = _sc.asStateFlow()
+    private val _ne = MutableSharedFlow<WifiNetworkEvent>(extraBufferCapacity = 16); override val networkEvents: Flow<WifiNetworkEvent> = _ne.asSharedFlow()
+    override val isAvailable = true; override val isEnabled = true
+    override suspend fun scan(timeoutMs: Long) { _sc.value = true; _sc.value = false }
+    override suspend fun connect(ssid: String, password: String?, bssid: String?): Boolean { _cs.value = WifiConnectionState.Connected; _cn.value = WifiNetworkInfo(ssid); return true }
+    override suspend fun connect(profile: WifiProfile): Boolean = connect(profile.ssid, profile.password, profile.bssid)
+    override suspend fun disconnect() { _cs.value = WifiConnectionState.Disconnected; _cn.value = null }
+    override suspend fun getLocalIpAddress(): String? = null
+    override fun close() {}
+}
+class IosWifiP2pManager : WifiP2pManager {
+    private val _dp = MutableStateFlow<List<P2pDevice>>(emptyList()); override val discoveredPeers: StateFlow<List<P2pDevice>> = _dp.asStateFlow()
+    private val _cs = MutableStateFlow(P2pStatus.Available); override val connectionState: StateFlow<P2pStatus> = _cs.asStateFlow()
+    private val _id = MutableStateFlow(false); override val isDiscovering: StateFlow<Boolean> = _id.asStateFlow()
+    override val isAvailable = true
+    override suspend fun discoverPeers(timeoutMs: Long) { _id.value = true; _id.value = false }
+    override suspend fun connect(device: P2pDevice): Boolean { _cs.value = P2pStatus.Connected; return true }
+    override suspend fun disconnect() { _cs.value = P2pStatus.Available }
+    override fun close() {}
+}
+actual fun createWifiConnectionManager(): WifiConnectionManager = IosWifiConnectionManager()
+actual fun createWifiP2pManager(): WifiP2pManager = IosWifiP2pManager()
