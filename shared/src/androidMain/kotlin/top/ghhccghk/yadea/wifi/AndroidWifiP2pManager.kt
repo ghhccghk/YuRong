@@ -14,14 +14,6 @@ import android.net.wifi.p2p.WifiP2pManager
 import kotlinx.coroutines.flow.*
 import top.ghhccghk.yadea.wifi.WifiP2pManager as CommonP2pManager
 
-/**
- * Android WiFi P2P 管理实现
- *
- * 完整流程:
- * 1. discoverPeers: 清理旧连接 → 发现设备 → 广播更新列表
- * 2. connect: 发起连接 → WIFI_P2P_CONNECTION_CHANGED → requestConnectionInfo 获取 GroupOwner IP
- * 3. disconnect: cancelConnect + removeGroup
- */
 @SuppressLint("MissingPermission")
 class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
 
@@ -53,11 +45,15 @@ class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
         registerReceiver()
     }
 
-    // ==================== 发现 ====================
-
     override suspend fun discoverPeers(timeoutMs: Long) {
-        // 1. 清理旧连接，确保干净的发现环境
-        cleanupBeforeDiscovery()
+        // 清理旧连接
+        systemManager.cancelConnect(channel, null)
+        systemManager.removeGroup(channel, null)
+        _isGroupFormed.value = false
+        _groupOwnerIp.value = ""
+
+        // 等待清理完成
+        kotlinx.coroutines.delay(1500)
 
         _isDiscovering.value = true
 
@@ -73,40 +69,20 @@ class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
         if (timeoutMs > 0) {
             kotlinx.coroutines.delay(timeoutMs)
             if (_isDiscovering.value) {
-                stopDiscovery()
+                systemManager.stopPeerDiscovery(channel, null)
+                _isDiscovering.value = false
             }
         }
     }
 
-    private fun cleanupBeforeDiscovery() {
-        // 断开旧 P2P 连接
-        systemManager.cancelConnect(channel, null)
-        systemManager.removeGroup(channel, null)
-        _isGroupFormed.value = false
-        _groupOwnerIp.value = ""
-    }
-
-    private fun stopDiscovery() {
-        systemManager.stopPeerDiscovery(channel, object : WifiP2pManager.ActionListener {
-            override fun onSuccess() { _isDiscovering.value = false }
-            override fun onFailure(reason: Int) { _isDiscovering.value = false }
-        })
-    }
-
-    // ==================== 连接 ====================
-
     override suspend fun connect(device: P2pDevice): Boolean {
         _connectionState.value = P2pStatus.Invited
-
         val config = WifiP2pConfig().apply {
             deviceAddress = device.address
         }
-
         return try {
             systemManager.connect(channel, config, object : WifiP2pManager.ActionListener {
-                override fun onSuccess() {
-                    // 等待 WIFI_P2P_CONNECTION_CHANGED_ACTION 广播确认连接
-                }
+                override fun onSuccess() {}
                 override fun onFailure(reason: Int) {
                     _connectionState.value = P2pStatus.Failed
                 }
@@ -118,38 +94,27 @@ class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
         }
     }
 
-    /**
-     * 连接确认后，获取 GroupOwner IP 地址
-     * 这是后续 TCP/UDP 通信的关键
-     */
     private fun onConnectionEstablished() {
         systemManager.requestConnectionInfo(channel) { info: WifiP2pInfo? ->
             if (info != null && info.groupFormed) {
                 _isGroupFormed.value = true
-                val ownerAddress = info.groupOwnerAddress
-                _groupOwnerIp.value = ownerAddress?.hostAddress ?: ""
+                _groupOwnerIp.value = info.groupOwnerAddress?.hostAddress ?: ""
                 _connectionState.value = P2pStatus.Connected
             }
         }
     }
 
     override suspend fun disconnect() {
-        systemManager.cancelConnect(channel, object : WifiP2pManager.ActionListener {
-            override fun onSuccess() {
-                _connectionState.value = P2pStatus.Available
-                _isGroupFormed.value = false
-                _groupOwnerIp.value = ""
-            }
-            override fun onFailure(reason: Int) {}
-        })
+        systemManager.cancelConnect(channel, null)
         systemManager.removeGroup(channel, null)
+        _connectionState.value = P2pStatus.Available
+        _isGroupFormed.value = false
+        _groupOwnerIp.value = ""
     }
 
     override fun close() {
         unregisterReceiver()
     }
-
-    // ==================== 广播接收器 ====================
 
     private fun registerReceiver() {
         val filter = IntentFilter().apply {
@@ -174,16 +139,12 @@ class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
                             WifiP2pManager.EXTRA_NETWORK_INFO
                         )
                         if (networkInfo != null && networkInfo.isConnected) {
-                            // 连接已建立，获取 GroupOwner IP
                             onConnectionEstablished()
                         } else {
                             _connectionState.value = P2pStatus.Available
                             _isGroupFormed.value = false
                             _groupOwnerIp.value = ""
                         }
-                    }
-                    WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION -> {
-                        // 本机状态变化，可选处理
                     }
                 }
             }
@@ -210,7 +171,6 @@ class AndroidWifiP2pManager(private val context: Context) : CommonP2pManager {
             )
         }
         _discoveredPeers.value = peers
-        _isDiscovering.value = false
     }
 }
 

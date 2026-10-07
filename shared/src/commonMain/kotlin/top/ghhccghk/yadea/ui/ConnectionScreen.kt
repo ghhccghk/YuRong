@@ -3,21 +3,16 @@ package top.ghhccghk.yadea.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import top.ghhccghk.yadea.ble.BleConnectionState
 import top.ghhccghk.yadea.wifi.P2pStatus
 import top.ghhccghk.yadea.wifi.WifiConnectionState
 
-/**
- * 连接管理页面 - WiFi / BLE / P2P 实际逻辑
- */
 @Composable
 fun ConnectionScreen(viewModel: AppViewModel) {
     var wifiSsid by remember { mutableStateOf("") }
@@ -34,6 +29,9 @@ fun ConnectionScreen(viewModel: AppViewModel) {
     val isScanningBle by viewModel.isScanningBle.collectAsState()
     val bleConnectedName by viewModel.bleConnectedName.collectAsState()
 
+    val p2pDevices by viewModel.p2pDevices.collectAsState()
+    val p2pConnected by viewModel.p2pConnected.collectAsState()
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -42,7 +40,6 @@ fun ConnectionScreen(viewModel: AppViewModel) {
             Text("设备连接", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         }
 
-        // 连接模式
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = selectedPanel == 0, onClick = { selectedPanel = 0 },
@@ -52,7 +49,6 @@ fun ConnectionScreen(viewModel: AppViewModel) {
             }
         }
 
-        // WiFi 连接
         if (selectedPanel == 0) {
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
@@ -81,7 +77,6 @@ fun ConnectionScreen(viewModel: AppViewModel) {
                             OutlinedButton(onClick = { viewModel.disconnectWifi() },
                                 modifier = Modifier.weight(1f)) { Text("断开") }
                         }
-                        // 扫描结果
                         if (scanResults.isNotEmpty()) {
                             Text("附近网络", style = MaterialTheme.typography.titleSmall)
                             scanResults.take(5).forEach { net ->
@@ -97,23 +92,24 @@ fun ConnectionScreen(viewModel: AppViewModel) {
             }
         }
 
-        // P2P 设备
         if (selectedPanel == 1) {
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                             Text("P2P 设备发现", style = MaterialTheme.typography.titleLarge)
+                            StatusChip(p2pConnected, if (p2pConnected) "已连接" else "未连接")
                         }
                         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
                             Button(onClick = { viewModel.scanP2p() }, modifier = Modifier.weight(1f)) {
                                 Text("扫描 P2P 设备")
                             }
                         }
-                        if (viewModel.p2pDevices.value.isEmpty()) {
-                            Text("暂无发现的 P2P 设备", style = MaterialTheme.typography.bodySmall)
+                        if (p2pDevices.isEmpty()) {
+                            Text("暂无发现的 P2P 设备，请确保对方设备已开启 WiFi Direct",
+                                style = MaterialTheme.typography.bodySmall)
                         } else {
-                            viewModel.p2pDevices.value.forEach { device ->
+                            p2pDevices.forEach { device ->
                                 Card(modifier = Modifier.fillMaxWidth().clickable {
                                     viewModel.connectP2p(device)
                                 }) {
@@ -138,7 +134,6 @@ fun ConnectionScreen(viewModel: AppViewModel) {
             }
         }
 
-        // BLE 连接
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
