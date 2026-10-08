@@ -69,6 +69,15 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.miuix.ui)
+            // Optional: Add miuix-preference for preference components
+            implementation(libs.miuix.preference)
+            // Optional: Add miuix-icons for more icons
+            implementation(libs.miuix.icons)
+            // Optional: Add miuix-squircle for squircle (smooth rounded corner) shapes
+            implementation(libs.miuix.squircle)
+            // Optional: Add miuix-nav for navigation
+            implementation(libs.miuix.nav)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

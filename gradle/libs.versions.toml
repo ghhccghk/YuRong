@@ -12,10 +12,11 @@ androidx-testExt = "1.3.0"
 composeMultiplatform = "1.12.1"
 junit = "4.13.2"
 kotlin = "2.4.20"
-kotlin-wrappers = "2026.9.2"
+kotlin-wrappers = "2026.9.3"
 kotlinx-coroutines = "1.11.0"
 material3 = "1.12.0-alpha03"
 cameraLifecycle = "1.6.2"
+miuixUi = "0.9.4"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test-common", version.ref = "kotlin" }
@@ -37,6 +38,11 @@ compose-components-resources = { module = "org.jetbrains.compose.components:comp
 compose-uiToolingPreview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutinesSwing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
+miuix-icons = { module = "top.yukonga.miuix.kmp:miuix-icons", version.ref = "miuixUi" }
+miuix-nav = { module = "top.yukonga.miuix.kmp:miuix-nav", version.ref = "miuixUi" }
+miuix-preference = { module = "top.yukonga.miuix.kmp:miuix-preference", version.ref = "miuixUi" }
+miuix-squircle = { module = "top.yukonga.miuix.kmp:miuix-squircle", version.ref = "miuixUi" }
+miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui", version.ref = "miuixUi" }
 wrappers-browser = { module = "org.jetbrains.kotlin-wrappers:kotlin-browser", version.ref = "kotlin-wrappers" }
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraLifecycle" }
 
