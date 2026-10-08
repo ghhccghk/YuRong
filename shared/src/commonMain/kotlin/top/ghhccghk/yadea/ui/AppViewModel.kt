@@ -268,3 +268,4 @@ class AppViewModel(
     fun submitFrame(bitmap: PlatformBitmap) { frameBus.submit(bitmap) }
     fun cleanup() { stopMirror(); frameBus.clear() }
 }
+

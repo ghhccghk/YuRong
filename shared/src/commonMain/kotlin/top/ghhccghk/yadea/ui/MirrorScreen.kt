@@ -13,9 +13,6 @@ import top.ghhccghk.yadea.mirror.FrameCropConfig
 import top.ghhccghk.yadea.mirror.MirrorPreviewPanel
 import top.ghhccghk.yadea.mirror.MirrorState
 
-/**
- * 投屏控制页面 - 连接实际 MirrorEngine
- */
 @Composable
 fun MirrorScreen(viewModel: AppViewModel) {
     val mirrorState by viewModel.mirrorState.collectAsState()
@@ -24,6 +21,20 @@ fun MirrorScreen(viewModel: AppViewModel) {
     val bytesSent by viewModel.bytesSent.collectAsState()
     val selectedSource by viewModel.selectedSource.collectAsState()
     val cropConfig by viewModel.cropConfig.collectAsState()
+    val p2pGroupOwnerIp by viewModel.p2pGroupOwnerIp.collectAsState()
+    val wifiIp by viewModel.wifiIp.collectAsState()
+    val debugLog by viewModel.debugLog.collectAsState()
+
+    var targetHost by remember { mutableStateOf("") }
+    var targetPort by remember { mutableStateOf("8080") }
+
+    // 自动填充目标地址
+    LaunchedEffect(p2pGroupOwnerIp, wifiIp) {
+        if (p2pGroupOwnerIp.isNotEmpty()) targetHost = p2pGroupOwnerIp
+        else if (wifiIp.isNotEmpty() && targetHost.isEmpty()) {
+            targetHost = wifiIp.replace(Regex("\\.\\d+$"), ".1")
+        }
+    }
 
     val isMirroring = mirrorState == MirrorState.Running
 
@@ -35,7 +46,40 @@ fun MirrorScreen(viewModel: AppViewModel) {
             Text("投屏控制", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         }
 
-        // 状态卡片
+        // 连接目标
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("仪表连接", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    OutlinedTextField(
+                        value = targetHost,
+                        onValueChange = { targetHost = it },
+                        label = { Text("仪表 IP 地址") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = targetPort,
+                        onValueChange = { targetPort = it },
+                        label = { Text("端口") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    if (p2pGroupOwnerIp.isNotEmpty()) {
+                        Text("P2P GroupOwner IP: $p2pGroupOwnerIp",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary)
+                    }
+                    if (wifiIp.isNotEmpty()) {
+                        Text("WiFi 本机 IP: $wifiIp",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.secondary)
+                    }
+                }
+            }
+        }
+
+        // 状态
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -97,9 +141,25 @@ fun MirrorScreen(viewModel: AppViewModel) {
                     ) { Text("⏹ 停止投屏", fontSize = 18.sp) }
                 } else {
                     Button(
-                        onClick = { viewModel.startMirror("192.168.1.100", 8080) },
-                        modifier = Modifier.weight(1f).height(56.dp)
+                        onClick = {
+                            viewModel.startMirror(targetHost, targetPort.toIntOrNull() ?: 8080)
+                        },
+                        modifier = Modifier.weight(1f).height(56.dp),
+                        enabled = targetHost.isNotEmpty()
                     ) { Text("▶ 开始投屏", fontSize = 18.sp) }
+                }
+            }
+        }
+
+        // Debug 日志
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("调试日志", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    debugLog.reversed().take(15).forEach { line ->
+                        Text(line, fontSize = 10.sp, lineHeight = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }
@@ -137,4 +197,3 @@ internal fun formatBytes(bytes: Long): String {
         }
     }
 }
-
