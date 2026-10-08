@@ -2,15 +2,6 @@ package top.ghhccghk.yadea.network
 
 import top.ghhccghk.yadea.protocol.YadeaProtocol
 
-/**
- * FrameSender - high-level frame sending API
- *
- * Wraps protocol and transport layers:
- * - sendFrame: single protocol frame via TCP
- * - sendImage: image data via UDP (chunked)
- * - sendNavStart/End: navigation control commands
- * - sendHeartbeat: heartbeat
- */
 class FrameSender(
     private val tcp: TcpTransport,
     private val udp: UdpTransport
@@ -36,16 +27,26 @@ class FrameSender(
         sendFrame(YadeaProtocol.CMD_NAV_HINT, payload)
     }
 
-    suspend fun sendImage(image: ByteArray, imageSeq: Int, targetHost: String, targetPort: Int, packetSize: Int = YadeaProtocol.DEFAULT_PACKET_SIZE): Int {
-        val frames = YadeaProtocol.buildImageFrames(image, imageSeq, packetSize)
+    suspend fun sendImage(
+        image: ByteArray, imageSeq: Int,
+        targetHost: String, targetPort: Int,
+        packetSize: Int = YadeaProtocol.DEFAULT_PACKET_SIZE,
+        timestamp: Long = 0L
+    ): Int {
+        val frames = YadeaProtocol.buildImageFrames(image, imageSeq, packetSize, timestamp)
         for (frame in frames) {
             udp.send(frame, targetHost, targetPort)
         }
         return frames.size
     }
 
-    suspend fun broadcastImage(image: ByteArray, imageSeq: Int, broadcastPort: Int, packetSize: Int = YadeaProtocol.DEFAULT_PACKET_SIZE): Int {
-        val frames = YadeaProtocol.buildImageFrames(image, imageSeq, packetSize)
+    suspend fun broadcastImage(
+        image: ByteArray, imageSeq: Int,
+        broadcastPort: Int,
+        packetSize: Int = YadeaProtocol.DEFAULT_PACKET_SIZE,
+        timestamp: Long = 0L
+    ): Int {
+        val frames = YadeaProtocol.buildImageFrames(image, imageSeq, packetSize, timestamp)
         for (frame in frames) {
             udp.broadcast(frame, broadcastPort)
         }

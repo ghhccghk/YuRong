@@ -2,6 +2,7 @@ package top.ghhccghk.yadea.mirror
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * FrameBus - thread-safe single-slot frame buffer
@@ -26,8 +27,11 @@ class FrameBus {
      */
     fun submit(bitmap: PlatformBitmap) {
         _frameCount.value++
-        val old = _latest.value
-        _latest.value = bitmap
+        var old: PlatformBitmap? = null
+        _latest.update { current ->
+            old = current
+            bitmap
+        }
         old?.recycle()
     }
 
@@ -37,19 +41,20 @@ class FrameBus {
      * @return The latest frame, or null if no frame available.
      */
     fun take(): PlatformBitmap? {
-        val current = _latest.value
-        _latest.value = null
-        return current
+        var old: PlatformBitmap? = null
+        _latest.update { current ->
+            old = current
+            null
+        }
+        return old
     }
 
     /**
      * Clear all state and recycle any held frame.
      */
     fun clear() {
-        val old = _latest.value
-        _latest.value = null
         _frameCount.value = 0
-        old?.recycle()
+        take()?.recycle()
     }
 
     /** Whether a frame is currently held. */

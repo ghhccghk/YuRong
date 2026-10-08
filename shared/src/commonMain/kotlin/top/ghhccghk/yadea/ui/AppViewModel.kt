@@ -20,6 +20,8 @@ import top.ghhccghk.yadea.network.createTcpTransport
 import top.ghhccghk.yadea.network.createUdpTransport
 import top.ghhccghk.yadea.wifi.*
 
+expect fun getCurrentTime(): DateTimeParts
+
 class AppViewModel(
     private val wifiManager: WifiConnectionManager? = null,
     private val bleAdapter: BleAdapter? = null,
@@ -232,7 +234,7 @@ class AppViewModel(
             mirrorEngine = engine
             val success = engine.start(
                 targetHost = targetHost, targetPort = targetPort, scope = scope,
-                currentTimeProvider = { DateTimeParts(2026, 10, 8, 12, 0, 0) }
+                currentTimeProvider = { getCurrentTime() }
             )
             if (success) {
                 _mirrorState.value = MirrorState.Running
@@ -268,4 +270,6 @@ class AppViewModel(
     fun submitFrame(bitmap: PlatformBitmap) { frameBus.submit(bitmap) }
     fun cleanup() { stopMirror(); frameBus.clear() }
 }
+
+
 

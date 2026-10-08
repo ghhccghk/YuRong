@@ -3,7 +3,6 @@ package top.ghhccghk.yadea.mirror
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -15,12 +14,8 @@ import top.ghhccghk.yadea.protocol.YadeaProtocol
  * 心跳时间参数
  */
 data class DateTimeParts(
-    val year: Int,
-    val month: Int,
-    val day: Int,
-    val hour: Int,
-    val minute: Int,
-    val second: Int
+    val year: Int, val month: Int, val day: Int,
+    val hour: Int, val minute: Int, val second: Int
 )
 
 /**
@@ -114,7 +109,7 @@ class MirrorEngine(
             frameSender.sendNavStart()
             onStatus("已发送导航开始指令，等待仪表回复...")
         } catch (e: Exception) {
-            state = MirrorState.Idle
+            state = MirrorState.Failed
             onStatus("导航开始指令发送失败: ${e.message}")
             return false
         }
@@ -125,15 +120,12 @@ class MirrorEngine(
             if (response != null) {
                 val (_, payload, _) = response
                 navConfig = YadeaProtocol.parseNavDisplayConfig(payload)
-                onStatus(
-                    "仪表协商成功: ${navConfig.width}x${navConfig.height}, " +
-                            "分包倍率=${navConfig.packetMultiplier}"
-                )
+                onStatus("协商成功: ${navConfig.width}x${navConfig.height}, 分包倍率=${navConfig.packetMultiplier}")
             } else {
-                onStatus("未收到仪表回复，使用默认画布 ${navConfig.width}x${navConfig.height}")
+                onStatus("未收到回复，使用默认 ${navConfig.width}x${navConfig.height}")
             }
         } catch (e: Exception) {
-            onStatus("读取仪表配置异常: ${e.message}，使用默认配置")
+            onStatus("读取配置异常: ${e.message}，使用默认")
         }
 
         // ---- 第 3 步: 启动帧发送循环 ----
@@ -149,14 +141,15 @@ class MirrorEngine(
                         val jpeg = JpegEncoder.encode(bitmap, navConfig.width, navConfig.height)
                         // 分包发送
                         val packetSize = YadeaProtocol.DEFAULT_PACKET_SIZE * navConfig.packetMultiplier
+                        val timestamp = System.currentTimeMillis() and 0xFFFFFFFFL
                         val packets = if (broadcastPort != null) {
-                            frameSender.broadcastImage(jpeg, imageSequence, broadcastPort, packetSize)
+                            frameSender.broadcastImage(jpeg, imageSequence, broadcastPort, packetSize, timestamp)
                         } else {
-                            frameSender.sendImage(jpeg, imageSequence, targetHost, targetPort, packetSize)
+                            frameSender.sendImage(jpeg, imageSequence, targetHost, targetPort, packetSize, timestamp)
                         }
                         framesSent++
                         bytesSent += jpeg.size
-                        onStatus("第${imageSequence + 1}帧: ${packets}包, ${jpeg.size}字节")
+                        onStatus("第${imageSequence + 1}帧: ${packets}包, ${jpeg.size}B")
                         imageSequence++
                     } catch (e: Exception) {
                         onStatus("帧发送失败: ${e.message}")
@@ -173,12 +166,9 @@ class MirrorEngine(
             while (!stopRequested && isActive) {
                 try {
                     val time = currentTimeProvider()
-                    frameSender.sendHeartbeat(
-                        time.year, time.month, time.day,
-                        time.hour, time.minute, time.second
-                    )
+                    frameSender.sendHeartbeat(time.year, time.month, time.day, time.hour, time.minute, time.second)
                 } catch (e: Exception) {
-                    onStatus("心跳发送失败: ${e.message}")
+                    onStatus("心跳失败: ${e.message}")
                 }
                 delay(1000)
             }
@@ -193,7 +183,7 @@ class MirrorEngine(
      * 发送 NAV_END 指令，取消帧发送和心跳协程，清空帧总线。
      */
     suspend fun stop() {
-        if (state != MirrorState.Running) return
+        if (state == MirrorState.Idle || state == MirrorState.Stopped) return
 
         stopRequested = true
         sendJob?.cancel()
@@ -209,7 +199,7 @@ class MirrorEngine(
 
         frameBus.clear()
         state = MirrorState.Stopped
-        onStatus("投屏已停止，共发送${framesSent}帧 / ${bytesSent}字节")
+        onStatus("投屏已停止，共${framesSent}帧/${bytesSent}B")
     }
 
     /**
@@ -222,6 +212,3 @@ class MirrorEngine(
         frameBus.clear()
     }
 }
-
-
-
