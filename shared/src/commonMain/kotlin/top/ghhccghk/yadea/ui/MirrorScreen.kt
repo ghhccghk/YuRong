@@ -26,7 +26,7 @@ fun MirrorScreen(viewModel: AppViewModel) {
     val debugLog by viewModel.debugLog.collectAsState()
 
     var targetHost by remember { mutableStateOf("") }
-    var targetPort by remember { mutableStateOf("8080") }
+    var targetPort by remember { mutableStateOf("8889") }
 
     // 自动填充目标地址
     LaunchedEffect(p2pGroupOwnerIp, wifiIp) {
@@ -112,10 +112,10 @@ fun MirrorScreen(viewModel: AppViewModel) {
         }
         item {
             Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
-                SourceButton("📷\n摄像头", selectedSource == 0, Modifier.weight(1f)) { viewModel.selectSource(0) }
-                SourceButton("📱\n屏幕", selectedSource == 1, Modifier.weight(1f)) { viewModel.selectSource(1) }
-                SourceButton("🎬\n视频", selectedSource == 2, Modifier.weight(1f)) { viewModel.selectSource(2) }
-                SourceButton("🗺\n导航", selectedSource == 3, Modifier.weight(1f)) { viewModel.selectSource(3) }
+                SourceButton("摄像头", selectedSource == 0, Modifier.weight(1f)) { viewModel.selectSource(0) }
+                SourceButton("屏幕", selectedSource == 1, Modifier.weight(1f)) { viewModel.selectSource(1) }
+                SourceButton("视频", selectedSource == 2, Modifier.weight(1f)) { viewModel.selectSource(2) }
+                SourceButton("导航", selectedSource == 3, Modifier.weight(1f)) { viewModel.selectSource(3) }
             }
         }
 
@@ -138,15 +138,15 @@ fun MirrorScreen(viewModel: AppViewModel) {
                         onClick = { viewModel.stopMirror() },
                         modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) { Text("⏹ 停止投屏", fontSize = 18.sp) }
+                    ) { Text("停止投屏", fontSize = 18.sp) }
                 } else {
                     Button(
                         onClick = {
-                            viewModel.startMirror(targetHost, targetPort.toIntOrNull() ?: 8080)
+                            viewModel.startMirror(targetHost, targetPort.toIntOrNull() ?: 8889)
                         },
                         modifier = Modifier.weight(1f).height(56.dp),
                         enabled = targetHost.isNotEmpty()
-                    ) { Text("▶ 开始投屏", fontSize = 18.sp) }
+                    ) { Text("开始投屏", fontSize = 18.sp) }
                 }
             }
         }
@@ -197,3 +197,4 @@ internal fun formatBytes(bytes: Long): String {
         }
     }
 }
+
