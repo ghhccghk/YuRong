@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import top.ghhccghk.yadea.ui.MainScreen
 import top.ghhccghk.yadea.wifi.AndroidWifiP2pManager
+import top.ghhccghk.yadea.mirror.source.AndroidFrameSourceFactory
 
 class MainActivity : ComponentActivity() {
 
@@ -44,9 +45,10 @@ class MainActivity : ComponentActivity() {
         requestPermissionsIfNeeded()
 
         val p2pManager = AndroidWifiP2pManager(this)
+        val frameSourceFactory = AndroidFrameSourceFactory(this)
 
         setContent {
-            MainScreen(p2pManager = p2pManager)
+            MainScreen(p2pManager = p2pManager, frameSourceFactory = frameSourceFactory)
         }
     }
 
@@ -69,3 +71,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+

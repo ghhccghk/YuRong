@@ -25,7 +25,8 @@ expect fun getCurrentTime(): DateTimeParts
 class AppViewModel(
     private val wifiManager: WifiConnectionManager? = null,
     private val bleAdapter: BleAdapter? = null,
-    private val p2pManager: WifiP2pManager? = null
+    private val p2pManager: WifiP2pManager? = null,
+    private val frameSourceFactory: top.ghhccghk.yadea.mirror.FrameSourceFactory? = null
 ) {
     val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -88,6 +89,7 @@ class AppViewModel(
     val cropConfig: StateFlow<FrameCropConfig> = _cropConfig.asStateFlow()
 
     val frameBus = FrameBus()
+    private var currentFrameSource: top.ghhccghk.yadea.mirror.FrameSource? = null
     private var mirrorEngine: MirrorEngine? = null
     private var tcpTransport: TcpTransport? = null
     private var udpTransport: UdpTransport? = null
@@ -267,9 +269,24 @@ class AppViewModel(
         }
     }
 
+    private fun startFrameSource() {
+        val factory = frameSourceFactory ?: return
+        scope.launch {
+            val source = when (_selectedSource.value) {
+                0 -> factory.createCameraSource()
+                2 -> factory.createVideoSource("")
+                else -> factory.createCameraSource()
+            }
+            currentFrameSource = source
+            source.start { bitmap -> frameBus.submit(bitmap) }
+            debug("帧源已启动: ${_selectedSource.value}")
+        }
+    }
+
     fun submitFrame(bitmap: PlatformBitmap) { frameBus.submit(bitmap) }
     fun cleanup() { stopMirror(); frameBus.clear() }
 }
+
 
 
 

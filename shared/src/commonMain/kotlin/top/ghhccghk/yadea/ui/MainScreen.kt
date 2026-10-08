@@ -8,15 +8,17 @@ import androidx.compose.ui.unit.dp
 import top.ghhccghk.yadea.wifi.WifiConnectionManager
 import top.ghhccghk.yadea.wifi.WifiP2pManager
 import top.ghhccghk.yadea.ble.BleAdapter
+import top.ghhccghk.yadea.mirror.FrameSourceFactory
 
 @Composable
 fun MainScreen(
     wifiManager: WifiConnectionManager? = null,
     bleAdapter: BleAdapter? = null,
-    p2pManager: WifiP2pManager? = null
+    p2pManager: WifiP2pManager? = null,
+    frameSourceFactory: FrameSourceFactory? = null
 ) {
     var selectedTab by remember { mutableStateOf(0) }
-    val viewModel = remember { AppViewModel(wifiManager, bleAdapter, p2pManager) }
+    val viewModel = remember { AppViewModel(wifiManager, bleAdapter, p2pManager, frameSourceFactory) }
 
     Scaffold(
         bottomBar = {
@@ -64,3 +66,4 @@ fun StatusChip(connected: Boolean, text: String) {
         Text(text, color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
     }, leadingIcon = { Text(if (connected) "●" else "○") })
 }
+
