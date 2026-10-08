@@ -1,8 +1,20 @@
 package top.ghhccghk.yadea.ui
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -10,10 +22,6 @@ import top.ghhccghk.yadea.ble.BleAdapter
 import top.ghhccghk.yadea.mirror.FrameSourceFactory
 import top.ghhccghk.yadea.wifi.WifiConnectionManager
 import top.ghhccghk.yadea.wifi.WifiP2pManager
-import top.yukonga.miuix.kmp.basic.NavigationBar as MiuixNavigationBar
-import top.yukonga.miuix.kmp.basic.NavigationBarItem as MiuixNavigationBarItem
-import top.yukonga.miuix.kmp.basic.Scaffold as MiuixScaffold
-import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Phone
 import top.yukonga.miuix.kmp.icon.extended.ScreenMirroring
@@ -23,11 +31,12 @@ import top.yukonga.miuix.kmp.icon.extended.Settings
 private enum class MainDestination(
     val label: String,
     val miuixIcon: ImageVector,
+    val fallbackText: String,
 ) {
-    Connection("连接", MiuixIcons.SearchDevice),
-    Mirror("投屏", MiuixIcons.ScreenMirroring),
-    Device("设备", MiuixIcons.Phone),
-    Settings("设置", MiuixIcons.Settings),
+    Connection("连接", MiuixIcons.SearchDevice, "📡"),
+    Mirror("投屏", MiuixIcons.ScreenMirroring, "🖥"),
+    Device("设备", MiuixIcons.Phone, "📱"),
+    Settings("设置", MiuixIcons.Settings, "⚙"),
 }
 
 @Composable
@@ -59,66 +68,31 @@ private fun MainScreenContent(
     onStyleChange: (UiThemeStyle) -> Unit,
 ) {
     var selectedDestination by remember { mutableStateOf(MainDestination.Connection) }
+    val navigationItems = MainDestination.entries.map {
+        AppNavigationItem(
+            label = it.label,
+            icon = it.miuixIcon,
+            fallbackText = it.fallbackText,
+        )
+    }
 
-    if (LocalUiThemeStyle.current == UiThemeStyle.Miuix) {
-        MiuixScaffold(
-            topBar = {
-                MiuixTopAppBar(title = selectedDestination.label)
-            },
-            bottomBar = {
-                MiuixNavigationBar {
-                    MainDestination.entries.forEach { destination ->
-                        MiuixNavigationBarItem(
-                            selected = selectedDestination == destination,
-                            onClick = { selectedDestination = destination },
-                            icon = destination.miuixIcon,
-                            label = destination.label,
-                        )
-                    }
-                }
-            },
-        ) { padding ->
-            MainDestinationContent(
-                destination = selectedDestination,
-                viewModel = viewModel,
-                selectedStyle = selectedStyle,
-                onStyleChange = onStyleChange,
-                modifier = Modifier.padding(padding),
+    AppScaffold(
+        topBar = { AppTopBar(selectedDestination.label) },
+        bottomBar = {
+            AppBottomNavigation(
+                items = navigationItems,
+                selectedIndex = selectedDestination.ordinal,
+                onSelected = { selectedDestination = MainDestination.entries[it] },
             )
-        }
-    } else {
-        Scaffold(
-            bottomBar = {
-                NavigationBar {
-                    MainDestination.entries.forEach { destination ->
-                        NavigationBarItem(
-                            selected = selectedDestination == destination,
-                            onClick = { selectedDestination = destination },
-                            icon = {
-                                Text(
-                                    text = when (destination) {
-                                        MainDestination.Connection -> "📡"
-                                        MainDestination.Mirror -> "🖥"
-                                        MainDestination.Device -> "📱"
-                                        MainDestination.Settings -> "⚙"
-                                    },
-                                    style = MaterialTheme.typography.titleLarge,
-                                )
-                            },
-                            label = { Text(destination.label) },
-                        )
-                    }
-                }
-            },
-        ) { padding ->
-            MainDestinationContent(
-                destination = selectedDestination,
-                viewModel = viewModel,
-                selectedStyle = selectedStyle,
-                onStyleChange = onStyleChange,
-                modifier = Modifier.padding(padding),
-            )
-        }
+        },
+    ) { padding ->
+        MainDestinationContent(
+            destination = selectedDestination,
+            viewModel = viewModel,
+            selectedStyle = selectedStyle,
+            onStyleChange = onStyleChange,
+            modifier = Modifier.padding(padding),
+        )
     }
 }
 
@@ -147,22 +121,21 @@ private fun MainDestinationContent(
 fun StatusCard(title: String, status: String, isConnected: Boolean, modifier: Modifier = Modifier) {
     AppCard(
         modifier = modifier.fillMaxWidth(),
-        containerColor = if (isConnected) MaterialTheme.colorScheme.primaryContainer
-        else MaterialTheme.colorScheme.surfaceVariant,
+        containerColor = if (isConnected) AppDesign.colors.primaryContainer
+        else AppDesign.colors.surfaceVariant,
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Column {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Text(status, style = MaterialTheme.typography.bodySmall)
+                AppText(title, style = AppDesign.typography.sectionTitle)
+                AppText(status, style = AppDesign.typography.summary)
             }
-            Text(
+            AppText(
                 text = if (isConnected) "●" else "○",
-                style = MaterialTheme.typography.headlineMedium,
-                color = if (isConnected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.outline,
+                style = AppDesign.typography.title,
+                color = if (isConnected) AppDesign.colors.primary else AppDesign.colors.outline,
             )
         }
     }
