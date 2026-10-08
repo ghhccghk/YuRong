@@ -141,7 +141,7 @@ class MirrorEngine(
                         val jpeg = JpegEncoder.encode(bitmap, navConfig.width, navConfig.height)
                         // 分包发送
                         val packetSize = YadeaProtocol.DEFAULT_PACKET_SIZE * navConfig.packetMultiplier
-                        val timestamp = System.currentTimeMillis() and 0xFFFFFFFFL
+                        val timestamp = top.ghhccghk.yadea.currentMonotonicMillis() and 0xFFFFFFFFL
                         val packets = if (broadcastPort != null) {
                             frameSender.broadcastImage(jpeg, imageSequence, broadcastPort, packetSize, timestamp)
                         } else {
