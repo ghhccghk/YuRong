@@ -34,12 +34,14 @@ fun SettingsScreen(
             item { SmallTitle(text = "外观") }
         } else {
             item {
-                ScreenTitle("设置")
-                AppText(
-                    text = "外观",
-                    style = AppDesign.typography.sectionTitle,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
+                Column {
+                    ScreenTitle("设置")
+                    AppText(
+                        text = "外观",
+                        style = AppDesign.typography.sectionTitle,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
             }
         }
 
