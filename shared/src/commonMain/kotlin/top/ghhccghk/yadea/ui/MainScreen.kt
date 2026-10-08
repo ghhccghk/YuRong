@@ -15,10 +15,11 @@ fun MainScreen(
     wifiManager: WifiConnectionManager? = null,
     bleAdapter: BleAdapter? = null,
     p2pManager: WifiP2pManager? = null,
-    frameSourceFactory: FrameSourceFactory? = null
+    frameSourceFactory: FrameSourceFactory? = null,
+    permissionChecker: PermissionChecker? = null
 ) {
     var selectedTab by remember { mutableStateOf(0) }
-    val viewModel = remember { AppViewModel(wifiManager, bleAdapter, p2pManager, frameSourceFactory) }
+    val viewModel = remember { AppViewModel(wifiManager, bleAdapter, p2pManager, frameSourceFactory, permissionChecker) }
 
     Scaffold(
         bottomBar = {
@@ -66,4 +67,5 @@ fun StatusChip(connected: Boolean, text: String) {
         Text(text, color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
     }, leadingIcon = { Text(if (connected) "●" else "○") })
 }
+
 

@@ -26,7 +26,8 @@ class AppViewModel(
     private val wifiManager: WifiConnectionManager? = null,
     private val bleAdapter: BleAdapter? = null,
     private val p2pManager: WifiP2pManager? = null,
-    private val frameSourceFactory: top.ghhccghk.yadea.mirror.FrameSourceFactory? = null
+    private val frameSourceFactory: top.ghhccghk.yadea.mirror.FrameSourceFactory? = null,
+    private val permissionChecker: PermissionChecker? = null
 ) {
     val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -286,6 +287,7 @@ class AppViewModel(
     fun submitFrame(bitmap: PlatformBitmap) { frameBus.submit(bitmap) }
     fun cleanup() { stopMirror(); frameBus.clear() }
 }
+
 
 
 
