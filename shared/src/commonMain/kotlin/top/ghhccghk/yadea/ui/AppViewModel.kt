@@ -31,7 +31,6 @@ class AppViewModel(
 ) {
     val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    // Debug
     private val _debugLog = MutableStateFlow<List<String>>(emptyList())
     val debugLog: StateFlow<List<String>> = _debugLog.asStateFlow()
 
@@ -40,7 +39,6 @@ class AppViewModel(
         _debugLog.value = (_debugLog.value + line).takeLast(20)
     }
 
-    // WiFi
     private val _wifiState = MutableStateFlow(WifiConnectionState.Disconnected)
     val wifiState: StateFlow<WifiConnectionState> = _wifiState.asStateFlow()
     private val _wifiSsid = MutableStateFlow("")
@@ -52,7 +50,6 @@ class AppViewModel(
     private val _isScanningWifi = MutableStateFlow(false)
     val isScanningWifi: StateFlow<Boolean> = _isScanningWifi.asStateFlow()
 
-    // BLE
     private val _bleState = MutableStateFlow(BleConnectionState.Disconnected)
     val bleState: StateFlow<BleConnectionState> = _bleState.asStateFlow()
     private val _bleDevices = MutableStateFlow<List<BleDevice>>(emptyList())
@@ -62,7 +59,6 @@ class AppViewModel(
     private val _bleConnectedName = MutableStateFlow("")
     val bleConnectedName: StateFlow<String> = _bleConnectedName.asStateFlow()
 
-    // P2P
     private val _p2pDevices = MutableStateFlow<List<P2pDevice>>(emptyList())
     val p2pDevices: StateFlow<List<P2pDevice>> = _p2pDevices.asStateFlow()
     private val _p2pConnected = MutableStateFlow(false)
@@ -72,7 +68,6 @@ class AppViewModel(
     val p2pGroupOwnerIp: StateFlow<String> = p2pManager?.groupOwnerIp ?: MutableStateFlow("")
     val p2pGroupFormed: StateFlow<Boolean> = p2pManager?.isGroupFormed ?: MutableStateFlow(false)
 
-    // Mirror
     private val _mirrorState = MutableStateFlow(MirrorState.Idle)
     val mirrorState: StateFlow<MirrorState> = _mirrorState.asStateFlow()
     private val _mirrorStatus = MutableStateFlow("待命")
@@ -97,32 +92,13 @@ class AppViewModel(
 
     init {
         debug("AppViewModel 初始化, p2pManager=${if (p2pManager != null) "OK" else "NULL"}")
-        debug("wifiManager=${if (wifiManager != null) "OK" else "NULL"}, bleAdapter=${if (bleAdapter != null) "OK" else "NULL"}")
-
         if (p2pManager != null) {
-            debug("开始收集 P2P 设备列表...")
-            scope.launch {
-                p2pManager.discoveredPeers.collect { peers ->
-                    debug("P2P 设备列表更新: ${peers.size} 个设备")
-                    _p2pDevices.value = peers
-                }
-            }
-            scope.launch {
-                p2pManager.connectionState.collect { state ->
-                    debug("P2P 连接状态: $state")
-                    _p2pConnected.value = (state == P2pStatus.Connected)
-                }
-            }
-            scope.launch {
-                p2pManager.isDiscovering.collect { discovering ->
-                    debug("P2P 扫描状态: ${if (discovering) "扫描中" else "空闲"}")
-                    _p2pScanStatus.value = if (discovering) "扫描中..." else "空闲"
-                }
-            }
+            scope.launch { p2pManager.discoveredPeers.collect { _p2pDevices.value = it } }
+            scope.launch { p2pManager.connectionState.collect { _p2pConnected.value = (it == P2pStatus.Connected) } }
+            scope.launch { p2pManager.isDiscovering.collect { _p2pScanStatus.value = if (it) "扫描中..." else "空闲" } }
         }
     }
 
-    // ==================== WiFi ====================
     fun scanWifi() {
         scope.launch {
             _isScanningWifi.value = true
@@ -151,7 +127,6 @@ class AppViewModel(
         }
     }
 
-    // ==================== BLE ====================
     fun scanBle() {
         scope.launch {
             _isScanningBle.value = true
@@ -161,10 +136,7 @@ class AppViewModel(
         }
     }
 
-    fun stopBleScan() {
-        bleAdapter?.stopScan()
-        _isScanningBle.value = false
-    }
+    fun stopBleScan() { bleAdapter?.stopScan(); _isScanningBle.value = false }
 
     fun connectBle(address: String, name: String) {
         scope.launch {
@@ -183,66 +155,69 @@ class AppViewModel(
         }
     }
 
-    // ==================== P2P ====================
     fun scanP2p() {
-        debug("scanP2p() 被调用, p2pManager=${if (p2pManager != null) "OK" else "NULL"}")
-        if (p2pManager == null) {
-            _p2pScanStatus.value = "P2P 管理器未初始化!"
-            return
-        }
-        scope.launch {
-            _p2pScanStatus.value = "正在扫描..."
-            debug("开始 P2P 扫描 (15秒超时)")
-            try {
-                p2pManager.discoverPeers(15_000)
-                debug("P2P 扫描结束, 当前设备数=${_p2pDevices.value.size}")
-                _p2pScanStatus.value = "扫描完成, 发现 ${_p2pDevices.value.size} 个设备"
-            } catch (e: Exception) {
-                debug("P2P 扫描异常: ${e.message}")
-                _p2pScanStatus.value = "扫描失败: ${e.message}"
-            }
-        }
+        if (p2pManager == null) return
+        scope.launch { p2pManager.discoverPeers(15_000) }
     }
 
     fun connectP2p(device: P2pDevice) {
-        debug("连接 P2P 设备: ${device.name} (${device.address})")
-        scope.launch {
-            val ok = p2pManager?.connect(device) ?: false
-            debug("P2P 连接结果: $ok")
-            _p2pConnected.value = ok
-        }
+        scope.launch { p2pManager?.connect(device) }
     }
 
-    // ==================== Mirror ====================
     fun selectSource(index: Int) { _selectedSource.value = index }
     fun updateCrop(config: FrameCropConfig) { _cropConfig.value = config }
 
-    fun startMirror(targetHost: String, targetPort: Int) {
+    fun startMirror(targetHost: String, tcpControlPort: Int = 8888, udpImagePort: Int = 8889) {
+        debug("startMirror: TCP=$targetHost:$tcpControlPort, UDP=$targetHost:$udpImagePort")
+
+        val requiredPerms = PermissionChecker.permissionsForSource(_selectedSource.value)
+        val missing = permissionChecker?.getMissingPermissions(requiredPerms) ?: emptyList()
+        if (missing.isNotEmpty()) {
+            debug("缺少权限: $missing")
+            _mirrorStatus.value = "缺少权限，请授权后重试"
+            _mirrorState.value = MirrorState.Failed
+            permissionChecker?.requestPermissions(requiredPerms)
+            return
+        }
+
         scope.launch {
             _mirrorState.value = MirrorState.Negotiating
             _mirrorStatus.value = "正在连接仪表..."
+
             val tcp = createTcpTransport()
             val udp = createUdpTransport()
             tcpTransport = tcp
             udpTransport = udp
+            udp.bind(0)
+
             try {
-                tcp.connect(targetHost, targetPort)
+                debug("TCP 连接 $targetHost:$tcpControlPort ...")
+                tcp.connect(targetHost, tcpControlPort)
+                debug("TCP 连接成功")
             } catch (e: Exception) {
+                debug("TCP 连接失败: ${e.message}")
                 _mirrorState.value = MirrorState.Failed
-                _mirrorStatus.value = "连接失败: ${e.message}"
+                _mirrorStatus.value = "TCP 连接失败: ${e.message}"
                 return@launch
             }
+
             val sender = FrameSender(tcp, udp)
             val engine = MirrorEngine(sender, frameBus) { _mirrorStatus.value = it }
             mirrorEngine = engine
+
             val success = engine.start(
-                targetHost = targetHost, targetPort = targetPort, scope = scope,
+                targetHost = targetHost,
+                targetPort = udpImagePort,
+                scope = scope,
                 currentTimeProvider = { getCurrentTime() }
             )
+
             if (success) {
                 _mirrorState.value = MirrorState.Running
                 _navConfig.value = engine.currentConfig
                 _mirrorStatus.value = "投屏中"
+                debug("投屏启动成功")
+                startFrameSource()
                 launch {
                     while (engine.isRunning) {
                         _frameCount.value = engine.sentFrameCount
@@ -253,20 +228,8 @@ class AppViewModel(
             } else {
                 _mirrorState.value = MirrorState.Failed
                 _mirrorStatus.value = "启动失败"
+                debug("投屏启动失败")
             }
-        }
-    }
-
-    fun stopMirror() {
-        scope.launch {
-            mirrorEngine?.stop()
-            _mirrorState.value = MirrorState.Stopped
-            _mirrorStatus.value = "已停止"
-            tcpTransport?.close()
-            udpTransport?.close()
-            tcpTransport = null
-            udpTransport = null
-            mirrorEngine = null
         }
     }
 
@@ -284,11 +247,21 @@ class AppViewModel(
         }
     }
 
+    fun stopMirror() {
+        scope.launch {
+            currentFrameSource?.stop()
+            currentFrameSource = null
+            mirrorEngine?.stop()
+            _mirrorState.value = MirrorState.Stopped
+            _mirrorStatus.value = "已停止"
+            tcpTransport?.close()
+            udpTransport?.close()
+            tcpTransport = null
+            udpTransport = null
+            mirrorEngine = null
+        }
+    }
+
     fun submitFrame(bitmap: PlatformBitmap) { frameBus.submit(bitmap) }
     fun cleanup() { stopMirror(); frameBus.clear() }
 }
-
-
-
-
-

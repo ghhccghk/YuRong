@@ -26,9 +26,9 @@ fun MirrorScreen(viewModel: AppViewModel) {
     val debugLog by viewModel.debugLog.collectAsState()
 
     var targetHost by remember { mutableStateOf("") }
-    var targetPort by remember { mutableStateOf("8889") }
+    var tcpPort by remember { mutableStateOf("8888") }
+    var udpPort by remember { mutableStateOf("8889") }
 
-    // 自动填充目标地址
     LaunchedEffect(p2pGroupOwnerIp, wifiIp) {
         if (p2pGroupOwnerIp.isNotEmpty()) targetHost = p2pGroupOwnerIp
         else if (wifiIp.isNotEmpty() && targetHost.isEmpty()) {
@@ -46,7 +46,6 @@ fun MirrorScreen(viewModel: AppViewModel) {
             Text("投屏控制", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         }
 
-        // 连接目标
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -58,41 +57,44 @@ fun MirrorScreen(viewModel: AppViewModel) {
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
-                    OutlinedTextField(
-                        value = targetPort,
-                        onValueChange = { targetPort = it },
-                        label = { Text("端口") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
+                    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = tcpPort,
+                            onValueChange = { tcpPort = it },
+                            label = { Text("TCP 控制端口") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = udpPort,
+                            onValueChange = { udpPort = it },
+                            label = { Text("UDP 图片端口") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                    }
                     if (p2pGroupOwnerIp.isNotEmpty()) {
-                        Text("P2P GroupOwner IP: $p2pGroupOwnerIp",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary)
+                        Text("P2P GroupOwner: $p2pGroupOwnerIp", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                     }
                     if (wifiIp.isNotEmpty()) {
-                        Text("WiFi 本机 IP: $wifiIp",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.secondary)
+                        Text("WiFi 本机: $wifiIp", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
                     }
                 }
             }
         }
 
-        // 状态
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                         Text("投屏状态", style = MaterialTheme.typography.titleLarge)
-                        StatusChip(isMirroring,
-                            when (mirrorState) {
-                                MirrorState.Running -> "投屏中"
-                                MirrorState.Negotiating -> "连接中..."
-                                MirrorState.Failed -> "失败"
-                                MirrorState.Stopped -> "已停止"
-                                else -> "空闲"
-                            })
+                        StatusChip(isMirroring, when (mirrorState) {
+                            MirrorState.Running -> "投屏中"
+                            MirrorState.Negotiating -> "连接中..."
+                            MirrorState.Failed -> "失败"
+                            MirrorState.Stopped -> "已停止"
+                            else -> "空闲"
+                        })
                     }
                     Text(mirrorStatus, style = MaterialTheme.typography.bodyMedium)
                     if (isMirroring) {
@@ -106,20 +108,18 @@ fun MirrorScreen(viewModel: AppViewModel) {
             }
         }
 
-        // 投屏源
         item {
             Text("投屏源", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
         item {
             Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
-                SourceButton("摄像头", selectedSource == 0, Modifier.weight(1f)) { viewModel.selectSource(0) }
-                SourceButton("屏幕", selectedSource == 1, Modifier.weight(1f)) { viewModel.selectSource(1) }
-                SourceButton("视频", selectedSource == 2, Modifier.weight(1f)) { viewModel.selectSource(2) }
-                SourceButton("导航", selectedSource == 3, Modifier.weight(1f)) { viewModel.selectSource(3) }
+                SourceButton("📷\n摄像头", selectedSource == 0, Modifier.weight(1f)) { viewModel.selectSource(0) }
+                SourceButton("📱\n屏幕", selectedSource == 1, Modifier.weight(1f)) { viewModel.selectSource(1) }
+                SourceButton("🎬\n视频", selectedSource == 2, Modifier.weight(1f)) { viewModel.selectSource(2) }
+                SourceButton("🗺\n导航", selectedSource == 3, Modifier.weight(1f)) { viewModel.selectSource(3) }
             }
         }
 
-        // 投屏区域
         item {
             Text("投屏区域", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
@@ -130,7 +130,6 @@ fun MirrorScreen(viewModel: AppViewModel) {
             )
         }
 
-        // 控制按钮
         item {
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), Arrangement.spacedBy(12.dp)) {
                 if (isMirroring) {
@@ -138,27 +137,29 @@ fun MirrorScreen(viewModel: AppViewModel) {
                         onClick = { viewModel.stopMirror() },
                         modifier = Modifier.weight(1f).height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) { Text("停止投屏", fontSize = 18.sp) }
+                    ) { Text("⏹ 停止投屏", fontSize = 18.sp) }
                 } else {
                     Button(
                         onClick = {
-                            viewModel.startMirror(targetHost, targetPort.toIntOrNull() ?: 8889)
+                            viewModel.startMirror(
+                                targetHost,
+                                tcpPort.toIntOrNull() ?: 8888,
+                                udpPort.toIntOrNull() ?: 8889
+                            )
                         },
                         modifier = Modifier.weight(1f).height(56.dp),
                         enabled = targetHost.isNotEmpty()
-                    ) { Text("开始投屏", fontSize = 18.sp) }
+                    ) { Text("▶ 开始投屏", fontSize = 18.sp) }
                 }
             }
         }
 
-        // Debug 日志
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("调试日志", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     debugLog.reversed().take(15).forEach { line ->
-                        Text(line, fontSize = 10.sp, lineHeight = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(line, fontSize = 10.sp, lineHeight = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -197,4 +198,3 @@ internal fun formatBytes(bytes: Long): String {
         }
     }
 }
-
