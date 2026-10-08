@@ -1,5 +1,10 @@
 package top.ghhccghk.yadea.mirror
 
+import top.ghhccghk.yadea.ui.AppDesign
+import top.ghhccghk.yadea.ui.AppOutlinedButton
+import top.ghhccghk.yadea.ui.AppText
+import top.ghhccghk.yadea.ui.AppSlider
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -34,15 +39,15 @@ fun MirrorPreviewPanel(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(AppDesign.colors.surfaceVariant)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(
+        AppText(
             "投屏区域预览",
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = AppDesign.colors.onSurfaceVariant
         )
 
         Box(
@@ -98,7 +103,7 @@ fun MirrorPreviewPanel(
             }
         }
 
-        Text("精细调节", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        AppText("精细调节", fontSize = 13.sp, color = AppDesign.colors.onSurfaceVariant)
 
         CropSlider("左边界", crop.left, 0f, crop.right - 0.05f) {
             val nc = crop.copy(left = it); crop = nc; onCropChange(nc)
@@ -113,24 +118,24 @@ fun MirrorPreviewPanel(
             val nc = crop.copy(bottom = it); crop = nc; onCropChange(nc)
         }
 
-        Text(
+        AppText(
             "区域: L=${fmt(crop.left, 3)}  T=${fmt(crop.top, 3)}  R=${fmt(crop.right, 3)}  B=${fmt(crop.bottom, 3)}",
             fontSize = 11.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            color = AppDesign.colors.onSurfaceVariant.copy(alpha = 0.7f)
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = {
+            AppOutlinedButton(onClick = {
                 crop = FrameCropConfig.FULL; onCropChange(crop)
-            }) { Text("全幅", fontSize = 12.sp) }
-            OutlinedButton(onClick = {
+            }) { AppText("全幅", fontSize = 12.sp) }
+            AppOutlinedButton(onClick = {
                 crop = FrameCropConfig.CENTER; onCropChange(crop)
-            }) { Text("居中", fontSize = 12.sp) }
-            OutlinedButton(onClick = {
+            }) { AppText("居中", fontSize = 12.sp) }
+            AppOutlinedButton(onClick = {
                 val ratio = previewWidth.toFloat() / previewHeight
                 val nc = FrameCropConfig.FULL.withAspectRation(ratio, previewWidth, previewHeight)
                 crop = nc; onCropChange(nc)
-            }) { Text("适配", fontSize = 12.sp) }
+            }) { AppText("适配", fontSize = 12.sp) }
         }
     }
 }
@@ -147,14 +152,14 @@ private fun CropSlider(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(label, fontSize = 12.sp, modifier = Modifier.width(50.dp))
-        Slider(
+        AppText(label, fontSize = 12.sp, modifier = Modifier.width(50.dp))
+        AppSlider(
             value = value,
             onValueChange = onChange,
             valueRange = rangeStart..rangeEnd,
             modifier = Modifier.weight(1f)
         )
-        Text(fmt(value, 2), fontSize = 11.sp, modifier = Modifier.width(36.dp))
+        AppText(fmt(value, 2), fontSize = 11.sp, modifier = Modifier.width(36.dp))
     }
 }
 

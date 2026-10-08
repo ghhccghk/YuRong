@@ -145,12 +145,10 @@ private fun MainDestinationContent(
 
 @Composable
 fun StatusCard(title: String, status: String, isConnected: Boolean, modifier: Modifier = Modifier) {
-    Card(
+    AppCard(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isConnected) MaterialTheme.colorScheme.primaryContainer
-            else MaterialTheme.colorScheme.surfaceVariant,
-        ),
+        containerColor = if (isConnected) MaterialTheme.colorScheme.primaryContainer
+        else MaterialTheme.colorScheme.surfaceVariant,
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -172,16 +170,5 @@ fun StatusCard(title: String, status: String, isConnected: Boolean, modifier: Mo
 
 @Composable
 fun StatusChip(connected: Boolean, text: String) {
-    AssistChip(
-        onClick = {},
-        label = {
-            Text(
-                text = text,
-                color = if (connected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.outline,
-            )
-        },
-        leadingIcon = { Text(if (connected) "●" else "○") },
-    )
+    AppStatusChip(connected = connected, text = text)
 }
-

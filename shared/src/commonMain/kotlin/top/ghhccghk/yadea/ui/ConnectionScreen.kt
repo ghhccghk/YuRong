@@ -40,24 +40,24 @@ fun ConnectionScreen(viewModel: AppViewModel) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text("设备连接", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            ScreenTitle("设备连接")
         }
 
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = selectedPanel == 0, onClick = { selectedPanel = 0 },
-                    label = { Text("AP 热点") }, modifier = Modifier.weight(1f))
-                FilterChip(selected = selectedPanel == 1, onClick = { selectedPanel = 1 },
-                    label = { Text("P2P 设备") }, modifier = Modifier.weight(1f))
+                AppFilterChip(selected = selectedPanel == 0, onClick = { selectedPanel = 0 },
+                    label = "AP 热点", modifier = Modifier.weight(1f))
+                AppFilterChip(selected = selectedPanel == 1, onClick = { selectedPanel = 1 },
+                    label = "P2P 设备", modifier = Modifier.weight(1f))
             }
         }
 
         if (selectedPanel == 0) {
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
+                AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                            Text("WiFi 连接", style = MaterialTheme.typography.titleLarge)
+                            AppText("WiFi 连接", style = AppDesign.typography.title)
                             StatusChip(wifiState == WifiConnectionState.Connected,
                                 when (wifiState) {
                                     WifiConnectionState.Connected -> "已连接 $wifiIp"
@@ -66,27 +66,27 @@ fun ConnectionScreen(viewModel: AppViewModel) {
                                     else -> "未连接"
                                 })
                         }
-                        OutlinedTextField(wifiSsid, { wifiSsid = it }, label = { Text("SSID") },
+                        AppTextField(wifiSsid, { wifiSsid = it }, label = "SSID",
                             modifier = Modifier.fillMaxWidth(), singleLine = true)
-                        OutlinedTextField(wifiPassword, { wifiPassword = it }, label = { Text("密码") },
+                        AppTextField(wifiPassword, { wifiPassword = it }, label = "密码",
                             modifier = Modifier.fillMaxWidth(), singleLine = true)
                         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { viewModel.connectWifi(wifiSsid, wifiPassword) },
-                                modifier = Modifier.weight(1f)) { Text("连接") }
-                            OutlinedButton(onClick = { viewModel.scanWifi() },
+                            AppButton(onClick = { viewModel.connectWifi(wifiSsid, wifiPassword) },
+                                modifier = Modifier.weight(1f)) { AppText("连接") }
+                            AppOutlinedButton(onClick = { viewModel.scanWifi() },
                                 modifier = Modifier.weight(1f)) {
-                                Text(if (isScanningWifi) "扫描中..." else "扫描网络")
+                                AppText(if (isScanningWifi) "扫描中..." else "扫描网络")
                             }
-                            OutlinedButton(onClick = { viewModel.disconnectWifi() },
-                                modifier = Modifier.weight(1f)) { Text("断开") }
+                            AppOutlinedButton(onClick = { viewModel.disconnectWifi() },
+                                modifier = Modifier.weight(1f)) { AppText("断开") }
                         }
                         if (scanResults.isNotEmpty()) {
-                            Text("附近网络", style = MaterialTheme.typography.titleSmall)
+                            AppText("附近网络", style = AppDesign.typography.sectionTitle)
                             scanResults.take(5).forEach { net ->
                                 Row(Modifier.fillMaxWidth().clickable { wifiSsid = net.ssid }
                                     .padding(vertical = 4.dp), Arrangement.SpaceBetween) {
-                                    Text(net.ssid, style = MaterialTheme.typography.bodyMedium)
-                                    Text("${net.rssi} dBm", style = MaterialTheme.typography.bodySmall)
+                                    AppText(net.ssid, style = AppDesign.typography.body)
+                                    AppText("${net.rssi} dBm", style = AppDesign.typography.summary)
                                 }
                             }
                         }
@@ -97,40 +97,40 @@ fun ConnectionScreen(viewModel: AppViewModel) {
 
         if (selectedPanel == 1) {
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
+                AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                            Text("P2P 设备发现", style = MaterialTheme.typography.titleLarge)
+                            AppText("P2P 设备发现", style = AppDesign.typography.title)
                             StatusChip(p2pConnected, if (p2pConnected) "已连接" else "未连接")
                         }
-                        Text("状态: $p2pScanStatus", style = MaterialTheme.typography.bodySmall)
-                        Button(
+                        AppText("状态: $p2pScanStatus", style = AppDesign.typography.summary)
+                        AppButton(
                             onClick = { viewModel.scanP2p() },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("扫描 P2P 设备 (15秒)")
+                            AppText("扫描 P2P 设备 (15秒)")
                         }
-                        Text("发现 ${p2pDevices.size} 个设备", style = MaterialTheme.typography.titleSmall)
+                        AppText("发现 ${p2pDevices.size} 个设备", style = AppDesign.typography.sectionTitle)
                         if (p2pDevices.isEmpty()) {
-                            Text("暂无设备。请确保对方设备已开启 WiFi Direct 并处于可发现状态",
-                                style = MaterialTheme.typography.bodySmall)
+                            AppText("暂无设备。请确保对方设备已开启 WiFi Direct 并处于可发现状态",
+                                style = AppDesign.typography.summary)
                         } else {
                             p2pDevices.forEach { device ->
-                                Card(modifier = Modifier.fillMaxWidth().clickable {
+                                AppCard(modifier = Modifier.fillMaxWidth().clickable {
                                     viewModel.connectP2p(device)
                                 }) {
                                     Row(Modifier.padding(12.dp).fillMaxWidth(),
                                         Arrangement.SpaceBetween, Alignment.CenterVertically) {
                                         Column {
-                                            Text(device.name, fontWeight = FontWeight.Bold)
-                                            Text(device.address, style = MaterialTheme.typography.bodySmall)
+                                            AppText(device.name, fontWeight = FontWeight.Bold)
+                                            AppText(device.address, style = AppDesign.typography.summary)
                                         }
-                                        Text(when (device.status) {
+                                        AppText(when (device.status) {
                                             P2pStatus.Connected -> "已连接"
                                             P2pStatus.Invited -> "邀请中"
                                             P2pStatus.Failed -> "失败"
                                             else -> "可用"
-                                        }, style = MaterialTheme.typography.bodySmall)
+                                        }, style = AppDesign.typography.summary)
                                     }
                                 }
                             }
@@ -141,33 +141,31 @@ fun ConnectionScreen(viewModel: AppViewModel) {
         }
 
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
+            AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                        Text("BLE 仪表", style = MaterialTheme.typography.titleLarge)
+                        AppText("BLE 仪表", style = AppDesign.typography.title)
                         StatusChip(bleState == BleConnectionState.Connected,
                             if (bleState == BleConnectionState.Connected) "已连接 $bleConnectedName" else "未连接")
                     }
                     Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { viewModel.scanBle() }, modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isScanningBle) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                            )) {
-                            Text(if (isScanningBle) "停止扫描" else "扫描 BLE")
+                        AppButton(onClick = { viewModel.scanBle() }, modifier = Modifier.weight(1f),
+                            containerColor = if (isScanningBle) AppDesign.colors.error else AppDesign.colors.primary) {
+                            AppText(if (isScanningBle) "停止扫描" else "扫描 BLE")
                         }
                     }
                     if (bleDevices.isNotEmpty()) {
                         bleDevices.forEach { device ->
-                            Card(modifier = Modifier.fillMaxWidth().clickable {
+                            AppCard(modifier = Modifier.fillMaxWidth().clickable {
                                 viewModel.connectBle(device.address, device.name ?: "未知")
                             }) {
                                 Row(Modifier.padding(12.dp).fillMaxWidth(),
                                     Arrangement.SpaceBetween, Alignment.CenterVertically) {
                                     Column {
-                                        Text(device.name ?: "未知设备", fontWeight = FontWeight.Bold)
-                                        Text(device.address, style = MaterialTheme.typography.bodySmall)
+                                        AppText(device.name ?: "未知设备", fontWeight = FontWeight.Bold)
+                                        AppText(device.address, style = AppDesign.typography.summary)
                                     }
-                                    Text("${device.rssi} dBm", style = MaterialTheme.typography.bodySmall)
+                                    AppText("${device.rssi} dBm", style = AppDesign.typography.summary)
                                 }
                             }
                         }
@@ -177,12 +175,12 @@ fun ConnectionScreen(viewModel: AppViewModel) {
         }
 
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
+            AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("调试日志", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    AppText("调试日志", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
                     debugLog.reversed().forEach { line ->
-                        Text(line, fontSize = 10.sp, lineHeight = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        AppText(line, fontSize = 10.sp, lineHeight = 13.sp,
+                            color = AppDesign.colors.onSurfaceVariant)
                     }
                 }
             }
