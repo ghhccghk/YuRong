@@ -49,6 +49,7 @@ data class FrameSourceCapability(
 /** 跨平台帧源请求。 */
 sealed interface FrameSourceRequest {
     data class Camera(
+        val cameraIndex: Int = 0,
         val cropConfig: FrameCropConfig = FrameCropConfig.FULL,
     ) : FrameSourceRequest
 

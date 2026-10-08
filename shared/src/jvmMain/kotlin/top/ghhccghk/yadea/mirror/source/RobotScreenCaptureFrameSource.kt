@@ -26,12 +26,17 @@ class RobotScreenCaptureFrameSource(
     private val running = AtomicBoolean(false)
     private var worker: ExecutorService? = null
     private var cropConfig: FrameCropConfig = FrameCropConfig.FULL
+    @Volatile private var failureHandler: ((String) -> Unit)? = null
 
     override val isRunning: Boolean
         get() = running.get()
 
     override fun updateCropConfig(config: FrameCropConfig) {
         if (config.isValid) cropConfig = config
+    }
+
+    override fun onFailure(handler: (String) -> Unit) {
+        failureHandler = handler
     }
 
     override suspend fun start(onFrame: (PlatformBitmap) -> Unit) {
@@ -63,9 +68,9 @@ class RobotScreenCaptureFrameSource(
                 } catch (_: InterruptedException) {
                     Thread.currentThread().interrupt()
                 } catch (error: Exception) {
-                    System.err.println("Desktop screen capture stopped: ${desktopCaptureErrorMessage(error)}")
-                } finally {
-                    running.set(false)
+                    val message = desktopCaptureErrorMessage(error)
+                    System.err.println("Desktop screen capture stopped: $message")
+                    failureHandler?.invoke(message)
                 }
             }
         } catch (error: Exception) {

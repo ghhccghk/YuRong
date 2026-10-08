@@ -21,4 +21,7 @@ interface FrameSource {
      * runtime may keep the value and apply it to the next frame.
      */
     fun updateCropConfig(config: FrameCropConfig) {}
+
+    /** Register a callback for asynchronous source failures. */
+    fun onFailure(handler: (String) -> Unit) {}
 }

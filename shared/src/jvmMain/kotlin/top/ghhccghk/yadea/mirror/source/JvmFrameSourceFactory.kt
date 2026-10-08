@@ -7,9 +7,11 @@ import top.ghhccghk.yadea.mirror.FrameSourceRequest
 import top.ghhccghk.yadea.mirror.FrameSourceType
 
 /**
- * Desktop frame source factory. Screen capture is supported through
- * [RobotScreenCaptureFrameSource]; camera and video require an additional
- * native media backend and are reported as unsupported for now.
+ * Desktop frame source factory.
+ *
+ * Screen capture uses java.awt.Robot; camera, local media and network streams
+ * use JavaCV. Unsupported platform conditions are reported through
+ * [capabilities] instead of silently falling back to another source.
  */
 class JvmFrameSourceFactory : FrameSourceFactory {
     override val capabilities: List<FrameSourceCapability> = run {
@@ -20,26 +22,22 @@ class JvmFrameSourceFactory : FrameSourceFactory {
                 supported = screenSupport.first,
                 reason = screenSupport.second,
             ),
-        FrameSourceCapability(
-            FrameSourceType.Camera,
-            supported = false,
-            reason = "桌面版暂不支持摄像头",
-        ),
-        FrameSourceCapability(
-            FrameSourceType.Video,
-            supported = false,
-            reason = "桌面版暂不支持视频文件",
-        ),
+            FrameSourceCapability(FrameSourceType.Camera, supported = true),
+            FrameSourceCapability(
+                FrameSourceType.Video,
+                supported = true,
+                reason = "支持本地视频路径和网络流地址",
+            ),
             FrameSourceCapability(
                 FrameSourceType.Navigation,
-                supported = false,
-                reason = "桌面版暂不支持导航源",
+                supported = true,
+                reason = "支持导航图片流或视频流地址",
             ),
         )
     }
 
     override fun createCameraSource(): FrameSource =
-        unsupported(FrameSourceType.Camera)
+        JavaCvFrameSource.camera(cameraIndex = 0)
 
     override fun createScreenSource(resultCode: Int, resultData: Any): FrameSource =
         RobotScreenCaptureFrameSource()
@@ -48,7 +46,7 @@ class JvmFrameSourceFactory : FrameSourceFactory {
         RobotScreenCaptureFrameSource()
 
     override fun createVideoSource(uri: String): FrameSource =
-        unsupported(FrameSourceType.Video)
+        JavaCvFrameSource.media(uri)
 
     override fun createSource(request: FrameSourceRequest): FrameSource = when (request) {
         is FrameSourceRequest.Screen ->
@@ -56,13 +54,19 @@ class JvmFrameSourceFactory : FrameSourceFactory {
                 it.updateCropConfig(request.cropConfig)
             }
 
-        is FrameSourceRequest.Camera -> unsupported(FrameSourceType.Camera)
-        is FrameSourceRequest.Video -> unsupported(FrameSourceType.Video)
-        is FrameSourceRequest.Navigation -> unsupported(FrameSourceType.Navigation)
-    }
+        is FrameSourceRequest.Camera ->
+            JavaCvFrameSource.camera(request.cameraIndex).also {
+                it.updateCropConfig(request.cropConfig)
+            }
 
-    private fun unsupported(type: FrameSourceType): FrameSource {
-        val capability = capabilities.first { it.type == type }
-        throw UnsupportedOperationException(capability.reason ?: "桌面版不支持该投屏源")
+        is FrameSourceRequest.Video ->
+            JavaCvFrameSource.media(request.uri).also {
+                it.updateCropConfig(request.cropConfig)
+            }
+
+        is FrameSourceRequest.Navigation ->
+            JavaCvFrameSource.media(request.uri).also {
+                it.updateCropConfig(request.cropConfig)
+            }
     }
 }

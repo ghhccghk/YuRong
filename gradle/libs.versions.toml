@@ -17,6 +17,7 @@ kotlinx-coroutines = "1.11.0"
 material3 = "1.12.0-alpha03"
 cameraLifecycle = "1.6.2"
 miuixUi = "0.9.4"
+javacv = "1.5.11"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test-common", version.ref = "kotlin" }
@@ -45,6 +46,7 @@ miuix-squircle = { module = "top.yukonga.miuix.kmp:miuix-squircle", version.ref 
 miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui", version.ref = "miuixUi" }
 wrappers-browser = { module = "org.jetbrains.kotlin-wrappers:kotlin-browser", version.ref = "kotlin-wrappers" }
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraLifecycle" }
+javacv-platform = { module = "org.bytedeco:javacv-platform", version.ref = "javacv" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

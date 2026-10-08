@@ -21,6 +21,7 @@ fun MirrorScreen(viewModel: AppViewModel) {
     val bytesSent by viewModel.bytesSent.collectAsState()
     val selectedSource by viewModel.selectedSource.collectAsState()
     val sourceCapabilities = viewModel.sourceCapabilities
+    val sourceUri by viewModel.sourceUri.collectAsState()
     val cropConfig by viewModel.cropConfig.collectAsState()
     val p2pGroupOwnerIp by viewModel.p2pGroupOwnerIp.collectAsState()
     val wifiIp by viewModel.wifiIp.collectAsState()
@@ -173,7 +174,8 @@ fun MirrorScreen(viewModel: AppViewModel) {
                             )
                         },
                         modifier = Modifier.weight(1f).height(56.dp),
-                        enabled = targetHost.isNotEmpty()
+                        enabled = targetHost.isNotEmpty() &&
+                            (selectedSource != 2 && selectedSource != 3 || sourceUri.isNotEmpty())
                     ) { AppText("▶ 开始投屏", fontSize = 18.sp) }
                 }
             }

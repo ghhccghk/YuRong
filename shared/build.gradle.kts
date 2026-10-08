@@ -82,6 +82,9 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
+        jvmMain.dependencies {
+            implementation(libs.javacv.platform)
+        }
         jvmTest.dependencies {
             implementation(libs.kotlin.testJunit)
         }
@@ -98,5 +101,3 @@ tasks.named<Test>("jvmTest") {
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
 }
-
-

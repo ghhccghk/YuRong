@@ -91,6 +91,8 @@ class AppViewModel(
         frameSourceFactory?.capabilities ?: emptyList()
     private val _cropConfig = MutableStateFlow(FrameCropConfig.FULL)
     val cropConfig: StateFlow<FrameCropConfig> = _cropConfig.asStateFlow()
+    private val _sourceUri = MutableStateFlow("")
+    val sourceUri: StateFlow<String> = _sourceUri.asStateFlow()
 
     val frameBus = FrameBus()
     private var currentFrameSource: top.ghhccghk.yadea.mirror.FrameSource? = null
@@ -173,7 +175,15 @@ class AppViewModel(
     }
 
     fun selectSource(index: Int) { _selectedSource.value = index }
-    fun updateCrop(config: FrameCropConfig) { _cropConfig.value = config }
+    fun updateSourceUri(uri: String) {
+        _sourceUri.value = uri.trim()
+    }
+
+    fun updateCrop(config: FrameCropConfig) {
+        if (!config.isValid) return
+        _cropConfig.value = config
+        currentFrameSource?.updateCropConfig(config)
+    }
 
     fun startMirror(targetHost: String, tcpControlPort: Int = 8888, udpImagePort: Int = 8889) {
         debug("startMirror: TCP=$targetHost:$tcpControlPort, UDP=$targetHost:$udpImagePort")
@@ -193,11 +203,11 @@ class AppViewModel(
             _mirrorStatus.value = "正在准备投屏源..."
 
             val request = when (_selectedSource.value) {
-                0 -> FrameSourceRequest.Camera(_cropConfig.value)
+                0 -> FrameSourceRequest.Camera(cropConfig = _cropConfig.value)
                 1 -> FrameSourceRequest.Screen(cropConfig = _cropConfig.value)
-                2 -> FrameSourceRequest.Video("", _cropConfig.value)
-                3 -> FrameSourceRequest.Navigation("", _cropConfig.value)
-                else -> FrameSourceRequest.Camera(_cropConfig.value)
+                2 -> FrameSourceRequest.Video(_sourceUri.value, _cropConfig.value)
+                3 -> FrameSourceRequest.Navigation(_sourceUri.value, _cropConfig.value)
+                else -> FrameSourceRequest.Camera(cropConfig = _cropConfig.value)
             }
 
             val source = try {
@@ -213,6 +223,7 @@ class AppViewModel(
                 return@launch
             }
             currentFrameSource = source
+            source.onFailure { message -> handleSourceFailure(source, message) }
 
             val tcp = createTcpTransport()
             val udp = createUdpTransport()
@@ -290,6 +301,24 @@ class AppViewModel(
             }
         }
     }
+    private fun handleSourceFailure(source: top.ghhccghk.yadea.mirror.FrameSource, message: String) {
+        scope.launch {
+            if (currentFrameSource !== source) return@launch
+            debug("投屏源运行失败: $message")
+            source.stop()
+            currentFrameSource = null
+            mirrorEngine?.stop()
+            mirrorEngine = null
+            tcpTransport?.close()
+            udpTransport?.close()
+            tcpTransport = null
+            udpTransport = null
+            frameBus.clear()
+            _mirrorState.value = MirrorState.Failed
+            _mirrorStatus.value = "投屏源中断: $message"
+        }
+    }
+
     fun stopMirror() {
         scope.launch {
             currentFrameSource?.stop()
