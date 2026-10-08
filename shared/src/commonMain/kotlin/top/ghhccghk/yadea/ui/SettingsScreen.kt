@@ -2,11 +2,11 @@ package top.ghhccghk.yadea.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -20,9 +20,14 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val useMiuix = LocalUiThemeStyle.current == UiThemeStyle.Miuix
+    val pagePadding = PaddingValues(
+        horizontal = if (useMiuix) 0.dp else 16.dp,
+        vertical = if (useMiuix) 0.dp else 16.dp,
+    )
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
+        contentPadding = pagePadding,
         verticalArrangement = Arrangement.spacedBy(if (useMiuix) 8.dp else 12.dp),
     ) {
         if (useMiuix) {
@@ -30,11 +35,20 @@ fun SettingsScreen(
         } else {
             item {
                 ScreenTitle("设置")
+                AppText(
+                    text = "外观",
+                    style = AppDesign.typography.sectionTitle,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
             }
         }
 
         item {
-            AppCard(modifier = Modifier.fillMaxWidth().padding(horizontal = if (useMiuix) 12.dp else 0.dp)) {
+            AppCard(
+                modifier = Modifier.fillMaxWidth().padding(
+                    horizontal = if (useMiuix) 12.dp else 0.dp,
+                ),
+            ) {
                 AppSwitchPreference(
                     checked = selectedStyle == UiThemeStyle.Miuix,
                     onCheckedChange = { enabled ->
@@ -51,7 +65,11 @@ fun SettingsScreen(
         }
 
         item {
-            AppCard(modifier = Modifier.fillMaxWidth().padding(horizontal = if (useMiuix) 12.dp else 0.dp)) {
+            AppCard(
+                modifier = Modifier.fillMaxWidth().padding(
+                    horizontal = if (useMiuix) 12.dp else 0.dp,
+                ),
+            ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                     AppText(
                         text = selectedStyle.label,
