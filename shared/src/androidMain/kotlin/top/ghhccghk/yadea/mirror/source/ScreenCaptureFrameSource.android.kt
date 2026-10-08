@@ -10,6 +10,8 @@ import android.media.Image
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
+import android.os.Handler
+import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import top.ghhccghk.yadea.mirror.FrameCropConfig
@@ -31,8 +33,19 @@ class ScreenCaptureFrameSource(
     frameIntervalMs: Long = 100
 ) : FrameSource {
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val releaseLock = Any()
+    private val projectionCallback = object : MediaProjection.Callback() {
+        override fun onStop() {
+            releaseCaptureResources()
+        }
+    }
+
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
+    private var callbackRegistered = false
+    private var projectionStopped = false
+    @Volatile
     private var running = false
     private var lastFrameAt = 0L
     private val frameIntervalMs = frameIntervalMs.coerceAtLeast(50)
@@ -57,24 +70,50 @@ class ScreenCaptureFrameSource(
         val reader = ImageReader.newInstance(outW, outH, PixelFormat.RGBA_8888, 2)
         reader.setOnImageAvailableListener({ r ->
             processFrame(r, onFrame)
-        }, null)
+        }, mainHandler)
         imageReader = reader
 
-        virtualDisplay = mediaProjection.createVirtualDisplay(
-            "ScreenMirror",
-            outW, outH, metrics.densityDpi,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            reader.surface, null, null
-        )
+        try {
+            // createVirtualDisplay 必须在 registerCallback 成功后调用，以便系统停止授权时能及时释放资源。
+            mediaProjection.registerCallback(projectionCallback, mainHandler)
+            callbackRegistered = true
+
+            virtualDisplay = mediaProjection.createVirtualDisplay(
+                "ScreenMirror",
+                outW, outH, metrics.densityDpi,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                reader.surface, null, null
+            ) ?: throw IllegalStateException("createVirtualDisplay 返回 null")
+        } catch (error: Throwable) {
+            releaseCaptureResources()
+            throw error
+        }
     }
 
     override fun stop() {
-        running = false
-        virtualDisplay?.release()
-        virtualDisplay = null
-        imageReader?.setOnImageAvailableListener(null, null)
-        imageReader?.close()
-        imageReader = null
+        releaseCaptureResources()
+    }
+
+    private fun releaseCaptureResources() {
+        synchronized(releaseLock) {
+            if (projectionStopped) return
+            projectionStopped = true
+            running = false
+
+            virtualDisplay?.release()
+            virtualDisplay = null
+
+            imageReader?.setOnImageAvailableListener(null, null)
+            imageReader?.surface?.release()
+            imageReader?.close()
+            imageReader = null
+
+            if (callbackRegistered) {
+                mediaProjection.unregisterCallback(projectionCallback)
+                callbackRegistered = false
+            }
+            mediaProjection.stop()
+        }
     }
 
     private fun processFrame(reader: ImageReader, onFrame: (PlatformBitmap) -> Unit) {

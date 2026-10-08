@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
         requestPermissionsIfNeeded()
 
         val p2pManager = AndroidWifiP2pManager(this)
-        val frameSourceFactory = AndroidFrameSourceFactory(this)
+        val frameSourceFactory = AndroidFrameSourceFactory(this, this)
         val permissionChecker = AndroidPermissionChecker(this)
 
         setContent {
@@ -73,5 +73,3 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
-
