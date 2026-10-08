@@ -18,13 +18,13 @@ fun DeviceScreen() {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text("设备信息", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            ScreenTitle("设备信息")
         }
 
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
+            AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("仪表配置", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    AppText("仪表配置", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
                     InfoRow("画布宽度", "960 px")
                     InfoRow("画布高度", "368 px")
                     InfoRow("旋转", "0°")
@@ -35,9 +35,9 @@ fun DeviceScreen() {
         }
 
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
+            AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("BLE 协议", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    AppText("BLE 协议", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
                     InfoRow("MTU", "517")
                     InfoRow("包间隔", "18 ms")
                     InfoRow("最大重试", "20 次")
@@ -48,9 +48,9 @@ fun DeviceScreen() {
         }
 
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
+            AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("应用信息", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    AppText("应用信息", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
                     InfoRow("版本", "1.0.0")
                     InfoRow("平台", "Kotlin Multiplatform")
                     InfoRow("目标", "Android / iOS / Desktop / Web")
@@ -59,9 +59,9 @@ fun DeviceScreen() {
         }
 
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
+            AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("协议命令", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    AppText("协议命令", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
                     InfoRow("0x02", "导航结束")
                     InfoRow("0x12", "图像数据")
                     InfoRow("0x14", "导航提示")
@@ -79,7 +79,7 @@ fun InfoRow(label: String, value: String) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, style = MaterialTheme.typography.bodyMedium)
-        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        AppText(label, style = AppDesign.typography.body)
+        AppText(value, style = AppDesign.typography.body, fontWeight = FontWeight.Bold)
     }
 }

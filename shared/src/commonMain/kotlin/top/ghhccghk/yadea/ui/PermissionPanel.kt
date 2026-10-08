@@ -19,17 +19,17 @@ fun PermissionPanel(
     onRequestPermission: (String) -> Unit,
     onRequestAll: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    AppCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("权限管理", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                AppText("权限管理", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
                 if (permissions.any { !it.granted }) {
-                    Button(onClick = onRequestAll) {
-                        Text("全部授权")
+                    AppButton(onClick = onRequestAll) {
+                        AppText("全部授权")
                     }
                 }
             }
@@ -41,18 +41,18 @@ fun PermissionPanel(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text(perm.name, style = MaterialTheme.typography.bodyMedium)
-                        Text(perm.description, style = MaterialTheme.typography.bodySmall)
+                        AppText(perm.name, style = AppDesign.typography.body)
+                        AppText(perm.description, style = AppDesign.typography.summary)
                     }
                     if (perm.granted) {
                         AssistChip(
                             onClick = {},
-                            label = { Text("已授权") },
-                            leadingIcon = { Text("✓") }
+                            label = { AppText("已授权") },
+                            leadingIcon = { AppText("✓") }
                         )
                     } else {
-                        OutlinedButton(onClick = { onRequestPermission(perm.permission) }) {
-                            Text("授权")
+                        AppOutlinedButton(onClick = { onRequestPermission(perm.permission) }) {
+                            AppText("授权")
                         }
                     }
                 }

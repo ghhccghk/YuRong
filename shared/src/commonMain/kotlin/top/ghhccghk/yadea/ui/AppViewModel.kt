@@ -35,7 +35,7 @@ class AppViewModel(
     val debugLog: StateFlow<List<String>> = _debugLog.asStateFlow()
 
     private fun debug(msg: String) {
-        val line = "[${System.currentTimeMillis() % 100000}] $msg"
+        val line = "[${top.ghhccghk.yadea.currentMonotonicMillis() % 100000}] $msg"
         _debugLog.value = (_debugLog.value + line).takeLast(20)
     }
 

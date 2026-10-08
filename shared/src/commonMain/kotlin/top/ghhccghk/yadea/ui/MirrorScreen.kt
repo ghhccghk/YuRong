@@ -43,51 +43,51 @@ fun MirrorScreen(viewModel: AppViewModel) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text("投屏控制", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            ScreenTitle("投屏控制")
         }
 
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
+            AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("仪表连接", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    OutlinedTextField(
+                    AppText("仪表连接", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
+                    AppTextField(
                         value = targetHost,
                         onValueChange = { targetHost = it },
-                        label = { Text("仪表 IP 地址") },
+                        label = "仪表 IP 地址",
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
                     Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
+                        AppTextField(
                             value = tcpPort,
                             onValueChange = { tcpPort = it },
-                            label = { Text("TCP 控制端口") },
+                            label = "TCP 控制端口",
                             modifier = Modifier.weight(1f),
                             singleLine = true
                         )
-                        OutlinedTextField(
+                        AppTextField(
                             value = udpPort,
                             onValueChange = { udpPort = it },
-                            label = { Text("UDP 图片端口") },
+                            label = "UDP 图片端口",
                             modifier = Modifier.weight(1f),
                             singleLine = true
                         )
                     }
                     if (p2pGroupOwnerIp.isNotEmpty()) {
-                        Text("P2P GroupOwner: $p2pGroupOwnerIp", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        AppText("P2P GroupOwner: $p2pGroupOwnerIp", style = AppDesign.typography.summary, color = AppDesign.colors.primary)
                     }
                     if (wifiIp.isNotEmpty()) {
-                        Text("WiFi 本机: $wifiIp", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                        AppText("WiFi 本机: $wifiIp", style = AppDesign.typography.summary, color = AppDesign.colors.secondary)
                     }
                 }
             }
         }
 
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
+            AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                        Text("投屏状态", style = MaterialTheme.typography.titleLarge)
+                        AppText("投屏状态", style = AppDesign.typography.title)
                         StatusChip(isMirroring, when (mirrorState) {
                             MirrorState.Running -> "投屏中"
                             MirrorState.Negotiating -> "连接中..."
@@ -96,7 +96,7 @@ fun MirrorScreen(viewModel: AppViewModel) {
                             else -> "空闲"
                         })
                     }
-                    Text(mirrorStatus, style = MaterialTheme.typography.bodyMedium)
+                    AppText(mirrorStatus, style = AppDesign.typography.body)
                     if (isMirroring) {
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                             StatItem("帧数", "$frameCount")
@@ -109,7 +109,7 @@ fun MirrorScreen(viewModel: AppViewModel) {
         }
 
         item {
-            Text("投屏源", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            AppText("投屏源", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
         }
         item {
             Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
@@ -121,7 +121,7 @@ fun MirrorScreen(viewModel: AppViewModel) {
         }
 
         item {
-            Text("投屏区域", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            AppText("投屏区域", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
         }
         item {
             MirrorPreviewPanel(
@@ -133,13 +133,13 @@ fun MirrorScreen(viewModel: AppViewModel) {
         item {
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), Arrangement.spacedBy(12.dp)) {
                 if (isMirroring) {
-                    Button(
+                    AppButton(
                         onClick = { viewModel.stopMirror() },
                         modifier = Modifier.weight(1f).height(56.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) { Text("⏹ 停止投屏", fontSize = 18.sp) }
+                        containerColor = AppDesign.colors.error
+                    ) { AppText("⏹ 停止投屏", fontSize = 18.sp) }
                 } else {
-                    Button(
+                    AppButton(
                         onClick = {
                             viewModel.startMirror(
                                 targetHost,
@@ -149,17 +149,17 @@ fun MirrorScreen(viewModel: AppViewModel) {
                         },
                         modifier = Modifier.weight(1f).height(56.dp),
                         enabled = targetHost.isNotEmpty()
-                    ) { Text("▶ 开始投屏", fontSize = 18.sp) }
+                    ) { AppText("▶ 开始投屏", fontSize = 18.sp) }
                 }
             }
         }
 
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
+            AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("调试日志", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    AppText("调试日志", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
                     debugLog.reversed().take(15).forEach { line ->
-                        Text(line, fontSize = 10.sp, lineHeight = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        AppText(line, fontSize = 10.sp, lineHeight = 13.sp, color = AppDesign.colors.onSurfaceVariant)
                     }
                 }
             }
@@ -170,20 +170,17 @@ fun MirrorScreen(viewModel: AppViewModel) {
 @Composable
 fun StatItem(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Text(label, style = MaterialTheme.typography.bodySmall)
+        AppText(value, style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
+        AppText(label, style = AppDesign.typography.summary)
     }
 }
 
 @Composable
 fun SourceButton(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Card(onClick = onClick, modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
-            else MaterialTheme.colorScheme.surfaceVariant
-        )) {
+    AppCard(onClick = onClick, modifier = modifier,
+        containerColor = if (selected) AppDesign.colors.primaryContainer else AppDesign.colors.surfaceVariant) {
         Column(Modifier.padding(12.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text, style = MaterialTheme.typography.bodyMedium)
+            AppText(text, style = AppDesign.typography.body)
         }
     }
 }
