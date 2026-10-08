@@ -15,4 +15,10 @@ interface FrameSource {
 
     /** Whether this source is currently active. */
     val isRunning: Boolean
+
+    /**
+     * Update the normalized crop area. Implementations that cannot crop at
+     * runtime may keep the value and apply it to the next frame.
+     */
+    fun updateCropConfig(config: FrameCropConfig) {}
 }

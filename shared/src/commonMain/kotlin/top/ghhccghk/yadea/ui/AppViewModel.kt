@@ -79,8 +79,16 @@ class AppViewModel(
     private val _navConfig = MutableStateFlow(NavDisplayConfig())
     val navConfig: StateFlow<NavDisplayConfig> = _navConfig.asStateFlow()
 
-    private val _selectedSource = MutableStateFlow(0)
+    private val _selectedSource = MutableStateFlow(
+        frameSourceFactory?.capabilities
+            ?.firstOrNull { it.supported }
+            ?.type
+            ?.ordinal
+            ?: 0
+    )
     val selectedSource: StateFlow<Int> = _selectedSource.asStateFlow()
+    val sourceCapabilities: List<FrameSourceCapability> =
+        frameSourceFactory?.capabilities ?: emptyList()
     private val _cropConfig = MutableStateFlow(FrameCropConfig.FULL)
     val cropConfig: StateFlow<FrameCropConfig> = _cropConfig.asStateFlow()
 
@@ -182,7 +190,29 @@ class AppViewModel(
 
         scope.launch {
             _mirrorState.value = MirrorState.Negotiating
-            _mirrorStatus.value = "正在连接仪表..."
+            _mirrorStatus.value = "正在准备投屏源..."
+
+            val request = when (_selectedSource.value) {
+                0 -> FrameSourceRequest.Camera(_cropConfig.value)
+                1 -> FrameSourceRequest.Screen(cropConfig = _cropConfig.value)
+                2 -> FrameSourceRequest.Video("", _cropConfig.value)
+                3 -> FrameSourceRequest.Navigation("", _cropConfig.value)
+                else -> FrameSourceRequest.Camera(_cropConfig.value)
+            }
+
+            val source = try {
+                val factory = frameSourceFactory
+                    ?: throw IllegalStateException("当前平台未提供投屏源实现")
+                factory.createSource(request).also {
+                    it.updateCropConfig(_cropConfig.value)
+                }
+            } catch (e: Exception) {
+                debug("投屏源准备失败: ${e.message}")
+                _mirrorState.value = MirrorState.Failed
+                _mirrorStatus.value = "投屏源不可用: ${e.message}"
+                return@launch
+            }
+            currentFrameSource = source
 
             val tcp = createTcpTransport()
             val udp = createUdpTransport()
@@ -196,6 +226,12 @@ class AppViewModel(
                 debug("TCP 连接成功")
             } catch (e: Exception) {
                 debug("TCP 连接失败: ${e.message}")
+                source.stop()
+                currentFrameSource = null
+                tcp.close()
+                udp.close()
+                tcpTransport = null
+                udpTransport = null
                 _mirrorState.value = MirrorState.Failed
                 _mirrorStatus.value = "TCP 连接失败: ${e.message}"
                 return@launch
@@ -212,12 +248,26 @@ class AppViewModel(
                 currentTimeProvider = { getCurrentTime() }
             )
 
-            if (success) {
+            if (!success) {
+                source.stop()
+                currentFrameSource = null
+                tcp.close()
+                udp.close()
+                tcpTransport = null
+                udpTransport = null
+                mirrorEngine = null
+                _mirrorState.value = MirrorState.Failed
+                _mirrorStatus.value = "启动失败"
+                debug("投屏启动失败")
+                return@launch
+            }
+
+            try {
+                source.start { bitmap -> frameBus.submit(bitmap) }
                 _mirrorState.value = MirrorState.Running
                 _navConfig.value = engine.currentConfig
                 _mirrorStatus.value = "投屏中"
                 debug("投屏启动成功")
-                startFrameSource()
                 launch {
                     while (engine.isRunning) {
                         _frameCount.value = engine.sentFrameCount
@@ -225,28 +275,21 @@ class AppViewModel(
                         kotlinx.coroutines.delay(500)
                     }
                 }
-            } else {
+            } catch (e: Exception) {
+                debug("帧源启动失败: ${e.message}")
+                engine.stop()
+                source.stop()
+                currentFrameSource = null
+                tcp.close()
+                udp.close()
+                tcpTransport = null
+                udpTransport = null
+                mirrorEngine = null
                 _mirrorState.value = MirrorState.Failed
-                _mirrorStatus.value = "启动失败"
-                debug("投屏启动失败")
+                _mirrorStatus.value = "帧源启动失败: ${e.message}"
             }
         }
     }
-
-    private fun startFrameSource() {
-        val factory = frameSourceFactory ?: return
-        scope.launch {
-            val source = when (_selectedSource.value) {
-                0 -> factory.createCameraSource()
-                2 -> factory.createVideoSource("")
-                else -> factory.createCameraSource()
-            }
-            currentFrameSource = source
-            source.start { bitmap -> frameBus.submit(bitmap) }
-            debug("帧源已启动: ${_selectedSource.value}")
-        }
-    }
-
     fun stopMirror() {
         scope.launch {
             currentFrameSource?.stop()

@@ -2,12 +2,14 @@ package top.ghhccghk.yadea
 
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import top.ghhccghk.yadea.mirror.source.JvmFrameSourceFactory
+import top.ghhccghk.yadea.ui.MainScreen
 
 fun main() = application {
     Window(
         onCloseRequest = ::exitApplication,
         title = "touping",
     ) {
-        App()
+        MainScreen(frameSourceFactory = JvmFrameSourceFactory())
     }
 }

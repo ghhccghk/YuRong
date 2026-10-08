@@ -20,6 +20,7 @@ fun MirrorScreen(viewModel: AppViewModel) {
     val frameCount by viewModel.frameCount.collectAsState()
     val bytesSent by viewModel.bytesSent.collectAsState()
     val selectedSource by viewModel.selectedSource.collectAsState()
+    val sourceCapabilities = viewModel.sourceCapabilities
     val cropConfig by viewModel.cropConfig.collectAsState()
     val p2pGroupOwnerIp by viewModel.p2pGroupOwnerIp.collectAsState()
     val wifiIp by viewModel.wifiIp.collectAsState()
@@ -113,10 +114,34 @@ fun MirrorScreen(viewModel: AppViewModel) {
         }
         item {
             Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
-                SourceButton("📷\n摄像头", selectedSource == 0, Modifier.weight(1f)) { viewModel.selectSource(0) }
-                SourceButton("📱\n屏幕", selectedSource == 1, Modifier.weight(1f)) { viewModel.selectSource(1) }
-                SourceButton("🎬\n视频", selectedSource == 2, Modifier.weight(1f)) { viewModel.selectSource(2) }
-                SourceButton("🗺\n导航", selectedSource == 3, Modifier.weight(1f)) { viewModel.selectSource(3) }
+                SourceButton(
+                    text = "📷\n摄像头",
+                    selected = selectedSource == 0,
+                    modifier = Modifier.weight(1f),
+                    enabled = sourceCapabilities.supports(0),
+                    reason = sourceCapabilities.reason(0),
+                ) { viewModel.selectSource(0) }
+                SourceButton(
+                    text = "📱\n屏幕",
+                    selected = selectedSource == 1,
+                    modifier = Modifier.weight(1f),
+                    enabled = sourceCapabilities.supports(1),
+                    reason = sourceCapabilities.reason(1),
+                ) { viewModel.selectSource(1) }
+                SourceButton(
+                    text = "🎬\n视频",
+                    selected = selectedSource == 2,
+                    modifier = Modifier.weight(1f),
+                    enabled = sourceCapabilities.supports(2),
+                    reason = sourceCapabilities.reason(2),
+                ) { viewModel.selectSource(2) }
+                SourceButton(
+                    text = "🗺\n导航",
+                    selected = selectedSource == 3,
+                    modifier = Modifier.weight(1f),
+                    enabled = sourceCapabilities.supports(3),
+                    reason = sourceCapabilities.reason(3),
+                ) { viewModel.selectSource(3) }
             }
         }
 
@@ -176,13 +201,50 @@ fun StatItem(label: String, value: String) {
 }
 
 @Composable
-fun SourceButton(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    AppCard(onClick = onClick, modifier = modifier,
-        containerColor = if (selected) AppDesign.colors.primaryContainer else AppDesign.colors.surfaceVariant) {
+fun SourceButton(
+    text: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    reason: String? = null,
+    onClick: () -> Unit,
+) {
+    AppCard(
+        onClick = if (enabled) onClick else null,
+        modifier = modifier,
+        containerColor = if (selected) AppDesign.colors.primaryContainer else AppDesign.colors.surfaceVariant,
+    ) {
         Column(Modifier.padding(12.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            AppText(text, style = AppDesign.typography.body)
+            AppText(
+                text,
+                style = AppDesign.typography.body,
+                color = if (enabled) AppDesign.colors.onSurface else AppDesign.colors.onSurfaceVariant,
+            )
+            if (reason != null) {
+                AppText(reason, style = AppDesign.typography.summary)
+            }
         }
     }
+}
+
+private fun List<top.ghhccghk.yadea.mirror.FrameSourceCapability>.supports(index: Int): Boolean {
+    val type = when (index) {
+        0 -> top.ghhccghk.yadea.mirror.FrameSourceType.Camera
+        1 -> top.ghhccghk.yadea.mirror.FrameSourceType.Screen
+        2 -> top.ghhccghk.yadea.mirror.FrameSourceType.Video
+        else -> top.ghhccghk.yadea.mirror.FrameSourceType.Navigation
+    }
+    return firstOrNull { it.type == type }?.supported ?: false
+}
+
+private fun List<top.ghhccghk.yadea.mirror.FrameSourceCapability>.reason(index: Int): String? {
+    val type = when (index) {
+        0 -> top.ghhccghk.yadea.mirror.FrameSourceType.Camera
+        1 -> top.ghhccghk.yadea.mirror.FrameSourceType.Screen
+        2 -> top.ghhccghk.yadea.mirror.FrameSourceType.Video
+        else -> top.ghhccghk.yadea.mirror.FrameSourceType.Navigation
+    }
+    return firstOrNull { it.type == type }?.reason
 }
 
 internal fun formatBytes(bytes: Long): String {
