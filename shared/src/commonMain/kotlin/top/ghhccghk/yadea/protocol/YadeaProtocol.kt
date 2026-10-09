@@ -2,91 +2,46 @@ package top.ghhccghk.yadea.protocol
 
 import top.ghhccghk.yadea.model.NavDisplayConfig
 
-/**
- * 雅迪仪表投屏通信协议
- *
- * 帧结构 (buildFrame):
- * `
- * 偏移  长度  内容
- * 0     3     魔数: 0x59 0x44 0x3C ("YD<")
- * 3     4     总长度 (Big-Endian, = payload.length + 8)
- * 7     1     命令字
- * 8     4     payload 长度 (Big-Endian)
- * 12    N     payload
- * 12+N  1     校验和
- * 13+N  2     尾部: 0x4B 0x4A ("KJ")
- * `
- */
 object YadeaProtocol {
 
-    // ---- 帧头/帧尾 ----
-    private val MAGIC = byteArrayOf(0x59, 0x44, 0x3C)  // "YD<"
-    private val FOOTER = byteArrayOf(0x4B, 0x4A)       // "KJ"
+    private val MAGIC = byteArrayOf(0x59, 0x44, 0x3C)
+    private val FOOTER = byteArrayOf(0x4B, 0x4A)
 
-    // ---- 命令字 ----
     const val CMD_NAV_END = 0x02
     const val CMD_IMAGE = 0x12
     const val CMD_NAV_HINT = 0x14
     const val CMD_HEARTBEAT = 0x1F
     const val CMD_NAV_START = 0x20
 
-    // ---- 图像分包头部长度 ----
     const val IMAGE_PACKET_HEADER_SIZE = 20
-
-    // ---- 默认参数 ----
     const val DEFAULT_PACKET_SIZE = 1024
-    const val MAX_JPEG_BYTES = 245_760  // 240KB
+    const val MAX_JPEG_BYTES = 245_760
 
     // ==================== 帧构建 ====================
 
-    /**
-     * 构建完整的协议帧
-     * @param cmd 命令字
-     * @param payload 数据负载
-     * @return 完整帧字节数组
-     */
     fun buildFrame(cmd: Int, payload: ByteArray): ByteArray {
         val totalLen = payload.size + 8
         val frame = ByteArray(payload.size + 15)
-
-        // 魔数
         MAGIC.copyInto(frame, 0)
-        // 总长度 (不含魔数和自身，= cmd(1) + len(4) + payload + checksum(1) + footer(2) - 2)
         frame.writeUInt32BE(3, totalLen)
-        // 命令字
         frame[7] = cmd.toByte()
-        // payload 长度
         frame.writeUInt32BE(8, payload.size)
-        // payload
         payload.copyInto(frame, 12)
-
         val lastIndex = frame.lastIndex
-        // 校验和 (倒数第3字节)
         frame[lastIndex - 2] = checksum(frame, lastIndex - 2)
-        // 尾部
         frame[lastIndex - 1] = FOOTER[0]
         frame[lastIndex] = FOOTER[1]
-
         return frame
     }
 
-    /**
-     * 从字节数组中解析帧
-     * @return Triple(命令字, payload, 帧总长度) 或 null
-     */
     fun parseFrame(data: ByteArray): Triple<Int, ByteArray, Int>? {
         if (data.size < 15) return null
-        // 校验魔数
         if (data[0] != MAGIC[0] || data[1] != MAGIC[1] || data[2] != MAGIC[2]) return null
-
         val payloadLen = data.readUInt32BE(8).toInt()
         val frameLen = payloadLen + 15
         if (data.size < frameLen) return null
-
-        // 校验尾部
         val lastIdx = frameLen - 1
         if (data[lastIdx - 1] != FOOTER[0] || data[lastIdx] != FOOTER[1]) return null
-
         val cmd = data[7].u()
         val payload = data.copyOfRange(12, 12 + payloadLen)
         return Triple(cmd, payload, frameLen)
@@ -94,17 +49,9 @@ object YadeaProtocol {
 
     // ==================== 图像分包 ====================
 
-    /**
-     * 构建图像数据包 payload (20B头 + 数据分片)
-     */
     fun buildImagePacketPayload(
-        crc16: Int,
-        chunkLen: Int,
-        imageSeq: Int,
-        totalSize: Int,
-        offset: Int,
-        chunk: ByteArray,
-        timestamp: Long = 0L
+        crc16: Int, chunkLen: Int, imageSeq: Int,
+        totalSize: Int, offset: Int, chunk: ByteArray, timestamp: Long = 0L
     ): ByteArray {
         val payload = ByteArray(IMAGE_PACKET_HEADER_SIZE + chunk.size)
         payload.writeUInt16LE(0, crc16)
@@ -117,19 +64,13 @@ object YadeaProtocol {
         return payload
     }
 
-    /**
-     * 将图像数据分包为多个协议帧
-     */
     fun buildImageFrames(
-        image: ByteArray,
-        imageSeq: Int,
-        packetSize: Int = DEFAULT_PACKET_SIZE,
-        timestamp: Long = 0L
+        image: ByteArray, imageSeq: Int,
+        packetSize: Int = DEFAULT_PACKET_SIZE, timestamp: Long = 0L
     ): List<ByteArray> {
         val crc = crc16Modbus(image)
         val frames = mutableListOf<ByteArray>()
         var offset = 0
-
         while (offset < image.size) {
             val len = minOf(packetSize, image.size - offset)
             val chunk = image.copyOfRange(offset, offset + len)
@@ -142,9 +83,6 @@ object YadeaProtocol {
 
     // ==================== 导航控制 ====================
 
-    /**
-     * 导航开始 payload: 协商分包大小
-     */
     fun buildNavStartPayload(packetSize: Int = DEFAULT_PACKET_SIZE): ByteArray {
         val b = ByteArray(8) { 0xFF.toByte() }
         b.writeUInt16BE(0, packetSize)
@@ -154,60 +92,103 @@ object YadeaProtocol {
         return b
     }
 
-    /**
-     * 导航结束 payload
-     */
     fun buildNavEndPayload(): ByteArray = byteArrayOf(2, -1, -1, -1, -1, -1, -1, -1)
 
-    /**
-     * 心跳 payload: 当前时间
-     * @param year 年 (如 2026)
-     * @param month 月 (1-12)
-     * @param day 日 (1-31)
-     * @param hour 时 (0-23)
-     * @param minute 分 (0-59)
-     * @param second 秒 (0-59)
-     */
     fun buildHeartbeatPayload(
-        year: Int, month: Int, day: Int,
-        hour: Int, minute: Int, second: Int
+        year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int
     ): ByteArray = byteArrayOf(
-        (year - 2000).toByte(),
-        month.toByte(),
-        day.toByte(),
-        hour.toByte(),
-        minute.toByte(),
-        second.toByte(),
-        0xFF.toByte(),
-        0xFF.toByte()
+        (year - 2000).toByte(), month.toByte(), day.toByte(),
+        hour.toByte(), minute.toByte(), second.toByte(), 0xFF.toByte(), 0xFF.toByte()
     )
 
     /**
+     * 构建导航提示 payload (64字节)
+     *
+     * 根据原始 APK sendNavigationHint:
+     * [0] = 2 (类型)
+     * [7:9] = 320 (BE)
+     * [11:13] = 860 (BE)
+     * [17:20] = 时:分:秒
+     * [20:22] = 8 (BE)
+     * [30] = bit field
+     * [31] = 目的地名称长度
+     * [32:64] = 目的地名称 (UTF-8, 最多32字节)
+     */
+    fun buildNavHintPayload(
+        name: String = "",
+        hour: Int = 0, minute: Int = 0, second: Int = 0
+    ): ByteArray {
+        val b = ByteArray(64) { 0xFF.toByte() }
+        b[0] = 2
+        b.writeUInt16BE(7, 320)
+        b.writeUInt16BE(11, 860)
+        b[17] = hour.toByte()
+        b[18] = minute.toByte()
+        b[19] = second.toByte()
+        b.writeUInt16BE(20, 8)
+        val nameBytes = name.encodeToByteArray()
+        val len = minOf(32, nameBytes.size)
+        b[31] = len.toByte()
+        nameBytes.copyInto(b, 32, 0, len)
+        return b
+    }
+
+    // ==================== 显示配置解析 ====================
+
+    /**
      * 解析仪表返回的显示配置
+     *
+     * 根据原始 APK 日志确认的响应格式（7+ 字节）:
+     * ```
+     * 偏移  长度  内容
+     * 0     1     宽度高字节 (width = byte[0] * 256)
+     * 1     1     高度高字节 (height = byte[1] * 256)
+     * 2     2     保留/格式
+     * 4     1     旋转/格式
+     * 5     1     能力标志
+     * 6     1     最大 FPS
+     * 7     1     分包倍率 (可选)
+     * ```
+     *
+     * 示例: data=04 02 00 00 0f f6 0a → 1024x512, 旋转=0x0f, 能力=0xf6, FPS=10
      */
     fun parseNavDisplayConfig(data: ByteArray): NavDisplayConfig {
-        if (data.size < 8) return NavDisplayConfig()
+        if (data.size < 7) return NavDisplayConfig()
 
-        val rawWidth = data.readUInt16BE(0)
-        val rawHeight = data.readUInt16BE(2)
+        // 格式 A: 原始 APK 的 BE uint16 格式 (data.size >= 8)
+        // 宽度 = (data[0] << 8) | data[1], 高度 = (data[2] << 8) | data[3]
+        val rawWidthBE = data.readUInt16BE(0)
+        val rawHeightBE = data.readUInt16BE(2)
 
-        val width = if (rawWidth in 320..4096) rawWidth else 960
-        val height = if (rawHeight in 160..2160) rawHeight else 368
+        // 格式 B: 字节×256 格式 (从日志推断)
+        val rawWidthShift = data[0].u() * 256
+        val rawHeightShift = data[1].u() * 256
+
+        // 优先使用 BE uint16 格式，如果结果不在有效范围则尝试 shift 格式
+        val width = when {
+            rawWidthBE in 320..4096 -> rawWidthBE
+            rawWidthShift in 320..4096 -> rawWidthShift
+            else -> 960
+        }
+        val height = when {
+            rawHeightBE in 160..2160 -> rawHeightBE
+            rawHeightShift in 160..2160 -> rawHeightShift
+            else -> 368
+        }
+
+        val rotation = data[4].u()
+        val offsetX = if (data.size > 6) data[6].u() else 0
+        val packetMultiplier = if (data.size > 7) data[7].u().coerceAtLeast(1) else 1
 
         return NavDisplayConfig(
-            width = width,
-            height = height,
-            rotation = data[4].u(),
-            offsetX = data[6].u(),
-            packetMultiplier = data[7].u().coerceAtLeast(1)
+            width = width, height = height,
+            rotation = rotation, offsetX = offsetX,
+            packetMultiplier = packetMultiplier
         )
     }
 
     // ==================== 校验 ====================
 
-    /**
-     * CRC16-Modbus
-     */
     fun crc16Modbus(data: ByteArray): Int {
         var crc = 0xFFFF
         for (byte in data) {
@@ -219,9 +200,6 @@ object YadeaProtocol {
         return crc and 0xFFFF
     }
 
-    /**
-     * 累加校验和 (取低8位)
-     */
     fun checksum(data: ByteArray, endExclusive: Int): Byte {
         var sum = 0
         for (i in 0 until endExclusive) {

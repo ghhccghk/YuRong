@@ -211,6 +211,49 @@ fun AppTextField(
     )
 }
 
+internal data class ResolvedSliderState(
+    val rangeStart: Float,
+    val rangeEnd: Float,
+    val value: Float,
+    val submitStart: Float,
+    val submitEnd: Float,
+) {
+    val valueRange: ClosedFloatingPointRange<Float>
+        get() = rangeStart..rangeEnd
+
+    fun submitValue(value: Float): Float =
+        value.coerceIn(submitStart, submitEnd)
+}
+
+internal fun resolveSliderState(
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+): ResolvedSliderState {
+    val requestedStart = minOf(valueRange.start, valueRange.endInclusive)
+    val requestedEnd = maxOf(valueRange.start, valueRange.endInclusive)
+    val requestedValue = value.coerceIn(requestedStart, requestedEnd)
+
+    if (requestedEnd > requestedStart) {
+        return ResolvedSliderState(
+            rangeStart = requestedStart,
+            rangeEnd = requestedEnd,
+            value = requestedValue,
+            submitStart = requestedStart,
+            submitEnd = requestedEnd,
+        )
+    }
+
+    val halfSpan = maxOf(kotlin.math.abs(requestedValue) * 0.000001f, 0.000001f)
+    return ResolvedSliderState(
+        rangeStart = requestedValue - halfSpan,
+        rangeEnd = requestedValue + halfSpan,
+        value = requestedValue,
+        submitStart = requestedValue,
+        submitEnd = requestedValue,
+    )
+}
+
+
 @Composable
 fun AppSlider(
     value: Float,
@@ -219,21 +262,26 @@ fun AppSlider(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
+    val sliderState = resolveSliderState(value, valueRange)
+    val submitValue: (Float) -> Unit = { rawValue ->
+        onValueChange(sliderState.submitValue(rawValue))
+    }
+
     AppStyleContent(
         material = {
             Slider(
-                value = value,
-                onValueChange = onValueChange,
-                valueRange = valueRange,
+                value = sliderState.value,
+                onValueChange = submitValue,
+                valueRange = sliderState.valueRange,
                 modifier = modifier,
                 enabled = enabled,
             )
         },
         miuix = {
             MiuixSlider(
-                value = value,
-                onValueChange = onValueChange,
-                valueRange = valueRange,
+                value = sliderState.value,
+                onValueChange = submitValue,
+                valueRange = sliderState.valueRange,
                 modifier = modifier,
                 enabled = enabled,
             )
