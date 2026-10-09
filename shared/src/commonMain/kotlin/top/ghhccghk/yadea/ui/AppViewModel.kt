@@ -32,6 +32,7 @@ class AppViewModel(
     private val frameSourceFactory: top.ghhccghk.yadea.mirror.FrameSourceFactory? = null,
     private val permissionChecker: PermissionChecker? = null,
     private val screenCaptureAuthorizer: ScreenCaptureAuthorizer? = null,
+    private val mediaSourcePicker: MediaSourcePicker? = null,
 ) {
     val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -179,6 +180,23 @@ class AppViewModel(
     }
 
     fun selectSource(index: Int) { _selectedSource.value = index }
+    val canPickVideoSource: Boolean
+        get() = mediaSourcePicker?.canPickVideo == true
+
+    fun chooseVideoSource() {
+        selectSource(2)
+        val picker = mediaSourcePicker
+        if (picker == null) return
+        picker.pickVideo { uri ->
+            if (uri.isNullOrBlank()) {
+                debug("未选择视频文件")
+            } else {
+                updateSourceUri(uri)
+                debug("已选择视频: $uri")
+            }
+        }
+    }
+
     fun updateSourceUri(uri: String) {
         _sourceUri.value = uri.trim()
     }

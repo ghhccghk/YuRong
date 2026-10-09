@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import top.ghhccghk.yadea.ble.BleAdapter
 import top.ghhccghk.yadea.mirror.FrameSourceFactory
+import top.ghhccghk.yadea.mirror.MediaSourcePicker
 import top.ghhccghk.yadea.mirror.ScreenCaptureAuthorizer
 import top.ghhccghk.yadea.wifi.WifiConnectionManager
 import top.ghhccghk.yadea.wifi.WifiP2pManager
@@ -48,6 +49,7 @@ fun MainScreen(
     frameSourceFactory: FrameSourceFactory? = null,
     permissionChecker: PermissionChecker? = null,
     screenCaptureAuthorizer: ScreenCaptureAuthorizer? = null,
+    mediaSourcePicker: MediaSourcePicker? = null,
 ) {
     val uiThemeState = rememberUiThemeStyle()
     val viewModel = remember {
@@ -58,6 +60,7 @@ fun MainScreen(
             frameSourceFactory,
             permissionChecker,
             screenCaptureAuthorizer,
+            mediaSourcePicker,
         )
     }
 

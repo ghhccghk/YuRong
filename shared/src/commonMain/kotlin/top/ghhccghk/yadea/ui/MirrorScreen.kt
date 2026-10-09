@@ -135,7 +135,7 @@ fun MirrorScreen(viewModel: AppViewModel) {
                     modifier = Modifier.weight(1f),
                     enabled = sourceCapabilities.supports(2),
                     reason = sourceCapabilities.reason(2),
-                ) { viewModel.selectSource(2) }
+                ) { viewModel.chooseVideoSource() }
                 SourceButton(
                     text = "🗺\n导航",
                     selected = selectedSource == 3,
@@ -143,6 +143,37 @@ fun MirrorScreen(viewModel: AppViewModel) {
                     enabled = sourceCapabilities.supports(3),
                     reason = sourceCapabilities.reason(3),
                 ) { viewModel.selectSource(3) }
+            }
+        }
+
+        if (selectedSource == 2 || selectedSource == 3) {
+            item {
+                AppCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        AppText(
+                            if (selectedSource == 2) "视频源" else "导航源",
+                            style = AppDesign.typography.sectionTitle,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        AppTextField(
+                            value = sourceUri,
+                            onValueChange = viewModel::updateSourceUri,
+                            label = if (selectedSource == 2) "视频文件或网络地址" else "导航图片流或视频地址",
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        if (selectedSource == 2 && viewModel.canPickVideoSource) {
+                            AppButton(
+                                onClick = viewModel::chooseVideoSource,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                AppText("选择视频文件")
+                            }
+                        }
+                    }
+                }
             }
         }
 
