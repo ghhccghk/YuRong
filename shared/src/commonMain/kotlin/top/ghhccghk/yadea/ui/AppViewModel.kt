@@ -277,7 +277,7 @@ class AppViewModel(
                 return@launch
             }
 
-            val sender = FrameSender(tcp, udp)
+            val sender = FrameSender(tcp, udp) { msg -> debug(msg) }
             val engine = MirrorEngine(sender, frameBus) { _mirrorStatus.value = it }
             mirrorEngine = engine
 
@@ -366,3 +366,4 @@ class AppViewModel(
     fun submitFrame(bitmap: PlatformBitmap) { frameBus.submit(bitmap) }
     fun cleanup() { stopMirror(); frameBus.clear() }
 }
+
