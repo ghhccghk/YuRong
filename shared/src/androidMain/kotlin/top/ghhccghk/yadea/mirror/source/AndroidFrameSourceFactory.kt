@@ -19,6 +19,11 @@ class AndroidFrameSourceFactory(
     override fun createCameraSource(): FrameSource =
         CameraFrameSource(appContext, lifecycleOwner)
 
+    override fun createScreenSource(): FrameSource =
+        throw IllegalStateException(
+            "Android 屏幕录制必须先通过 Activity Result 授权，并将 resultCode/resultData 传给 createScreenSource"
+        )
+
     override fun createScreenSource(resultCode: Int, resultData: Any): FrameSource {
         if (resultCode != Activity.RESULT_OK) {
             throw IllegalStateException(

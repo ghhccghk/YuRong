@@ -12,6 +12,7 @@ import androidx.core.content.ContextCompat
 import top.ghhccghk.yadea.ui.MainScreen
 import top.ghhccghk.yadea.wifi.AndroidWifiP2pManager
 import top.ghhccghk.yadea.mirror.source.AndroidFrameSourceFactory
+import top.ghhccghk.yadea.mirror.ScreenCaptureAuthorizer
 import top.ghhccghk.yadea.ui.AndroidPermissionChecker
 
 class MainActivity : ComponentActivity() {
@@ -48,9 +49,15 @@ class MainActivity : ComponentActivity() {
         val p2pManager = AndroidWifiP2pManager(this)
         val frameSourceFactory = AndroidFrameSourceFactory(this, this)
         val permissionChecker = AndroidPermissionChecker(this)
+        val screenCaptureAuthorizer: ScreenCaptureAuthorizer = AndroidScreenCaptureAuthorizer(this)
 
         setContent {
-            MainScreen(p2pManager = p2pManager, frameSourceFactory = frameSourceFactory, permissionChecker = permissionChecker)
+            MainScreen(
+                p2pManager = p2pManager,
+                frameSourceFactory = frameSourceFactory,
+                permissionChecker = permissionChecker,
+                screenCaptureAuthorizer = screenCaptureAuthorizer,
+            )
         }
     }
 

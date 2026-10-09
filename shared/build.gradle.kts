@@ -56,6 +56,7 @@ kotlin {
     sourceSets {
         androidMain.dependencies {
             implementation(libs.androidx.camera.lifecycle)
+            implementation(libs.androidx.camera.camera2)
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
         }

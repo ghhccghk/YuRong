@@ -46,6 +46,7 @@ miuix-squircle = { module = "top.yukonga.miuix.kmp:miuix-squircle", version.ref 
 miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui", version.ref = "miuixUi" }
 wrappers-browser = { module = "org.jetbrains.kotlin-wrappers:kotlin-browser", version.ref = "kotlin-wrappers" }
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraLifecycle" }
+androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "cameraLifecycle" }
 javacv-platform = { module = "org.bytedeco:javacv-platform", version.ref = "javacv" }
 
 [plugins]

@@ -1,6 +1,8 @@
 package top.ghhccghk.yadea.ui
 
+import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -24,7 +26,14 @@ class AndroidPermissionChecker(private val activity: ComponentActivity) : Permis
     }
 
     override fun getMissingPermissions(permissions: List<String>): List<String> {
-        return permissions.filter { !hasPermission(it) }
+        return permissions.filter { permission ->
+            isPermissionRequired(permission) && !hasPermission(permission)
+        }
+    }
+
+    private fun isPermissionRequired(permission: String): Boolean {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ||
+            permission != Manifest.permission.POST_NOTIFICATIONS
     }
 
     override fun requestPermissions(permissions: List<String>) {

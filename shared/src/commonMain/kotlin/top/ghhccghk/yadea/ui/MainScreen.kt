@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import top.ghhccghk.yadea.ble.BleAdapter
 import top.ghhccghk.yadea.mirror.FrameSourceFactory
+import top.ghhccghk.yadea.mirror.ScreenCaptureAuthorizer
 import top.ghhccghk.yadea.wifi.WifiConnectionManager
 import top.ghhccghk.yadea.wifi.WifiP2pManager
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -46,10 +47,18 @@ fun MainScreen(
     p2pManager: WifiP2pManager? = null,
     frameSourceFactory: FrameSourceFactory? = null,
     permissionChecker: PermissionChecker? = null,
+    screenCaptureAuthorizer: ScreenCaptureAuthorizer? = null,
 ) {
     val uiThemeState = rememberUiThemeStyle()
     val viewModel = remember {
-        AppViewModel(wifiManager, bleAdapter, p2pManager, frameSourceFactory, permissionChecker)
+        AppViewModel(
+            wifiManager,
+            bleAdapter,
+            p2pManager,
+            frameSourceFactory,
+            permissionChecker,
+            screenCaptureAuthorizer,
+        )
     }
 
     AppTheme(uiThemeState.value) {

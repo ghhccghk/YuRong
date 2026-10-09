@@ -7,6 +7,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.coroutines.suspendCoroutine
 import top.ghhccghk.yadea.ble.BleAdapter
 import top.ghhccghk.yadea.ble.BleConnectionState
 import top.ghhccghk.yadea.ble.BleDevice
@@ -27,7 +30,8 @@ class AppViewModel(
     private val bleAdapter: BleAdapter? = null,
     private val p2pManager: WifiP2pManager? = null,
     private val frameSourceFactory: top.ghhccghk.yadea.mirror.FrameSourceFactory? = null,
-    private val permissionChecker: PermissionChecker? = null
+    private val permissionChecker: PermissionChecker? = null,
+    private val screenCaptureAuthorizer: ScreenCaptureAuthorizer? = null,
 ) {
     val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -185,6 +189,21 @@ class AppViewModel(
         currentFrameSource?.updateCropConfig(config)
     }
 
+    private suspend fun requestScreenCaptureGrant(): ScreenCaptureGrant =
+        suspendCoroutine { continuation ->
+            val authorizer = screenCaptureAuthorizer
+                ?: throw IllegalStateException("当前平台未提供屏幕录制授权实现")
+            authorizer.requestScreenCapture(
+                onResult = { continuation.resume(it) },
+                onError = { continuation.resumeWithException(it) },
+            )
+        }
+
+    private fun releaseFrameSource(source: top.ghhccghk.yadea.mirror.FrameSource?) {
+        source?.stop()
+        screenCaptureAuthorizer?.releaseScreenCapture()
+    }
+
     fun startMirror(targetHost: String, tcpControlPort: Int = 8888, udpImagePort: Int = 8889) {
         debug("startMirror: TCP=$targetHost:$tcpControlPort, UDP=$targetHost:$udpImagePort")
 
@@ -213,10 +232,20 @@ class AppViewModel(
             val source = try {
                 val factory = frameSourceFactory
                     ?: throw IllegalStateException("当前平台未提供投屏源实现")
-                factory.createSource(request).also {
+                val createdSource = if (
+                    request is FrameSourceRequest.Screen &&
+                    screenCaptureAuthorizer != null
+                ) {
+                    val grant = requestScreenCaptureGrant()
+                    factory.createScreenSource(grant.resultCode, grant.resultData)
+                } else {
+                    factory.createSource(request)
+                }
+                createdSource.also {
                     it.updateCropConfig(_cropConfig.value)
                 }
             } catch (e: Exception) {
+                screenCaptureAuthorizer?.releaseScreenCapture()
                 debug("投屏源准备失败: ${e.message}")
                 _mirrorState.value = MirrorState.Failed
                 _mirrorStatus.value = "投屏源不可用: ${e.message}"
@@ -237,7 +266,7 @@ class AppViewModel(
                 debug("TCP 连接成功")
             } catch (e: Exception) {
                 debug("TCP 连接失败: ${e.message}")
-                source.stop()
+                releaseFrameSource(source)
                 currentFrameSource = null
                 tcp.close()
                 udp.close()
@@ -260,7 +289,7 @@ class AppViewModel(
             )
 
             if (!success) {
-                source.stop()
+                releaseFrameSource(source)
                 currentFrameSource = null
                 tcp.close()
                 udp.close()
@@ -289,7 +318,7 @@ class AppViewModel(
             } catch (e: Exception) {
                 debug("帧源启动失败: ${e.message}")
                 engine.stop()
-                source.stop()
+                releaseFrameSource(source)
                 currentFrameSource = null
                 tcp.close()
                 udp.close()
@@ -305,7 +334,7 @@ class AppViewModel(
         scope.launch {
             if (currentFrameSource !== source) return@launch
             debug("投屏源运行失败: $message")
-            source.stop()
+            releaseFrameSource(source)
             currentFrameSource = null
             mirrorEngine?.stop()
             mirrorEngine = null
@@ -321,7 +350,7 @@ class AppViewModel(
 
     fun stopMirror() {
         scope.launch {
-            currentFrameSource?.stop()
+            releaseFrameSource(currentFrameSource)
             currentFrameSource = null
             mirrorEngine?.stop()
             _mirrorState.value = MirrorState.Stopped
