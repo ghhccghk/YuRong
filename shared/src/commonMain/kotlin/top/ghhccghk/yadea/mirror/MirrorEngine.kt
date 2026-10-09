@@ -55,42 +55,37 @@ class MirrorEngine(
         framesSent = 0
         bytesSent = 0
 
-        // 1. 发送 NAV_START (TCP)
+        // 1. NAV_START — 发送后不阻塞等待回复，直接继续
         try {
             frameSender.sendNavStart()
-            onStatus("已发送 NAV_START，等待仪表回复...")
+            onStatus("已发送 NAV_START")
         } catch (e: Exception) {
             state = MirrorState.Failed
             onStatus("NAV_START 发送失败: ${e.message}")
             return false
         }
 
-        // 2. 读取仪表回复，解析显示配置
+        // 2. 尝试读取仪表回复（短超时，不阻塞主流程）
         try {
-            val response = frameSender.receiveFrame(timeoutMs = 3000)
+            val response = frameSender.receiveFrame(timeoutMs = 500)
             if (response != null) {
                 val (_, payload, _) = response
                 navConfig = YadeaProtocol.parseNavDisplayConfig(payload)
-                onStatus("协商成功: ${navConfig.width}x${navConfig.height}, 能力=${navConfig.rotation}, FPS=${navConfig.offsetX}")
+                onStatus("协商成功: ${navConfig.width}x${navConfig.height}")
             } else {
-                onStatus("未收到回复，使用默认 ${navConfig.width}x${navConfig.height}")
+                onStatus("仪表无回复，使用默认 ${navConfig.width}x${navConfig.height}")
             }
-        } catch (e: Exception) {
-            onStatus("读取配置异常: ${e.message}，使用默认")
+        } catch (_: Exception) {
+            onStatus("使用默认配置 ${navConfig.width}x${navConfig.height}")
         }
 
-        // 3. 发送 NAV_HINT (导航提示)
+        // 3. NAV_HINT
         try {
             val time = currentTimeProvider()
-            val hint = YadeaProtocol.buildNavHintPayload(
-                name = "投屏导航",
-                hour = time.hour, minute = time.minute, second = time.second
-            )
+            val hint = YadeaProtocol.buildNavHintPayload("投屏导航", time.hour, time.minute, time.second)
             frameSender.sendNavHint(hint)
-            onStatus("已发送导航提示")
-        } catch (e: Exception) {
-            onStatus("导航提示发送失败: ${e.message}")
-        }
+            onStatus("已发送 NAV_HINT")
+        } catch (_: Exception) {}
 
         // 4. 帧发送循环
         state = MirrorState.Running
@@ -123,7 +118,7 @@ class MirrorEngine(
             }
         }
 
-        // 5. 心跳循环 (每秒)
+        // 5. 心跳循环
         heartbeatJob = scope.launch(Dispatchers.Default) {
             while (!stopRequested && isActive) {
                 try {
@@ -141,17 +136,12 @@ class MirrorEngine(
 
     suspend fun stop() {
         if (state == MirrorState.Idle || state == MirrorState.Stopped) return
-
         stopRequested = true
         sendJob?.cancel()
         heartbeatJob?.cancel()
         sendJob = null
         heartbeatJob = null
-
-        try {
-            frameSender.sendNavEnd()
-        } catch (_: Exception) {}
-
+        try { frameSender.sendNavEnd() } catch (_: Exception) {}
         frameBus.clear()
         state = MirrorState.Stopped
         onStatus("投屏已停止，共${framesSent}帧/${bytesSent}B")
