@@ -148,18 +148,22 @@ private fun CropSlider(
     rangeEnd: Float,
     onChange: (Float) -> Unit
 ) {
+    val lowerBound = minOf(rangeStart, rangeEnd).coerceIn(0f, 1f)
+    val upperBound = maxOf(rangeStart, rangeEnd).coerceIn(0f, 1f)
+    val sliderValue = value.coerceIn(lowerBound, upperBound)
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         AppText(label, fontSize = 12.sp, modifier = Modifier.width(50.dp))
         AppSlider(
-            value = value,
-            onValueChange = onChange,
-            valueRange = rangeStart..rangeEnd,
+            value = sliderValue,
+            onValueChange = { onChange(it.coerceIn(lowerBound, upperBound)) },
+            valueRange = lowerBound..upperBound,
             modifier = Modifier.weight(1f)
         )
-        AppText(fmt(value, 2), fontSize = 11.sp, modifier = Modifier.width(36.dp))
+        AppText(fmt(sliderValue, 2), fontSize = 11.sp, modifier = Modifier.width(36.dp))
     }
 }
 
