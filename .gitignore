@@ -19,3 +19,4 @@ captures
 node_modules/
 /jadx-output/
 /jadx/
+/androidApp/debug/
