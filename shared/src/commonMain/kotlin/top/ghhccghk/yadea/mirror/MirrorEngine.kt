@@ -55,7 +55,7 @@ class MirrorEngine(
         framesSent = 0
         bytesSent = 0
 
-        // 1. NAV_START — 发送后不阻塞等待回复，直接继续
+        // 1. NAV_START
         try {
             frameSender.sendNavStart()
             onStatus("已发送 NAV_START")
@@ -65,18 +65,29 @@ class MirrorEngine(
             return false
         }
 
-        // 2. 尝试读取仪表回复（短超时，不阻塞主流程）
-        try {
-            val response = frameSender.receiveFrame(timeoutMs = 500)
-            if (response != null) {
-                val (_, payload, _) = response
-                navConfig = YadeaProtocol.parseNavDisplayConfig(payload)
-                onStatus("协商成功: ${navConfig.width}x${navConfig.height}")
-            } else {
-                onStatus("仪表无回复，使用默认 ${navConfig.width}x${navConfig.height}")
+        // 2. 持续读取回复，直到拿到 CMD=0x20 (NAV_START响应) 或超时
+        //    仪表可能先发 CMD=0xF1 ACK，再发 CMD=0x20 配置
+        var waitCount = 0
+        var gotConfig = false
+        while (!gotConfig) {
+            try {
+                val response = frameSender.receiveFrame(timeoutMs = 1000) ?: break
+                val (cmd, payload, _) = response
+                if (cmd == YadeaProtocol.CMD_NAV_START && payload.size >= 7) {
+                    navConfig = YadeaProtocol.parseNavDisplayConfig(payload)
+                    gotConfig = true
+                    onStatus("协商成功: ${navConfig.width}x${navConfig.height}")
+                } else {
+                    onStatus("收到 CMD=0x${String.format("%02X", cmd)} payload=${payload.size}B (等待配置...)")
+                }
+            } catch (_: Exception) {
+                break
             }
-        } catch (_: Exception) {
-            onStatus("使用默认配置 ${navConfig.width}x${navConfig.height}")
+            // 最多等5秒
+            waitCount++; if (waitCount > 5) break
+        }
+        if (!gotConfig) {
+            onStatus("未收到配置，使用默认 ${navConfig.width}x${navConfig.height}")
         }
 
         // 3. NAV_HINT
@@ -87,7 +98,7 @@ class MirrorEngine(
             onStatus("已发送 NAV_HINT")
         } catch (_: Exception) {}
 
-        // 4. 帧发送循环
+        // 4. 帧发送
         state = MirrorState.Running
         onStatus("投屏已启动")
 
@@ -118,7 +129,7 @@ class MirrorEngine(
             }
         }
 
-        // 5. 心跳循环
+        // 5. 心跳
         heartbeatJob = scope.launch(Dispatchers.Default) {
             while (!stopRequested && isActive) {
                 try {
@@ -154,3 +165,4 @@ class MirrorEngine(
         frameBus.clear()
     }
 }
+

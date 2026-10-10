@@ -9,7 +9,7 @@ import java.util.Locale
 
 actual fun logToFile(message: String) {
     try {
-        val dir = File("/storage/emulated/0/Download/yadea-logs")
+        val dir = File("/storage/emulated/0/Android/data/top.ghhccghk.yadea/files/yadea-logs")
         if (!dir.exists()) dir.mkdirs()
         val file = File(dir, "mirror-log.txt")
         val ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()).format(Date())
