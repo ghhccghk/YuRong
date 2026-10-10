@@ -1,6 +1,8 @@
 package top.ghhccghk.yadea.network
 
 import top.ghhccghk.yadea.protocol.YadeaProtocol
+import top.ghhccghk.yadea.protocol.readUInt32BE
+import top.ghhccghk.yadea.protocol.u
 
 /**
  * FrameSender - 协议帧收发器
@@ -12,7 +14,7 @@ class FrameSender(
     private val udp: UdpTransport,
     private val logger: (String) -> Unit = {}
 ) {
-    private fun hex(data: ByteArray, maxLen: Int = 32): String {
+    private fun hex(data: ByteArray, maxLen: Int = 48): String {
         val sb = StringBuilder()
         for (i in 0 until minOf(data.size, maxLen)) {
             if (i > 0) sb.append(' ')
@@ -23,19 +25,20 @@ class FrameSender(
     }
 
     private fun cmdName(cmd: Int): String = when (cmd) {
-        YadeaProtocol.CMD_NAV_END -> "NAV_END(0x02)"
-        YadeaProtocol.CMD_IMAGE -> "IMAGE(0x12)"
-        YadeaProtocol.CMD_NAV_HINT -> "NAV_HINT(0x14)"
-        YadeaProtocol.CMD_HEARTBEAT -> "HEARTBEAT(0x1F)"
-        YadeaProtocol.CMD_NAV_START -> "NAV_START(0x20)"
-        else -> "CMD=0x${String.format("%02X", cmd)}"
+        YadeaProtocol.CMD_NAV_END -> "NAV_END"
+        YadeaProtocol.CMD_IMAGE -> "IMAGE"
+        YadeaProtocol.CMD_NAV_HINT -> "NAV_HINT"
+        YadeaProtocol.CMD_HEARTBEAT -> "HEARTBEAT"
+        YadeaProtocol.CMD_NAV_START -> "NAV_START"
+        else -> "0x${String.format("%02X", cmd)}"
     }
 
     // ==================== TCP 发送 ====================
 
     suspend fun sendFrame(cmd: Int, payload: ByteArray) {
         val frame = YadeaProtocol.buildFrame(cmd, payload)
-        logger("[TX] ${cmdName(cmd)} payload=${payload.size}B frame=${frame.size}B hex=${hex(frame)}")
+        logger("[TX] ${cmdName(cmd)} ${payload.size}B payload: ${hex(payload)}")
+        logger("[TX] frame ${frame.size}B: ${hex(frame)}")
         tcp.send(frame)
     }
 
@@ -64,10 +67,7 @@ class FrameSender(
         timestamp: Long = 0L
     ): Int {
         val frames = YadeaProtocol.buildImageFrames(image, imageSeq, packetSize, timestamp)
-        logger("[TX-UDP] IMAGE seq=$imageSeq total=${image.size}B packets=${frames.size} → $targetHost:$targetPort")
-        if (frames.isNotEmpty()) {
-            logger("[TX-UDP] 首包 hex=${hex(frames[0])}")
-        }
+        logger("[TX-UDP] IMAGE seq=$imageSeq size=${image.size}B packets=${frames.size} -> $targetHost:$targetPort")
         for (frame in frames) {
             udp.send(frame, targetHost, targetPort)
         }
@@ -81,7 +81,7 @@ class FrameSender(
         timestamp: Long = 0L
     ): Int {
         val frames = YadeaProtocol.buildImageFrames(image, imageSeq, packetSize, timestamp)
-        logger("[TX-UDP] BROADCAST seq=$imageSeq total=${image.size}B packets=${frames.size} port=$broadcastPort")
+        logger("[TX-UDP] BROADCAST seq=$imageSeq size=${image.size}B packets=${frames.size} port=$broadcastPort")
         for (frame in frames) {
             udp.broadcast(frame, broadcastPort)
         }
@@ -91,35 +91,50 @@ class FrameSender(
     // ==================== TCP 接收 ====================
 
     suspend fun receiveFrame(timeoutMs: Long = 3000): Triple<Int, ByteArray, Int>? {
-        val header = tcp.readExact(12, timeoutMs) ?: run {
-            logger("[RX] 超时/无数据 (等待 ${timeoutMs}ms)")
+        // 一次性读取所有可用数据
+        val raw = tcp.receive(4096, timeoutMs) ?: run {
+            logger("[RX] 超时/无数据 (${timeoutMs}ms)")
             return null
         }
-        logger("[RX] 帧头 12B hex=${hex(header)}")
+        logger("[RX] 收到 ${raw.size}B: ${hex(raw)}")
 
-        val payloadLen = header.copyOfRange(8, 12).let { bytes ->
-            ((bytes[0].toInt() and 0xFF) shl 24) or
-                    ((bytes[1].toInt() and 0xFF) shl 16) or
-                    ((bytes[2].toInt() and 0xFF) shl 8) or
-                    (bytes[3].toInt() and 0xFF)
-        }
-        logger("[RX] payloadLen=$payloadLen")
+        // 扫描帧魔数 0x59 0x44
+        var pos = 0
+        while (pos + 12 <= raw.size) {
+            // 寻找 "YD" 魔数
+            if (raw[pos] != 0x59.toByte() || raw[pos + 1] != 0x44.toByte()) {
+                pos++
+                continue
+            }
 
-        val remaining = tcp.readExact(payloadLen + 3, timeoutMs) ?: run {
-            logger("[RX] 读取剩余 ${payloadLen + 3}B 失败")
-            return null
-        }
-        logger("[RX] 剩余 ${remaining.size}B hex=${hex(remaining)}")
+            val totalLen = raw.readUInt32BE(pos + 3).toInt()
+            if (totalLen < 8 || totalLen > 1_048_576) {
+                pos++
+                continue
+            }
 
-        val fullFrame = header + remaining
-        val result = YadeaProtocol.parseFrame(fullFrame)
-        if (result != null) {
-            val (cmd, payload, frameLen) = result
-            logger("[RX] 解析成功: ${cmdName(cmd)} payload=${payload.size}B frameLen=$frameLen hex=${hex(payload)}")
-        } else {
-            logger("[RX] 解析失败! fullFrame=${fullFrame.size}B hex=${hex(fullFrame)}")
+            val frameEnd = pos + totalLen + 7
+            if (frameEnd > raw.size) {
+                logger("[RX] 帧不完整: 需要 ${frameEnd}B, 只有 ${raw.size}B")
+                return null
+            }
+
+            // 检查尾部 0x4B 0x4A
+            if (raw[frameEnd - 2] != 0x4B.toByte() || raw[frameEnd - 1] != 0x4A.toByte()) {
+                pos++
+                continue
+            }
+
+            val payloadLen = raw.readUInt32BE(pos + 8).toInt()
+            val cmd = raw[pos + 7].u()
+            val payload = raw.copyOfRange(pos + 12, pos + 12 + payloadLen)
+
+            logger("[RX] 帧解析成功: ${cmdName(cmd)} payload=${payload.size}B: ${hex(payload)}")
+            return Triple(cmd, payload, frameEnd - pos)
         }
-        return result
+
+        logger("[RX] 未找到有效帧! raw=${hex(raw)}")
+        return null
     }
 
     fun close() {
@@ -127,3 +142,4 @@ class FrameSender(
         udp.close()
     }
 }
+
