@@ -42,6 +42,7 @@ class AppViewModel(
     private fun debug(msg: String) {
         val line = "[${top.ghhccghk.yadea.currentMonotonicMillis() % 100000}] $msg"
         _debugLog.value = (_debugLog.value + line).takeLast(20)
+        logToFile(line)
     }
 
     private val _wifiState = MutableStateFlow(WifiConnectionState.Disconnected)
@@ -384,4 +385,5 @@ class AppViewModel(
     fun submitFrame(bitmap: PlatformBitmap) { frameBus.submit(bitmap) }
     fun cleanup() { stopMirror(); frameBus.clear() }
 }
+
 
