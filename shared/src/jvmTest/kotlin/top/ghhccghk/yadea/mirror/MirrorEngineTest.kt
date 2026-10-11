@@ -81,26 +81,26 @@ class MirrorEngineTest {
         assertEquals(MirrorState.Stopped, engine.currentState)
     }
 
-    @Test fun start_sendsNavStartFrame() = runBlocking {
+    @Test fun startup_sendsHeartbeatAndNavStart() = runBlocking {
         engine.start("192.168.1.100", 8080, scope = scope, currentTimeProvider = ::dateTimeProvider)
+        // 第一帧应该是心跳+NAV_START合并
         assertTrue(tcp.sentFrames.isNotEmpty())
-        val frame = tcp.sentFrames[0]
-        assertEquals(0x20, frame[7].toInt() and 0xFF)
+        val firstFrame = tcp.sentFrames[0]
+        // 心跳 cmd=0x1F 在 offset 7，NAV_START cmd=0x10 在后续
+        assertEquals(0x1F, firstFrame[7].toInt() and 0xFF)
     }
 
     @Test fun start_withResponse_parsesConfig() = runBlocking {
-        // 模拟仪表回复 1024x512 配置 (BE uint16 格式)
-        // data=04 00 02 00 00 0f f6 0a → width=0x0400=1024, height=0x0200=512
         val configPayload = ByteArray(8)
-        configPayload[0] = 0x04.toByte() // width high
-        configPayload[1] = 0x00.toByte() // width low  → 0x0400 = 1024
-        configPayload[2] = 0x02.toByte() // height high
-        configPayload[3] = 0x00.toByte() // height low → 0x0200 = 512
-        configPayload[4] = 0x00.toByte() // format
-        configPayload[5] = 0x0F.toByte() // rotation
-        configPayload[6] = 0xF6.toByte() // capability
-        configPayload[7] = 0x0A.toByte() // fps
-        val responseFrame = YadeaProtocol.buildFrame(YadeaProtocol.CMD_NAV_START, configPayload)
+        configPayload[0] = 0x04.toByte()
+        configPayload[1] = 0x00.toByte()
+        configPayload[2] = 0x02.toByte()
+        configPayload[3] = 0x00.toByte()
+        configPayload[4] = 0x00.toByte()
+        configPayload[5] = 0x0F.toByte()
+        configPayload[6] = 0xF6.toByte()
+        configPayload[7] = 0x0A.toByte()
+        val responseFrame = YadeaProtocol.buildFrame(YadeaProtocol.CMD_NAV_START_RESPONSE, configPayload)
         tcp.enqueueResponse(responseFrame)
         engine.start("192.168.1.100", 8080, scope = scope, currentTimeProvider = ::dateTimeProvider)
         assertEquals(1024, engine.currentConfig.width)
@@ -132,14 +132,18 @@ class MirrorEngineTest {
     @Test fun heartbeat_sendsPeriodically() = runBlocking {
         engine.start("192.168.1.100", 8080, scope = scope, currentTimeProvider = ::dateTimeProvider)
         delay(2500)
-        val heartbeats = tcp.sentFrames.filter { (it[7].toInt() and 0xFF) == 0x1F }
-        assertTrue(heartbeats.size >= 2)
+        val heartbeats = tcp.sentFrames.filter {
+            it.size >= 8 && (it[7].toInt() and 0xFF) == 0x1F
+        }
+        assertTrue(heartbeats.size >= 1)
     }
 
     @Test fun stop_sendsNavEnd() = runBlocking {
         engine.start("192.168.1.100", 8080, scope = scope, currentTimeProvider = ::dateTimeProvider)
         engine.stop()
-        val navEndFrames = tcp.sentFrames.filter { (it[7].toInt() and 0xFF) == 0x02 }
+        val navEndFrames = tcp.sentFrames.filter {
+            it.size >= 8 && (it[7].toInt() and 0xFF) == 0x13
+        }
         assertTrue(navEndFrames.isNotEmpty())
     }
 

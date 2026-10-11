@@ -55,39 +55,38 @@ class MirrorEngine(
         framesSent = 0
         bytesSent = 0
 
-        // 1. NAV_START
+        // 1. 启动序列: 心跳 + NAV_START (原始 APK 先发心跳再发 NAV_START)
         try {
-            frameSender.sendNavStart()
-            onStatus("已发送 NAV_START")
+            val time = currentTimeProvider()
+            frameSender.sendStartupSequence(time.year, time.month, time.day, time.hour, time.minute, time.second)
+            onStatus("已发送 HEARTBEAT + NAV_START (cmd=0x10)")
         } catch (e: Exception) {
             state = MirrorState.Failed
-            onStatus("NAV_START 发送失败: ${e.message}")
+            onStatus("启动命令发送失败: ${e.message}")
             return false
         }
 
-        // 2. 持续读取回复，直到拿到 CMD=0x20 (NAV_START响应) 或超时
-        //    仪表可能先发 CMD=0xF1 ACK，再发 CMD=0x20 配置
-        var waitCount = 0
-        var gotConfig = false
-        while (!gotConfig) {
-            try {
-                val response = frameSender.receiveFrame(timeoutMs = 1000) ?: break
+        // 2. 等待 CMD=0x20 回复 (显示配置)
+        try {
+            var waitCount = 0
+            var gotConfig = false
+            while (!gotConfig && waitCount <= 5) {
+                val response = frameSender.receiveFrame(timeoutMs = 1500) ?: break
                 val (cmd, payload, _) = response
-                if (cmd == YadeaProtocol.CMD_NAV_START && payload.size >= 7) {
+                if (cmd == YadeaProtocol.CMD_NAV_START_RESPONSE && payload.size >= 7) {
                     navConfig = YadeaProtocol.parseNavDisplayConfig(payload)
                     gotConfig = true
-                    onStatus("协商成功: ${navConfig.width}x${navConfig.height}")
+                    onStatus("协商成功: ${navConfig.width}x${navConfig.height}, FPS=${navConfig.offsetX}")
                 } else {
-                    onStatus("收到 CMD=0x${String.format("%02X", cmd)} payload=${payload.size}B (等待配置...)")
+                    onStatus("收到 ${cmdName(cmd)} (等待0x20配置...)")
                 }
-            } catch (_: Exception) {
-                break
+                waitCount++
             }
-            // 最多等5秒
-            waitCount++; if (waitCount > 5) break
-        }
-        if (!gotConfig) {
-            onStatus("未收到配置，使用默认 ${navConfig.width}x${navConfig.height}")
+            if (!gotConfig) {
+                onStatus("未收到0x20配置，使用默认 ${navConfig.width}x${navConfig.height}")
+            }
+        } catch (e: Exception) {
+            onStatus("读取配置异常: ${e.message}")
         }
 
         // 3. NAV_HINT
@@ -98,7 +97,7 @@ class MirrorEngine(
             onStatus("已发送 NAV_HINT")
         } catch (_: Exception) {}
 
-        // 4. 帧发送
+        // 4. 帧发送循环
         state = MirrorState.Running
         onStatus("投屏已启动")
 
@@ -108,7 +107,7 @@ class MirrorEngine(
                 if (bitmap != null) {
                     try {
                         val jpeg = JpegEncoder.encode(bitmap, navConfig.width, navConfig.height)
-                        val packetSize = YadeaProtocol.DEFAULT_PACKET_SIZE * navConfig.packetMultiplier
+                        val packetSize = YadeaProtocol.DEFAULT_PACKET_SIZE
                         val timestamp = System.currentTimeMillis() and 0xFFFFFFFFL
                         val packets = if (broadcastPort != null) {
                             frameSender.broadcastImage(jpeg, imageSequence, broadcastPort, packetSize, timestamp)
@@ -129,7 +128,7 @@ class MirrorEngine(
             }
         }
 
-        // 5. 心跳
+        // 5. 心跳循环
         heartbeatJob = scope.launch(Dispatchers.Default) {
             while (!stopRequested && isActive) {
                 try {
@@ -143,6 +142,17 @@ class MirrorEngine(
         }
 
         return true
+    }
+
+    private fun cmdName(cmd: Int): String = when (cmd) {
+        YadeaProtocol.CMD_NAV_START_SEND -> "NAV_START_REQ"
+        YadeaProtocol.CMD_NAV_START_RESPONSE -> "NAV_START_RESP"
+        YadeaProtocol.CMD_NAV_END_SEND -> "NAV_END_REQ"
+        YadeaProtocol.CMD_NAV_END_RESPONSE -> "NAV_END_RESP"
+        YadeaProtocol.CMD_IMAGE -> "IMAGE"
+        YadeaProtocol.CMD_NAV_HINT -> "NAV_HINT"
+        YadeaProtocol.CMD_HEARTBEAT -> "HEARTBEAT"
+        else -> "0x${String.format("%02X", cmd)}"
     }
 
     suspend fun stop() {
@@ -165,4 +175,3 @@ class MirrorEngine(
         frameBus.clear()
     }
 }
-

@@ -9,7 +9,6 @@ class FrameSender(
     private val udp: UdpTransport,
     private val logger: (String) -> Unit = {}
 ) {
-    // 帧缓冲区 — TCP 可能把多个帧合并在一次 read 中到达
     private val frameBuffer = ArrayList<ByteArray>()
     private val rawBuffer = ArrayList<Byte>()
 
@@ -24,11 +23,13 @@ class FrameSender(
     }
 
     private fun cmdName(cmd: Int): String = when (cmd) {
-        YadeaProtocol.CMD_NAV_END -> "NAV_END"
+        YadeaProtocol.CMD_NAV_END_SEND -> "NAV_END_SEND"
+        YadeaProtocol.CMD_NAV_END_RESPONSE -> "NAV_END_RESP"
         YadeaProtocol.CMD_IMAGE -> "IMAGE"
         YadeaProtocol.CMD_NAV_HINT -> "NAV_HINT"
         YadeaProtocol.CMD_HEARTBEAT -> "HEARTBEAT"
-        YadeaProtocol.CMD_NAV_START -> "NAV_START"
+        YadeaProtocol.CMD_NAV_START_SEND -> "NAV_START_SEND"
+        YadeaProtocol.CMD_NAV_START_RESPONSE -> "NAV_START_RESP"
         else -> "0x${String.format("%02X", cmd)}"
     }
 
@@ -41,11 +42,11 @@ class FrameSender(
     }
 
     suspend fun sendNavStart(packetSize: Int = YadeaProtocol.DEFAULT_PACKET_SIZE) {
-        sendFrame(YadeaProtocol.CMD_NAV_START, YadeaProtocol.buildNavStartPayload(packetSize))
+        sendFrame(YadeaProtocol.CMD_NAV_START_SEND, YadeaProtocol.buildNavStartPayload(packetSize))
     }
 
     suspend fun sendNavEnd() {
-        sendFrame(YadeaProtocol.CMD_NAV_END, YadeaProtocol.buildNavEndPayload())
+        sendFrame(YadeaProtocol.CMD_NAV_END_SEND, YadeaProtocol.buildNavEndPayload())
     }
 
     suspend fun sendHeartbeat(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int) {
@@ -54,6 +55,22 @@ class FrameSender(
 
     suspend fun sendNavHint(payload: ByteArray) {
         sendFrame(YadeaProtocol.CMD_NAV_HINT, payload)
+    }
+
+    /**
+     * 原始 APK 启动序列: 心跳 + NAV_START 一起写入再 flush
+     */
+    suspend fun sendStartupSequence(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int) {
+        val heartbeatFrame = YadeaProtocol.buildFrame(
+            YadeaProtocol.CMD_HEARTBEAT,
+            YadeaProtocol.buildHeartbeatPayload(year, month, day, hour, minute, second)
+        )
+        val navStartFrame = YadeaProtocol.buildFrame(
+            YadeaProtocol.CMD_NAV_START_SEND,
+            YadeaProtocol.buildNavStartPayload(YadeaProtocol.DEFAULT_PACKET_SIZE)
+        )
+        logger("[TX] STARTUP: HEARTBEAT + NAV_START")
+        tcp.send(heartbeatFrame + navStartFrame)
     }
 
     suspend fun sendImage(
@@ -86,69 +103,45 @@ class FrameSender(
 
     // ==================== 接收 ====================
 
-    /**
-     * 从 TCP 接收一个帧
-     *
-     * TCP 可能把多个帧合并在一次 read 中到达。
-     * 此方法维护内部缓冲区，逐帧解析返回。
-     */
     suspend fun receiveFrame(timeoutMs: Long = 3000): Triple<Int, ByteArray, Int>? {
-        // 如果缓冲区已有完整帧，直接返回
         parseBufferedFrames()
-        if (frameBuffer.isNotEmpty()) {
-            return parseNextFrame()
-        }
+        if (frameBuffer.isNotEmpty()) return parseNextFrame()
 
-        // 从 TCP 读取新数据
         val raw = tcp.receive(4096, timeoutMs)
         if (raw == null) {
             logger("[RX] 超时/无数据 (${timeoutMs}ms)")
             return null
         }
         logger("[RX] 收到 ${raw.size}B: ${hex(raw)}")
-
-        // 加入缓冲区
         raw.forEach { rawBuffer.add(it) }
         parseBufferedFrames()
-
-        if (frameBuffer.isNotEmpty()) {
-            return parseNextFrame()
-        }
+        if (frameBuffer.isNotEmpty()) return parseNextFrame()
         logger("[RX] 缓冲区 ${rawBuffer.size}B 中未找到完整帧")
         return null
     }
 
-    /**
-     * 从 rawBuffer 中扫描并提取所有完整帧
-     */
     private fun parseBufferedFrames() {
         while (rawBuffer.size >= 15) {
             var pos = -1
-            // 扫描 "YD" 魔数
             for (i in 0..rawBuffer.size - 2) {
                 if (rawBuffer[i] == 0x59.toByte() && rawBuffer[i + 1] == 0x44.toByte()) {
                     pos = i; break
                 }
             }
             if (pos < 0) break
-
-            // 丢弃魔数前的杂数据
-            if (pos > 0) {
-                repeat(pos) { rawBuffer.removeAt(0) }
-            }
+            if (pos > 0) repeat(pos) { rawBuffer.removeAt(0) }
             if (rawBuffer.size < 12) break
 
             val headerArr = rawBuffer.subList(0, 12).toByteArray()
             val totalLen = headerArr.readUInt32BE(3).toInt()
             if (totalLen < 8 || totalLen > 1_048_576) {
-                rawBuffer.removeAt(0) // 跳过坏帧头
+                rawBuffer.removeAt(0)
                 continue
             }
 
             val frameEnd = totalLen + 7
-            if (rawBuffer.size < frameEnd) break // 帧不完整，等下次读
+            if (rawBuffer.size < frameEnd) break
 
-            // 验证尾部
             if (rawBuffer[frameEnd - 2] != 0x4B.toByte() || rawBuffer[frameEnd - 1] != 0x4A.toByte()) {
                 rawBuffer.removeAt(0)
                 continue
@@ -160,9 +153,6 @@ class FrameSender(
         }
     }
 
-    /**
-     * 从 frameBuffer 取出一个帧并解析
-     */
     private fun parseNextFrame(): Triple<Int, ByteArray, Int>? {
         val frame = frameBuffer.removeAt(0)
         val payloadLen = frame.readUInt32BE(8).toInt()

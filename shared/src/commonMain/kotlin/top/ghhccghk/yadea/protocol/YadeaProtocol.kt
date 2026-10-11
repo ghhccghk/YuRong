@@ -7,17 +7,24 @@ object YadeaProtocol {
     private val MAGIC_SEND = byteArrayOf(0x59, 0x44, 0x3C)
     private val FOOTER = byteArrayOf(0x4B, 0x4A)
 
-    const val CMD_NAV_END = 0x02
+    // ==================== 发送命令字 ====================
+    // 注意：发送和接收的命令字不同！
+    const val CMD_NAV_END_SEND = 0x13      // 发送 NAV_END (原始 APK buildNavFrame(19,...))
     const val CMD_IMAGE = 0x12
     const val CMD_NAV_HINT = 0x14
-    const val CMD_HEARTBEAT = 0x1F
-    const val CMD_NAV_START = 0x20
+    const val CMD_HEARTBEAT = 0x1F         // 心跳 (原始 APK buildNavFrame(31,...))
+    const val CMD_NAV_START_SEND = 0x10    // 发送 NAV_START (原始 APK buildNavFrame(16,...))
 
+    // ==================== 接收命令字 ====================
+    const val CMD_NAV_START_RESPONSE = 0x20  // 仪表回复 NAV_START
+    const val CMD_NAV_END_RESPONSE = 0x23    // 仪表回复 NAV_END
+
+    // ==================== 图像分包 ====================
     const val IMAGE_PACKET_HEADER_SIZE = 20
-    const val DEFAULT_PACKET_SIZE = 1024
+    const val DEFAULT_PACKET_SIZE = 1434     // 原始 APK 使用 1434
     const val MAX_JPEG_BYTES = 245_760
 
-    // ==================== 帧构建 (发送) ====================
+    // ==================== 帧构建 ====================
 
     fun buildFrame(cmd: Int, payload: ByteArray): ByteArray {
         val totalLen = payload.size + 8
@@ -34,9 +41,6 @@ object YadeaProtocol {
         return frame
     }
 
-    /**
-     * 解析单个协议帧
-     */
     fun parseFrame(data: ByteArray): Triple<Int, ByteArray, Int>? {
         if (data.size < 15) return null
         if (data[0] != 0x59.toByte() || data[1] != 0x44.toByte()) return null
@@ -106,19 +110,6 @@ object YadeaProtocol {
         hour.toByte(), minute.toByte(), second.toByte(), 0xFF.toByte(), 0xFF.toByte()
     )
 
-    /**
-     * 构建导航提示 payload (64字节)
-     *
-     * 严格按原始 APK sendNavigationHint:
-     * [0] = 2
-     * [7:9] = 320 (BE)
-     * [11:13] = 860 (BE)
-     * [17:20] = 时:分:秒
-     * [20:22] = 8 (BE)
-     * [30] = setBits(byte[30], 6, 2, 1) ← 关键！控制显示开关
-     * [31] = 目的地名称长度
-     * [32:64] = 目的地名称 UTF-8
-     */
     fun buildNavHintPayload(
         name: String = "",
         hour: Int = 0, minute: Int = 0, second: Int = 0
@@ -131,7 +122,6 @@ object YadeaProtocol {
         b[18] = minute.toByte()
         b[19] = second.toByte()
         b.writeUInt16BE(20, 8)
-        // 关键: 设置 bit[30] 的 bit6-7 为 01 → 触发仪表进入显示模式
         b[30] = setBits(b[30], 6, 2, 1)
         val nameBytes = name.encodeToByteArray()
         val len = minOf(32, nameBytes.size)
@@ -140,13 +130,6 @@ object YadeaProtocol {
         return b
     }
 
-    /**
-     * 设置特定位段
-     * @param value 原始字节
-     * @param startBit 起始位 (0-7)
-     * @param bitCount 位数
-     * @param bits 要设置的值
-     */
     fun setBits(value: Byte, startBit: Int, bitCount: Int, bits: Int): Byte {
         val mask = ((1 shl bitCount) - 1) shl startBit
         val cleared = value.toInt() and mask.inv()
@@ -156,26 +139,13 @@ object YadeaProtocol {
 
     // ==================== 显示配置解析 ====================
 
-    /**
-     * 解析仪表显示配置 (从原始日志确认)
-     *
-     * data=04 00 02 00 00 0f f6 0a → 1024x512
-     * [0:2] 宽度 BE uint16 = 0x0400 = 1024
-     * [2:4] 高度 BE uint16 = 0x0200 = 512
-     * [4]   格式 = 0x00
-     * [5]   旋转 = 0x0F
-     * [6]   能力 = 0xF6
-     * [7]   FPS = 0x0A = 10
-     */
     fun parseNavDisplayConfig(data: ByteArray): NavDisplayConfig {
         if (data.size < 7) return NavDisplayConfig()
-
         val width = data.readUInt16BE(0).let { if (it in 320..4096) it else 960 }
         val height = data.readUInt16BE(2).let { if (it in 160..2160) it else 368 }
         val rotation = data[4].u()
         val offsetX = if (data.size > 6) data[6].u() else 0
         val packetMultiplier = if (data.size > 7) data[7].u().coerceAtLeast(1) else 1
-
         return NavDisplayConfig(width, height, rotation, offsetX, packetMultiplier)
     }
 
@@ -198,4 +168,3 @@ object YadeaProtocol {
         return (sum and 0xFF).toByte()
     }
 }
-
