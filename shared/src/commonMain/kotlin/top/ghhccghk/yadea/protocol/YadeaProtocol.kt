@@ -4,10 +4,7 @@ import top.ghhccghk.yadea.model.NavDisplayConfig
 
 object YadeaProtocol {
 
-    // 发送帧头: "YD<" (0x59 0x44 0x3C)
     private val MAGIC_SEND = byteArrayOf(0x59, 0x44, 0x3C)
-    // 接收帧头: "YDL" (0x59 0x44 0x4C) — 原始 APK parseNavResponses 检查 bytes[2]==76
-    private val MAGIC_RECV = byteArrayOf(0x59, 0x44, 0x4C)
     private val FOOTER = byteArrayOf(0x4B, 0x4A)
 
     const val CMD_NAV_END = 0x02
@@ -37,41 +34,19 @@ object YadeaProtocol {
         return frame
     }
 
-    // ==================== 帧解析 (接收) ====================
-
     /**
-     * 解析仪表回复帧
-     *
-     * 原始 APK parseNavResponses 的帧格式:
-     * ```
-     * [0:2]   0x59 0x44 "YD"
-     * [2]     0x4C      'L'  ← 注意！接收用 0x4C，发送用 0x3C
-     * [3:7]   totalLen  (BE uint32, = payloadLen + 8)
-     * [7]     cmd
-     * [8:12]  payloadLen (BE uint32)
-     * [12:12+payloadLen] payload
-     * [12+payloadLen]    checksum
-     * [13+payloadLen]    0x4B
-     * [14+payloadLen]    0x4A
-     * ```
+     * 解析单个协议帧
      */
     fun parseFrame(data: ByteArray): Triple<Int, ByteArray, Int>? {
         if (data.size < 15) return null
-        // 检查魔数: YD + L (接收格式)
         if (data[0] != 0x59.toByte() || data[1] != 0x44.toByte()) return null
-
         val totalLen = data.readUInt32BE(3).toInt()
         if (totalLen < 8 || totalLen > 1_048_576) return null
-
         val payloadLen = data.readUInt32BE(8).toInt()
         if (payloadLen != totalLen - 8) return null
-
         val frameLen = totalLen + 7
         if (data.size < frameLen) return null
-
-        // 校验尾部
         if (data[frameLen - 2] != 0x4B.toByte() || data[frameLen - 1] != 0x4A.toByte()) return null
-
         val cmd = data[7].u()
         val payload = data.copyOfRange(12, 12 + payloadLen)
         return Triple(cmd, payload, frameLen)
@@ -131,6 +106,19 @@ object YadeaProtocol {
         hour.toByte(), minute.toByte(), second.toByte(), 0xFF.toByte(), 0xFF.toByte()
     )
 
+    /**
+     * 构建导航提示 payload (64字节)
+     *
+     * 严格按原始 APK sendNavigationHint:
+     * [0] = 2
+     * [7:9] = 320 (BE)
+     * [11:13] = 860 (BE)
+     * [17:20] = 时:分:秒
+     * [20:22] = 8 (BE)
+     * [30] = setBits(byte[30], 6, 2, 1) ← 关键！控制显示开关
+     * [31] = 目的地名称长度
+     * [32:64] = 目的地名称 UTF-8
+     */
     fun buildNavHintPayload(
         name: String = "",
         hour: Int = 0, minute: Int = 0, second: Int = 0
@@ -143,6 +131,8 @@ object YadeaProtocol {
         b[18] = minute.toByte()
         b[19] = second.toByte()
         b.writeUInt16BE(20, 8)
+        // 关键: 设置 bit[30] 的 bit6-7 为 01 → 触发仪表进入显示模式
+        b[30] = setBits(b[30], 6, 2, 1)
         val nameBytes = name.encodeToByteArray()
         val len = minOf(32, nameBytes.size)
         b[31] = len.toByte()
@@ -150,57 +140,43 @@ object YadeaProtocol {
         return b
     }
 
+    /**
+     * 设置特定位段
+     * @param value 原始字节
+     * @param startBit 起始位 (0-7)
+     * @param bitCount 位数
+     * @param bits 要设置的值
+     */
+    fun setBits(value: Byte, startBit: Int, bitCount: Int, bits: Int): Byte {
+        val mask = ((1 shl bitCount) - 1) shl startBit
+        val cleared = value.toInt() and mask.inv()
+        val set = (bits shl startBit) and mask
+        return (cleared or set).toByte()
+    }
+
     // ==================== 显示配置解析 ====================
 
     /**
-     * 解析仪表返回的显示配置
+     * 解析仪表显示配置 (从原始日志确认)
      *
-     * 原始 APK 日志确认的响应格式 (7+ 字节):
-     * ```
-     * 偏移  内容
-     * 0     宽度高字节 (width = byte[0] * 256)
-     * 1     高度高字节 (height = byte[1] * 256)
-     * 2-3   保留/格式
-     * 4     旋转/标志
-     * 5     能力标志
-     * 6     最大 FPS
-     * 7     分包倍率 (可选)
-     * ```
-     *
-     * 示例: data=04 02 00 00 0f f6 0a → 1024x512
+     * data=04 00 02 00 00 0f f6 0a → 1024x512
+     * [0:2] 宽度 BE uint16 = 0x0400 = 1024
+     * [2:4] 高度 BE uint16 = 0x0200 = 512
+     * [4]   格式 = 0x00
+     * [5]   旋转 = 0x0F
+     * [6]   能力 = 0xF6
+     * [7]   FPS = 0x0A = 10
      */
     fun parseNavDisplayConfig(data: ByteArray): NavDisplayConfig {
         if (data.size < 7) return NavDisplayConfig()
 
-        // 格式 A: byte×256 (从仪表日志确认: 04→1024, 02→512)
-        val shiftWidth = data[0].u() * 256
-        val shiftHeight = data[1].u() * 256
-
-        // 格式 B: BE uint16 (原始 APK parseNavDisplayConfig 的解析方式)
-        val beWidth = data.readUInt16BE(0)
-        val beHeight = data.readUInt16BE(2)
-
-        // 优先 shift 格式，再试 BE 格式
-        val width = when {
-            shiftWidth in 320..4096 -> shiftWidth
-            beWidth in 320..4096 -> beWidth
-            else -> 960
-        }
-        val height = when {
-            shiftHeight in 160..2160 -> shiftHeight
-            beHeight in 160..2160 -> beHeight
-            else -> 368
-        }
-
+        val width = data.readUInt16BE(0).let { if (it in 320..4096) it else 960 }
+        val height = data.readUInt16BE(2).let { if (it in 160..2160) it else 368 }
         val rotation = data[4].u()
         val offsetX = if (data.size > 6) data[6].u() else 0
         val packetMultiplier = if (data.size > 7) data[7].u().coerceAtLeast(1) else 1
 
-        return NavDisplayConfig(
-            width = width, height = height,
-            rotation = rotation, offsetX = offsetX,
-            packetMultiplier = packetMultiplier
-        )
+        return NavDisplayConfig(width, height, rotation, offsetX, packetMultiplier)
     }
 
     // ==================== 校验 ====================
@@ -218,9 +194,8 @@ object YadeaProtocol {
 
     fun checksum(data: ByteArray, endExclusive: Int): Byte {
         var sum = 0
-        for (i in 0 until endExclusive) {
-            sum += data[i].u()
-        }
+        for (i in 0 until endExclusive) sum += data[i].u()
         return (sum and 0xFF).toByte()
     }
 }
+

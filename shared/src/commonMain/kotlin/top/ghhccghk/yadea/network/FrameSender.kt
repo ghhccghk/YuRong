@@ -4,16 +4,15 @@ import top.ghhccghk.yadea.protocol.YadeaProtocol
 import top.ghhccghk.yadea.protocol.readUInt32BE
 import top.ghhccghk.yadea.protocol.u
 
-/**
- * FrameSender - 协议帧收发器
- *
- * @param logger 日志回调，格式: [方向] 描述 + hex
- */
 class FrameSender(
     private val tcp: TcpTransport,
     private val udp: UdpTransport,
     private val logger: (String) -> Unit = {}
 ) {
+    // 帧缓冲区 — TCP 可能把多个帧合并在一次 read 中到达
+    private val frameBuffer = ArrayList<ByteArray>()
+    private val rawBuffer = ArrayList<Byte>()
+
     private fun hex(data: ByteArray, maxLen: Int = 48): String {
         val sb = StringBuilder()
         for (i in 0 until minOf(data.size, maxLen)) {
@@ -33,12 +32,11 @@ class FrameSender(
         else -> "0x${String.format("%02X", cmd)}"
     }
 
-    // ==================== TCP 发送 ====================
+    // ==================== 发送 ====================
 
     suspend fun sendFrame(cmd: Int, payload: ByteArray) {
         val frame = YadeaProtocol.buildFrame(cmd, payload)
-        logger("[TX] ${cmdName(cmd)} ${payload.size}B payload: ${hex(payload)}")
-        logger("[TX] frame ${frame.size}B: ${hex(frame)}")
+        logger("[TX] ${cmdName(cmd)} ${payload.size}B: ${hex(payload)}")
         tcp.send(frame)
     }
 
@@ -57,8 +55,6 @@ class FrameSender(
     suspend fun sendNavHint(payload: ByteArray) {
         sendFrame(YadeaProtocol.CMD_NAV_HINT, payload)
     }
-
-    // ==================== UDP 发送 ====================
 
     suspend fun sendImage(
         image: ByteArray, imageSeq: Int,
@@ -81,60 +77,99 @@ class FrameSender(
         timestamp: Long = 0L
     ): Int {
         val frames = YadeaProtocol.buildImageFrames(image, imageSeq, packetSize, timestamp)
-        logger("[TX-UDP] BROADCAST seq=$imageSeq size=${image.size}B packets=${frames.size} port=$broadcastPort")
+        logger("[TX-UDP] BROADCAST seq=$imageSeq packets=${frames.size}")
         for (frame in frames) {
             udp.broadcast(frame, broadcastPort)
         }
         return frames.size
     }
 
-    // ==================== TCP 接收 ====================
+    // ==================== 接收 ====================
 
+    /**
+     * 从 TCP 接收一个帧
+     *
+     * TCP 可能把多个帧合并在一次 read 中到达。
+     * 此方法维护内部缓冲区，逐帧解析返回。
+     */
     suspend fun receiveFrame(timeoutMs: Long = 3000): Triple<Int, ByteArray, Int>? {
-        // 一次性读取所有可用数据
-        val raw = tcp.receive(4096, timeoutMs) ?: run {
+        // 如果缓冲区已有完整帧，直接返回
+        parseBufferedFrames()
+        if (frameBuffer.isNotEmpty()) {
+            return parseNextFrame()
+        }
+
+        // 从 TCP 读取新数据
+        val raw = tcp.receive(4096, timeoutMs)
+        if (raw == null) {
             logger("[RX] 超时/无数据 (${timeoutMs}ms)")
             return null
         }
         logger("[RX] 收到 ${raw.size}B: ${hex(raw)}")
 
-        // 扫描帧魔数 0x59 0x44
-        var pos = 0
-        while (pos + 12 <= raw.size) {
-            // 寻找 "YD" 魔数
-            if (raw[pos] != 0x59.toByte() || raw[pos + 1] != 0x44.toByte()) {
-                pos++
-                continue
-            }
+        // 加入缓冲区
+        raw.forEach { rawBuffer.add(it) }
+        parseBufferedFrames()
 
-            val totalLen = raw.readUInt32BE(pos + 3).toInt()
-            if (totalLen < 8 || totalLen > 1_048_576) {
-                pos++
-                continue
-            }
-
-            val frameEnd = pos + totalLen + 7
-            if (frameEnd > raw.size) {
-                logger("[RX] 帧不完整: 需要 ${frameEnd}B, 只有 ${raw.size}B")
-                return null
-            }
-
-            // 检查尾部 0x4B 0x4A
-            if (raw[frameEnd - 2] != 0x4B.toByte() || raw[frameEnd - 1] != 0x4A.toByte()) {
-                pos++
-                continue
-            }
-
-            val payloadLen = raw.readUInt32BE(pos + 8).toInt()
-            val cmd = raw[pos + 7].u()
-            val payload = raw.copyOfRange(pos + 12, pos + 12 + payloadLen)
-
-            logger("[RX] 帧解析成功: ${cmdName(cmd)} payload=${payload.size}B: ${hex(payload)}")
-            return Triple(cmd, payload, frameEnd - pos)
+        if (frameBuffer.isNotEmpty()) {
+            return parseNextFrame()
         }
-
-        logger("[RX] 未找到有效帧! raw=${hex(raw)}")
+        logger("[RX] 缓冲区 ${rawBuffer.size}B 中未找到完整帧")
         return null
+    }
+
+    /**
+     * 从 rawBuffer 中扫描并提取所有完整帧
+     */
+    private fun parseBufferedFrames() {
+        while (rawBuffer.size >= 15) {
+            var pos = -1
+            // 扫描 "YD" 魔数
+            for (i in 0..rawBuffer.size - 2) {
+                if (rawBuffer[i] == 0x59.toByte() && rawBuffer[i + 1] == 0x44.toByte()) {
+                    pos = i; break
+                }
+            }
+            if (pos < 0) break
+
+            // 丢弃魔数前的杂数据
+            if (pos > 0) {
+                repeat(pos) { rawBuffer.removeAt(0) }
+            }
+            if (rawBuffer.size < 12) break
+
+            val headerArr = rawBuffer.subList(0, 12).toByteArray()
+            val totalLen = headerArr.readUInt32BE(3).toInt()
+            if (totalLen < 8 || totalLen > 1_048_576) {
+                rawBuffer.removeAt(0) // 跳过坏帧头
+                continue
+            }
+
+            val frameEnd = totalLen + 7
+            if (rawBuffer.size < frameEnd) break // 帧不完整，等下次读
+
+            // 验证尾部
+            if (rawBuffer[frameEnd - 2] != 0x4B.toByte() || rawBuffer[frameEnd - 1] != 0x4A.toByte()) {
+                rawBuffer.removeAt(0)
+                continue
+            }
+
+            val frame = rawBuffer.subList(0, frameEnd).toByteArray()
+            repeat(frameEnd) { rawBuffer.removeAt(0) }
+            frameBuffer.add(frame)
+        }
+    }
+
+    /**
+     * 从 frameBuffer 取出一个帧并解析
+     */
+    private fun parseNextFrame(): Triple<Int, ByteArray, Int>? {
+        val frame = frameBuffer.removeAt(0)
+        val payloadLen = frame.readUInt32BE(8).toInt()
+        val cmd = frame[7].u()
+        val payload = frame.copyOfRange(12, 12 + payloadLen)
+        logger("[RX] ${cmdName(cmd)} payload=${payload.size}B: ${hex(payload)}")
+        return Triple(cmd, payload, frame.size)
     }
 
     fun close() {
@@ -142,4 +177,3 @@ class FrameSender(
         udp.close()
     }
 }
-

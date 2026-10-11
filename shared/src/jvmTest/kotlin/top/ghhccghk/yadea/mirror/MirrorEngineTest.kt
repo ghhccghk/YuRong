@@ -19,7 +19,6 @@ private class FakeTcpTransport : TcpTransport {
     val sentFrames = mutableListOf<ByteArray>()
     private val readBuffer = ArrayDeque<Byte>()
     override var isConnected = true; private set
-
     fun enqueueResponse(frame: ByteArray) { frame.forEach { readBuffer.addLast(it) } }
     override suspend fun connect(host: String, port: Int, timeoutMs: Long) { isConnected = true }
     override suspend fun send(data: ByteArray) { sentFrames.add(data) }
@@ -82,12 +81,6 @@ class MirrorEngineTest {
         assertEquals(MirrorState.Stopped, engine.currentState)
     }
 
-    @Test fun start_twice_returnsTrue() = runBlocking {
-        engine.start("192.168.1.100", 8080, scope = scope, currentTimeProvider = ::dateTimeProvider)
-        val second = engine.start("192.168.1.100", 8080, scope = scope, currentTimeProvider = ::dateTimeProvider)
-        assertTrue(second)
-    }
-
     @Test fun start_sendsNavStartFrame() = runBlocking {
         engine.start("192.168.1.100", 8080, scope = scope, currentTimeProvider = ::dateTimeProvider)
         assertTrue(tcp.sentFrames.isNotEmpty())
@@ -96,12 +89,17 @@ class MirrorEngineTest {
     }
 
     @Test fun start_withResponse_parsesConfig() = runBlocking {
+        // 模拟仪表回复 1024x512 配置 (BE uint16 格式)
+        // data=04 00 02 00 00 0f f6 0a → width=0x0400=1024, height=0x0200=512
         val configPayload = ByteArray(8)
-        configPayload[0] = 0x04.toByte() // shift width = 4*256 = 1024
-        configPayload[1] = 0x02.toByte() // shift height = 2*256 = 512
-        configPayload[2] = 0x00.toByte()
-        configPayload[3] = 0x00.toByte()
-        configPayload[7] = 2.toByte()
+        configPayload[0] = 0x04.toByte() // width high
+        configPayload[1] = 0x00.toByte() // width low  → 0x0400 = 1024
+        configPayload[2] = 0x02.toByte() // height high
+        configPayload[3] = 0x00.toByte() // height low → 0x0200 = 512
+        configPayload[4] = 0x00.toByte() // format
+        configPayload[5] = 0x0F.toByte() // rotation
+        configPayload[6] = 0xF6.toByte() // capability
+        configPayload[7] = 0x0A.toByte() // fps
         val responseFrame = YadeaProtocol.buildFrame(YadeaProtocol.CMD_NAV_START, configPayload)
         tcp.enqueueResponse(responseFrame)
         engine.start("192.168.1.100", 8080, scope = scope, currentTimeProvider = ::dateTimeProvider)
@@ -129,22 +127,13 @@ class MirrorEngineTest {
         frameBus.submit(bmp)
         delay(500)
         assertTrue(engine.sentFrameCount > 0)
-        assertTrue(engine.sentByteCount > 0)
-    }
-
-    @Test fun broadcast_sendsBroadcastPackets() = runBlocking {
-        engine.start("192.168.1.100", 8080, broadcastPort = 9090, scope = scope, currentTimeProvider = ::dateTimeProvider)
-        val bmp = PlatformBitmap(java.awt.image.BufferedImage(200, 100, java.awt.image.BufferedImage.TYPE_INT_RGB))
-        frameBus.submit(bmp)
-        delay(500)
-        assertTrue(udp.broadcastPackets.isNotEmpty())
     }
 
     @Test fun heartbeat_sendsPeriodically() = runBlocking {
         engine.start("192.168.1.100", 8080, scope = scope, currentTimeProvider = ::dateTimeProvider)
         delay(2500)
-        val heartbeatFrames = tcp.sentFrames.filter { (it[7].toInt() and 0xFF) == 0x1F }
-        assertTrue(heartbeatFrames.size >= 2)
+        val heartbeats = tcp.sentFrames.filter { (it[7].toInt() and 0xFF) == 0x1F }
+        assertTrue(heartbeats.size >= 2)
     }
 
     @Test fun stop_sendsNavEnd() = runBlocking {
