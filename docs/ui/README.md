@@ -6,6 +6,7 @@
 - [当前项目 UI 问题清单](./current-ui-audit.md)
 - [双 UI 重设计规范](./redesign-spec.md)
 - [页面级改造方案](./page-redesign-plan.md)
+- [执行复盘](./execution-retrospective.md)
 
 ## 证据状态
 
