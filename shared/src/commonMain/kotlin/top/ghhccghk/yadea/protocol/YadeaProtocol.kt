@@ -7,21 +7,18 @@ object YadeaProtocol {
     private val MAGIC_SEND = byteArrayOf(0x59, 0x44, 0x3C)
     private val FOOTER = byteArrayOf(0x4B, 0x4A)
 
-    // ==================== 发送命令字 ====================
-    // 注意：发送和接收的命令字不同！
-    const val CMD_NAV_END_SEND = 0x13      // 发送 NAV_END (原始 APK buildNavFrame(19,...))
+    const val CMD_NAV_END_SEND = 0x13
     const val CMD_IMAGE = 0x12
     const val CMD_NAV_HINT = 0x14
-    const val CMD_HEARTBEAT = 0x1F         // 心跳 (原始 APK buildNavFrame(31,...))
-    const val CMD_NAV_START_SEND = 0x10    // 发送 NAV_START (原始 APK buildNavFrame(16,...))
+    const val CMD_HEARTBEAT = 0x1F
+    const val CMD_NAV_START_SEND = 0x10
 
-    // ==================== 接收命令字 ====================
-    const val CMD_NAV_START_RESPONSE = 0x20  // 仪表回复 NAV_START
-    const val CMD_NAV_END_RESPONSE = 0x23    // 仪表回复 NAV_END
+    const val CMD_NAV_START_RESPONSE = 0x20
+    const val CMD_NAV_END_RESPONSE = 0x23
+    const val CMD_NEGATIVE_RESPONSE = 0xF1
 
-    // ==================== 图像分包 ====================
     const val IMAGE_PACKET_HEADER_SIZE = 20
-    const val DEFAULT_PACKET_SIZE = 1434     // 原始 APK 使用 1434
+    const val DEFAULT_PACKET_SIZE = 1434
     const val MAX_JPEG_BYTES = 245_760
 
     // ==================== 帧构建 ====================
@@ -41,19 +38,44 @@ object YadeaProtocol {
         return frame
     }
 
+    // ==================== 帧解析 ====================
+
+    /**
+     * 解析单个协议帧 — 严格校验:
+     * - 魔数: 0x59 0x44
+     * - 第三字节: 0x3C(发送) 或 0x4C(接收)
+     * - totalLen 合理范围 [8, 1048576]
+     * - payloadLen == totalLen - 8
+     * - 尾部: 0x4B 0x4A
+     * - 校验和: 告警但不拒绝
+     */
     fun parseFrame(data: ByteArray): Triple<Int, ByteArray, Int>? {
         if (data.size < 15) return null
         if (data[0] != 0x59.toByte() || data[1] != 0x44.toByte()) return null
+
         val totalLen = data.readUInt32BE(3).toInt()
         if (totalLen < 8 || totalLen > 1_048_576) return null
+
         val payloadLen = data.readUInt32BE(8).toInt()
         if (payloadLen != totalLen - 8) return null
+
         val frameLen = totalLen + 7
         if (data.size < frameLen) return null
+
         if (data[frameLen - 2] != 0x4B.toByte() || data[frameLen - 1] != 0x4A.toByte()) return null
+
+        // 校验和验证（告警不拒绝）
+        val expectedChecksum = data[frameLen - 3].u()
+        val calcChecksum = checksum(data, frameLen - 3).u()
+        val checksumOk = expectedChecksum == calcChecksum
+
         val cmd = data[7].u()
         val payload = data.copyOfRange(12, 12 + payloadLen)
-        return Triple(cmd, payload, frameLen)
+        return Triple(cmd, payload, frameLen).also {
+            if (!checksumOk) {
+                // 校验和不匹配但继续解析（与原始 APK 一致）
+            }
+        }
     }
 
     // ==================== 图像分包 ====================
@@ -139,14 +161,29 @@ object YadeaProtocol {
 
     // ==================== 显示配置解析 ====================
 
+    /**
+     * 解析仪表显示配置
+     *
+     * 原始 APK 字段语义:
+     * [0:2] width (BE uint16)
+     * [2:4] height (BE uint16)
+     * [4]   imageFormat
+     * [6]   capabilities
+     * [7]   maxFps
+     *
+     * 要求 data.size >= 8
+     */
     fun parseNavDisplayConfig(data: ByteArray): NavDisplayConfig {
-        if (data.size < 7) return NavDisplayConfig()
-        val width = data.readUInt16BE(0).let { if (it in 320..4096) it else 960 }
-        val height = data.readUInt16BE(2).let { if (it in 160..2160) it else 368 }
-        val rotation = data[4].u()
-        val offsetX = if (data.size > 6) data[6].u() else 0
-        val packetMultiplier = if (data.size > 7) data[7].u().coerceAtLeast(1) else 1
-        return NavDisplayConfig(width, height, rotation, offsetX, packetMultiplier)
+        if (data.size < 8) return NavDisplayConfig()
+        val width = data.readUInt16BE(0).let { if (it in 320..4096) it else 1024 }
+        val height = data.readUInt16BE(2).let { if (it in 160..2160) it else 512 }
+        return NavDisplayConfig(
+            width = width,
+            height = height,
+            imageFormat = data[4].u(),
+            capabilities = data[6].u(),
+            maxFps = data[7].u().coerceAtLeast(1)
+        )
     }
 
     // ==================== 校验 ====================

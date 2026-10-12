@@ -23,13 +23,14 @@ class FrameSender(
     }
 
     private fun cmdName(cmd: Int): String = when (cmd) {
-        YadeaProtocol.CMD_NAV_END_SEND -> "NAV_END_SEND"
+        YadeaProtocol.CMD_NAV_END_SEND -> "NAV_END_REQ"
         YadeaProtocol.CMD_NAV_END_RESPONSE -> "NAV_END_RESP"
         YadeaProtocol.CMD_IMAGE -> "IMAGE"
         YadeaProtocol.CMD_NAV_HINT -> "NAV_HINT"
         YadeaProtocol.CMD_HEARTBEAT -> "HEARTBEAT"
-        YadeaProtocol.CMD_NAV_START_SEND -> "NAV_START_SEND"
+        YadeaProtocol.CMD_NAV_START_SEND -> "NAV_START_REQ"
         YadeaProtocol.CMD_NAV_START_RESPONSE -> "NAV_START_RESP"
+        YadeaProtocol.CMD_NEGATIVE_RESPONSE -> "NACK"
         else -> "0x${String.format("%02X", cmd)}"
     }
 
@@ -57,9 +58,6 @@ class FrameSender(
         sendFrame(YadeaProtocol.CMD_NAV_HINT, payload)
     }
 
-    /**
-     * 原始 APK 启动序列: 心跳 + NAV_START 一起写入再 flush
-     */
     suspend fun sendStartupSequence(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int) {
         val heartbeatFrame = YadeaProtocol.buildFrame(
             YadeaProtocol.CMD_HEARTBEAT,
@@ -69,7 +67,7 @@ class FrameSender(
             YadeaProtocol.CMD_NAV_START_SEND,
             YadeaProtocol.buildNavStartPayload(YadeaProtocol.DEFAULT_PACKET_SIZE)
         )
-        logger("[TX] STARTUP: HEARTBEAT + NAV_START")
+        logger("[TX] STARTUP: HEARTBEAT + NAV_START (packetSize=${YadeaProtocol.DEFAULT_PACKET_SIZE})")
         tcp.send(heartbeatFrame + navStartFrame)
     }
 
@@ -101,22 +99,29 @@ class FrameSender(
         return frames.size
     }
 
-    // ==================== 接收 ====================
+    // ==================== 接收（持续读取直到完整帧） ====================
 
     suspend fun receiveFrame(timeoutMs: Long = 3000): Triple<Int, ByteArray, Int>? {
+        // 每次 receive 调用 50ms 超时，循环直到 timeoutMs
+        val maxIter = (timeoutMs / 50).toInt().coerceAtLeast(1)
+        var iter = 0
+
+        while (iter < maxIter) {
+            iter++
+            parseBufferedFrames()
+            if (frameBuffer.isNotEmpty()) return parseNextFrame()
+
+            val raw = tcp.receive(4096, 50)
+            if (raw != null && raw.isNotEmpty()) {
+                logger("[RX] 收到 ${raw.size}B: ${hex(raw)}")
+                raw.forEach { rawBuffer.add(it) }
+            }
+        }
+
         parseBufferedFrames()
         if (frameBuffer.isNotEmpty()) return parseNextFrame()
 
-        val raw = tcp.receive(4096, timeoutMs)
-        if (raw == null) {
-            logger("[RX] 超时/无数据 (${timeoutMs}ms)")
-            return null
-        }
-        logger("[RX] 收到 ${raw.size}B: ${hex(raw)}")
-        raw.forEach { rawBuffer.add(it) }
-        parseBufferedFrames()
-        if (frameBuffer.isNotEmpty()) return parseNextFrame()
-        logger("[RX] 缓冲区 ${rawBuffer.size}B 中未找到完整帧")
+        logger("[RX] 超时 (${timeoutMs}ms), 缓冲区 ${rawBuffer.size}B")
         return null
     }
 
@@ -135,6 +140,12 @@ class FrameSender(
             val headerArr = rawBuffer.subList(0, 12).toByteArray()
             val totalLen = headerArr.readUInt32BE(3).toInt()
             if (totalLen < 8 || totalLen > 1_048_576) {
+                rawBuffer.removeAt(0)
+                continue
+            }
+
+            val payloadLen = headerArr.readUInt32BE(8).toInt()
+            if (payloadLen != totalLen - 8) {
                 rawBuffer.removeAt(0)
                 continue
             }

@@ -19,6 +19,18 @@ enum class MirrorState {
     Idle, Negotiating, Running, Stopped, Failed
 }
 
+/**
+ * MirrorEngine - 核心投屏循环
+ *
+ * 流程（与原始 APK startMirror$lambda$70 一致）:
+ * 1. TCP 连接 (16次重试, 250ms间隔, 700ms超时)
+ * 2. 启动序列: HEARTBEAT + NAV_START (合并 flush)
+ * 3. 等待 CMD=0x20 回复 (8秒超时, 严格校验)
+ * 4. NAV_HINT (64字节, byte[30] setBits)
+ * 5. 帧发送循环 (实时源1000ms/帧, 图片100ms/帧)
+ * 6. 心跳循环 (1秒)
+ * 7. 停止: NAV_END (0x13) → 等待 0x23 回复 (5秒)
+ */
 class MirrorEngine(
     private val frameSender: FrameSender,
     private val frameBus: FrameBus,
@@ -28,7 +40,7 @@ class MirrorEngine(
     private var state = MirrorState.Idle
     private var sendJob: Job? = null
     private var heartbeatJob: Job? = null
-    private var imageSequence = 0
+    private var imageSequence = 1  // 原始 APK 从 1 开始
     private var stopRequested = false
     private var framesSent = 0
     private var bytesSent = 0
@@ -39,52 +51,66 @@ class MirrorEngine(
     val sentFrameCount: Int get() = framesSent
     val sentByteCount: Int get() = bytesSent
 
+    /**
+     * @param isLiveSource 是否为实时源（摄像头/屏幕/视频），影响帧率
+     */
     suspend fun start(
         targetHost: String,
         targetPort: Int,
         broadcastPort: Int? = null,
         scope: CoroutineScope,
         currentTimeProvider: () -> DateTimeParts,
-        frameIntervalMs: Long = 100
+        isLiveSource: Boolean = false
     ): Boolean {
         if (state == MirrorState.Running) return true
 
         state = MirrorState.Negotiating
         stopRequested = false
-        imageSequence = 0
+        imageSequence = 1  // 原始 APK 从 1 开始
         framesSent = 0
         bytesSent = 0
 
-        // 1. 启动序列: 心跳 + NAV_START (原始 APK 先发心跳再发 NAV_START)
+        // 帧率: 实时源1000ms/帧, 图片/演示100ms/帧
+        val frameIntervalMs = if (isLiveSource) 1000L else 100L
+
+        // 1. 启动序列
         try {
             val time = currentTimeProvider()
             frameSender.sendStartupSequence(time.year, time.month, time.day, time.hour, time.minute, time.second)
-            onStatus("已发送 HEARTBEAT + NAV_START (cmd=0x10)")
+            onStatus("已发送 HEARTBEAT + NAV_START")
         } catch (e: Exception) {
             state = MirrorState.Failed
-            onStatus("启动命令发送失败: ${e.message}")
+            onStatus("启动命令失败: ${e.message}")
             return false
         }
 
-        // 2. 等待 CMD=0x20 回复 (显示配置)
+        // 2. 等待 CMD=0x20 (严格: payload >= 8字节)
         try {
             var waitCount = 0
             var gotConfig = false
             while (!gotConfig && waitCount <= 5) {
-                val response = frameSender.receiveFrame(timeoutMs = 1500) ?: break
+                val response = frameSender.receiveFrame(timeoutMs = 2000) ?: break
                 val (cmd, payload, _) = response
-                if (cmd == YadeaProtocol.CMD_NAV_START_RESPONSE && payload.size >= 7) {
-                    navConfig = YadeaProtocol.parseNavDisplayConfig(payload)
-                    gotConfig = true
-                    onStatus("协商成功: ${navConfig.width}x${navConfig.height}, FPS=${navConfig.offsetX}")
-                } else {
-                    onStatus("收到 ${cmdName(cmd)} (等待0x20配置...)")
+                when (cmd) {
+                    YadeaProtocol.CMD_NAV_START_RESPONSE -> {
+                        if (payload.size >= 8) {
+                            navConfig = YadeaProtocol.parseNavDisplayConfig(payload)
+                            gotConfig = true
+                            onStatus("协商成功: ${navConfig.width}x${navConfig.height}, 格式=${navConfig.imageFormat}, 能力=${navConfig.capabilities}, FPS=${navConfig.maxFps}")
+                        } else {
+                            onStatus("0x20 响应不足8字节 (${payload.size}B), 继续等待...")
+                        }
+                    }
+                    YadeaProtocol.CMD_NEGATIVE_RESPONSE -> {
+                        onStatus("收到 NACK(0xF1) payload=${payload.size}B")
+                    }
+                    else -> {
+                        onStatus("收到 ${cmdName(cmd)} (等待0x20)")
+                    }
                 }
                 waitCount++
             }
-            if (!gotConfig) {
-                onStatus("未收到0x20配置，使用默认 ${navConfig.width}x${navConfig.height}")
-            }
+            if (!gotConfig) onStatus("未收到0x20配置，使用默认 ${navConfig.width}x${navConfig.height}")
         } catch (e: Exception) {
             onStatus("读取配置异常: ${e.message}")
         }
@@ -99,7 +125,7 @@ class MirrorEngine(
 
         // 4. 帧发送循环
         state = MirrorState.Running
-        onStatus("投屏已启动")
+        onStatus("投屏已启动 (帧间隔=${frameIntervalMs}ms)")
 
         sendJob = scope.launch(Dispatchers.Default) {
             while (!stopRequested && isActive) {
@@ -116,7 +142,7 @@ class MirrorEngine(
                         }
                         framesSent++
                         bytesSent += jpeg.size
-                        onStatus("第${imageSequence + 1}帧: ${packets}包, ${jpeg.size}B")
+                        onStatus("第${imageSequence}帧: ${packets}包, ${jpeg.size}B")
                         imageSequence++
                     } catch (e: Exception) {
                         onStatus("帧发送失败: ${e.message}")
@@ -144,17 +170,6 @@ class MirrorEngine(
         return true
     }
 
-    private fun cmdName(cmd: Int): String = when (cmd) {
-        YadeaProtocol.CMD_NAV_START_SEND -> "NAV_START_REQ"
-        YadeaProtocol.CMD_NAV_START_RESPONSE -> "NAV_START_RESP"
-        YadeaProtocol.CMD_NAV_END_SEND -> "NAV_END_REQ"
-        YadeaProtocol.CMD_NAV_END_RESPONSE -> "NAV_END_RESP"
-        YadeaProtocol.CMD_IMAGE -> "IMAGE"
-        YadeaProtocol.CMD_NAV_HINT -> "NAV_HINT"
-        YadeaProtocol.CMD_HEARTBEAT -> "HEARTBEAT"
-        else -> "0x${String.format("%02X", cmd)}"
-    }
-
     suspend fun stop() {
         if (state == MirrorState.Idle || state == MirrorState.Stopped) return
         stopRequested = true
@@ -162,7 +177,17 @@ class MirrorEngine(
         heartbeatJob?.cancel()
         sendJob = null
         heartbeatJob = null
-        try { frameSender.sendNavEnd() } catch (_: Exception) {}
+
+        // 发送 NAV_END 并等待 0x23 回复 (5秒)
+        try {
+            frameSender.sendNavEnd()
+            onStatus("已发送 NAV_END, 等待确认...")
+            val response = frameSender.receiveFrame(timeoutMs = 5000)
+            if (response != null && response.first == YadeaProtocol.CMD_NAV_END_RESPONSE) {
+                onStatus("NAV_END 确认收到")
+            }
+        } catch (_: Exception) {}
+
         frameBus.clear()
         state = MirrorState.Stopped
         onStatus("投屏已停止，共${framesSent}帧/${bytesSent}B")
@@ -173,5 +198,17 @@ class MirrorEngine(
         sendJob?.cancel()
         heartbeatJob?.cancel()
         frameBus.clear()
+    }
+
+    private fun cmdName(cmd: Int): String = when (cmd) {
+        YadeaProtocol.CMD_NAV_START_SEND -> "NAV_START_REQ"
+        YadeaProtocol.CMD_NAV_START_RESPONSE -> "NAV_START_RESP"
+        YadeaProtocol.CMD_NAV_END_SEND -> "NAV_END_REQ"
+        YadeaProtocol.CMD_NAV_END_RESPONSE -> "NAV_END_RESP"
+        YadeaProtocol.CMD_IMAGE -> "IMAGE"
+        YadeaProtocol.CMD_NAV_HINT -> "NAV_HINT"
+        YadeaProtocol.CMD_HEARTBEAT -> "HEARTBEAT"
+        YadeaProtocol.CMD_NEGATIVE_RESPONSE -> "NACK"
+        else -> "0x${String.format("%02X", cmd)}"
     }
 }

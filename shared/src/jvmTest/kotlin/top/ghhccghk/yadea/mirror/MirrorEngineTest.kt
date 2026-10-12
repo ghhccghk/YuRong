@@ -109,8 +109,8 @@ class MirrorEngineTest {
 
     @Test fun start_withoutResponse_usesDefaultConfig() = runBlocking {
         engine.start("192.168.1.100", 8080, scope = scope, currentTimeProvider = ::dateTimeProvider)
-        assertEquals(960, engine.currentConfig.width)
-        assertEquals(368, engine.currentConfig.height)
+        assertEquals(1024, engine.currentConfig.width)
+        assertEquals(512, engine.currentConfig.height)
     }
 
     @Test fun frameSending_sendsUdpPackets() = runBlocking {
@@ -162,3 +162,4 @@ class MirrorEngineTest {
         assertTrue(statusLog.any { it.contains("停止") })
     }
 }
+
