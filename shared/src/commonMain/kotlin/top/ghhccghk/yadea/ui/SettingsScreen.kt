@@ -20,15 +20,16 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val useMiuix = LocalUiThemeStyle.current == UiThemeStyle.Miuix
+    val dimensions = AppDesign.dimensions
     val pagePadding = PaddingValues(
-        horizontal = if (useMiuix) 0.dp else 16.dp,
-        vertical = if (useMiuix) 0.dp else 16.dp,
+        horizontal = if (useMiuix) 0.dp else dimensions.pageHorizontalPadding,
+        vertical = if (useMiuix) 0.dp else dimensions.pageVerticalPadding,
     )
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = pagePadding,
-        verticalArrangement = Arrangement.spacedBy(if (useMiuix) 8.dp else 12.dp),
+        verticalArrangement = Arrangement.spacedBy(if (useMiuix) 8.dp else dimensions.sectionSpacing),
     ) {
         if (useMiuix) {
             item { SmallTitle(text = "外观") }
@@ -72,7 +73,7 @@ fun SettingsScreen(
                     horizontal = if (useMiuix) 12.dp else 0.dp,
                 ),
             ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding)) {
                     AppText(
                         text = selectedStyle.label,
                         style = AppDesign.typography.sectionTitle,

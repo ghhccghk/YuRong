@@ -14,8 +14,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun DeviceScreen() {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = Modifier.fillMaxSize().padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding),
+        verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.sectionSpacing)
     ) {
         item {
             ScreenTitle("设备信息")
@@ -23,7 +23,7 @@ fun DeviceScreen() {
 
         item {
             AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
                     AppText("仪表配置", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
                     InfoRow("画布宽度", "960 px")
                     InfoRow("画布高度", "368 px")
@@ -36,7 +36,7 @@ fun DeviceScreen() {
 
         item {
             AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
                     AppText("BLE 协议", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
                     InfoRow("MTU", "517")
                     InfoRow("包间隔", "18 ms")
@@ -49,7 +49,7 @@ fun DeviceScreen() {
 
         item {
             AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
                     AppText("应用信息", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
                     InfoRow("版本", "1.0.0")
                     InfoRow("平台", "Kotlin Multiplatform")
@@ -60,7 +60,7 @@ fun DeviceScreen() {
 
         item {
             AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
                     AppText("协议命令", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
                     InfoRow("0x02", "导航结束")
                     InfoRow("0x12", "图像数据")

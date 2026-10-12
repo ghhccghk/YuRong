@@ -41,8 +41,8 @@ fun MirrorScreen(viewModel: AppViewModel) {
     val isMirroring = mirrorState == MirrorState.Running
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = Modifier.fillMaxSize().padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding),
+        verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.sectionSpacing)
     ) {
         item {
             ScreenTitle("投屏控制")
@@ -50,7 +50,7 @@ fun MirrorScreen(viewModel: AppViewModel) {
 
         item {
             AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
                     AppText("仪表连接", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
                     AppTextField(
                         value = targetHost,
@@ -59,7 +59,7 @@ fun MirrorScreen(viewModel: AppViewModel) {
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
-                    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
                         AppTextField(
                             value = tcpPort,
                             onValueChange = { tcpPort = it },
@@ -87,7 +87,7 @@ fun MirrorScreen(viewModel: AppViewModel) {
 
         item {
             AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                         AppText("投屏状态", style = AppDesign.typography.title)
                         StatusChip(isMirroring, when (mirrorState) {
@@ -114,7 +114,7 @@ fun MirrorScreen(viewModel: AppViewModel) {
             AppText("投屏源", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
         }
         item {
-            Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
                 SourceButton(
                     text = "📷\n摄像头",
                     selected = selectedSource == 0,
@@ -150,8 +150,8 @@ fun MirrorScreen(viewModel: AppViewModel) {
             item {
                 AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding),
+                        verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing),
                     ) {
                         AppText(
                             if (selectedSource == 2) "视频源" else "导航源",
@@ -188,13 +188,13 @@ fun MirrorScreen(viewModel: AppViewModel) {
         }
 
         item {
-            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), Arrangement.spacedBy(AppDesign.dimensions.sectionSpacing)) {
                 if (isMirroring) {
                     AppButton(
                         onClick = { viewModel.stopMirror() },
                         modifier = Modifier.weight(1f).height(56.dp),
                         containerColor = AppDesign.colors.error
-                    ) { AppText("⏹ 停止投屏", fontSize = 18.sp) }
+                    ) { AppText("⏹ 停止投屏", style = AppDesign.typography.button) }
                 } else {
                     AppButton(
                         onClick = {
@@ -207,17 +207,17 @@ fun MirrorScreen(viewModel: AppViewModel) {
                         modifier = Modifier.weight(1f).height(56.dp),
                         enabled = targetHost.isNotEmpty() &&
                             (selectedSource != 2 && selectedSource != 3 || sourceUri.isNotEmpty())
-                    ) { AppText("▶ 开始投屏", fontSize = 18.sp) }
+                    ) { AppText("▶ 开始投屏", style = AppDesign.typography.button) }
                 }
             }
         }
 
         item {
             AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.compactSpacing)) {
                     AppText("调试日志", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
                     debugLog.reversed().take(15).forEach { line ->
-                        AppText(line, fontSize = 10.sp, lineHeight = 13.sp, color = AppDesign.colors.onSurfaceVariant)
+                        AppText(line, style = AppDesign.typography.debug, color = AppDesign.colors.onSurfaceVariant)
                     }
                 }
             }
@@ -290,4 +290,3 @@ internal fun formatBytes(bytes: Long): String {
         }
     }
 }
-

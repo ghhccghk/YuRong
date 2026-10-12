@@ -36,15 +36,15 @@ fun ConnectionScreen(viewModel: AppViewModel) {
     val debugLog by viewModel.debugLog.collectAsState()
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = Modifier.fillMaxSize().padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding),
+        verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.sectionSpacing)
     ) {
         item {
             ScreenTitle("设备连接")
         }
 
         item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
                 AppFilterChip(selected = selectedPanel == 0, onClick = { selectedPanel = 0 },
                     label = "AP 热点", modifier = Modifier.weight(1f))
                 AppFilterChip(selected = selectedPanel == 1, onClick = { selectedPanel = 1 },
@@ -55,7 +55,7 @@ fun ConnectionScreen(viewModel: AppViewModel) {
         if (selectedPanel == 0) {
             item {
                 AppCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.sectionSpacing)) {
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                             AppText("WiFi 连接", style = AppDesign.typography.title)
                             StatusChip(wifiState == WifiConnectionState.Connected,
@@ -70,7 +70,7 @@ fun ConnectionScreen(viewModel: AppViewModel) {
                             modifier = Modifier.fillMaxWidth(), singleLine = true)
                         AppTextField(wifiPassword, { wifiPassword = it }, label = "密码",
                             modifier = Modifier.fillMaxWidth(), singleLine = true)
-                        Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
+                        Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
                             AppButton(onClick = { viewModel.connectWifi(wifiSsid, wifiPassword) },
                                 modifier = Modifier.weight(1f)) { AppText("连接") }
                             AppOutlinedButton(onClick = { viewModel.scanWifi() },
@@ -98,7 +98,7 @@ fun ConnectionScreen(viewModel: AppViewModel) {
         if (selectedPanel == 1) {
             item {
                 AppCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.sectionSpacing)) {
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                             AppText("P2P 设备发现", style = AppDesign.typography.title)
                             StatusChip(p2pConnected, if (p2pConnected) "已连接" else "未连接")
@@ -142,13 +142,13 @@ fun ConnectionScreen(viewModel: AppViewModel) {
 
         item {
             AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.sectionSpacing)) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                         AppText("BLE 仪表", style = AppDesign.typography.title)
                         StatusChip(bleState == BleConnectionState.Connected,
                             if (bleState == BleConnectionState.Connected) "已连接 $bleConnectedName" else "未连接")
                     }
-                    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
                         AppButton(onClick = { viewModel.scanBle() }, modifier = Modifier.weight(1f),
                             containerColor = if (isScanningBle) AppDesign.colors.error else AppDesign.colors.primary) {
                             AppText(if (isScanningBle) "停止扫描" else "扫描 BLE")
@@ -176,10 +176,10 @@ fun ConnectionScreen(viewModel: AppViewModel) {
 
         item {
             AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.compactSpacing)) {
                     AppText("调试日志", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
                     debugLog.reversed().forEach { line ->
-                        AppText(line, fontSize = 10.sp, lineHeight = 13.sp,
+                        AppText(line, style = AppDesign.typography.debug,
                             color = AppDesign.colors.onSurfaceVariant)
                     }
                 }

@@ -3,11 +3,14 @@ package top.ghhccghk.yadea.ui
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
@@ -16,6 +19,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
@@ -44,6 +48,18 @@ enum class UiThemeStyle(
     }
 }
 
+enum class AppThemeMode {
+    System,
+    Light,
+    Dark,
+}
+
+@Immutable
+data class AppAppearance(
+    val uiStyle: UiThemeStyle = UiThemeStyle.Miuix,
+    val themeMode: AppThemeMode = AppThemeMode.System,
+)
+
 @Immutable
 data class AppColors(
     val primary: Color,
@@ -66,6 +82,17 @@ data class AppColors(
     val onSecondaryContainer: Color,
     val surfaceContainer: Color,
     val onSurfaceContainer: Color,
+    val surfaceContainerHighest: Color,
+    val onSurfaceContainerHighest: Color,
+    val page: Color,
+    val successContainer: Color,
+    val onSuccessContainer: Color,
+    val warningContainer: Color,
+    val onWarningContainer: Color,
+    val previewBackground: Color,
+    val previewScrim: Color,
+    val previewSelection: Color,
+    val previewOutline: Color,
 )
 
 @Immutable
@@ -73,19 +100,39 @@ data class AppTypography(
     val pageTitle: TextStyle,
     val sectionTitle: TextStyle,
     val title: TextStyle,
+    val itemTitle: TextStyle,
     val body: TextStyle,
     val summary: TextStyle,
     val value: TextStyle,
     val label: TextStyle,
     val button: TextStyle,
+    val caption: TextStyle,
     val debug: TextStyle,
 )
 
 @Immutable
 data class AppShapes(
-    val card: Shape,
-    val button: Shape,
+    val section: Shape,
+    val item: Shape,
     val field: Shape,
+    val button: Shape,
+    val dialog: Shape,
+)
+
+@Immutable
+data class AppDimensions(
+    val pageHorizontalPadding: Dp = 16.dp,
+    val pageVerticalPadding: Dp = 12.dp,
+    val sectionSpacing: Dp = 12.dp,
+    val itemHorizontalPadding: Dp = 16.dp,
+    val itemVerticalPadding: Dp = 14.dp,
+    val controlSpacing: Dp = 8.dp,
+    val compactSpacing: Dp = 4.dp,
+    val buttonInsideHorizontal: Dp = 16.dp,
+    val buttonInsideVertical: Dp = 13.dp,
+    val cardCornerRadius: Dp = 16.dp,
+    val fieldCornerRadius: Dp = 14.dp,
+    val buttonCornerRadius: Dp = 16.dp,
 )
 
 @Immutable
@@ -93,10 +140,11 @@ data class AppThemeTokens(
     val colors: AppColors,
     val typography: AppTypography,
     val shapes: AppShapes,
+    val dimensions: AppDimensions,
 )
 
 val LocalUiThemeStyle = staticCompositionLocalOf { UiThemeStyle.Miuix }
-private val LocalAppThemeTokens = staticCompositionLocalOf<AppThemeTokens> {
+private val LocalAppThemeTokens = compositionLocalOf<AppThemeTokens> {
     error("AppThemeTokens must be provided by AppTheme")
 }
 
@@ -116,35 +164,52 @@ object AppDesign {
     val shapes: AppShapes
         @Composable @ReadOnlyComposable
         get() = LocalAppThemeTokens.current.shapes
+
+    val dimensions: AppDimensions
+        @Composable @ReadOnlyComposable
+        get() = LocalAppThemeTokens.current.dimensions
 }
 
 @Composable
-fun rememberUiThemeStyle(): MutableState<UiThemeStyle> =
-    rememberSaveable(saver = UiThemeStyleSaver) {
-        mutableStateOf(UiThemeStyle.Miuix)
+fun rememberAppAppearance(): MutableState<AppAppearance> =
+    rememberSaveable(saver = AppAppearanceSaver) {
+        mutableStateOf(AppAppearance())
     }
 
 @Composable
 fun AppTheme(
-    uiThemeStyle: UiThemeStyle,
+    appearance: AppAppearance,
     content: @Composable () -> Unit,
 ) {
-    CompositionLocalProvider(LocalUiThemeStyle provides uiThemeStyle) {
-        when (uiThemeStyle) {
+    val darkTheme = when (appearance.themeMode) {
+        AppThemeMode.System -> isSystemInDarkTheme()
+        AppThemeMode.Light -> false
+        AppThemeMode.Dark -> true
+    }
+    CompositionLocalProvider(LocalUiThemeStyle provides appearance.uiStyle) {
+        when (appearance.uiStyle) {
             UiThemeStyle.Miuix -> {
-                val controller = remember {
-                    ThemeController(ColorSchemeMode.System)
+                val controller = remember(darkTheme) {
+                    ThemeController(
+                        colorSchemeMode = if (darkTheme) ColorSchemeMode.Dark else ColorSchemeMode.Light,
+                        isDark = darkTheme,
+                    )
                 }
                 MiuixTheme(controller = controller) {
-                    val tokens = rememberMiuixAppThemeTokens()
+                    val tokens = rememberMiuixAppThemeTokens(darkTheme)
                     CompositionLocalProvider(LocalAppThemeTokens provides tokens) {
-                        MaterialTheme(content = content)
+                        MaterialTheme(
+                            colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme(),
+                            content = content,
+                        )
                     }
                 }
             }
 
-            UiThemeStyle.Material3 -> MaterialTheme {
-                val tokens = rememberMaterialAppThemeTokens()
+            UiThemeStyle.Material3 -> MaterialTheme(
+                colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme(),
+            ) {
+                val tokens = rememberMaterialAppThemeTokens(darkTheme)
                 CompositionLocalProvider(LocalAppThemeTokens provides tokens) {
                     content()
                 }
@@ -165,10 +230,11 @@ fun AppStyleContent(
 }
 
 @Composable
-private fun rememberMaterialAppThemeTokens(): AppThemeTokens {
+private fun rememberMaterialAppThemeTokens(darkTheme: Boolean): AppThemeTokens {
     val colors = MaterialTheme.colorScheme
     val typography = MaterialTheme.typography
-    return remember(colors, typography) {
+    val status = appStatusColors(darkTheme)
+    return remember(colors, typography, darkTheme) {
         AppThemeTokens(
             colors = AppColors(
                 primary = colors.primary,
@@ -191,32 +257,49 @@ private fun rememberMaterialAppThemeTokens(): AppThemeTokens {
                 onSecondaryContainer = colors.onSecondaryContainer,
                 surfaceContainer = colors.surfaceContainer,
                 onSurfaceContainer = colors.onSurface,
+                surfaceContainerHighest = colors.surfaceContainerHighest,
+                onSurfaceContainerHighest = colors.onSurface,
+                page = colors.surfaceContainer,
+                successContainer = status.successContainer,
+                onSuccessContainer = status.onSuccessContainer,
+                warningContainer = status.warningContainer,
+                onWarningContainer = status.onWarningContainer,
+                previewBackground = colors.surfaceVariant,
+                previewScrim = colors.onSurface.copy(alpha = 0.5f),
+                previewSelection = colors.primary.copy(alpha = 0.18f),
+                previewOutline = colors.primary,
             ),
             typography = AppTypography(
                 pageTitle = typography.headlineMedium,
                 sectionTitle = typography.titleMedium,
                 title = typography.titleLarge,
+                itemTitle = typography.titleMedium,
                 body = typography.bodyMedium,
                 summary = typography.bodySmall,
                 value = typography.bodyMedium,
                 label = typography.labelLarge,
                 button = typography.labelLarge,
+                caption = typography.labelSmall,
                 debug = typography.bodySmall.copy(fontSize = 10.sp),
             ),
             shapes = AppShapes(
-                card = RoundedCornerShape(12.dp),
-                button = RoundedCornerShape(20.dp),
+                section = RoundedCornerShape(12.dp),
+                item = RoundedCornerShape(8.dp),
                 field = RoundedCornerShape(8.dp),
+                button = RoundedCornerShape(20.dp),
+                dialog = RoundedCornerShape(20.dp),
             ),
+            dimensions = AppDimensions(),
         )
     }
 }
 
 @Composable
-private fun rememberMiuixAppThemeTokens(): AppThemeTokens {
+private fun rememberMiuixAppThemeTokens(darkTheme: Boolean): AppThemeTokens {
     val colors = MiuixTheme.colorScheme
     val typography = MiuixTheme.textStyles
-    return remember(colors, typography) {
+    val status = appStatusColors(darkTheme)
+    return remember(colors, typography, darkTheme) {
         AppThemeTokens(
             colors = AppColors(
                 primary = colors.primary,
@@ -239,28 +322,77 @@ private fun rememberMiuixAppThemeTokens(): AppThemeTokens {
                 onSecondaryContainer = colors.onSecondaryContainer,
                 surfaceContainer = colors.surfaceContainer,
                 onSurfaceContainer = colors.onSurfaceContainer,
+                surfaceContainerHighest = colors.surfaceContainerHighest,
+                onSurfaceContainerHighest = colors.onSurfaceContainerHighest,
+                page = colors.surface,
+                successContainer = status.successContainer,
+                onSuccessContainer = status.onSuccessContainer,
+                warningContainer = status.warningContainer,
+                onWarningContainer = status.onWarningContainer,
+                previewBackground = colors.surfaceVariant,
+                previewScrim = colors.onSurface.copy(alpha = 0.5f),
+                previewSelection = colors.primary.copy(alpha = 0.18f),
+                previewOutline = colors.primary,
             ),
             typography = AppTypography(
                 pageTitle = typography.title2,
                 sectionTitle = typography.subtitle,
-                title = typography.main,
+                title = typography.title3,
+                itemTitle = typography.main,
                 body = typography.body2,
                 summary = typography.body2,
                 value = typography.body2,
                 label = typography.footnote1,
                 button = typography.button,
+                caption = typography.footnote2,
                 debug = typography.footnote2,
             ),
             shapes = AppShapes(
-                card = RoundedCornerShape(16.dp),
+                section = RoundedCornerShape(18.dp),
+                item = RoundedCornerShape(14.dp),
+                field = RoundedCornerShape(14.dp),
                 button = RoundedCornerShape(16.dp),
-                field = RoundedCornerShape(16.dp),
+                dialog = RoundedCornerShape(24.dp),
             ),
+            dimensions = AppDimensions(),
         )
     }
 }
 
-private val UiThemeStyleSaver = Saver<MutableState<UiThemeStyle>, String>(
-    save = { it.value.storageName },
-    restore = { value -> mutableStateOf(UiThemeStyle.fromStorageName(value)) },
+private data class AppStatusColors(
+    val successContainer: Color,
+    val onSuccessContainer: Color,
+    val warningContainer: Color,
+    val onWarningContainer: Color,
+)
+
+private fun appStatusColors(darkTheme: Boolean): AppStatusColors =
+    if (darkTheme) {
+        AppStatusColors(
+            successContainer = Color(0xFF1E3B2A),
+            onSuccessContainer = Color(0xFF8FD9A8),
+            warningContainer = Color(0xFF3B2F14),
+            onWarningContainer = Color(0xFFF0D48A),
+        )
+    } else {
+        AppStatusColors(
+            successContainer = Color(0xFFD7F4E1),
+            onSuccessContainer = Color(0xFF1E6B42),
+            warningContainer = Color(0xFFFFE7A8),
+            onWarningContainer = Color(0xFF7A5200),
+        )
+    }
+
+private val AppAppearanceSaver = Saver<MutableState<AppAppearance>, String>(
+    save = { "${it.value.uiStyle.storageName}|${it.value.themeMode.name}" },
+    restore = { value ->
+        val parts = value.split("|")
+        mutableStateOf(
+            AppAppearance(
+                uiStyle = UiThemeStyle.fromStorageName(parts.getOrNull(0)),
+                themeMode = AppThemeMode.entries.firstOrNull { it.name == parts.getOrNull(1) }
+                    ?: AppThemeMode.System,
+            )
+        )
+    },
 )

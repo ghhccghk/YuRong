@@ -25,6 +25,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -47,6 +48,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun AppCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    shape: Shape = AppDesign.shapes.section,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
     containerColor: Color? = null,
     contentColor: Color? = null,
     content: @Composable ColumnScope.() -> Unit,
@@ -62,9 +65,9 @@ fun AppCard(
                 )
             }
             if (onClick == null) {
-                Card(modifier = modifier, colors = colors, content = content)
+                Card(modifier = modifier, shape = shape, colors = colors) { Column(Modifier.padding(contentPadding), content = content) }
             } else {
-                Card(modifier = modifier, colors = colors, onClick = onClick, content = content)
+                Card(modifier = modifier, shape = shape, colors = colors, onClick = onClick) { Column(Modifier.padding(contentPadding), content = content) }
             }
         },
         miuix = {
@@ -74,7 +77,7 @@ fun AppCard(
                 contentColor = resolvedContentColor,
             )
             if (onClick == null) {
-                MiuixCard(modifier = modifier, colors = colors) {
+                MiuixCard(modifier = modifier, insideMargin = contentPadding, cornerRadius = AppDesign.dimensions.cardCornerRadius, colors = colors) {
                     CompositionLocalProvider(
                         LocalContentColor provides resolvedContentColor,
                         MiuixLocalContentColor provides resolvedContentColor,
@@ -83,6 +86,8 @@ fun AppCard(
             } else {
                 MiuixCard(
                     modifier = modifier,
+                    insideMargin = contentPadding,
+                    cornerRadius = AppDesign.dimensions.cardCornerRadius,
                     colors = colors,
                     onClick = onClick,
                     showIndication = true,
@@ -102,6 +107,7 @@ fun AppButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    shape: Shape = AppDesign.shapes.button,
     containerColor: Color? = null,
     contentColor: Color? = null,
     contentPadding: PaddingValues? = null,
@@ -117,7 +123,11 @@ fun AppButton(
                     containerColor = containerColor ?: AppDesign.colors.primary,
                     contentColor = contentColor ?: AppDesign.colors.onPrimary,
                 ),
-                contentPadding = contentPadding ?: ButtonDefaults.ContentPadding,
+                shape = shape,
+                contentPadding = contentPadding ?: PaddingValues(
+                    horizontal = AppDesign.dimensions.buttonInsideHorizontal,
+                    vertical = AppDesign.dimensions.buttonInsideVertical,
+                ),
                 content = content,
             )
         },
@@ -131,7 +141,11 @@ fun AppButton(
                     color = containerColor ?: MiuixTheme.colorScheme.primary,
                     contentColor = resolvedContentColor,
                 ),
-                insideMargin = contentPadding ?: MiuixButtonDefaults.InsideMargin,
+                cornerRadius = AppDesign.dimensions.buttonCornerRadius,
+                insideMargin = contentPadding ?: PaddingValues(
+                    horizontal = AppDesign.dimensions.buttonInsideHorizontal,
+                    vertical = AppDesign.dimensions.buttonInsideVertical,
+                ),
             ) {
                 CompositionLocalProvider(
                     LocalContentColor provides resolvedContentColor,
@@ -147,6 +161,7 @@ fun AppOutlinedButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    shape: Shape = AppDesign.shapes.button,
     contentPadding: PaddingValues? = null,
     content: @Composable RowScope.() -> Unit,
 ) {
@@ -156,7 +171,11 @@ fun AppOutlinedButton(
                 onClick = onClick,
                 modifier = modifier,
                 enabled = enabled,
-                contentPadding = contentPadding ?: ButtonDefaults.ContentPadding,
+                shape = shape,
+                contentPadding = contentPadding ?: PaddingValues(
+                    horizontal = AppDesign.dimensions.buttonInsideHorizontal,
+                    vertical = AppDesign.dimensions.buttonInsideVertical,
+                ),
                 content = content,
             )
         },
@@ -167,7 +186,11 @@ fun AppOutlinedButton(
                 modifier = modifier,
                 enabled = enabled,
                 colors = MiuixButtonDefaults.buttonColors(),
-                insideMargin = contentPadding ?: MiuixButtonDefaults.InsideMargin,
+                cornerRadius = AppDesign.dimensions.buttonCornerRadius,
+                insideMargin = contentPadding ?: PaddingValues(
+                    horizontal = AppDesign.dimensions.buttonInsideHorizontal,
+                    vertical = AppDesign.dimensions.buttonInsideVertical,
+                ),
             ) {
                 CompositionLocalProvider(
                     LocalContentColor provides resolvedContentColor,
@@ -184,6 +207,7 @@ fun AppTextField(
     onValueChange: (String) -> Unit,
     label: String,
     modifier: Modifier = Modifier,
+    shape: Shape = AppDesign.shapes.field,
     enabled: Boolean = true,
     singleLine: Boolean = true,
 ) {
@@ -193,6 +217,7 @@ fun AppTextField(
                 value = value,
                 onValueChange = onValueChange,
                 modifier = modifier,
+                shape = shape,
                 enabled = enabled,
                 label = { Text(label) },
                 singleLine = singleLine,
@@ -203,6 +228,7 @@ fun AppTextField(
                 value = value,
                 onValueChange = onValueChange,
                 modifier = modifier,
+                cornerRadius = AppDesign.dimensions.fieldCornerRadius,
                 enabled = enabled,
                 label = label,
                 singleLine = singleLine,
@@ -355,11 +381,15 @@ fun AppSwitchPreference(
     title: String,
     summary: String? = null,
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(
+        horizontal = AppDesign.dimensions.itemHorizontalPadding,
+        vertical = AppDesign.dimensions.itemVerticalPadding,
+    ),
 ) {
     AppStyleContent(
         material = {
             Row(
-                modifier = modifier.fillMaxWidth().padding(16.dp),
+                modifier = modifier.fillMaxWidth().padding(contentPadding),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {

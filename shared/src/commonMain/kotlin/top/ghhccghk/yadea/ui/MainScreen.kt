@@ -51,7 +51,7 @@ fun MainScreen(
     screenCaptureAuthorizer: ScreenCaptureAuthorizer? = null,
     mediaSourcePicker: MediaSourcePicker? = null,
 ) {
-    val uiThemeState = rememberUiThemeStyle()
+    val appearanceState = rememberAppAppearance()
     val viewModel = remember {
         AppViewModel(
             wifiManager,
@@ -64,11 +64,15 @@ fun MainScreen(
         )
     }
 
-    AppTheme(uiThemeState.value) {
+    var selectedDestination by remember { mutableStateOf(MainDestination.Connection) }
+
+    AppTheme(appearanceState.value) {
         MainScreenContent(
             viewModel = viewModel,
-            selectedStyle = uiThemeState.value,
-            onStyleChange = { uiThemeState.value = it },
+            selectedStyle = appearanceState.value.uiStyle,
+            onStyleChange = { appearanceState.value = appearanceState.value.copy(uiStyle = it) },
+            selectedDestination = selectedDestination,
+            onDestinationChange = { selectedDestination = it },
         )
     }
 }
@@ -78,8 +82,9 @@ private fun MainScreenContent(
     viewModel: AppViewModel,
     selectedStyle: UiThemeStyle,
     onStyleChange: (UiThemeStyle) -> Unit,
+    selectedDestination: MainDestination,
+    onDestinationChange: (MainDestination) -> Unit,
 ) {
-    var selectedDestination by remember { mutableStateOf(MainDestination.Connection) }
     val navigationItems = MainDestination.entries.map {
         AppNavigationItem(
             label = it.label,
@@ -94,7 +99,7 @@ private fun MainScreenContent(
             AppBottomNavigation(
                 items = navigationItems,
                 selectedIndex = selectedDestination.ordinal,
-                onSelected = { selectedDestination = MainDestination.entries[it] },
+                onSelected = { onDestinationChange(MainDestination.entries[it]) },
             )
         },
     ) { padding ->
@@ -137,7 +142,7 @@ fun StatusCard(title: String, status: String, isConnected: Boolean, modifier: Mo
         else AppDesign.colors.surfaceVariant,
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Column {

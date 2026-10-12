@@ -9,7 +9,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,12 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 @Composable
 fun MirrorPreviewPanel(
@@ -38,15 +34,14 @@ fun MirrorPreviewPanel(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(AppDesign.colors.surfaceVariant)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .clip(AppDesign.shapes.section)
+            .background(AppDesign.colors.previewBackground)
+            .padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding),
+        verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.sectionSpacing)
     ) {
         AppText(
             "投屏区域预览",
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
+            style = AppDesign.typography.sectionTitle,
             color = AppDesign.colors.onSurfaceVariant
         )
 
@@ -54,9 +49,12 @@ fun MirrorPreviewPanel(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(previewWidth.toFloat() / previewHeight)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.DarkGray)
+                .clip(AppDesign.shapes.item)
+                .background(AppDesign.colors.previewBackground)
         ) {
+            val previewScrim = AppDesign.colors.previewScrim
+            val previewSelection = AppDesign.colors.previewSelection
+            val previewOutline = AppDesign.colors.previewOutline
             Canvas(
                 modifier = Modifier
                     .fillMaxSize()
@@ -77,14 +75,14 @@ fun MirrorPreviewPanel(
             ) {
                 val w = size.width
                 val h = size.height
-                drawRect(Color.Black.copy(alpha = 0.5f), Offset.Zero, Size(w, h))
+                drawRect(previewScrim, Offset.Zero, Size(w, h))
                 drawRect(
-                    Color.White.copy(alpha = 0.15f),
+                    previewSelection,
                     Offset(crop.left * w, crop.top * h),
                     Size(crop.normalizedWidth * w, crop.normalizedHeight * h)
                 )
                 drawRect(
-                    Color.Cyan,
+                    previewOutline,
                     Offset(crop.left * w, crop.top * h),
                     Size(crop.normalizedWidth * w, crop.normalizedHeight * h),
                     style = Stroke(width = 3.dp.toPx())
@@ -92,18 +90,18 @@ fun MirrorPreviewPanel(
                 val cornerLen = 16.dp.toPx()
                 val lx = crop.left * w; val ty = crop.top * h
                 val rx = crop.right * w; val by = crop.bottom * h
-                drawLine(Color.Cyan, Offset(lx, ty), Offset(lx + cornerLen, ty), 4.dp.toPx())
-                drawLine(Color.Cyan, Offset(lx, ty), Offset(lx, ty + cornerLen), 4.dp.toPx())
-                drawLine(Color.Cyan, Offset(rx, ty), Offset(rx - cornerLen, ty), 4.dp.toPx())
-                drawLine(Color.Cyan, Offset(rx, ty), Offset(rx, ty + cornerLen), 4.dp.toPx())
-                drawLine(Color.Cyan, Offset(lx, by), Offset(lx + cornerLen, by), 4.dp.toPx())
-                drawLine(Color.Cyan, Offset(lx, by), Offset(lx, by - cornerLen), 4.dp.toPx())
-                drawLine(Color.Cyan, Offset(rx, by), Offset(rx - cornerLen, by), 4.dp.toPx())
-                drawLine(Color.Cyan, Offset(rx, by), Offset(rx, by - cornerLen), 4.dp.toPx())
+                drawLine(previewOutline, Offset(lx, ty), Offset(lx + cornerLen, ty), 4.dp.toPx())
+                drawLine(previewOutline, Offset(lx, ty), Offset(lx, ty + cornerLen), 4.dp.toPx())
+                drawLine(previewOutline, Offset(rx, ty), Offset(rx - cornerLen, ty), 4.dp.toPx())
+                drawLine(previewOutline, Offset(rx, ty), Offset(rx, ty + cornerLen), 4.dp.toPx())
+                drawLine(previewOutline, Offset(lx, by), Offset(lx + cornerLen, by), 4.dp.toPx())
+                drawLine(previewOutline, Offset(lx, by), Offset(lx, by - cornerLen), 4.dp.toPx())
+                drawLine(previewOutline, Offset(rx, by), Offset(rx - cornerLen, by), 4.dp.toPx())
+                drawLine(previewOutline, Offset(rx, by), Offset(rx, by - cornerLen), 4.dp.toPx())
             }
         }
 
-        AppText("精细调节", fontSize = 13.sp, color = AppDesign.colors.onSurfaceVariant)
+        AppText("精细调节", style = AppDesign.typography.caption, color = AppDesign.colors.onSurfaceVariant)
 
         CropSlider("左边界", crop.left, 0f, crop.right - 0.05f) {
             val nc = crop.copy(left = it); crop = nc; onCropChange(nc)
@@ -120,22 +118,22 @@ fun MirrorPreviewPanel(
 
         AppText(
             "区域: L=${fmt(crop.left, 3)}  T=${fmt(crop.top, 3)}  R=${fmt(crop.right, 3)}  B=${fmt(crop.bottom, 3)}",
-            fontSize = 11.sp,
+            style = AppDesign.typography.debug,
             color = AppDesign.colors.onSurfaceVariant.copy(alpha = 0.7f)
         )
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
             AppOutlinedButton(onClick = {
                 crop = FrameCropConfig.FULL; onCropChange(crop)
-            }) { AppText("全幅", fontSize = 12.sp) }
+            }) { AppText("全幅", style = AppDesign.typography.caption) }
             AppOutlinedButton(onClick = {
                 crop = FrameCropConfig.CENTER; onCropChange(crop)
-            }) { AppText("居中", fontSize = 12.sp) }
+            }) { AppText("居中", style = AppDesign.typography.caption) }
             AppOutlinedButton(onClick = {
                 val ratio = previewWidth.toFloat() / previewHeight
                 val nc = FrameCropConfig.FULL.withAspectRation(ratio, previewWidth, previewHeight)
                 crop = nc; onCropChange(nc)
-            }) { AppText("适配", fontSize = 12.sp) }
+            }) { AppText("适配", style = AppDesign.typography.caption) }
         }
     }
 }
@@ -154,16 +152,16 @@ private fun CropSlider(
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)
     ) {
-        AppText(label, fontSize = 12.sp, modifier = Modifier.width(50.dp))
+        AppText(label, style = AppDesign.typography.caption, modifier = Modifier.width(50.dp))
         AppSlider(
             value = sliderValue,
             onValueChange = { onChange(it.coerceIn(lowerBound, upperBound)) },
             valueRange = lowerBound..upperBound,
             modifier = Modifier.weight(1f)
         )
-        AppText(fmt(sliderValue, 2), fontSize = 11.sp, modifier = Modifier.width(36.dp))
+        AppText(fmt(sliderValue, 2), style = AppDesign.typography.debug, modifier = Modifier.width(36.dp))
     }
 }
 
