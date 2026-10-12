@@ -1,14 +1,24 @@
 package top.ghhccghk.yadea.ui
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import top.ghhccghk.yadea.mirror.FrameCropConfig
 import top.ghhccghk.yadea.mirror.MirrorPreviewPanel
 import top.ghhccghk.yadea.mirror.MirrorState
@@ -32,89 +42,122 @@ fun MirrorScreen(viewModel: AppViewModel) {
     var udpPort by remember { mutableStateOf("8889") }
 
     LaunchedEffect(p2pGroupOwnerIp, wifiIp) {
-        if (p2pGroupOwnerIp.isNotEmpty()) targetHost = p2pGroupOwnerIp
-        else if (wifiIp.isNotEmpty() && targetHost.isEmpty()) {
+        if (p2pGroupOwnerIp.isNotEmpty()) {
+            targetHost = p2pGroupOwnerIp
+        } else if (wifiIp.isNotEmpty() && targetHost.isEmpty()) {
             targetHost = wifiIp.replace(Regex("\\.\\d+$"), ".1")
         }
     }
 
     val isMirroring = mirrorState == MirrorState.Running
+    val dimensions = AppDesign.dimensions
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding),
-        verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.sectionSpacing)
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            horizontal = dimensions.pageHorizontalPadding,
+            vertical = dimensions.pageVerticalPadding,
+        ),
+        verticalArrangement = Arrangement.spacedBy(dimensions.sectionSpacing),
     ) {
         item {
-            ScreenTitle("投屏控制")
+            AppPageHeader(
+                title = "投屏控制",
+                subtitle = mirrorStatus,
+            )
         }
 
         item {
-            AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
-                    AppText("仪表连接", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
+            AppSection(title = "仪表连接") {
+                AppTextField(
+                    value = targetHost,
+                    onValueChange = { targetHost = it },
+                    label = "仪表 IP 地址",
+                    modifier = Modifier.fillMaxWidth().padding(
+                        horizontal = dimensions.itemHorizontalPadding,
+                        vertical = dimensions.compactSpacing,
+                    ),
+                    singleLine = true,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(
+                        horizontal = dimensions.itemHorizontalPadding,
+                        vertical = dimensions.compactSpacing,
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+                ) {
                     AppTextField(
-                        value = targetHost,
-                        onValueChange = { targetHost = it },
-                        label = "仪表 IP 地址",
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        value = tcpPort,
+                        onValueChange = { tcpPort = it },
+                        label = "TCP 控制端口",
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
                     )
-                    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
-                        AppTextField(
-                            value = tcpPort,
-                            onValueChange = { tcpPort = it },
-                            label = "TCP 控制端口",
-                            modifier = Modifier.weight(1f),
-                            singleLine = true
-                        )
-                        AppTextField(
-                            value = udpPort,
-                            onValueChange = { udpPort = it },
-                            label = "UDP 图片端口",
-                            modifier = Modifier.weight(1f),
-                            singleLine = true
-                        )
-                    }
-                    if (p2pGroupOwnerIp.isNotEmpty()) {
-                        AppText("P2P GroupOwner: $p2pGroupOwnerIp", style = AppDesign.typography.summary, color = AppDesign.colors.primary)
-                    }
-                    if (wifiIp.isNotEmpty()) {
-                        AppText("WiFi 本机: $wifiIp", style = AppDesign.typography.summary, color = AppDesign.colors.secondary)
-                    }
+                    AppTextField(
+                        value = udpPort,
+                        onValueChange = { udpPort = it },
+                        label = "UDP 图片端口",
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                    )
+                }
+                if (p2pGroupOwnerIp.isNotEmpty()) {
+                    AppListRow(title = "P2P GroupOwner", value = p2pGroupOwnerIp)
+                }
+                if (wifiIp.isNotEmpty()) {
+                    AppListRow(title = "WiFi 本机", value = wifiIp)
                 }
             }
         }
 
         item {
-            AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
-                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                        AppText("投屏状态", style = AppDesign.typography.title)
-                        StatusChip(isMirroring, when (mirrorState) {
-                            MirrorState.Running -> "投屏中"
-                            MirrorState.Negotiating -> "连接中..."
-                            MirrorState.Failed -> "失败"
-                            MirrorState.Stopped -> "已停止"
-                            else -> "空闲"
-                        })
-                    }
-                    AppText(mirrorStatus, style = AppDesign.typography.body)
-                    if (isMirroring) {
-                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                            StatItem("帧数", "$frameCount")
-                            StatItem("已发送", formatBytes(bytesSent))
-                            StatItem("帧率", "~10 fps")
+            AppSection(title = "投屏状态") {
+                AppListRow(
+                    title = "当前状态",
+                    value = when (mirrorState) {
+                        MirrorState.Running -> "投屏中"
+                        MirrorState.Negotiating -> "连接中..."
+                        MirrorState.Failed -> "失败"
+                        MirrorState.Stopped -> "已停止"
+                        MirrorState.Idle -> "空闲"
+                    },
+                    trailing = {
+                        if (mirrorState == MirrorState.Negotiating) {
+                            AppLoadingIndicator()
                         }
+                    },
+                )
+                AppListRow(title = "运行详情", summary = mirrorStatus)
+                if (isMirroring) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(
+                            horizontal = dimensions.itemHorizontalPadding,
+                            vertical = dimensions.itemVerticalPadding,
+                        ),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        StatItem("帧数", "$frameCount")
+                        StatItem("已发送", formatBytes(bytesSent))
+                        StatItem("帧率", "~10 fps")
                     }
                 }
             }
         }
 
         item {
-            AppText("投屏源", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
+            AppText(
+                text = "投屏源",
+                style = AppDesign.typography.sectionTitle,
+                color = AppDesign.colors.primary,
+                modifier = Modifier.padding(horizontal = dimensions.itemHorizontalPadding),
+            )
         }
+
         item {
-            Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+            ) {
                 SourceButton(
                     text = "📷\n摄像头",
                     selected = selectedSource == 0,
@@ -148,29 +191,25 @@ fun MirrorScreen(viewModel: AppViewModel) {
 
         if (selectedSource == 2 || selectedSource == 3) {
             item {
-                AppCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding),
-                        verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing),
-                    ) {
-                        AppText(
-                            if (selectedSource == 2) "视频源" else "导航源",
-                            style = AppDesign.typography.sectionTitle,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        AppTextField(
-                            value = sourceUri,
-                            onValueChange = viewModel::updateSourceUri,
-                            label = if (selectedSource == 2) "视频文件或网络地址" else "导航图片流或视频地址",
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        if (selectedSource == 2 && viewModel.canPickVideoSource) {
-                            AppButton(
-                                onClick = viewModel::chooseVideoSource,
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                AppText("选择视频文件")
-                            }
+                AppSection(title = if (selectedSource == 2) "视频源" else "导航源") {
+                    AppTextField(
+                        value = sourceUri,
+                        onValueChange = viewModel::updateSourceUri,
+                        label = if (selectedSource == 2) "视频文件或网络地址" else "导航图片流或视频地址",
+                        modifier = Modifier.fillMaxWidth().padding(
+                            horizontal = dimensions.itemHorizontalPadding,
+                            vertical = dimensions.compactSpacing,
+                        ),
+                    )
+                    if (selectedSource == 2 && viewModel.canPickVideoSource) {
+                        AppButton(
+                            onClick = viewModel::chooseVideoSource,
+                            modifier = Modifier.fillMaxWidth().padding(
+                                horizontal = dimensions.itemHorizontalPadding,
+                                vertical = dimensions.itemVerticalPadding,
+                            ),
+                        ) {
+                            AppText("选择视频文件")
                         }
                     }
                 }
@@ -178,46 +217,68 @@ fun MirrorScreen(viewModel: AppViewModel) {
         }
 
         item {
-            AppText("投屏区域", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
-        }
-        item {
-            MirrorPreviewPanel(
-                cropConfig = cropConfig,
-                onCropChange = { viewModel.updateCrop(it) }
+            AppText(
+                text = "投屏区域",
+                style = AppDesign.typography.sectionTitle,
+                color = AppDesign.colors.primary,
+                modifier = Modifier.padding(horizontal = dimensions.itemHorizontalPadding),
             )
         }
 
         item {
-            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), Arrangement.spacedBy(AppDesign.dimensions.sectionSpacing)) {
+            MirrorPreviewPanel(
+                cropConfig = cropConfig,
+                onCropChange = { viewModel.updateCrop(it) },
+            )
+        }
+
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = dimensions.compactSpacing),
+                horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+            ) {
                 if (isMirroring) {
                     AppButton(
                         onClick = { viewModel.stopMirror() },
                         modifier = Modifier.weight(1f).height(56.dp),
-                        containerColor = AppDesign.colors.error
-                    ) { AppText("⏹ 停止投屏", style = AppDesign.typography.button) }
+                        containerColor = AppDesign.colors.error,
+                    ) {
+                        AppText("⏹ 停止投屏", style = AppDesign.typography.button)
+                    }
                 } else {
                     AppButton(
                         onClick = {
                             viewModel.startMirror(
                                 targetHost,
                                 tcpPort.toIntOrNull() ?: 8888,
-                                udpPort.toIntOrNull() ?: 8889
+                                udpPort.toIntOrNull() ?: 8889,
                             )
                         },
                         modifier = Modifier.weight(1f).height(56.dp),
                         enabled = targetHost.isNotEmpty() &&
-                            (selectedSource != 2 && selectedSource != 3 || sourceUri.isNotEmpty())
-                    ) { AppText("▶ 开始投屏", style = AppDesign.typography.button) }
+                            (selectedSource != 2 && selectedSource != 3 || sourceUri.isNotEmpty()),
+                    ) {
+                        AppText("▶ 开始投屏", style = AppDesign.typography.button)
+                    }
                 }
             }
         }
 
         item {
-            AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.compactSpacing)) {
-                    AppText("调试日志", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
+            AppSection(title = "调试日志") {
+                if (debugLog.isEmpty()) {
+                    AppEmptyState("暂无调试日志")
+                } else {
                     debugLog.reversed().take(15).forEach { line ->
-                        AppText(line, style = AppDesign.typography.debug, color = AppDesign.colors.onSurfaceVariant)
+                        AppText(
+                            text = line,
+                            style = AppDesign.typography.debug,
+                            color = AppDesign.colors.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth().padding(
+                                horizontal = dimensions.itemHorizontalPadding,
+                                vertical = dimensions.compactSpacing,
+                            ),
+                        )
                     }
                 }
             }
@@ -228,7 +289,7 @@ fun MirrorScreen(viewModel: AppViewModel) {
 @Composable
 fun StatItem(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        AppText(value, style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
+        AppText(value, style = AppDesign.typography.sectionTitle)
         AppText(label, style = AppDesign.typography.summary)
     }
 }
@@ -247,9 +308,15 @@ fun SourceButton(
         modifier = modifier,
         containerColor = if (selected) AppDesign.colors.primaryContainer else AppDesign.colors.surfaceVariant,
     ) {
-        Column(Modifier.padding(12.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(
+                horizontal = AppDesign.dimensions.itemHorizontalPadding,
+                vertical = AppDesign.dimensions.compactSpacing,
+            ),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             AppText(
-                text,
+                text = text,
                 style = AppDesign.typography.body,
                 color = if (enabled) AppDesign.colors.onSurface else AppDesign.colors.onSurfaceVariant,
             )
@@ -285,7 +352,7 @@ internal fun formatBytes(bytes: Long): String {
         bytes < 1024 -> "$bytes B"
         bytes < 1024 * 1024 -> "${bytes / 1024} KB"
         else -> {
-            val mb = (bytes * 10 / (1024 * 1024))
+            val mb = bytes * 10 / (1024 * 1024)
             "${mb / 10}.${mb % 10} MB"
         }
     }
