@@ -85,4 +85,14 @@ class AppPreferencesTest {
         assertTrue(preferences.reset() is PreferenceWriteResult.Success)
         assertEquals(AppAppearance(), preferences.read())
     }
+@Test
+    fun invalidSchemaVersionDoesNotCrash() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        store.write(AppPreferenceKeys.schemaVersion, 0)
+        store.write(AppPreferenceKeys.uiStyle, UiThemeStyle.Material3.storageName)
+
+        val appearance = AppPreferences(store).read()
+
+        assertEquals(UiThemeStyle.Material3, appearance.uiStyle)
+    }
 }

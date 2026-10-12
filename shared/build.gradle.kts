@@ -79,6 +79,7 @@ kotlin {
             implementation(libs.miuix.squircle)
             // Optional: Add miuix-nav for navigation
             implementation(libs.miuix.nav)
+            implementation(libs.materialkolor)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

@@ -17,6 +17,7 @@ kotlinx-coroutines = "1.11.0"
 material3 = "1.12.0-alpha03"
 cameraLifecycle = "1.6.2"
 miuixUi = "0.9.4"
+materialKolor = "5.0.1"
 javacv = "1.5.11"
 
 [libraries]
@@ -44,6 +45,7 @@ miuix-nav = { module = "top.yukonga.miuix.kmp:miuix-nav", version.ref = "miuixUi
 miuix-preference = { module = "top.yukonga.miuix.kmp:miuix-preference", version.ref = "miuixUi" }
 miuix-squircle = { module = "top.yukonga.miuix.kmp:miuix-squircle", version.ref = "miuixUi" }
 miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui", version.ref = "miuixUi" }
+materialkolor = { module = "com.materialkolor:material-kolor", version.ref = "materialKolor" }
 wrappers-browser = { module = "org.jetbrains.kotlin-wrappers:kotlin-browser", version.ref = "kotlin-wrappers" }
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraLifecycle" }
 androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "cameraLifecycle" }

@@ -53,6 +53,7 @@ fun MainScreen(
     screenCaptureAuthorizer: ScreenCaptureAuthorizer? = null,
     mediaSourcePicker: MediaSourcePicker? = null,
     preferences: AppPreferences? = null,
+    systemAccentColor: androidx.compose.ui.graphics.Color? = null,
 ) {
     val resolvedPreferences = preferences ?: remember { AppPreferences(InMemoryPreferenceStore()) }
     val appearanceState = rememberAppAppearance(resolvedPreferences)
@@ -70,7 +71,10 @@ fun MainScreen(
 
     var selectedDestination by remember { mutableStateOf(MainDestination.Connection) }
 
-    AppTheme(appearanceState.value) {
+    AppTheme(
+        appearance = appearanceState.value,
+        systemAccentColor = systemAccentColor,
+    ) {
         MainScreenContent(
             viewModel = viewModel,
             selectedStyle = appearanceState.value.uiStyle,

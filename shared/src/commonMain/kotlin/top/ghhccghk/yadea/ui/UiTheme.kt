@@ -227,6 +227,7 @@ fun rememberAppAppearance(
 @Composable
 fun AppTheme(
     appearance: AppAppearance,
+    systemAccentColor: Color? = null,
     content: @Composable () -> Unit,
 ) {
     val darkTheme = when (appearance.themeMode) {
@@ -234,12 +235,16 @@ fun AppTheme(
         AppThemeMode.Light -> false
         AppThemeMode.Dark -> true
     }
+    val materialColors = rememberAppMaterialColorScheme(appearance, darkTheme, systemAccentColor)
     CompositionLocalProvider(LocalUiThemeStyle provides appearance.uiStyle) {
         when (appearance.uiStyle) {
             UiThemeStyle.Miuix -> {
-                val controller = remember(darkTheme) {
+                val controller = remember(darkTheme, appearance.paletteStyle, systemAccentColor) {
                     ThemeController(
-                        colorSchemeMode = if (darkTheme) ColorSchemeMode.Dark else ColorSchemeMode.Light,
+                        colorSchemeMode = if (darkTheme) ColorSchemeMode.MonetDark else ColorSchemeMode.MonetLight,
+                        keyColor = appSeedColor(appearance, systemAccentColor),
+                        paletteStyle = appearance.paletteStyle.toMiuixPaletteStyle(),
+                        colorSpec = appearance.paletteStyle.toMiuixColorSpec(),
                         isDark = darkTheme,
                     )
                 }
@@ -247,7 +252,7 @@ fun AppTheme(
                     val tokens = rememberMiuixAppThemeTokens(darkTheme)
                     CompositionLocalProvider(LocalAppThemeTokens provides tokens) {
                         MaterialTheme(
-                            colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme(),
+                            colorScheme = materialColors,
                             content = content,
                         )
                     }
@@ -255,7 +260,7 @@ fun AppTheme(
             }
 
             UiThemeStyle.Material3 -> MaterialTheme(
-                colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme(),
+                colorScheme = materialColors,
             ) {
                 val tokens = rememberMaterialAppThemeTokens(darkTheme)
                 CompositionLocalProvider(LocalAppThemeTokens provides tokens) {

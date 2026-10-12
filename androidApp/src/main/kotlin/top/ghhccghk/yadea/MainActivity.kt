@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import top.ghhccghk.yadea.settings.AppPreferences
 import top.ghhccghk.yadea.settings.SharedPreferencesPreferenceStore
@@ -63,6 +64,11 @@ class MainActivity : ComponentActivity() {
                 screenCaptureAuthorizer = screenCaptureAuthorizer,
                 mediaSourcePicker = mediaSourcePicker,
                 preferences = AppPreferences(SharedPreferencesPreferenceStore(this@MainActivity)),
+                systemAccentColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    Color(ContextCompat.getColor(this@MainActivity, android.R.color.system_accent1_500))
+                } else {
+                    null
+                },
             )
         }
     }

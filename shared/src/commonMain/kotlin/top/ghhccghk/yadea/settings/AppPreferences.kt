@@ -121,9 +121,6 @@ class AppPreferences(
             paletteStyle = AppPaletteStyle.entries.firstOrNull { it.name == paletteStyle } ?: AppPaletteStyle.TonalSpot,
             amoledDarkEnabled = amoledDark,
             themeAnimationsEnabled = themeAnimations,
-        ).also {
-            // Keep the schema number in the store so future migrations can inspect it.
-            check(schemaVersion >= 1) { "Invalid settings schema version: $schemaVersion" }
-        }
+        )
     }
 }

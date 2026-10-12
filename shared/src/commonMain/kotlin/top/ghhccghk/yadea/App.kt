@@ -8,6 +8,9 @@ import top.ghhccghk.yadea.ui.MainScreen
  * 应用入口
  */
 @Composable
-fun App(preferences: AppPreferences? = null) {
-    MainScreen(preferences = preferences)
+fun App(
+    preferences: AppPreferences? = null,
+    systemAccentColor: androidx.compose.ui.graphics.Color? = null,
+) {
+    MainScreen(preferences = preferences, systemAccentColor = systemAccentColor)
 }
