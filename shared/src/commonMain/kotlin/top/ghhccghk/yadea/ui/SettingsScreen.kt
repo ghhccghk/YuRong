@@ -1,7 +1,6 @@
 package top.ghhccghk.yadea.ui
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -9,9 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import top.yukonga.miuix.kmp.basic.SmallTitle
 
 @Composable
 fun SettingsScreen(
@@ -25,33 +22,26 @@ fun SettingsScreen(
         horizontal = if (useMiuix) 0.dp else dimensions.pageHorizontalPadding,
         vertical = if (useMiuix) 0.dp else dimensions.pageVerticalPadding,
     )
+    val sectionModifier = if (useMiuix) {
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+    } else {
+        Modifier.fillMaxWidth()
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = pagePadding,
         verticalArrangement = Arrangement.spacedBy(if (useMiuix) 8.dp else dimensions.sectionSpacing),
     ) {
-        if (useMiuix) {
-            item { SmallTitle(text = "外观") }
-        } else {
-            item {
-                Column {
-                    ScreenTitle("设置")
-                    AppText(
-                        text = "外观",
-                        style = AppDesign.typography.sectionTitle,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
-                }
-            }
+        item {
+            AppPageHeader(
+                title = "设置",
+                subtitle = "外观与界面风格",
+            )
         }
 
         item {
-            AppCard(
-                modifier = Modifier.fillMaxWidth().padding(
-                    horizontal = if (useMiuix) 12.dp else 0.dp,
-                ),
-            ) {
+            AppSection(title = "外观", modifier = sectionModifier) {
                 AppSwitchPreference(
                     checked = selectedStyle == UiThemeStyle.Miuix,
                     onCheckedChange = { enabled ->
@@ -63,27 +53,12 @@ fun SettingsScreen(
             }
         }
 
-        if (useMiuix) {
-            item { SmallTitle(text = "当前样式") }
-        }
-
         item {
-            AppCard(
-                modifier = Modifier.fillMaxWidth().padding(
-                    horizontal = if (useMiuix) 12.dp else 0.dp,
-                ),
-            ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding)) {
-                    AppText(
-                        text = selectedStyle.label,
-                        style = AppDesign.typography.sectionTitle,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    AppText(
-                        text = selectedStyle.description,
-                        style = AppDesign.typography.summary,
-                    )
-                }
+            AppSection(title = "当前样式", modifier = sectionModifier) {
+                AppListRow(
+                    title = selectedStyle.label,
+                    summary = selectedStyle.description,
+                )
             }
         }
     }

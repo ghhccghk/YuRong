@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator as MiuixCircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.SmallTitle as MiuixSmallTitle
 
 @Composable
 fun AppPageHeader(
@@ -49,15 +50,29 @@ fun AppSection(
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         if (!title.isNullOrBlank()) {
-            AppText(
-                text = title,
-                style = AppDesign.typography.sectionTitle,
-                color = AppDesign.colors.primary,
-                modifier = Modifier.padding(
-                    start = AppDesign.dimensions.itemHorizontalPadding,
-                    end = AppDesign.dimensions.itemHorizontalPadding,
-                    bottom = AppDesign.dimensions.compactSpacing,
-                ),
+            AppStyleContent(
+                material = {
+                    AppText(
+                        text = title,
+                        style = AppDesign.typography.sectionTitle,
+                        color = AppDesign.colors.primary,
+                        modifier = Modifier.padding(
+                            start = AppDesign.dimensions.itemHorizontalPadding,
+                            end = AppDesign.dimensions.itemHorizontalPadding,
+                            bottom = AppDesign.dimensions.compactSpacing,
+                        ),
+                    )
+                },
+                miuix = {
+                    MiuixSmallTitle(
+                        text = title,
+                        insideMargin = PaddingValues(
+                            start = AppDesign.dimensions.itemHorizontalPadding,
+                            end = AppDesign.dimensions.itemHorizontalPadding,
+                            bottom = AppDesign.dimensions.compactSpacing,
+                        ),
+                    )
+                },
             )
         }
         AppCard(
@@ -67,7 +82,6 @@ fun AppSection(
         )
     }
 }
-
 @Composable
 fun AppListRow(
     title: String,

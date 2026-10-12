@@ -1,85 +1,68 @@
 package top.ghhccghk.yadea.ui
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 
 /**
  * 设备信息页面
  */
 @Composable
 fun DeviceScreen() {
+    val dimensions = AppDesign.dimensions
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding),
-        verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.sectionSpacing)
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            horizontal = dimensions.pageHorizontalPadding,
+            vertical = dimensions.pageVerticalPadding,
+        ),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(dimensions.sectionSpacing),
     ) {
         item {
-            ScreenTitle("设备信息")
+            AppPageHeader(
+                title = "设备信息",
+                subtitle = "仪表、协议与应用运行信息",
+            )
         }
 
         item {
-            AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
-                    AppText("仪表配置", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
-                    InfoRow("画布宽度", "960 px")
-                    InfoRow("画布高度", "368 px")
-                    InfoRow("旋转", "0°")
-                    InfoRow("分包倍率", "1x")
-                    InfoRow("默认包大小", "1024 B")
-                }
+            AppSection(title = "仪表配置") {
+                AppListRow("画布宽度", value = "960 px", showDivider = true)
+                AppListRow("画布高度", value = "368 px", showDivider = true)
+                AppListRow("旋转", value = "0°", showDivider = true)
+                AppListRow("分包倍率", value = "1x", showDivider = true)
+                AppListRow("默认包大小", value = "1024 B")
             }
         }
 
         item {
-            AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
-                    AppText("BLE 协议", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
-                    InfoRow("MTU", "517")
-                    InfoRow("包间隔", "18 ms")
-                    InfoRow("最大重试", "20 次")
-                    InfoRow("写入超时", "1500 ms")
-                    InfoRow("重连延迟", "1000 ms")
-                }
+            AppSection(title = "BLE 协议") {
+                AppListRow("MTU", value = "517", showDivider = true)
+                AppListRow("包间隔", value = "18 ms", showDivider = true)
+                AppListRow("最大重试", value = "20 次", showDivider = true)
+                AppListRow("写入超时", value = "1500 ms", showDivider = true)
+                AppListRow("重连延迟", value = "1000 ms")
             }
         }
 
         item {
-            AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
-                    AppText("应用信息", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
-                    InfoRow("版本", "1.0.0")
-                    InfoRow("平台", "Kotlin Multiplatform")
-                    InfoRow("目标", "Android / iOS / Desktop / Web")
-                }
+            AppSection(title = "应用信息") {
+                AppListRow("版本", value = "1.0.0", showDivider = true)
+                AppListRow("平台", value = "Kotlin Multiplatform", showDivider = true)
+                AppListRow("目标", value = "Android / iOS / Desktop / Web")
             }
         }
 
         item {
-            AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(horizontal = AppDesign.dimensions.itemHorizontalPadding, vertical = AppDesign.dimensions.itemVerticalPadding), verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing)) {
-                    AppText("协议命令", style = AppDesign.typography.sectionTitle, fontWeight = FontWeight.Bold)
-                    InfoRow("0x02", "导航结束")
-                    InfoRow("0x12", "图像数据")
-                    InfoRow("0x14", "导航提示")
-                    InfoRow("0x1F", "心跳")
-                    InfoRow("0x20", "导航开始")
-                }
+            AppSection(title = "协议命令") {
+                AppListRow("0x02", summary = "导航结束", showDivider = true)
+                AppListRow("0x12", summary = "图像数据", showDivider = true)
+                AppListRow("0x14", summary = "导航提示", showDivider = true)
+                AppListRow("0x1F", summary = "心跳", showDivider = true)
+                AppListRow("0x20", summary = "导航开始")
             }
         }
-    }
-}
-
-@Composable
-fun InfoRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        AppText(label, style = AppDesign.typography.body)
-        AppText(value, style = AppDesign.typography.body, fontWeight = FontWeight.Bold)
     }
 }
