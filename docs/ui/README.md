@@ -7,6 +7,7 @@
 - [双 UI 重设计规范](./redesign-spec.md)
 - [页面级改造方案](./page-redesign-plan.md)
 - [执行复盘](./execution-retrospective.md)
+- [主题、取色与设置持久化源码分析](./theme-persistence-analysis.md)
 
 ## 证据状态
 
