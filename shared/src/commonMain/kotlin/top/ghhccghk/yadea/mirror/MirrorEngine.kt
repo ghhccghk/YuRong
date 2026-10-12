@@ -6,6 +6,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import top.ghhccghk.yadea.currentMonotonicMillis
 import top.ghhccghk.yadea.hexByte
 import top.ghhccghk.yadea.model.NavDisplayConfig
 import top.ghhccghk.yadea.toEpochMillis
@@ -102,8 +103,9 @@ class MirrorEngine(
 
         sendJob = scope.launch(Dispatchers.Default) {
             while (!stopRequested && isActive) {
-                val bitmap = frameBus.take()
+                val bitmap = frameBus.takeNext()
                 if (bitmap != null) {
+                    val frameStartedAt = currentMonotonicMillis()
                     try {
                         val jpeg = JpegEncoder.encode(bitmap, navConfig.width, navConfig.height)
                         val timestamp = currentTimeProvider().toEpochMillis() and 0xFFFFFFFFL
@@ -121,8 +123,9 @@ class MirrorEngine(
                     } finally {
                         bitmap.recycle()
                     }
+                    val remaining = frameIntervalMs - (currentMonotonicMillis() - frameStartedAt)
+                    if (remaining > 0) delay(remaining)
                 }
-                delay(frameIntervalMs)
             }
         }
 

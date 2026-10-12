@@ -2,6 +2,7 @@ package top.ghhccghk.yadea.mirror
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 
 /**
@@ -47,6 +48,16 @@ class FrameBus {
             null
         }
         return old
+    }
+
+    /**
+     * Wait for the next frame without polling. The returned frame is owned by the caller.
+     */
+    suspend fun takeNext(): PlatformBitmap? {
+        while (true) {
+            take()?.let { return it }
+            _latest.first { it != null }
+        }
     }
 
     /**

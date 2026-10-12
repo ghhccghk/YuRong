@@ -4,13 +4,18 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.Build
+import android.os.SystemClock
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.roundToInt
 import top.ghhccghk.yadea.mirror.FrameCropConfig
 import top.ghhccghk.yadea.mirror.FrameSource
 import top.ghhccghk.yadea.mirror.PlatformBitmap
+
+private const val MAX_CAPTURE_EDGE = 1280
 
 /**
  * Android 视频/网络流帧源。
@@ -49,7 +54,12 @@ class VideoFrameSource(
     @Volatile
     private var positionUs = 0L
 
-    private var lastFrameAt = 0L
+    @Volatile
+    private var playbackOriginUs = 0L
+
+    @Volatile
+    private var playbackOriginElapsedMs = 0L
+
     private val frameIntervalMs = frameIntervalMs.coerceAtLeast(50)
 
     val isPlaying: Boolean
@@ -59,7 +69,7 @@ class VideoFrameSource(
         get() = TimeUnit.MICROSECONDS.toMillis(durationUs)
 
     val positionMs: Long
-        get() = TimeUnit.MICROSECONDS.toMillis(positionUs)
+        get() = TimeUnit.MICROSECONDS.toMillis(currentPositionUs())
 
     override val isRunning: Boolean
         get() = running
@@ -80,6 +90,9 @@ class VideoFrameSource(
         }
 
         running = true
+        positionUs = 0L
+        playbackOriginUs = 0L
+        playbackOriginElapsedMs = SystemClock.elapsedRealtime()
         playing = true
         executor.execute { decodeFrames(onFrame) }
     }
@@ -91,15 +104,30 @@ class VideoFrameSource(
     }
 
     fun play() {
+        if (playing) return
+        playbackOriginUs = positionUs
+        playbackOriginElapsedMs = SystemClock.elapsedRealtime()
         playing = true
     }
 
     fun pause() {
+        if (!playing) return
+        positionUs = currentPositionUs()
         playing = false
     }
 
     fun seekTo(positionMs: Long) {
         positionUs = TimeUnit.MILLISECONDS.toMicros(positionMs.coerceAtLeast(0L))
+        playbackOriginUs = positionUs
+        playbackOriginElapsedMs = SystemClock.elapsedRealtime()
+    }
+
+    private fun currentPositionUs(): Long {
+        if (!playing) return positionUs
+        val elapsedUs = TimeUnit.MILLISECONDS.toMicros(
+            (SystemClock.elapsedRealtime() - playbackOriginElapsedMs).coerceAtLeast(0L)
+        )
+        return (playbackOriginUs + elapsedUs).coerceAtLeast(0L)
     }
 
     private fun decodeFrames(onFrame: (PlatformBitmap) -> Unit) {
@@ -109,6 +137,14 @@ class VideoFrameSource(
                 ?.toLongOrNull()
                 ?.let(TimeUnit.MILLISECONDS::toMicros)
                 ?: 0L
+            val sourceWidth = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+                ?.toIntOrNull() ?: 0
+            val sourceHeight = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+                ?.toIntOrNull() ?: 0
+            val (scaledWidth, scaledHeight) = scaledSize(sourceWidth, sourceHeight)
+
+            playbackOriginUs = positionUs
+            playbackOriginElapsedMs = SystemClock.elapsedRealtime()
 
             while (running) {
                 if (!playing) {
@@ -116,30 +152,19 @@ class VideoFrameSource(
                     continue
                 }
 
-                val now = System.currentTimeMillis()
-                if (now - lastFrameAt < frameIntervalMs) {
-                    Thread.sleep(frameIntervalMs - (now - lastFrameAt))
-                    continue
-                }
-                lastFrameAt = now
-
-                val frame = if (durationUs > 0L) {
-                    retriever.getFrameAtTime(
-                        positionUs.coerceIn(0L, durationUs),
-                        MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
-                    )
-                } else {
-                    retriever.frameAtTime
-                }
-
+                val targetUs = currentPositionUs()
+                positionUs = targetUs
+                val frame = frameAt(targetUs, scaledWidth, scaledHeight)
                 if (frame != null) {
                     deliverFrame(frame, onFrame)
                 }
 
-                positionUs += TimeUnit.MILLISECONDS.toMicros(frameIntervalMs)
                 if (durationUs > 0L && positionUs >= durationUs) {
+                    playbackOriginUs = 0L
+                    playbackOriginElapsedMs = SystemClock.elapsedRealtime()
                     positionUs = 0L
                 }
+                Thread.sleep(frameIntervalMs)
             }
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
@@ -153,6 +178,35 @@ class VideoFrameSource(
             playing = false
             releaseRetriever()
         }
+    }
+
+    private fun frameAt(positionUs: Long, width: Int, height: Int): Bitmap? {
+        val safePositionUs = positionUs.coerceAtLeast(0L)
+        return if (Build.VERSION.SDK_INT >= 27 && width > 0 && height > 0) {
+            retriever.getScaledFrameAtTime(
+                safePositionUs,
+                MediaMetadataRetriever.OPTION_CLOSEST,
+                width,
+                height,
+            )
+        } else {
+            val frame = retriever.getFrameAtTime(
+                safePositionUs,
+                MediaMetadataRetriever.OPTION_CLOSEST,
+            ) ?: return null
+            if (width <= 0 || height <= 0 || (frame.width == width && frame.height == height)) {
+                frame
+            } else {
+                Bitmap.createScaledBitmap(frame, width, height, true).also { frame.recycle() }
+            }
+        }
+    }
+
+    private fun scaledSize(width: Int, height: Int): Pair<Int, Int> {
+        if (width <= 0 || height <= 0) return 0 to 0
+        val scale = minOf(1f, MAX_CAPTURE_EDGE.toFloat() / maxOf(width, height))
+        return (width * scale).roundToInt().coerceAtLeast(2) to
+            (height * scale).roundToInt().coerceAtLeast(2)
     }
 
     private fun deliverFrame(frame: Bitmap, onFrame: (PlatformBitmap) -> Unit) {

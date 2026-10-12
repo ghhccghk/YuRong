@@ -29,22 +29,27 @@ actual object JpegEncoder {
     private fun centerCropScale(src: Bitmap, targetWidth: Int, targetHeight: Int): Bitmap {
         if (src.width == targetWidth && src.height == targetHeight) return src
 
-        val scaleW = targetWidth.toFloat() / src.width
-        val scaleH = targetHeight.toFloat() / src.height
-        val scale = maxOf(scaleW, scaleH) // 覆盖缩放
-
-        val scaledW = (src.width * scale).toInt()
-        val scaledH = (src.height * scale).toInt()
-
-        // 先等比放大到覆盖
-        val scaled = Bitmap.createScaledBitmap(src, scaledW, scaledH, true)
-
-        // 从中心裁剪到目标尺寸
-        val cropX = (scaledW - targetWidth) / 2
-        val cropY = (scaledH - targetHeight) / 2
-
-        val result = Bitmap.createBitmap(scaled, cropX, cropY, targetWidth, targetHeight)
-        if (scaled !== src) scaled.recycle()
+        val targetAspect = targetWidth.toFloat() / targetHeight
+        val sourceAspect = src.width.toFloat() / src.height
+        val cropWidth: Int
+        val cropHeight: Int
+        if (sourceAspect > targetAspect) {
+            cropHeight = src.height
+            cropWidth = (cropHeight * targetAspect).toInt().coerceIn(1, src.width)
+        } else {
+            cropWidth = src.width
+            cropHeight = (cropWidth / targetAspect).toInt().coerceIn(1, src.height)
+        }
+        val cropX = (src.width - cropWidth) / 2
+        val cropY = (src.height - cropHeight) / 2
+        val cropped = if (cropX == 0 && cropY == 0 && cropWidth == src.width && cropHeight == src.height) {
+            src
+        } else {
+            Bitmap.createBitmap(src, cropX, cropY, cropWidth, cropHeight)
+        }
+        if (cropped.width == targetWidth && cropped.height == targetHeight) return cropped
+        val result = Bitmap.createScaledBitmap(cropped, targetWidth, targetHeight, true)
+        if (cropped !== src) cropped.recycle()
         return result
     }
 }
