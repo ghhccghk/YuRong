@@ -321,12 +321,14 @@ fun AppFilterChip(
     onClick: () -> Unit,
     label: String,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     AppStyleContent(
         material = {
             FilterChip(
                 selected = selected,
                 onClick = onClick,
+                enabled = enabled,
                 label = { Text(label) },
                 modifier = modifier,
             )
@@ -335,6 +337,7 @@ fun AppFilterChip(
             AppButton(
                 onClick = onClick,
                 modifier = modifier,
+                enabled = enabled,
                 containerColor = if (selected) MiuixTheme.colorScheme.primary
                 else MiuixTheme.colorScheme.secondaryVariant,
                 contentColor = if (selected) MiuixTheme.colorScheme.onPrimary

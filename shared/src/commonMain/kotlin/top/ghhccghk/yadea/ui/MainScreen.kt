@@ -77,8 +77,9 @@ fun MainScreen(
     ) {
         MainScreenContent(
             viewModel = viewModel,
-            selectedStyle = appearanceState.value.uiStyle,
-            onStyleChange = { appearanceState.value = appearanceState.value.copy(uiStyle = it) },
+            appearance = appearanceState.value,
+            onAppearanceChange = { appearanceState.value = it },
+            systemAccentColor = systemAccentColor,
             selectedDestination = selectedDestination,
             onDestinationChange = { selectedDestination = it },
         )
@@ -88,8 +89,9 @@ fun MainScreen(
 @Composable
 private fun MainScreenContent(
     viewModel: AppViewModel,
-    selectedStyle: UiThemeStyle,
-    onStyleChange: (UiThemeStyle) -> Unit,
+    appearance: AppAppearance,
+    onAppearanceChange: (AppAppearance) -> Unit,
+    systemAccentColor: androidx.compose.ui.graphics.Color? = null,
     selectedDestination: MainDestination,
     onDestinationChange: (MainDestination) -> Unit,
 ) {
@@ -114,8 +116,9 @@ private fun MainScreenContent(
         MainDestinationContent(
             destination = selectedDestination,
             viewModel = viewModel,
-            selectedStyle = selectedStyle,
-            onStyleChange = onStyleChange,
+            appearance = appearance,
+            onAppearanceChange = onAppearanceChange,
+            systemAccentColor = systemAccentColor,
             modifier = Modifier.padding(padding),
         )
     }
@@ -125,8 +128,9 @@ private fun MainScreenContent(
 private fun MainDestinationContent(
     destination: MainDestination,
     viewModel: AppViewModel,
-    selectedStyle: UiThemeStyle,
-    onStyleChange: (UiThemeStyle) -> Unit,
+    appearance: AppAppearance,
+    onAppearanceChange: (AppAppearance) -> Unit,
+    systemAccentColor: androidx.compose.ui.graphics.Color? = null,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -135,8 +139,9 @@ private fun MainDestinationContent(
             MainDestination.Mirror -> MirrorScreen(viewModel)
             MainDestination.Device -> DeviceScreen()
             MainDestination.Settings -> SettingsScreen(
-                selectedStyle = selectedStyle,
-                onStyleChange = onStyleChange,
+                appearance = appearance,
+                onAppearanceChange = onAppearanceChange,
+                systemAccentColor = systemAccentColor,
             )
         }
     }
