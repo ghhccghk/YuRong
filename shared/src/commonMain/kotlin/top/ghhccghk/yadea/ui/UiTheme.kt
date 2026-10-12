@@ -235,7 +235,9 @@ fun AppTheme(
         AppThemeMode.Light -> false
         AppThemeMode.Dark -> true
     }
-    val materialColors = rememberAppMaterialColorScheme(appearance, darkTheme, systemAccentColor)
+    val materialColors = rememberAppMaterialColorScheme(appearance, darkTheme, systemAccentColor).let {
+        if (appearance.themeAnimationsEnabled) it.animateAsState() else it
+    }
     CompositionLocalProvider(LocalUiThemeStyle provides appearance.uiStyle) {
         when (appearance.uiStyle) {
             UiThemeStyle.Miuix -> {
@@ -249,12 +251,19 @@ fun AppTheme(
                     )
                 }
                 MiuixTheme(controller = controller) {
+                    val animatedColors = if (appearance.themeAnimationsEnabled) {
+                        MiuixTheme.colorScheme.animateAsState()
+                    } else {
+                        MiuixTheme.colorScheme
+                    }
+                    MiuixTheme(colors = animatedColors) {
                     val tokens = rememberMiuixAppThemeTokens(darkTheme)
                     CompositionLocalProvider(LocalAppThemeTokens provides tokens) {
                         MaterialTheme(
                             colorScheme = materialColors,
                             content = content,
                         )
+                    }
                     }
                 }
             }
