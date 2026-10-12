@@ -6,7 +6,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import top.ghhccghk.yadea.hexByte
 import top.ghhccghk.yadea.model.NavDisplayConfig
+import top.ghhccghk.yadea.toEpochMillis
 import top.ghhccghk.yadea.network.FrameSender
 import top.ghhccghk.yadea.protocol.YadeaProtocol
 
@@ -73,14 +75,14 @@ class MirrorEngine(
             var waitCount = 0
             var gotConfig = false
             while (!gotConfig && waitCount <= 5) {
-                val response = frameSender.receiveFrame(timeoutMs = 2000) ?: break
+                val response = frameSender.receiveFrame(timeoutMs = 8000) ?: break
                 val (cmd, payload, _) = response
                 when (cmd) {
                     YadeaProtocol.CMD_NAV_START_RESPONSE -> {
                         if (payload.size >= 8) {
                             navConfig = YadeaProtocol.parseNavDisplayConfig(payload)
                             gotConfig = true
-                            onStatus("协商成功: ${navConfig.width}x${navConfig.height}, format=${navConfig.imageFormat}, screenType=${navConfig.capabilities}, rate=${navConfig.maxFps}")
+                            onStatus("协商成功: ${navConfig.width}x${navConfig.height}, format=0x${hexByte(navConfig.imageFormat)}, capabilities=0x${hexByte(navConfig.capabilities)}, rate=${navConfig.maxFps}")
                         } else {
                             onStatus("0x20 响应不足8字节 (${payload.size}B)")
                         }
@@ -104,7 +106,7 @@ class MirrorEngine(
                 if (bitmap != null) {
                     try {
                         val jpeg = JpegEncoder.encode(bitmap, navConfig.width, navConfig.height)
-                        val timestamp = System.currentTimeMillis() and 0xFFFFFFFFL
+                        val timestamp = currentTimeProvider().toEpochMillis() and 0xFFFFFFFFL
                         val packets = if (broadcastPort != null) {
                             frameSender.broadcastImage(jpeg, imageSequence, broadcastPort, timestamp)
                         } else {
@@ -150,8 +152,16 @@ class MirrorEngine(
 
         try {
             frameSender.sendNavEnd()
-            onStatus("已发送 NAV_END")
-        } catch (_: Exception) {}
+            onStatus("已发送 NAV_END，等待 0x23 响应")
+            val response = frameSender.receiveFrame(timeoutMs = 5000)
+            if (response != null && response.first == YadeaProtocol.CMD_NAV_END_RESPONSE) {
+                onStatus("收到 NAV_END 响应")
+            } else {
+                onStatus("NAV_END 响应超时或命令不匹配")
+            }
+        } catch (e: Exception) {
+            onStatus("NAV_END 发送/响应失败: ${e.message}")
+        }
 
         frameBus.clear()
         state = MirrorState.Stopped
@@ -174,6 +184,6 @@ class MirrorEngine(
         YadeaProtocol.CMD_NAV_START_RESPONSE -> "NAV_START_RESP"
         YadeaProtocol.CMD_NAV_END_RESPONSE -> "NAV_END_RESP"
         YadeaProtocol.CMD_STATUS_RESPONSE -> "STATUS"
-        else -> "0x${String.format("%02X", cmd)}"
+        else -> "0x${hexByte(cmd)}"
     }
 }

@@ -3,7 +3,7 @@ package top.ghhccghk.yadea.protocol
 import top.ghhccghk.yadea.model.NavDisplayConfig
 
 /**
- * 雅迪投屏协议 — 严格按 YadeaHook/docs/p2p-data-protocol.md 实现
+ * 雅迪投屏协议 — 以能正常投屏的 base.apk 为兼容基准，并参考 YadeaHook/docs/p2p-data-protocol.md。
  *
  * 两层帧结构:
  * ```
@@ -21,7 +21,10 @@ object YadeaProtocol {
     const val CMD_NAV_INFO = 0x14         // 导航信息 (64字节二进制)
     const val CMD_LANE_INFO = 0x15        // 车道信息
     const val CMD_SEGMENT_PROGRESS = 0x16 // 路段进度
-    const val CMD_IMAGE_CHUNK = 0x1A      // 导航图片块 ← 不是 0x12!
+    // 能正常投屏的 base.apk 使用 0x12；YadeaHook 文档中的新版库使用 0x1A。
+    // 当前设备以 base.apk 为兼容基准，因此发送命令固定为 0x12。
+    const val CMD_IMAGE_CHUNK = 0x12      // 导航图片块（base.apk 兼容命令）
+    const val CMD_IMAGE_CHUNK_ALT = 0x1A  // 新版 NaviSendManager 命令，保留用于协议兼容/诊断
     const val CMD_HEARTBEAT = 0x1F        // 时间同步/心跳
 
     const val CMD_NAV_START_RESPONSE = 0x20
@@ -160,9 +163,15 @@ object YadeaProtocol {
     }
 
     /**
-     * 0x13 导航结束请求 payload: 空 (长度 0)
+     * 0x13 导航结束请求 payload。
+     *
+     * 能正常投屏的 base.apk 固定发送 8 字节 `02 FF FF FF FF FF FF FF`。
      */
-    fun buildNavEndPayload(): ByteArray = ByteArray(0)
+    fun buildNavEndPayload(): ByteArray = byteArrayOf(
+        0x02,
+        0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(),
+        0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte()
+    )
 
     /**
      * 0x1F 心跳 payload: 8 字节
@@ -309,11 +318,11 @@ object YadeaProtocol {
     // ==================== CRC16-IBM/ARC ====================
 
     /**
-     * CRC16-IBM/ARC (用于图片整图校验)
-     * poly=0xA001, init=0x0000
+     * 图片整图 CRC16（base.apk/WifiHexUtils 实际算法）。
+     * poly=0xA001, init=0xFFFF，输入低 bit 优先，无 final XOR。
      */
     fun crc16Ibm(data: ByteArray): Int {
-        var crc = 0x0000
+        var crc = 0xFFFF
         for (byte in data) {
             crc = crc xor byte.u()
             repeat(8) {
@@ -331,7 +340,7 @@ object YadeaProtocol {
      * [2:4] displayHeight (BE16)
      * [4]   formatCode (>2 重置为 0)
      * [5]   未读取
-     * [6]   screenType (低4位)
+     * [6]   capability/screenType（保留完整字节，便于显示 0xF6 等能力值）
      * [7]   rate (1..30, 否则 10)
      *
      * 默认: 800x480, format 0, rate 10
@@ -341,7 +350,8 @@ object YadeaProtocol {
         val width = data.readUInt16BE(0).let { if (it in 320..4096) it else 800 }
         val height = data.readUInt16BE(2).let { if (it in 160..2160) it else 480 }
         val format = data[4].u().let { if (it > 2) 0 else it }
-        val screenType = data[6].u() and 0x0F
+        // base.apk 会记录并暴露完整能力字节（例如 0xF6），不能只保留低 4 位。
+        val screenType = data[6].u()
         val rate = data[7].u().let { if (it in 1..30) it else 10 }
 
         return NavDisplayConfig(

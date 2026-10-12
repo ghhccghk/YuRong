@@ -281,7 +281,23 @@ class AppViewModel(
 
             try {
                 debug("TCP 连接 $targetHost:$tcpControlPort ...")
-                tcp.connect(targetHost, tcpControlPort)
+                var lastError: Exception? = null
+                var connected = false
+                for (index in 0 until 16) {
+                    try {
+                        tcp.connect(targetHost, tcpControlPort, timeoutMs = 700)
+                        connected = true
+                        if (index > 0) debug("TCP 第 ${index + 1} 次连接成功")
+                        break
+                    } catch (e: Exception) {
+                        lastError = e
+                        if (index < 15) {
+                            debug("TCP 第 ${index + 1}/16 次连接失败: ${e.message}，250ms 后重试")
+                            kotlinx.coroutines.delay(250)
+                        }
+                    }
+                }
+                if (!connected) throw lastError ?: IllegalStateException("TCP 连接失败")
                 debug("TCP 连接成功")
             } catch (e: Exception) {
                 debug("TCP 连接失败: ${e.message}")

@@ -1,5 +1,6 @@
 package top.ghhccghk.yadea.network
 
+import top.ghhccghk.yadea.hexByte
 import top.ghhccghk.yadea.protocol.YadeaProtocol
 
 class FrameSender(
@@ -14,7 +15,7 @@ class FrameSender(
         val sb = StringBuilder()
         for (i in 0 until minOf(data.size, maxLen)) {
             if (i > 0) sb.append(' ')
-            sb.append(String.format("%02X", data[i].toInt() and 0xFF))
+            sb.append(hexByte(data[i].toInt()))
         }
         if (data.size > maxLen) sb.append(" ...(${data.size}B)")
         return sb.toString()
@@ -32,7 +33,7 @@ class FrameSender(
         YadeaProtocol.CMD_NAV_END_RESPONSE -> "NAV_END_RESP"
         YadeaProtocol.CMD_STATUS_RESPONSE -> "STATUS"
         YadeaProtocol.CMD_RATE_RESPONSE -> "RATE"
-        else -> "0x${String.format("%02X", cmd)}"
+        else -> "0x${hexByte(cmd)}"
     }
 
     // ==================== 发送 ====================
@@ -79,6 +80,7 @@ class FrameSender(
     ): Int {
         val frames = YadeaProtocol.buildImageFrames(image, imageSeq, timestamp)
         logger("[TX-UDP] IMG seq=$imageSeq size=${image.size}B chunks=${frames.size} -> $targetHost:$targetPort")
+        frames.firstOrNull()?.let { logger("[TX-UDP] 首包 ${it.size}B: ${hex(it, 64)}") }
         for (frame in frames) {
             udp.send(frame, targetHost, targetPort)
         }

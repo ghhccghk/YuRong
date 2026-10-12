@@ -82,14 +82,14 @@ class YadeaProtocolTest {
 
     @Test
     fun crc16Ibm_empty() {
-        assertEquals(0, YadeaProtocol.crc16Ibm(ByteArray(0)))
+        assertEquals(0xFFFF, YadeaProtocol.crc16Ibm(ByteArray(0)))
     }
 
     @Test
     fun crc16Ibm_knownValue() {
         val data = "123456789".encodeToByteArray()
-        // CRC16-IBM/ARC of "123456789" = 0xBB3D
-        assertEquals(0xBB3D, YadeaProtocol.crc16Ibm(data))
+        // base.apk/WifiHexUtils: poly=0xA001, init=0xFFFF
+        assertEquals(0x4B37, YadeaProtocol.crc16Ibm(data))
     }
 
     // ==================== Nav Config ====================
@@ -100,14 +100,14 @@ class YadeaProtocolTest {
         data.writeUInt16BE(0, 1024)
         data.writeUInt16BE(2, 512)
         data[4] = 0.toByte()     // format
-        data[6] = 6.toByte()     // screenType
+        data[6] = 0xF6.toByte()  // full capability byte
         data[7] = 10.toByte()    // rate
 
         val config = YadeaProtocol.parseNavDisplayConfig(data)
         assertEquals(1024, config.width)
         assertEquals(512, config.height)
         assertEquals(0, config.imageFormat)
-        assertEquals(6, config.capabilities)
+        assertEquals(0xF6, config.capabilities)
         assertEquals(10, config.maxFps)
     }
 
@@ -131,9 +131,12 @@ class YadeaProtocolTest {
     // ==================== NAV_END ====================
 
     @Test
-    fun buildNavEndPayload_empty() {
+    fun buildNavEndPayload_matchesBaseApk() {
         val payload = YadeaProtocol.buildNavEndPayload()
-        assertEquals(0, payload.size)
+        assertEquals(8, payload.size)
+        assertEquals(0x02, payload[0].u())
+        assertEquals(0xFF, payload[1].u())
+        assertEquals(0xFF, payload[7].u())
     }
 
     // ==================== Image Chunk ====================
@@ -143,6 +146,13 @@ class YadeaProtocolTest {
         val image = ByteArray(100) { it.toByte() }
         val frames = YadeaProtocol.buildImageFrames(image, 1)
         assertEquals(1, frames.size)
+    }
+
+    @Test
+    fun buildImageFrames_usesCompatibleCommand() {
+        val frame = YadeaProtocol.buildImageFrames(ByteArray(10), 1).single()
+        assertEquals(YadeaProtocol.CMD_IMAGE_CHUNK, frame[7].u())
+        assertEquals(0x12, frame[7].u())
     }
 
     @Test

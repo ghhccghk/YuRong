@@ -117,12 +117,14 @@ class MirrorEngineTest {
         assertTrue(heartbeats.size >= 1)
     }
 
-    @Test fun stop_sendsNavEnd() = runBlocking {
+    @Test fun stop_sendsNavEndAndWaitsForResponse() = runBlocking {
         engine.start("192.168.1.100", 8080, scope = scope, currentTimeProvider = ::dateTimeProvider)
+        tcp.enqueueResponse(YadeaProtocol.buildFullFrame(YadeaProtocol.CMD_NAV_END_RESPONSE, byteArrayOf(1)))
         engine.stop()
         val navEndFrames = tcp.sentFrames.filter {
             it.size >= 8 && (it[7].toInt() and 0xFF) == 0x13
         }
         assertTrue(navEndFrames.isNotEmpty())
+        assertTrue(statusLog.any { it.contains("收到 NAV_END 响应") })
     }
 }
