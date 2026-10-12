@@ -12,7 +12,9 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -24,6 +26,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlinx.coroutines.launch
+import top.ghhccghk.yadea.settings.AppPreferences
+import top.ghhccghk.yadea.settings.PreferenceStore
 import top.yukonga.miuix.kmp.theme.ThemeController
 
 enum class UiThemeStyle(
@@ -54,10 +59,33 @@ enum class AppThemeMode {
     Dark,
 }
 
+enum class AppColorSource {
+    SystemDynamic,
+    SeedColor,
+    Preset,
+}
+
+enum class AppPaletteStyle {
+    TonalSpot,
+    Neutral,
+    Vibrant,
+    Expressive,
+    Rainbow,
+    FruitSalad,
+    Monochrome,
+    Fidelity,
+    Content,
+}
 @Immutable
 data class AppAppearance(
     val uiStyle: UiThemeStyle = UiThemeStyle.Miuix,
     val themeMode: AppThemeMode = AppThemeMode.System,
+    val colorSource: AppColorSource = AppColorSource.SeedColor,
+    val seedColorArgb: Int = 0xFF7B4DFF.toInt(),
+    val presetId: String = "default",
+    val paletteStyle: AppPaletteStyle = AppPaletteStyle.TonalSpot,
+    val amoledDarkEnabled: Boolean = false,
+    val themeAnimationsEnabled: Boolean = true,
 )
 
 @Immutable
@@ -171,10 +199,30 @@ object AppDesign {
 }
 
 @Composable
-fun rememberAppAppearance(): MutableState<AppAppearance> =
-    rememberSaveable(saver = AppAppearanceSaver) {
-        mutableStateOf(AppAppearance())
+fun rememberAppAppearance(
+    preferences: AppPreferences,
+): MutableState<AppAppearance> {
+    val state = remember(preferences) { mutableStateOf(preferences.read()) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(preferences) {
+        preferences.observe().collect { state.value = it }
     }
+
+    return remember(preferences, state, scope) {
+        object : MutableState<AppAppearance> {
+            override var value: AppAppearance
+                get() = state.value
+                set(newValue) {
+                    state.value = newValue
+                    scope.launch { preferences.write(newValue) }
+                }
+
+            override fun component1(): AppAppearance = value
+            override fun component2(): (AppAppearance) -> Unit = { value = it }
+        }
+    }
+}
 
 @Composable
 fun AppTheme(
@@ -384,7 +432,18 @@ private fun appStatusColors(darkTheme: Boolean): AppStatusColors =
     }
 
 private val AppAppearanceSaver = Saver<MutableState<AppAppearance>, String>(
-    save = { "${it.value.uiStyle.storageName}|${it.value.themeMode.name}" },
+    save = { state ->
+        listOf(
+            state.value.uiStyle.storageName,
+            state.value.themeMode.name,
+            state.value.colorSource.name,
+            state.value.seedColorArgb.toString(),
+            state.value.presetId,
+            state.value.paletteStyle.name,
+            state.value.amoledDarkEnabled.toString(),
+            state.value.themeAnimationsEnabled.toString(),
+        ).joinToString("|")
+    },
     restore = { value ->
         val parts = value.split("|")
         mutableStateOf(
@@ -392,6 +451,14 @@ private val AppAppearanceSaver = Saver<MutableState<AppAppearance>, String>(
                 uiStyle = UiThemeStyle.fromStorageName(parts.getOrNull(0)),
                 themeMode = AppThemeMode.entries.firstOrNull { it.name == parts.getOrNull(1) }
                     ?: AppThemeMode.System,
+                colorSource = AppColorSource.entries.firstOrNull { it.name == parts.getOrNull(2) }
+                    ?: AppColorSource.SeedColor,
+                seedColorArgb = parts.getOrNull(3)?.toIntOrNull() ?: 0xFF7B4DFF.toInt(),
+                presetId = parts.getOrNull(4)?.takeIf { it.isNotBlank() } ?: "default",
+                paletteStyle = AppPaletteStyle.entries.firstOrNull { it.name == parts.getOrNull(5) }
+                    ?: AppPaletteStyle.TonalSpot,
+                amoledDarkEnabled = parts.getOrNull(6)?.toBooleanStrictOrNull() ?: false,
+                themeAnimationsEnabled = parts.getOrNull(7)?.toBooleanStrictOrNull() ?: true,
             )
         )
     },

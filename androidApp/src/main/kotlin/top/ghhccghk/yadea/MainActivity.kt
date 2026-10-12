@@ -9,6 +9,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import top.ghhccghk.yadea.settings.AppPreferences
+import top.ghhccghk.yadea.settings.SharedPreferencesPreferenceStore
 import top.ghhccghk.yadea.ui.MainScreen
 import top.ghhccghk.yadea.wifi.AndroidWifiP2pManager
 import top.ghhccghk.yadea.mirror.source.AndroidFrameSourceFactory
@@ -60,6 +62,7 @@ class MainActivity : ComponentActivity() {
                 permissionChecker = permissionChecker,
                 screenCaptureAuthorizer = screenCaptureAuthorizer,
                 mediaSourcePicker = mediaSourcePicker,
+                preferences = AppPreferences(SharedPreferencesPreferenceStore(this@MainActivity)),
             )
         }
     }

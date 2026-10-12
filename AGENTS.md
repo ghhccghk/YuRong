@@ -58,6 +58,23 @@
 - Material 3 和 Miuix 的 `LocalContentColor` 是不同类型；需要文本继承控件颜色时必须同时处理当前风格对应的 CompositionLocal。
 - 页面标题在 Miuix 模式由原生 TopAppBar 承担；Material 3 模式保留页面内标题，避免重复显示。
 
+## 主题配置与持久化
+
+主题和设置必须保持“配置模型、存储抽象、平台后端、Compose 绑定”分离。
+
+- `AppAppearance` 是唯一的主题配置模型，至少保持 `uiStyle`、`themeMode`、`colorSource`、`seedColorArgb`、`presetId`、`paletteStyle`、`amoledDarkEnabled`、`themeAnimationsEnabled` 的语义稳定。
+- `AppPreferenceKeys` 是设置 key、类型和默认值的唯一来源。已发布的 key 不得随意改名或改变类型。
+- `PreferenceStore` 只提供 `read`、`observe`、`write`、`delete`、`clear`；业务 UI 不直接访问 SharedPreferences、NSUserDefaults、localStorage 或 Java Preferences。
+- 平台持久化后端放在各平台 sourceSet：
+  - Android：`SharedPreferencesPreferenceStore`
+  - Desktop/JVM：`JavaPreferencesStore`
+  - JS/Wasm：`LocalStoragePreferenceStore`
+  - iOS：`NSUserDefaultsPreferenceStore`
+- `AppPreferences` 负责版本、字段编码、未知值回退和 Flow 组合。读取损坏值或未知枚举时必须返回安全默认值，不得让应用崩溃。
+- Composable 中只通过 `rememberAppAppearance(AppPreferences)` 读取和更新配置；写入应异步执行并保持当前 UI 状态可用。
+- schema version、默认值和迁移策略必须有测试。未知版本不能覆盖有效配置。
+- 需要新主题能力时，先扩展 `AppAppearance`/`AppPreferenceKeys`，再接入 `AppTheme`，禁止在页面内临时保存颜色或模式。
+- 平台后端的 `clear` 只清理本应用的设置 key，不删除无关用户数据。
 ## Git 提交
 
 - 修改完一个独立功能后立即提交，不在一个提交中混放多个不相关功能。

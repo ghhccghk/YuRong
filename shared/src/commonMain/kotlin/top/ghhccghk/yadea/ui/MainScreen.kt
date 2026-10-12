@@ -22,6 +22,8 @@ import top.ghhccghk.yadea.ble.BleAdapter
 import top.ghhccghk.yadea.mirror.FrameSourceFactory
 import top.ghhccghk.yadea.mirror.MediaSourcePicker
 import top.ghhccghk.yadea.mirror.ScreenCaptureAuthorizer
+import top.ghhccghk.yadea.settings.AppPreferences
+import top.ghhccghk.yadea.settings.InMemoryPreferenceStore
 import top.ghhccghk.yadea.wifi.WifiConnectionManager
 import top.ghhccghk.yadea.wifi.WifiP2pManager
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -50,8 +52,10 @@ fun MainScreen(
     permissionChecker: PermissionChecker? = null,
     screenCaptureAuthorizer: ScreenCaptureAuthorizer? = null,
     mediaSourcePicker: MediaSourcePicker? = null,
+    preferences: AppPreferences? = null,
 ) {
-    val appearanceState = rememberAppAppearance()
+    val resolvedPreferences = preferences ?: remember { AppPreferences(InMemoryPreferenceStore()) }
+    val appearanceState = rememberAppAppearance(resolvedPreferences)
     val viewModel = remember {
         AppViewModel(
             wifiManager,
