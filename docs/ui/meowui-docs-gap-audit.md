@@ -4,7 +4,7 @@
 
 ## 1. 当前验证结果
 
-最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关与 CheckboxPreference 改造）：
+最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造）：
 
 - `:shared:compileKotlinJvm`
 - `:shared:compileKotlinJs`
@@ -35,11 +35,11 @@
 | 完整取色器 | 部分完成 | `AppColorPickerDialog` | 滑条/网格/hex/预览/确认取消已有；没有实时全局主题预览 |
 | 设置分组 | 部分完成 | `AppSection`、`AppListRow` | 视觉分组已有；没有 MeowUI 的收集式稳定 key/分段圆角 |
 | Switch preference | 已完成 | `AppSwitchPreference` | Material/Miuix 分支 |
-| Checkbox preference | 已完成 | `AppCheckboxPreference` | Material Checkbox + Miuix CheckboxPreference；界面风格切换已改用 |
+| Checkbox preference | 已完成 | `AppCheckboxPreference` | Material Checkbox + Miuix CheckboxPreference；作为通用语义组件保留 |
 | Slider preference | 部分完成 | `AppSlider` | 有通用 Slider；没有标题/摘要/值/提交语义的 Preference 行 |
-| Popup / Dropdown | 缺失 | 无对应 `App*` 组件 | 设置里目前使用 chips/循环切换 |
+| Popup / Dropdown | 已完成 | `AppPopupPreference` | Miuix `OverlaySpinnerPreference`（ListPopup）+ Material `DropdownMenu`；界面风格与调色板已改用 |
 | Text input preference | 缺失 | 无 `AppTextInputPreference` | 只有取色器 hex 输入 |
-| Action preference | 部分完成 | `AppListRow(onClick)` | 可点击行已有；没有 value + navigation 语义 |
+| Action preference | 已完成 | `AppActionPreference` | Miuix `ArrowPreference` + Material 点击行加箭头；颜色动作行已改用 |
 | Dialog | 缺失 | 只有取色器 Dialog | Alert、Single choice、Text input、Loading 未实现 |
 | TopBar actions/menu | 缺失 | `AppTopBar(title)` | 没有 icon/text/menu actions |
 | 搜索框 | 缺失 | 无 `AppSearchBar` | 当前项目暂无搜索场景 |
@@ -81,6 +81,12 @@
 - `AppThemePresetSwatch` 使用 `Role.RadioButton` 和 `contentDescription`。
 - `AppColorPickerTest` 已覆盖 hex 解析和预设 ID 唯一性。
 
+### 设置交互
+
+- `AppPopupPreference` 统一承担“从列表中选择一项”的语义：Miuix 走原生 SpinnerPreference（ListPopup），Material 3 走 DropdownMenu，重复选中当前项不会触发写入。
+- 界面风格与调色板已从开关/循环点击改为列表弹窗选择；颜色入口行使用 `AppActionPreference`，Miuix 下带原生箭头与按压反馈。
+- `AppCheckboxPreference` 保留为通用组件，供后续布尔型设置项复用。
+
 ### 持久化
 
 - `PreferenceStore` 具备 `read/observe/write/delete/clear`。
@@ -102,19 +108,17 @@
 
 后续新增设置项时：递增 `SCHEMA_VERSION`、在 `AppPreferenceKeys.all` 末尾追加 key、同步 `read`/`observe`/`write`/`decode`，并补测试。
 
-### P1：缺少数值型/选择型 Preference 组件
+### P1：缺少数值型/选择型 Preference 组件（进行中）
 
-MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input、Action Preference 尚未形成完整语义组件。
+MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input、Action Preference 逐步补齐：
 
-建议优先补：
+- `AppCheckboxPreference`（已完成）。
+- `AppPopupPreference`（已完成）：Miuix 使用 `OverlaySpinnerPreference`（内部为 ListPopup），Material 3 使用 `DropdownMenu`。
+- `AppActionPreference`（已完成）：Miuix 使用 `ArrowPreference`，Material 3 使用点击行加箭头提示。
+- `AppSliderPreference`（未实现）：当前没有数值型设置项，缺少真实业务场景。
+- `AppTextInputPreference`（未实现）：Miuix 偏好组件里没有对应的文本输入 Preference，取色器内的 hex 输入已覆盖现有需求。
 
-- `AppCheckboxPreference`
-- `AppSliderPreference`
-- `AppPopupPreference`
-- `AppTextInputPreference`
-- `AppActionPreference`
-
-这些组件应复用 `AppListRow`，并保持两种风格的提交时机一致。
+这些组件保持两种风格的整行点击、启用状态和提交时机一致，并沿用 `AppDesign` token。
 
 ### P1：缺少反馈组件
 
@@ -177,7 +181,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 ## 6. 推荐补齐顺序
 
 1. **设置 schema 迁移和未来版本保护**（已完成）。
-2. **AppCheckboxPreference（已完成）、AppSliderPreference、AppPopupPreference、AppTextInputPreference、AppActionPreference**。
+2. **AppCheckboxPreference / AppPopupPreference / AppActionPreference（已完成）**；`AppSliderPreference`、`AppTextInputPreference` 等有真实业务设置项后再补。
 3. **AppTip、AppLoadingIndicator/AppLoadingDialog、统一错误/成功反馈**。
 4. **AppTopBar actions/menu 和基础 Dialog**。
 5. **AppTabRow、floating navigation、Bottom Sheet**。
