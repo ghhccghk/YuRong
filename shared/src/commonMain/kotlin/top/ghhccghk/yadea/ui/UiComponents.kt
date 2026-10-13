@@ -20,6 +20,8 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -36,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -49,6 +52,8 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
 import top.yukonga.miuix.kmp.basic.CardDefaults as MiuixCardDefaults
 import top.yukonga.miuix.kmp.basic.DropdownItem as MiuixDropdownItem
+import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
+import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
 import top.yukonga.miuix.kmp.basic.Slider as MiuixSlider
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.basic.TextField as MiuixTextField
@@ -683,6 +688,58 @@ fun AppActionPreference(
                     }
                 },
             )
+        },
+    )
+}
+
+/**
+ * 图标按钮：用于顶栏等紧凑位置的单一操作。
+ *
+ * 两种风格各自使用原生 IconButton；图标由调用方以 [ImageVector] 传入，
+ * 业务页面因此不需要直接依赖某一套风格的图标集。
+ *
+ * @param icon 图标资源，两套风格共用同一个 [ImageVector]。
+ * @param contentDescription 无障碍描述，说明按钮代表的操作。
+ * @param onClick 点击回调。
+ * @param enabled 是否可用；禁用时两套风格都保持不可点击。
+ * @param tint 图标颜色；为 [Color.Unspecified] 时继承所在容器的内容色。
+ */
+@Composable
+fun AppIconButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    tint: Color = Color.Unspecified,
+) {
+    AppStyleContent(
+        material = {
+            IconButton(
+                onClick = onClick,
+                modifier = modifier,
+                enabled = enabled,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = contentDescription,
+                    tint = if (tint == Color.Unspecified) LocalContentColor.current else tint,
+                )
+            }
+        },
+        miuix = {
+            MiuixIconButton(
+                onClick = onClick,
+                modifier = modifier,
+                enabled = enabled,
+            ) {
+                MiuixIcon(
+                    imageVector = icon,
+                    contentDescription = contentDescription,
+                    // Miuix 的内容色是独立的 CompositionLocal，需要单独取值。
+                    tint = if (tint == Color.Unspecified) MiuixLocalContentColor.current else tint,
+                )
+            }
         },
     )
 }

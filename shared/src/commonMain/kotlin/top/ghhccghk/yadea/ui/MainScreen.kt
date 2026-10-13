@@ -4,12 +4,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -19,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import top.ghhccghk.yadea.ble.BleAdapter
+import top.ghhccghk.yadea.ble.BleConnectionState
 import top.ghhccghk.yadea.mirror.FrameSourceFactory
 import top.ghhccghk.yadea.mirror.MediaSourcePicker
 import top.ghhccghk.yadea.mirror.ScreenCaptureAuthorizer
@@ -27,6 +30,7 @@ import top.ghhccghk.yadea.settings.InMemoryPreferenceStore
 import top.ghhccghk.yadea.wifi.WifiConnectionManager
 import top.ghhccghk.yadea.wifi.WifiP2pManager
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Phone
 import top.yukonga.miuix.kmp.icon.extended.ScreenMirroring
 import top.yukonga.miuix.kmp.icon.extended.SearchDevice
@@ -103,8 +107,30 @@ private fun MainScreenContent(
         )
     }
 
+    // BLE 连接在页面内没有断开入口，这里把它提升为连接页的顶栏动作，
+    // 并用确认弹窗避免误触；断开逻辑仍复用 AppViewModel 的既有方法。
+    val bleState by viewModel.bleState.collectAsState()
+    var confirmBleDisconnect by remember { mutableStateOf(false) }
+    val topBarActions: (@Composable RowScope.() -> Unit)? =
+        if (selectedDestination == MainDestination.Connection && bleState == BleConnectionState.Connected) {
+            {
+                AppIconButton(
+                    icon = MiuixIcons.Close,
+                    contentDescription = "断开 BLE 连接",
+                    onClick = { confirmBleDisconnect = true },
+                )
+            }
+        } else {
+            null
+        }
+
     AppScaffold(
-        topBar = { AppTopBar(selectedDestination.label) },
+        topBar = {
+            AppTopBar(
+                title = selectedDestination.label,
+                actions = topBarActions,
+            )
+        },
         bottomBar = {
             AppBottomNavigation(
                 items = navigationItems,
@@ -122,6 +148,17 @@ private fun MainScreenContent(
             modifier = Modifier.padding(padding),
         )
     }
+
+    AppAlertDialog(
+        show = confirmBleDisconnect,
+        title = "断开 BLE 连接",
+        message = "断开后将停止与仪表的 BLE 通信，需要重新扫描并连接。",
+        onConfirm = {
+            confirmBleDisconnect = false
+            viewModel.disconnectBle()
+        },
+        onDismissRequest = { confirmBleDisconnect = false },
+    )
 }
 
 @Composable
