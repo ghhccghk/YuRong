@@ -4,7 +4,7 @@
 
 ## 1. 当前验证结果
 
-最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，以及 AppScaffold 的嵌套滚动与折叠顶栏）：
+最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，以及 Miuix 侧的 AMOLED 纯黑）：
 
 - `:shared:compileKotlinJvm`
 - `:shared:compileKotlinJs`
@@ -26,7 +26,7 @@
 | Seed color | 已完成 | `seedColorArgb`、`appSeedColor` | 支持持久化 |
 | Palette style | 已完成 | `AppPaletteStyle`、MaterialKolor/Miuix 映射 | 支持 9 种风格 |
 | Color spec | 部分完成 | `toMiuixColorSpec` | 当前只由 palette 推导；没有独立设置项 |
-| AMOLED | 部分完成 | `withAmoledBackground` | 只处理 Material 底层 surface；Miuix 不处理 |
+| AMOLED | 已完成 | `withAmoledBackground`（Material `ColorScheme` / Miuix `Colors` 两个重载） | 暗色模式下两套风格都会压黑大面积底色 token |
 | 主题动画 | 已完成 | `AppColorTransition` | Material/Miuix 颜色列表插值 |
 | 设置持久化 | 已完成 | `AppPreferences` + 平台 store | Android/JVM/JS/Wasm/iOS 均有后端 |
 | 设置类型和默认值 | 已完成 | `PreferenceKey`/`PreferenceType` | 类型安全 key 和默认值 |
@@ -66,7 +66,11 @@
 - `materialKolor 5.0.1` 已声明为 KMP 依赖，Gradle metadata 包含 Android、JVM、JS、Wasm、iOS target。
 - Material 使用 `dynamicColorScheme` 生成完整 `ColorScheme`。
 - Miuix 使用 `ThemeController` 和 palette style 生成完整 `Colors`。
-- AMOLED 会压黑 `background/surface/surfaceDim/surfaceContainer*`，保留卡片高层 surface。
+- AMOLED 对两套风格分别处理，语义对齐：
+  - Material 侧压黑 `background/surface/surfaceDim/surfaceContainer/Low/Lowest`。
+  - Miuix 侧压黑 `background/surface/surfaceVariant/surfaceContainer/High/Highest`，因为它没有 `surfaceDim` 与 `Low(est)` 档位。
+  - 文字、描边、分隔线和控件色保持原值，纯黑背景上仍有可读层次；变换放在颜色过渡动画之前，开关切换会走同一套插值。
+  - `MiuixAmoledSchemeTest` 覆盖"关闭时原样返回""开启时压黑底色 token""开启时保留文字与描边"三种情况。
 - `AppColorTransition` 使用单进度插值，开关关闭时直接使用目标颜色。
 
 ### 取色
