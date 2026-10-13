@@ -4,15 +4,12 @@
 
 ## 1. 当前验证结果
 
-最近一次共享平台验证通过：
+最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关与 CheckboxPreference 改造）：
 
 - `:shared:compileKotlinJvm`
 - `:shared:compileKotlinJs`
 - `:shared:compileKotlinWasmJs`
 - `:shared:jvmTest`
-
-此前还通过：
-
 - `:androidApp:assembleDebug`
 - `:desktopApp:build`
 
@@ -38,7 +35,7 @@
 | 完整取色器 | 部分完成 | `AppColorPickerDialog` | 滑条/网格/hex/预览/确认取消已有；没有实时全局主题预览 |
 | 设置分组 | 部分完成 | `AppSection`、`AppListRow` | 视觉分组已有；没有 MeowUI 的收集式稳定 key/分段圆角 |
 | Switch preference | 已完成 | `AppSwitchPreference` | Material/Miuix 分支 |
-| Checkbox preference | 缺失 | 无 `AppCheckboxPreference` | MeowUI 有 Checkbox 设置项 |
+| Checkbox preference | 已完成 | `AppCheckboxPreference` | Material Checkbox + Miuix CheckboxPreference；界面风格切换已改用 |
 | Slider preference | 部分完成 | `AppSlider` | 有通用 Slider；没有标题/摘要/值/提交语义的 Preference 行 |
 | Popup / Dropdown | 缺失 | 无对应 `App*` 组件 | 设置里目前使用 chips/循环切换 |
 | Text input preference | 缺失 | 无 `AppTextInputPreference` | 只有取色器 hex 输入 |
@@ -58,13 +55,14 @@
 | 自适应布局 | 缺失 | 无双栏/宽屏布局组件 | 当前仍是固定 tab 页面 |
 | 触觉反馈 | 缺失 | 无统一 `AppHaptics` | Miuix 原生控件自带部分反馈，Material/自绘控件未补齐 |
 | 可访问性 | 部分完成 | 色块和控件有部分 semantics | 仍需系统检查图标、选择、禁用、重复点击 |
-| schema 迁移 | 部分完成 | schema key 存在 | 当前 `decode` 只保留版本字段，没有迁移链 |
+| schema 迁移 | 已完成 | `SCHEMA_VERSION` + 增量迁移 + 未来版本保护 | v1 -> v2 纯增量迁移，未来版本不被 `write` 覆盖 |
 
 ## 3. 已经正常工作的部分
 
 ### 主题和颜色
 
-- `AppAppearance` 已统一管理 UI 风格、明暗模式、颜色来源、seed、preset、palette、AMOLED、动画开关。
+- `AppAppearance` 已统一管理 UI 风格、明暗模式、颜色来源、seed、preset、palette、AMOLED、动画开关、Miuix Monet 开关。
+- Miuix 可整体关闭 Monet（`miuixMonetEnabled`）；关闭后不再由种子色生成配色，回退到 Miuix 原生 HyperOS 配色。
 - `materialKolor 5.0.1` 已声明为 KMP 依赖，Gradle metadata 包含 Android、JVM、JS、Wasm、iOS target。
 - Material 使用 `dynamicColorScheme` 生成完整 `ColorScheme`。
 - Miuix 使用 `ThemeController` 和 palette style 生成完整 `Colors`。
@@ -93,17 +91,16 @@
 
 ## 4. 重要缺口
 
-### P0：设置 schema 迁移不完整
+### P0：设置 schema 迁移（已处理）
 
-`AppPreferences.kt` 当前保存 `app_settings_schema_version`，但 `decode` 没有真正执行版本迁移。未知版本没有覆盖旧数据，但也没有明确的版本升级流程。
+`AppPreferences.kt` 现在把当前版本定义为 2（`AppPreferenceKeys.SCHEMA_VERSION`），迁移策略明确：
 
-建议：
+- v1 -> v2 属于纯增量迁移：新增的 `miuix_monet` 由 `PreferenceKey` 默认值补齐为 `true`。
+- 版本 0/缺失值按历史配置对待，保留已有键值（历史 key 兼容），只有缺失的新键才回退默认值，不重置用户配置。
+- 高于当前版本的数据禁止被 `write` 覆盖，返回 `PreferenceWriteResult.Failure`。
+- 已补充默认值、回环、旧 schema、未来 schema 的测试。
 
-- 当前版本定义为 1。
-- 版本 0/缺失值迁移为默认值。
-- 高于当前版本的数据禁止被 `write` 覆盖。
-- 为每个版本定义显式迁移步骤。
-- 增加损坏 schema、未来 schema、旧 schema 的测试。
+后续新增设置项时：递增 `SCHEMA_VERSION`、在 `AppPreferenceKeys.all` 末尾追加 key、同步 `read`/`observe`/`write`/`decode`，并补测试。
 
 ### P1：缺少数值型/选择型 Preference 组件
 
@@ -155,7 +152,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 缺少：
 - 实时主题预览头图。
 - 颜色标准独立选择。
-- Miuix Monet 开关。
+- Miuix Monet 开关（已实现）。
 - 界面缩放。
 - 悬浮底栏开关。
 - Blur 开关。
@@ -179,8 +176,8 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 
 ## 6. 推荐补齐顺序
 
-1. **设置 schema 迁移和未来版本保护**。
-2. **AppCheckboxPreference、AppSliderPreference、AppPopupPreference、AppTextInputPreference、AppActionPreference**。
+1. **设置 schema 迁移和未来版本保护**（已完成）。
+2. **AppCheckboxPreference（已完成）、AppSliderPreference、AppPopupPreference、AppTextInputPreference、AppActionPreference**。
 3. **AppTip、AppLoadingIndicator/AppLoadingDialog、统一错误/成功反馈**。
 4. **AppTopBar actions/menu 和基础 Dialog**。
 5. **AppTabRow、floating navigation、Bottom Sheet**。
