@@ -7,7 +7,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -31,6 +34,7 @@ import top.ghhccghk.yadea.wifi.WifiConnectionManager
 import top.ghhccghk.yadea.wifi.WifiP2pManager
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.ListView
 import top.yukonga.miuix.kmp.icon.extended.Phone
 import top.yukonga.miuix.kmp.icon.extended.ScreenMirroring
 import top.yukonga.miuix.kmp.icon.extended.SearchDevice
@@ -111,8 +115,11 @@ private fun MainScreenContent(
     // 并用确认弹窗避免误触；断开逻辑仍复用 AppViewModel 的既有方法。
     val bleState by viewModel.bleState.collectAsState()
     var confirmBleDisconnect by remember { mutableStateOf(false) }
-    val topBarActions: (@Composable RowScope.() -> Unit)? =
-        if (selectedDestination == MainDestination.Connection && bleState == BleConnectionState.Connected) {
+    // 投屏日志属于次级信息，改为顶栏动作 + 底部面板，避免长期占用页面空间。
+    val debugLog by viewModel.debugLog.collectAsState()
+    var showMirrorLog by remember { mutableStateOf(false) }
+    val topBarActions: (@Composable RowScope.() -> Unit)? = when {
+        selectedDestination == MainDestination.Connection && bleState == BleConnectionState.Connected -> {
             {
                 AppIconButton(
                     icon = MiuixIcons.Close,
@@ -120,9 +127,20 @@ private fun MainScreenContent(
                     onClick = { confirmBleDisconnect = true },
                 )
             }
-        } else {
-            null
         }
+
+        selectedDestination == MainDestination.Mirror -> {
+            {
+                AppIconButton(
+                    icon = MiuixIcons.ListView,
+                    contentDescription = "查看调试日志",
+                    onClick = { showMirrorLog = true },
+                )
+            }
+        }
+
+        else -> null
+    }
 
     AppScaffold(
         topBar = {
@@ -149,6 +167,36 @@ private fun MainScreenContent(
             systemAccentColor = systemAccentColor,
             modifier = Modifier.padding(padding),
         )
+    }
+
+    AppBottomSheet(
+        // 离开投屏页时面板自动关闭，避免切页后仍停留在旧的日志内容上。
+        show = showMirrorLog && selectedDestination == MainDestination.Mirror,
+        onDismissRequest = { showMirrorLog = false },
+        title = "调试日志",
+    ) {
+        if (debugLog.isEmpty()) {
+            AppEmptyState("暂无调试日志")
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 320.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                // 最新日志排在最前，便于判断最近一次操作的结果。
+                debugLog.reversed().forEach { line ->
+                    AppText(
+                        text = line,
+                        style = AppDesign.typography.debug,
+                        color = AppDesign.colors.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(
+                            vertical = AppDesign.dimensions.compactSpacing,
+                        ),
+                    )
+                }
+            }
+        }
     }
 
     AppAlertDialog(

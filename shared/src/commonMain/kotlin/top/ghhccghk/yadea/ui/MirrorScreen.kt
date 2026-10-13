@@ -35,7 +35,6 @@ fun MirrorScreen(viewModel: AppViewModel) {
     val cropConfig by viewModel.cropConfig.collectAsState()
     val p2pGroupOwnerIp by viewModel.p2pGroupOwnerIp.collectAsState()
     val wifiIp by viewModel.wifiIp.collectAsState()
-    val debugLog by viewModel.debugLog.collectAsState()
 
     var targetHost by remember { mutableStateOf("") }
     var tcpPort by remember { mutableStateOf("8888") }
@@ -275,26 +274,6 @@ fun MirrorScreen(viewModel: AppViewModel) {
                             (selectedSource != 2 && selectedSource != 3 || sourceUri.isNotEmpty()),
                     ) {
                         AppText("▶ 开始投屏", style = AppDesign.typography.button)
-                    }
-                }
-            }
-        }
-
-        item {
-            AppSection(title = "调试日志") {
-                if (debugLog.isEmpty()) {
-                    AppEmptyState("暂无调试日志")
-                } else {
-                    debugLog.reversed().take(15).forEach { line ->
-                        AppText(
-                            text = line,
-                            style = AppDesign.typography.debug,
-                            color = AppDesign.colors.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth().padding(
-                                horizontal = dimensions.itemHorizontalPadding,
-                                vertical = dimensions.compactSpacing,
-                            ),
-                        )
                     }
                 }
             }
