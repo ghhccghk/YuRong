@@ -15,8 +15,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.Saver
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -465,39 +463,3 @@ private fun appStatusColors(darkTheme: Boolean): AppStatusColors =
             onWarningContainer = Color(0xFF7A5200),
         )
     }
-
-private val AppAppearanceSaver = Saver<MutableState<AppAppearance>, String>(
-    save = { state ->
-        listOf(
-            state.value.uiStyle.storageName,
-            state.value.themeMode.name,
-            state.value.colorSource.name,
-            state.value.seedColorArgb.toString(),
-            state.value.presetId,
-            state.value.paletteStyle.name,
-            state.value.amoledDarkEnabled.toString(),
-            state.value.themeAnimationsEnabled.toString(),
-            state.value.miuixMonetEnabled.toString(),
-        ).joinToString("|")
-    },
-    restore = { value ->
-        val parts = value.split("|")
-        mutableStateOf(
-            AppAppearance(
-                uiStyle = UiThemeStyle.fromStorageName(parts.getOrNull(0)),
-                themeMode = AppThemeMode.entries.firstOrNull { it.name == parts.getOrNull(1) }
-                    ?: AppThemeMode.System,
-                colorSource = AppColorSource.entries.firstOrNull { it.name == parts.getOrNull(2) }
-                    ?: AppColorSource.SeedColor,
-                seedColorArgb = parts.getOrNull(3)?.toIntOrNull() ?: 0xFF7B4DFF.toInt(),
-                presetId = parts.getOrNull(4)?.takeIf { it.isNotBlank() } ?: "default",
-                paletteStyle = AppPaletteStyle.entries.firstOrNull { it.name == parts.getOrNull(5) }
-                    ?: AppPaletteStyle.TonalSpot,
-                amoledDarkEnabled = parts.getOrNull(6)?.toBooleanStrictOrNull() ?: false,
-                themeAnimationsEnabled = parts.getOrNull(7)?.toBooleanStrictOrNull() ?: true,
-                // 旧负载没有该字段，缺省视为开启。
-                miuixMonetEnabled = parts.getOrNull(8)?.toBooleanStrictOrNull() ?: true,
-            )
-        )
-    },
-)
