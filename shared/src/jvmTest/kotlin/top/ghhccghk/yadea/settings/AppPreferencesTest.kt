@@ -27,6 +27,7 @@ class AppPreferencesTest {
         assertEquals(false, appearance.amoledDarkEnabled)
         assertEquals(true, appearance.themeAnimationsEnabled)
         assertEquals(true, appearance.miuixMonetEnabled)
+        assertEquals(false, appearance.floatingNavigationBarEnabled)
     }
 
     @Test
@@ -43,6 +44,7 @@ class AppPreferencesTest {
             amoledDarkEnabled = true,
             themeAnimationsEnabled = false,
             miuixMonetEnabled = false,
+            floatingNavigationBarEnabled = true,
         )
 
         assertTrue(preferences.write(expected) is PreferenceWriteResult.Success)
@@ -122,6 +124,35 @@ class AppPreferencesTest {
         assertEquals(UiThemeStyle.Material3, appearance.uiStyle)
         assertEquals(AppThemeMode.Dark, appearance.themeMode)
         assertTrue(appearance.miuixMonetEnabled)
+    }
+
+    @Test
+    fun legacySchemaKeepsUserDataAndDefaultsFloatingNavigationOff() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        // 模拟 schema 2 的旧配置：只写入当时存在的键，没有 floating_navigation_bar。
+        store.write(AppPreferenceKeys.schemaVersion, 2)
+        store.write(AppPreferenceKeys.uiStyle, UiThemeStyle.Miuix.storageName)
+        store.write(AppPreferenceKeys.miuixMonet, false)
+
+        val appearance = AppPreferences(store).read()
+
+        assertEquals(UiThemeStyle.Miuix, appearance.uiStyle)
+        assertEquals(false, appearance.miuixMonetEnabled)
+        assertEquals(false, appearance.floatingNavigationBarEnabled)
+    }
+
+    @Test
+    fun floatingNavigationBarToggleRoundTripsThroughStore() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        val preferences = AppPreferences(store)
+
+        assertTrue(
+            preferences.write(AppAppearance(floatingNavigationBarEnabled = true)) is
+                PreferenceWriteResult.Success,
+        )
+
+        assertEquals(true, preferences.read().floatingNavigationBarEnabled)
+        assertEquals(true, preferences.observe().first().floatingNavigationBarEnabled)
     }
 
     @Test

@@ -136,6 +136,8 @@ private fun MainScreenContent(
                 items = navigationItems,
                 selectedIndex = selectedDestination.ordinal,
                 onSelected = { onDestinationChange(MainDestination.entries[it]) },
+                // 悬浮底栏是 Miuix 专属外观选项，Material 3 下该开关不生效。
+                floating = appearance.floatingNavigationBarEnabled,
             )
         },
     ) { padding ->

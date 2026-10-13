@@ -12,7 +12,8 @@ import top.ghhccghk.yadea.ui.UiThemeStyle
 object AppPreferenceKeys {
     // 设置结构版本。新增设置项时递增，并同步补上迁移逻辑与测试。
     // 1 -> 2：新增 miuix_monet（Miuix 是否启用 Monet 动态配色）。
-    const val SCHEMA_VERSION = 2
+    // 2 -> 3：新增 floating_navigation_bar（Miuix 是否启用悬浮底栏）。
+    const val SCHEMA_VERSION = 3
 
     val schemaVersion = PreferenceKey.int("app_settings_schema_version", SCHEMA_VERSION)
     val uiStyle = PreferenceKey.string("ui_style", UiThemeStyle.Miuix.storageName)
@@ -27,6 +28,9 @@ object AppPreferenceKeys {
     // 默认开启，保证旧版本（schema 1 及更早）升级后仍保持原有 Monet 配色。
     val miuixMonet = PreferenceKey.boolean("miuix_monet", true)
 
+    // 默认关闭，保证旧版本（schema 2 及更早）升级后仍是原有常规底栏。
+    val floatingNavigationBar = PreferenceKey.boolean("floating_navigation_bar", false)
+
     val all: List<PreferenceKey<*>> = listOf(
         schemaVersion,
         uiStyle,
@@ -38,6 +42,7 @@ object AppPreferenceKeys {
         amoledDark,
         themeAnimations,
         miuixMonet,
+        floatingNavigationBar,
     )
 }
 
@@ -54,6 +59,7 @@ class AppPreferences(
         amoledDark = store.read(AppPreferenceKeys.amoledDark),
         themeAnimations = store.read(AppPreferenceKeys.themeAnimations),
         miuixMonet = store.read(AppPreferenceKeys.miuixMonet),
+        floatingNavigationBar = store.read(AppPreferenceKeys.floatingNavigationBar),
     )
 
     fun observe(): Flow<AppAppearance> {
@@ -72,6 +78,7 @@ class AppPreferences(
                 amoledDark = values[7] as Boolean,
                 themeAnimations = values[8] as Boolean,
                 miuixMonet = values[9] as Boolean,
+                floatingNavigationBar = values[10] as Boolean,
             )
         }
     }
@@ -99,6 +106,7 @@ class AppPreferences(
             AppPreferenceKeys.amoledDark to appearance.amoledDarkEnabled,
             AppPreferenceKeys.themeAnimations to appearance.themeAnimationsEnabled,
             AppPreferenceKeys.miuixMonet to appearance.miuixMonetEnabled,
+            AppPreferenceKeys.floatingNavigationBar to appearance.floatingNavigationBarEnabled,
         )
         for ((key, value) in writes) {
             val result = writeTyped(key, value)
@@ -129,10 +137,11 @@ class AppPreferences(
         amoledDark: Boolean,
         themeAnimations: Boolean,
         miuixMonet: Boolean,
+        floatingNavigationBar: Boolean,
     ): AppAppearance {
         // 未知枚举、损坏值一律回退到安全默认值，保证读取不崩溃。
-        // 旧版本（schema 1 及更早）没有 miuix_monet，读取时由 PreferenceKey 默认值补齐为 true，
-        // 因此 v1 -> v2 属于纯增量迁移，不会丢弃用户已有配置。
+        // 旧版本缺失的新键都由 PreferenceKey 默认值补齐（miuix_monet 补 true，floating_navigation_bar 补 false），
+        // 因此每次版本升级都是纯增量迁移，不会丢弃用户已有配置。
         return AppAppearance(
             uiStyle = UiThemeStyle.fromStorageName(uiStyle),
             themeMode = AppThemeMode.entries.firstOrNull { it.name == themeMode } ?: AppThemeMode.System,
@@ -143,6 +152,7 @@ class AppPreferences(
             amoledDarkEnabled = amoledDark,
             themeAnimationsEnabled = themeAnimations,
             miuixMonetEnabled = miuixMonet,
+            floatingNavigationBarEnabled = floatingNavigationBar,
         )
     }
 }

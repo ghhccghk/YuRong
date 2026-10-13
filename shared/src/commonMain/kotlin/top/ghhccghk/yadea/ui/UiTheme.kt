@@ -88,6 +88,8 @@ data class AppAppearance(
     val themeAnimationsEnabled: Boolean = true,
     // 是否让 Miuix 使用 Monet 动态取色；关闭后回退到 Miuix 原生 HyperOS 配色。
     val miuixMonetEnabled: Boolean = true,
+    // 是否让 Miuix 使用 HyperOS 悬浮胶囊底栏；Material 3 没有对应的原生样式，始终使用常规底栏。
+    val floatingNavigationBarEnabled: Boolean = false,
 )
 
 @Immutable

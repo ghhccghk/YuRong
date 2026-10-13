@@ -12,6 +12,8 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import top.yukonga.miuix.kmp.basic.FloatingNavigationBar as MiuixFloatingNavigationBar
+import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem as MiuixFloatingNavigationBarItem
 import top.yukonga.miuix.kmp.basic.NavigationBar as MiuixNavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem as MiuixNavigationBarItem
 import top.yukonga.miuix.kmp.basic.Scaffold as MiuixScaffold
@@ -89,11 +91,21 @@ fun AppTopBar(
     )
 }
 
+/**
+ * 底部导航：在顶层页面之间切换。
+ *
+ * @param items 导航项；Miuix 使用 [AppNavigationItem.icon]，Material 3 使用文本占位图标。
+ * @param selectedIndex 当前选中项索引。
+ * @param onSelected 选中回调；重复选中当前项不会触发。
+ * @param floating 是否使用 Miuix 悬浮胶囊底栏。Material 3 没有对应的原生样式，
+ *   该参数只影响 Miuix 分支，Material 3 始终保持原生 NavigationBar。
+ */
 @Composable
 fun AppBottomNavigation(
     items: List<AppNavigationItem>,
     selectedIndex: Int,
     onSelected: (Int) -> Unit,
+    floating: Boolean = false,
 ) {
     AppStyleContent(
         material = {
@@ -109,14 +121,28 @@ fun AppBottomNavigation(
             }
         },
         miuix = {
-            MiuixNavigationBar {
-                items.forEachIndexed { index, item ->
-                    MiuixNavigationBarItem(
-                        selected = selectedIndex == index,
-                        onClick = { onSelected(index) },
-                        icon = item.icon,
-                        label = item.label,
-                    )
+            if (floating) {
+                // 悬浮底栏为图标 + 语义标签形式，自带阴影、圆角与系统栏内边距处理。
+                MiuixFloatingNavigationBar {
+                    items.forEachIndexed { index, item ->
+                        MiuixFloatingNavigationBarItem(
+                            selected = selectedIndex == index,
+                            onClick = { onSelected(index) },
+                            icon = item.icon,
+                            label = item.label,
+                        )
+                    }
+                }
+            } else {
+                MiuixNavigationBar {
+                    items.forEachIndexed { index, item ->
+                        MiuixNavigationBarItem(
+                            selected = selectedIndex == index,
+                            onClick = { onSelected(index) },
+                            icon = item.icon,
+                            label = item.label,
+                        )
+                    }
                 }
             }
         },

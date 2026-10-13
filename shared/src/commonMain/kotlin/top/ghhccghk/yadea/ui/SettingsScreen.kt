@@ -85,7 +85,7 @@ fun SettingsScreen(
             }
         }
 
-        // Monet 只影响 Miuix 配色，因此仅在 Miuix 风格下显示。
+        // Monet 与悬浮底栏都只作用于 Miuix，因此仅在 Miuix 风格下显示。
         if (useMiuix) {
             item {
                 AppSection(title = "Miuix 配色", modifier = sectionModifier) {
@@ -99,6 +99,22 @@ fun SettingsScreen(
                             "根据壁纸或种子色生成 Miuix 配色"
                         } else {
                             "已关闭，使用 Miuix 原生 HyperOS 配色"
+                        },
+                    )
+                }
+            }
+            item {
+                AppSection(title = "Miuix 界面", modifier = sectionModifier) {
+                    AppSwitchPreference(
+                        checked = appearance.floatingNavigationBarEnabled,
+                        onCheckedChange = {
+                            onAppearanceChange(appearance.copy(floatingNavigationBarEnabled = it))
+                        },
+                        title = "悬浮底栏",
+                        summary = if (appearance.floatingNavigationBarEnabled) {
+                            "底部导航使用 HyperOS 悬浮胶囊样式"
+                        } else {
+                            "使用常规底部导航栏"
                         },
                     )
                 }
