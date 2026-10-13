@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import top.ghhccghk.yadea.ui.AppAppearance
 import top.ghhccghk.yadea.ui.AppColorSource
+import top.ghhccghk.yadea.ui.AppColorSpec
 import top.ghhccghk.yadea.ui.AppPaletteStyle
 import top.ghhccghk.yadea.ui.AppThemeMode
 import top.ghhccghk.yadea.ui.UiThemeStyle
@@ -13,7 +14,8 @@ object AppPreferenceKeys {
     // 设置结构版本。新增设置项时递增，并同步补上迁移逻辑与测试。
     // 1 -> 2：新增 miuix_monet（Miuix 是否启用 Monet 动态配色）。
     // 2 -> 3：新增 floating_navigation_bar（Miuix 是否启用悬浮底栏）。
-    const val SCHEMA_VERSION = 3
+    // 3 -> 4：新增 color_spec（Miuix Monet 使用的颜色标准）。
+    const val SCHEMA_VERSION = 4
 
     val schemaVersion = PreferenceKey.int("app_settings_schema_version", SCHEMA_VERSION)
     val uiStyle = PreferenceKey.string("ui_style", UiThemeStyle.Miuix.storageName)
@@ -31,6 +33,9 @@ object AppPreferenceKeys {
     // 默认关闭，保证旧版本（schema 2 及更早）升级后仍是原有常规底栏。
     val floatingNavigationBar = PreferenceKey.boolean("floating_navigation_bar", false)
 
+    // 默认跟随调色板，保证旧版本（schema 3 及更早）升级后配色外观不变。
+    val colorSpec = PreferenceKey.string("color_spec", AppColorSpec.Auto.name)
+
     val all: List<PreferenceKey<*>> = listOf(
         schemaVersion,
         uiStyle,
@@ -43,6 +48,7 @@ object AppPreferenceKeys {
         themeAnimations,
         miuixMonet,
         floatingNavigationBar,
+        colorSpec,
     )
 }
 
@@ -60,6 +66,7 @@ class AppPreferences(
         themeAnimations = store.read(AppPreferenceKeys.themeAnimations),
         miuixMonet = store.read(AppPreferenceKeys.miuixMonet),
         floatingNavigationBar = store.read(AppPreferenceKeys.floatingNavigationBar),
+        colorSpec = store.read(AppPreferenceKeys.colorSpec),
     )
 
     fun observe(): Flow<AppAppearance> {
@@ -79,6 +86,7 @@ class AppPreferences(
                 themeAnimations = values[8] as Boolean,
                 miuixMonet = values[9] as Boolean,
                 floatingNavigationBar = values[10] as Boolean,
+                colorSpec = values[11] as String,
             )
         }
     }
@@ -107,6 +115,7 @@ class AppPreferences(
             AppPreferenceKeys.themeAnimations to appearance.themeAnimationsEnabled,
             AppPreferenceKeys.miuixMonet to appearance.miuixMonetEnabled,
             AppPreferenceKeys.floatingNavigationBar to appearance.floatingNavigationBarEnabled,
+            AppPreferenceKeys.colorSpec to appearance.colorSpec.name,
         )
         for ((key, value) in writes) {
             val result = writeTyped(key, value)
@@ -138,9 +147,11 @@ class AppPreferences(
         themeAnimations: Boolean,
         miuixMonet: Boolean,
         floatingNavigationBar: Boolean,
+        colorSpec: String,
     ): AppAppearance {
         // 未知枚举、损坏值一律回退到安全默认值，保证读取不崩溃。
-        // 旧版本缺失的新键都由 PreferenceKey 默认值补齐（miuix_monet 补 true，floating_navigation_bar 补 false），
+        // 旧版本缺失的新键都由 PreferenceKey 默认值补齐
+        // （miuix_monet 补 true，floating_navigation_bar 补 false，color_spec 补 Auto），
         // 因此每次版本升级都是纯增量迁移，不会丢弃用户已有配置。
         return AppAppearance(
             uiStyle = UiThemeStyle.fromStorageName(uiStyle),
@@ -153,6 +164,7 @@ class AppPreferences(
             themeAnimationsEnabled = themeAnimations,
             miuixMonetEnabled = miuixMonet,
             floatingNavigationBarEnabled = floatingNavigationBar,
+            colorSpec = AppColorSpec.entries.firstOrNull { it.name == colorSpec } ?: AppColorSpec.Auto,
         )
     }
 }

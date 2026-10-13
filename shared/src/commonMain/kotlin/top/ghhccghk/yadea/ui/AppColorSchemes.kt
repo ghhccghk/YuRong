@@ -89,6 +89,7 @@ fun AppPaletteStyle.toMiuixPaletteStyle(): MiuixThemePaletteStyle =
         AppPaletteStyle.Content -> MiuixThemePaletteStyle.Content
     }
 
+/** 调色板推导出的默认颜色标准，保留旧版本行为。 */
 fun AppPaletteStyle.toMiuixColorSpec(): MiuixThemeColorSpec =
     when (this) {
         AppPaletteStyle.TonalSpot,
@@ -98,6 +99,19 @@ fun AppPaletteStyle.toMiuixColorSpec(): MiuixThemeColorSpec =
         -> MiuixThemeColorSpec.Spec2025
 
         else -> MiuixThemeColorSpec.Spec2021
+    }
+
+/**
+ * 把设置项里的颜色标准映射为 Miuix 的 [MiuixThemeColorSpec]。
+ *
+ * [AppColorSpec.Auto] 继续使用调色板推导值；显式选择 Spec 2025 时，若当前调色板不支持，
+ * Miuix 内部会自动降级为 Spec 2021。
+ */
+fun AppColorSpec.toMiuixColorSpec(paletteStyle: AppPaletteStyle): MiuixThemeColorSpec =
+    when (this) {
+        AppColorSpec.Auto -> paletteStyle.toMiuixColorSpec()
+        AppColorSpec.Spec2021 -> MiuixThemeColorSpec.Spec2021
+        AppColorSpec.Spec2025 -> MiuixThemeColorSpec.Spec2025
     }
 
 private fun ColorScheme.withAmoledBackground(enabled: Boolean): ColorScheme =

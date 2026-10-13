@@ -7,6 +7,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import top.ghhccghk.yadea.ui.AppAppearance
 import top.ghhccghk.yadea.ui.AppColorSource
+import top.ghhccghk.yadea.ui.AppColorSpec
 import top.ghhccghk.yadea.ui.AppPaletteStyle
 import top.ghhccghk.yadea.ui.AppThemeMode
 import top.ghhccghk.yadea.ui.UiThemeStyle
@@ -28,6 +29,7 @@ class AppPreferencesTest {
         assertEquals(true, appearance.themeAnimationsEnabled)
         assertEquals(true, appearance.miuixMonetEnabled)
         assertEquals(false, appearance.floatingNavigationBarEnabled)
+        assertEquals(AppColorSpec.Auto, appearance.colorSpec)
     }
 
     @Test
@@ -45,6 +47,7 @@ class AppPreferencesTest {
             themeAnimationsEnabled = false,
             miuixMonetEnabled = false,
             floatingNavigationBarEnabled = true,
+            colorSpec = AppColorSpec.Spec2025,
         )
 
         assertTrue(preferences.write(expected) is PreferenceWriteResult.Success)
@@ -153,6 +156,43 @@ class AppPreferencesTest {
 
         assertEquals(true, preferences.read().floatingNavigationBarEnabled)
         assertEquals(true, preferences.observe().first().floatingNavigationBarEnabled)
+    }
+
+    @Test
+    fun legacySchemaKeepsUserDataAndDefaultsColorSpecToAuto() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        // 模拟 schema 3 的旧配置：只写入当时存在的键，没有 color_spec。
+        store.write(AppPreferenceKeys.schemaVersion, 3)
+        store.write(AppPreferenceKeys.uiStyle, UiThemeStyle.Miuix.storageName)
+        store.write(AppPreferenceKeys.paletteStyle, AppPaletteStyle.Vibrant.name)
+
+        val appearance = AppPreferences(store).read()
+
+        assertEquals(UiThemeStyle.Miuix, appearance.uiStyle)
+        assertEquals(AppPaletteStyle.Vibrant, appearance.paletteStyle)
+        assertEquals(AppColorSpec.Auto, appearance.colorSpec)
+    }
+
+    @Test
+    fun colorSpecRoundTripsThroughStore() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        val preferences = AppPreferences(store)
+
+        assertTrue(
+            preferences.write(AppAppearance(colorSpec = AppColorSpec.Spec2025)) is
+                PreferenceWriteResult.Success,
+        )
+
+        assertEquals(AppColorSpec.Spec2025, preferences.read().colorSpec)
+        assertEquals(AppColorSpec.Spec2025, preferences.observe().first().colorSpec)
+    }
+
+    @Test
+    fun unknownColorSpecFallsBackToAuto() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        store.write(AppPreferenceKeys.colorSpec, "Spec3000")
+
+        assertEquals(AppColorSpec.Auto, AppPreferences(store).read().colorSpec)
     }
 
     @Test

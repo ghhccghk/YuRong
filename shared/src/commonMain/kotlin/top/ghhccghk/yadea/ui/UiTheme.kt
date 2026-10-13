@@ -74,6 +74,18 @@ enum class AppPaletteStyle {
     Fidelity,
     Content,
 }
+
+/**
+ * Miuix Monet 取色使用的 Material Color Spec。
+ *
+ * [Auto] 沿用调色板推导出的默认标准（与旧版本行为一致）；显式选择后由用户决定，
+ * 当调色板不支持 Spec 2025 时 Miuix 会自动降级到 Spec 2021，不会报错。
+ */
+enum class AppColorSpec {
+    Auto,
+    Spec2021,
+    Spec2025,
+}
 @Immutable
 data class AppAppearance(
     val uiStyle: UiThemeStyle = UiThemeStyle.Miuix,
@@ -82,6 +94,8 @@ data class AppAppearance(
     val seedColorArgb: Int = 0xFF7B4DFF.toInt(),
     val presetId: String = "default",
     val paletteStyle: AppPaletteStyle = AppPaletteStyle.TonalSpot,
+    // Miuix Monet 的颜色标准；默认跟随调色板，保证旧版本升级后外观不变。
+    val colorSpec: AppColorSpec = AppColorSpec.Auto,
     val amoledDarkEnabled: Boolean = false,
     val themeAnimationsEnabled: Boolean = true,
     // 是否让 Miuix 使用 Monet 动态取色；关闭后回退到 Miuix 原生 HyperOS 配色。
@@ -252,7 +266,7 @@ fun AppTheme(
                             colorSchemeMode = if (darkTheme) ColorSchemeMode.MonetDark else ColorSchemeMode.MonetLight,
                             keyColor = appSeedColor(appearance, systemAccentColor),
                             paletteStyle = appearance.paletteStyle.toMiuixPaletteStyle(),
-                            colorSpec = appearance.paletteStyle.toMiuixColorSpec(),
+                            colorSpec = appearance.colorSpec.toMiuixColorSpec(appearance.paletteStyle),
                             isDark = darkTheme,
                         )
                     } else {

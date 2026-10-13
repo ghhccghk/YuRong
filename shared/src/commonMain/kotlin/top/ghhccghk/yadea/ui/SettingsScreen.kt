@@ -32,6 +32,7 @@ fun SettingsScreen(
     // 下拉菜单的选项文本与枚举 entries 一一对应，保证索引可直接回写到 AppAppearance。
     val uiStyleOptions = UiThemeStyle.entries.map { it.label }
     val paletteOptions = AppPaletteStyle.entries.map { it.label }
+    val colorSpecOptions = AppColorSpec.entries.map { it.label }
     val pagePadding = PaddingValues(
         horizontal = if (useMiuix) 0.dp else dimensions.pageHorizontalPadding,
         vertical = if (useMiuix) 0.dp else dimensions.pageVerticalPadding,
@@ -101,6 +102,18 @@ fun SettingsScreen(
                             "已关闭，使用 Miuix 原生 HyperOS 配色"
                         },
                     )
+                    if (appearance.miuixMonetEnabled) {
+                        // 颜色标准只影响 Monet 生成的配色，关闭 Monet 后没有作用，因此跟随 Monet 开关显示。
+                        AppPopupPreference(
+                            title = "颜色标准",
+                            summary = "Spec 2025 支持 Tonal Spot、Neutral、Vibrant、Expressive 四种调色板",
+                            options = colorSpecOptions,
+                            selectedIndex = AppColorSpec.entries.indexOf(appearance.colorSpec),
+                            onSelectedIndexChange = { index ->
+                                onAppearanceChange(appearance.copy(colorSpec = AppColorSpec.entries[index]))
+                            },
+                        )
+                    }
                 }
             }
             item {
@@ -263,6 +276,13 @@ private val AppThemeMode.label: String
         AppThemeMode.System -> "跟随系统"
         AppThemeMode.Light -> "亮色"
         AppThemeMode.Dark -> "暗色"
+    }
+
+private val AppColorSpec.label: String
+    get() = when (this) {
+        AppColorSpec.Auto -> "跟随调色板"
+        AppColorSpec.Spec2021 -> "Spec 2021"
+        AppColorSpec.Spec2025 -> "Spec 2025"
     }
 
 private val AppPaletteStyle.label: String
