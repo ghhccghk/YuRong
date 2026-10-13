@@ -86,6 +86,8 @@ data class AppAppearance(
     val paletteStyle: AppPaletteStyle = AppPaletteStyle.TonalSpot,
     val amoledDarkEnabled: Boolean = false,
     val themeAnimationsEnabled: Boolean = true,
+    // 是否让 Miuix 使用 Monet 动态取色；关闭后回退到 Miuix 原生 HyperOS 配色。
+    val miuixMonetEnabled: Boolean = true,
 )
 
 @Immutable
@@ -241,14 +243,22 @@ fun AppTheme(
     CompositionLocalProvider(LocalUiThemeStyle provides appearance.uiStyle) {
         when (appearance.uiStyle) {
             UiThemeStyle.Miuix -> {
-                val controller = remember(darkTheme, appearance.paletteStyle, systemAccentColor) {
-                    ThemeController(
-                        colorSchemeMode = if (darkTheme) ColorSchemeMode.MonetDark else ColorSchemeMode.MonetLight,
-                        keyColor = appSeedColor(appearance, systemAccentColor),
-                        paletteStyle = appearance.paletteStyle.toMiuixPaletteStyle(),
-                        colorSpec = appearance.paletteStyle.toMiuixColorSpec(),
-                        isDark = darkTheme,
-                    )
+                // 关闭 Monet 时不再由种子色生成配色，改用 Miuix 原生亮/暗色板。
+                val controller = remember(appearance, darkTheme, systemAccentColor) {
+                    if (appearance.miuixMonetEnabled) {
+                        ThemeController(
+                            colorSchemeMode = if (darkTheme) ColorSchemeMode.MonetDark else ColorSchemeMode.MonetLight,
+                            keyColor = appSeedColor(appearance, systemAccentColor),
+                            paletteStyle = appearance.paletteStyle.toMiuixPaletteStyle(),
+                            colorSpec = appearance.paletteStyle.toMiuixColorSpec(),
+                            isDark = darkTheme,
+                        )
+                    } else {
+                        ThemeController(
+                            colorSchemeMode = if (darkTheme) ColorSchemeMode.Dark else ColorSchemeMode.Light,
+                            isDark = darkTheme,
+                        )
+                    }
                 }
                 MiuixTheme(controller = controller) {
                     val animatedColors = if (appearance.themeAnimationsEnabled) {
@@ -456,6 +466,7 @@ private val AppAppearanceSaver = Saver<MutableState<AppAppearance>, String>(
             state.value.paletteStyle.name,
             state.value.amoledDarkEnabled.toString(),
             state.value.themeAnimationsEnabled.toString(),
+            state.value.miuixMonetEnabled.toString(),
         ).joinToString("|")
     },
     restore = { value ->
@@ -473,6 +484,8 @@ private val AppAppearanceSaver = Saver<MutableState<AppAppearance>, String>(
                     ?: AppPaletteStyle.TonalSpot,
                 amoledDarkEnabled = parts.getOrNull(6)?.toBooleanStrictOrNull() ?: false,
                 themeAnimationsEnabled = parts.getOrNull(7)?.toBooleanStrictOrNull() ?: true,
+                // 旧负载没有该字段，缺省视为开启。
+                miuixMonetEnabled = parts.getOrNull(8)?.toBooleanStrictOrNull() ?: true,
             )
         )
     },

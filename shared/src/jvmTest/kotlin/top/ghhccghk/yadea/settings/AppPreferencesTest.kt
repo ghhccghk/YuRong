@@ -26,6 +26,7 @@ class AppPreferencesTest {
         assertEquals(AppPaletteStyle.TonalSpot, appearance.paletteStyle)
         assertEquals(false, appearance.amoledDarkEnabled)
         assertEquals(true, appearance.themeAnimationsEnabled)
+        assertEquals(true, appearance.miuixMonetEnabled)
     }
 
     @Test
@@ -41,6 +42,7 @@ class AppPreferencesTest {
             paletteStyle = AppPaletteStyle.Vibrant,
             amoledDarkEnabled = true,
             themeAnimationsEnabled = false,
+            miuixMonetEnabled = false,
         )
 
         assertTrue(preferences.write(expected) is PreferenceWriteResult.Success)
@@ -79,6 +81,7 @@ class AppPreferencesTest {
                 paletteStyle = AppPaletteStyle.Monochrome,
                 amoledDarkEnabled = true,
                 themeAnimationsEnabled = false,
+                miuixMonetEnabled = false,
             ),
         )
 
@@ -94,5 +97,56 @@ class AppPreferencesTest {
         val appearance = AppPreferences(store).read()
 
         assertEquals(UiThemeStyle.Material3, appearance.uiStyle)
+    }
+
+    @Test
+    fun writePersistsCurrentSchemaVersion() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        val preferences = AppPreferences(store)
+
+        assertTrue(preferences.write(AppAppearance()) is PreferenceWriteResult.Success)
+
+        assertEquals(AppPreferenceKeys.SCHEMA_VERSION, store.read(AppPreferenceKeys.schemaVersion))
+    }
+
+    @Test
+    fun legacySchemaKeepsUserDataAndDefaultsMonetOn() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        // 模拟 schema 1 的旧配置：只写入当时存在的键，没有 miuix_monet。
+        store.write(AppPreferenceKeys.schemaVersion, 1)
+        store.write(AppPreferenceKeys.uiStyle, UiThemeStyle.Material3.storageName)
+        store.write(AppPreferenceKeys.themeMode, AppThemeMode.Dark.name)
+
+        val appearance = AppPreferences(store).read()
+
+        assertEquals(UiThemeStyle.Material3, appearance.uiStyle)
+        assertEquals(AppThemeMode.Dark, appearance.themeMode)
+        assertTrue(appearance.miuixMonetEnabled)
+    }
+
+    @Test
+    fun newerSchemaIsNotOverwritten() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        val futureVersion = AppPreferenceKeys.SCHEMA_VERSION + 1
+        store.write(AppPreferenceKeys.schemaVersion, futureVersion)
+        store.write(AppPreferenceKeys.uiStyle, UiThemeStyle.Material3.storageName)
+        val preferences = AppPreferences(store)
+
+        val result = preferences.write(AppAppearance(uiStyle = UiThemeStyle.Miuix))
+
+        assertTrue(result is PreferenceWriteResult.Failure)
+        assertEquals(futureVersion, store.read(AppPreferenceKeys.schemaVersion))
+        assertEquals(UiThemeStyle.Material3, preferences.read().uiStyle)
+    }
+
+    @Test
+    fun miuixMonetToggleRoundTripsThroughStore() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        val preferences = AppPreferences(store)
+
+        assertTrue(preferences.write(AppAppearance(miuixMonetEnabled = false)) is PreferenceWriteResult.Success)
+
+        assertEquals(false, preferences.read().miuixMonetEnabled)
+        assertEquals(false, preferences.observe().first().miuixMonetEnabled)
     }
 }

@@ -10,7 +10,9 @@ import top.ghhccghk.yadea.ui.AppThemeMode
 import top.ghhccghk.yadea.ui.UiThemeStyle
 
 object AppPreferenceKeys {
-    const val SCHEMA_VERSION = 1
+    // 设置结构版本。新增设置项时递增，并同步补上迁移逻辑与测试。
+    // 1 -> 2：新增 miuix_monet（Miuix 是否启用 Monet 动态配色）。
+    const val SCHEMA_VERSION = 2
 
     val schemaVersion = PreferenceKey.int("app_settings_schema_version", SCHEMA_VERSION)
     val uiStyle = PreferenceKey.string("ui_style", UiThemeStyle.Miuix.storageName)
@@ -22,6 +24,9 @@ object AppPreferenceKeys {
     val amoledDark = PreferenceKey.boolean("amoled_dark", false)
     val themeAnimations = PreferenceKey.boolean("theme_animations", true)
 
+    // 默认开启，保证旧版本（schema 1 及更早）升级后仍保持原有 Monet 配色。
+    val miuixMonet = PreferenceKey.boolean("miuix_monet", true)
+
     val all: List<PreferenceKey<*>> = listOf(
         schemaVersion,
         uiStyle,
@@ -32,6 +37,7 @@ object AppPreferenceKeys {
         paletteStyle,
         amoledDark,
         themeAnimations,
+        miuixMonet,
     )
 }
 
@@ -39,7 +45,6 @@ class AppPreferences(
     private val store: PreferenceStore,
 ) {
     fun read(): AppAppearance = decode(
-        schemaVersion = store.read(AppPreferenceKeys.schemaVersion),
         uiStyle = store.read(AppPreferenceKeys.uiStyle),
         themeMode = store.read(AppPreferenceKeys.themeMode),
         colorSource = store.read(AppPreferenceKeys.colorSource),
@@ -48,15 +53,16 @@ class AppPreferences(
         paletteStyle = store.read(AppPreferenceKeys.paletteStyle),
         amoledDark = store.read(AppPreferenceKeys.amoledDark),
         themeAnimations = store.read(AppPreferenceKeys.themeAnimations),
+        miuixMonet = store.read(AppPreferenceKeys.miuixMonet),
     )
 
     fun observe(): Flow<AppAppearance> {
         val flows = AppPreferenceKeys.all.map { key ->
             store.observe(key).map { value -> value as Any }
         }
+        // 索引与 AppPreferenceKeys.all 的顺序一一对应，新增 key 时必须同步调整。
         return combine(flows) { values ->
             decode(
-                schemaVersion = values[0] as Int,
                 uiStyle = values[1] as String,
                 themeMode = values[2] as String,
                 colorSource = values[3] as String,
@@ -65,11 +71,23 @@ class AppPreferences(
                 paletteStyle = values[6] as String,
                 amoledDark = values[7] as Boolean,
                 themeAnimations = values[8] as Boolean,
+                miuixMonet = values[9] as Boolean,
             )
         }
     }
 
     suspend fun write(appearance: AppAppearance): PreferenceWriteResult {
+        // 未来版本写入的配置不得被当前版本覆盖，避免降级时丢数据。
+        val storedSchemaVersion = store.read(AppPreferenceKeys.schemaVersion)
+        if (storedSchemaVersion > AppPreferenceKeys.SCHEMA_VERSION) {
+            return PreferenceWriteResult.Failure(
+                IllegalStateException(
+                    "Stored settings schema $storedSchemaVersion is newer than supported " +
+                        "${AppPreferenceKeys.SCHEMA_VERSION}.",
+                ),
+            )
+        }
+
         val writes = listOf(
             AppPreferenceKeys.schemaVersion to AppPreferenceKeys.SCHEMA_VERSION,
             AppPreferenceKeys.uiStyle to appearance.uiStyle.storageName,
@@ -80,6 +98,7 @@ class AppPreferences(
             AppPreferenceKeys.paletteStyle to appearance.paletteStyle.name,
             AppPreferenceKeys.amoledDark to appearance.amoledDarkEnabled,
             AppPreferenceKeys.themeAnimations to appearance.themeAnimationsEnabled,
+            AppPreferenceKeys.miuixMonet to appearance.miuixMonetEnabled,
         )
         for ((key, value) in writes) {
             val result = writeTyped(key, value)
@@ -101,7 +120,6 @@ class AppPreferences(
         }
 
     private fun decode(
-        schemaVersion: Int,
         uiStyle: String,
         themeMode: String,
         colorSource: String,
@@ -110,8 +128,11 @@ class AppPreferences(
         paletteStyle: String,
         amoledDark: Boolean,
         themeAnimations: Boolean,
+        miuixMonet: Boolean,
     ): AppAppearance {
-        // Unknown values are intentionally normalized to safe defaults.
+        // 未知枚举、损坏值一律回退到安全默认值，保证读取不崩溃。
+        // 旧版本（schema 1 及更早）没有 miuix_monet，读取时由 PreferenceKey 默认值补齐为 true，
+        // 因此 v1 -> v2 属于纯增量迁移，不会丢弃用户已有配置。
         return AppAppearance(
             uiStyle = UiThemeStyle.fromStorageName(uiStyle),
             themeMode = AppThemeMode.entries.firstOrNull { it.name == themeMode } ?: AppThemeMode.System,
@@ -121,6 +142,7 @@ class AppPreferences(
             paletteStyle = AppPaletteStyle.entries.firstOrNull { it.name == paletteStyle } ?: AppPaletteStyle.TonalSpot,
             amoledDarkEnabled = amoledDark,
             themeAnimationsEnabled = themeAnimations,
+            miuixMonetEnabled = miuixMonet,
         )
     }
 }
