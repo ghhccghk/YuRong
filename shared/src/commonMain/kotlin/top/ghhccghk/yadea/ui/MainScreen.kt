@@ -118,6 +118,8 @@ private fun MainScreenContent(
     // 投屏日志属于次级信息，改为顶栏动作 + 底部面板，避免长期占用页面空间。
     val debugLog by viewModel.debugLog.collectAsState()
     var showMirrorLog by remember { mutableStateOf(false) }
+    // 顶栏滚动行为由页面创建一次，再分别交给脚手架与顶栏；两种风格各自使用原生实现。
+    val scrollBehavior = rememberAppScrollBehavior()
     val topBarActions: (@Composable RowScope.() -> Unit)? = when {
         selectedDestination == MainDestination.Connection && bleState == BleConnectionState.Connected -> {
             {
@@ -147,6 +149,7 @@ private fun MainScreenContent(
             AppTopBar(
                 title = selectedDestination.label,
                 actions = topBarActions,
+                scrollBehavior = scrollBehavior,
             )
         },
         bottomBar = {
@@ -158,6 +161,7 @@ private fun MainScreenContent(
                 floating = appearance.floatingNavigationBarEnabled,
             )
         },
+        scrollBehavior = scrollBehavior,
     ) { padding ->
         MainDestinationContent(
             destination = selectedDestination,
