@@ -8,11 +8,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.OutlinedButton
@@ -26,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -40,6 +43,7 @@ import top.yukonga.miuix.kmp.basic.CardDefaults as MiuixCardDefaults
 import top.yukonga.miuix.kmp.basic.Slider as MiuixSlider
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.basic.TextField as MiuixTextField
+import top.yukonga.miuix.kmp.preference.CheckboxPreference as MiuixCheckboxPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference as MiuixSwitchPreference
 import top.yukonga.miuix.kmp.theme.LocalContentColor as MiuixLocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -419,6 +423,66 @@ fun AppSwitchPreference(
         },
     )
 }
+
+/**
+ * 带标题与摘要的复选框设置项，对应 Miuix 的 CheckboxPreference 与 Material 3 的 Checkbox。
+ * 两种风格下整行均可点击，回调时机与启用状态保持一致。
+ */
+@Composable
+fun AppCheckboxPreference(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    title: String,
+    modifier: Modifier = Modifier,
+    summary: String? = null,
+    enabled: Boolean = true,
+    contentPadding: PaddingValues = PaddingValues(
+        horizontal = AppDesign.dimensions.itemHorizontalPadding,
+        vertical = AppDesign.dimensions.itemVerticalPadding,
+    ),
+) {
+    AppStyleContent(
+        material = {
+            Row(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .toggleable(
+                        value = checked,
+                        enabled = enabled,
+                        role = Role.Checkbox,
+                        onValueChange = onCheckedChange,
+                    )
+                    .padding(contentPadding),
+                horizontalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Checkbox 自身不处理点击，统一交给整行的 toggleable，避免重复的点击语义。
+                Checkbox(
+                    checked = checked,
+                    onCheckedChange = null,
+                    enabled = enabled,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    AppText(title, style = AppDesign.typography.sectionTitle)
+                    if (summary != null) {
+                        AppText(summary, style = AppDesign.typography.summary)
+                    }
+                }
+            }
+        },
+        miuix = {
+            MiuixCheckboxPreference(
+                title = title,
+                summary = summary,
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                enabled = enabled,
+                modifier = modifier,
+            )
+        },
+    )
+}
+
 @Composable
 fun AppText(
     text: String,

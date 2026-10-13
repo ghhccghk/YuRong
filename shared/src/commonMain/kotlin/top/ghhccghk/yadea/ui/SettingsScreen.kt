@@ -69,7 +69,8 @@ fun SettingsScreen(
 
         item {
             AppSection(title = "界面风格", modifier = sectionModifier) {
-                AppSwitchPreference(
+                // 界面风格是二选一开关，使用 CheckboxPreference 更直观。
+                AppCheckboxPreference(
                     checked = appearance.uiStyle == UiThemeStyle.Miuix,
                     onCheckedChange = { enabled ->
                         onAppearanceChange(
