@@ -4,7 +4,7 @@
 
 ## 1. 当前验证结果
 
-最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造）：
+最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造，以及 AppTip/AppLoadingDialog 反馈组件）：
 
 - `:shared:compileKotlinJvm`
 - `:shared:compileKotlinJs`
@@ -40,7 +40,7 @@
 | Popup / Dropdown | 已完成 | `AppPopupPreference` | Miuix `OverlaySpinnerPreference`（ListPopup）+ Material `DropdownMenu`；界面风格与调色板已改用 |
 | Text input preference | 缺失 | 无 `AppTextInputPreference` | 只有取色器 hex 输入 |
 | Action preference | 已完成 | `AppActionPreference` | Miuix `ArrowPreference` + Material 点击行加箭头；颜色动作行已改用 |
-| Dialog | 缺失 | 只有取色器 Dialog | Alert、Single choice、Text input、Loading 未实现 |
+| Dialog | 部分完成 | `AppColorPickerDialog`、`AppLoadingDialog` | Alert、Single choice、Text input 仍未实现 |
 | TopBar actions/menu | 缺失 | `AppTopBar(title)` | 没有 icon/text/menu actions |
 | 搜索框 | 缺失 | 无 `AppSearchBar` | 当前项目暂无搜索场景 |
 | Scaffold 滚动顶栏 | 部分完成 | `AppScaffold` | 基础 Scaffold 已有；没有共享 nested scroll、折叠顶栏、Blur backdrop |
@@ -48,8 +48,8 @@
 | 普通/悬浮底栏 | 部分完成 | `AppBottomNavigation` | 只有普通底栏；没有 floating navigation |
 | 导航分页 | 缺失 | 无 pager | 当前使用四个固定 tab |
 | Bottom Sheet | 缺失 | 无组件 | 尚无对应业务场景 |
-| Snackbar | 缺失 | 无组件 | 操作反馈目前依赖状态文本 |
-| Tip | 缺失 | 无 `AppTip` | 错误/成功状态没有轻量提示组件 |
+| Snackbar | 缺失 | 无组件 | 操作反馈目前依赖 `AppTip` 与状态文本 |
+| Tip | 已完成 | `AppTip`、`AppTipKind` | 信息/成功/警告/错误四种类型，两风格共用语义 token |
 | Pull to refresh | 缺失 | 无组件 | 当前页面无刷新需求 |
 | Blur | 缺失 | 无 `MeowBlur` 对应能力 | 当前项目未启用表面模糊 |
 | 自适应布局 | 缺失 | 无双栏/宽屏布局组件 | 当前仍是固定 tab 页面 |
@@ -87,6 +87,12 @@
 - 界面风格与调色板已从开关/循环点击改为列表弹窗选择；颜色入口行使用 `AppActionPreference`，Miuix 下带原生箭头与按压反馈。
 - `AppCheckboxPreference` 保留为通用组件，供后续布尔型设置项复用。
 
+### 反馈组件
+
+- `AppTip` 覆盖信息/成功/警告/错误四种类型，两种风格都使用原生 Card 与 `AppDesign` 语义色，带 live region 和关闭按钮无障碍语义。
+- `AppLoadingDialog` 在 Miuix 使用原生 `WindowDialog`，Material 3 使用原生 `AlertDialog`，用于连接、投屏这类长时间操作的进度反馈。
+- 连接页（WiFi/BLE 失败、P2P 部分设备失败）与投屏页（投屏失败、协商中）已接入上述组件。
+
 ### 持久化
 
 - `PreferenceStore` 具备 `read/observe/write/delete/clear`。
@@ -122,14 +128,14 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 
 ### P1：缺少反馈组件
 
-当前页面主要依赖状态文字和按钮，缺少：
+反馈组件逐步补齐：
 
-- `AppTip`
-- `AppSnackbar`
-- `AppLoadingDialog`
-- `AppHaptics`
+- `AppTip`（已完成）：信息/成功/警告/错误四种类型，Miuix 与 Material 3 都用原生 Card 承载，配色取自 `AppDesign` 语义 token；连接页与投屏页已接入错误/警告提示。
+- `AppLoadingDialog`（已完成）：Miuix 使用原生 `WindowDialog`，Material 3 使用原生 `AlertDialog`；投屏协商阶段已接入，可手动关闭。
+- `AppSnackbar`（未实现）：Miuix 有原生 Snackbar，但需要跨平台的 host/state 抽象，等出现明确业务场景再补。
+- `AppHaptics`（未实现）：Miuix 原生控件自带部分触觉反馈，Material 与自绘控件尚未统一。
 
-对于连接、扫描、投屏、保存设置这类操作，建议先补 `AppTip` 和统一 loading/错误状态。
+`AppColors` 同步补充了 `errorContainer`/`onErrorContainer`，由 Material 3 与 Miuix 原生错误容器色映射，供错误类提示复用。
 
 ### P1：Scaffold 只有基础能力
 
@@ -182,7 +188,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 
 1. **设置 schema 迁移和未来版本保护**（已完成）。
 2. **AppCheckboxPreference / AppPopupPreference / AppActionPreference（已完成）**；`AppSliderPreference`、`AppTextInputPreference` 等有真实业务设置项后再补。
-3. **AppTip、AppLoadingIndicator/AppLoadingDialog、统一错误/成功反馈**。
+3. **AppTip、AppLoadingIndicator/AppLoadingDialog、统一错误/成功反馈**（已完成；`AppSnackbar` 等有业务场景再补）。
 4. **AppTopBar actions/menu 和基础 Dialog**。
 5. **AppTabRow、floating navigation、Bottom Sheet**。
 6. **Scaffold 滚动顶栏、Pull-to-Refresh、Blur、自适应布局**。
