@@ -4,7 +4,7 @@
 
 ## 1. 当前验证结果
 
-最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件，以及顶栏动作与 AppAlertDialog 基础弹窗）：
+最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗，以及 AppTabRow 分段选择、Miuix 悬浮底栏开关和 AppBottomSheet 底部面板）：
 
 - `:shared:compileKotlinJvm`
 - `:shared:compileKotlinJs`
@@ -44,10 +44,10 @@
 | TopBar actions/menu | 部分完成 | `AppTopBar(title, actions)`、`AppIconButton` | 支持单个图标动作；文字动作、下拉菜单仍未实现 |
 | 搜索框 | 缺失 | 无 `AppSearchBar` | 当前项目暂无搜索场景 |
 | Scaffold 滚动顶栏 | 部分完成 | `AppScaffold` | 基础 Scaffold 已有；没有共享 nested scroll、折叠顶栏、Blur backdrop |
-| Tab | 缺失 | 无 `AppTabRow` | 设置里的模式选择使用 `AppFilterChip` |
-| 普通/悬浮底栏 | 部分完成 | `AppBottomNavigation` | 只有普通底栏；没有 floating navigation |
+| Tab | 已完成 | `AppTabRow` | Material 3 与 Miuix 都用原生 `TabRow`；连接页 AP/P2P 与设置页明暗模式已改用 |
+| 普通/悬浮底栏 | 已完成 | `AppBottomNavigation(floating)` | Miuix 可选原生 `FloatingNavigationBar` 悬浮胶囊；Material 3 保持原生 `NavigationBar` |
 | 导航分页 | 缺失 | 无 pager | 当前使用四个固定 tab |
-| Bottom Sheet | 缺失 | 无组件 | 尚无对应业务场景 |
+| Bottom Sheet | 已完成 | `AppBottomSheet` | Material 3 `ModalBottomSheet` / Miuix `WindowBottomSheet`；投屏调试日志已接入 |
 | Snackbar | 缺失 | 无组件 | 操作反馈目前依赖 `AppTip` 与状态文本 |
 | Tip | 已完成 | `AppTip`、`AppTipKind` | 信息/成功/警告/错误四种类型，两风格共用语义 token |
 | Pull to refresh | 缺失 | 无组件 | 当前页面无刷新需求 |
@@ -55,7 +55,7 @@
 | 自适应布局 | 缺失 | 无双栏/宽屏布局组件 | 当前仍是固定 tab 页面 |
 | 触觉反馈 | 缺失 | 无统一 `AppHaptics` | Miuix 原生控件自带部分反馈，Material/自绘控件未补齐 |
 | 可访问性 | 部分完成 | 色块和控件有部分 semantics | 仍需系统检查图标、选择、禁用、重复点击 |
-| schema 迁移 | 已完成 | `SCHEMA_VERSION` + 增量迁移 + 未来版本保护 | v1 -> v2 纯增量迁移，未来版本不被 `write` 覆盖 |
+| schema 迁移 | 已完成 | `SCHEMA_VERSION` + 增量迁移 + 未来版本保护 | v1 -> v2 -> v3 纯增量迁移，未来版本不被 `write` 覆盖 |
 
 ## 3. 已经正常工作的部分
 
@@ -99,6 +99,13 @@
 - `AppIconButton` 为顶栏等紧凑位置提供单一图标操作：Miuix 用 `MiuixIconButton` + `MiuixIcon`，Material 3 用 `IconButton` + `Icon`，两者都从各自的 `ContentColor` CompositionLocal 取默认着色。
 - `AppAlertDialog` 覆盖标题、说明文字与确认/取消的基础确认场景：Miuix 用原生 `WindowDialog`，Material 3 用原生 `AlertDialog`；`dismissText` 为空时退化为单按钮告知型弹窗。
 - 连接页已接入真实场景：BLE 处于连接状态时顶栏出现“断开 BLE 连接”图标动作，点击后由 `AppAlertDialog` 二次确认，确认后调用既有的 `disconnectBle()`，未新增协议层逻辑。
+
+### 导航与面板
+
+- `AppTabRow` 提供分段选择语义：Miuix 与 Material 3 都使用各自原生 `TabRow`，保持相同的选中索引回调与禁用行为；连接页 AP/P2P 与设置页明暗模式已改用。
+- `AppBottomNavigation` 增加 `floating` 参数：Miuix 开启后使用原生 `FloatingNavigationBar` 悬浮胶囊（可在设置页关闭回到常规底栏），Material 3 始终使用原生 `NavigationBar`，两者选中与回调时机一致。
+- `AppBottomSheet` 承载从底部滑出的次级内容：Material 3 使用原生 `ModalBottomSheet`，Miuix 使用原生 `WindowBottomSheet`；下滑、点击遮罩与返回键都统一回调 `onDismissRequest`。
+- 投屏页的“调试日志”由页内长列表改为顶栏图标动作 + 底部面板，离开投屏页时面板自动关闭，未改动任何投屏协议逻辑。
 
 ### 持久化
 
@@ -184,9 +191,9 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 
 这些不是当前业务必需，但会影响外观设置的完整性。
 
-### P2：弹窗、菜单、搜索、Bottom Sheet 尚未实现
+### P2：单选/输入弹窗、菜单、搜索等通用能力尚未实现
 
-这些属于通用 UI 能力，当前业务页面没有强需求，但 MeowUI 文档已经验证它们是统一 UI 体系的一部分。
+单选列表弹窗、文本输入弹窗、下拉菜单与搜索框仍属于通用 UI 能力，当前业务页面没有强需求，但 MeowUI 文档已经验证它们是统一 UI 体系的一部分。Bottom Sheet 已完成，见第 3 节“导航与面板”。
 
 ## 5. 不建议直接照搬的部分
 
@@ -203,7 +210,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 2. **AppCheckboxPreference / AppPopupPreference / AppActionPreference（已完成）**；`AppSliderPreference`、`AppTextInputPreference` 等有真实业务设置项后再补。
 3. **AppTip、AppLoadingIndicator/AppLoadingDialog、统一错误/成功反馈**（已完成；`AppSnackbar` 等有业务场景再补）。
 4. **AppTopBar actions/menu 和基础 Dialog**（已完成：`AppTopBar` 支持 actions + `AppIconButton` + `AppAlertDialog`；文字动作、下拉菜单、单选/输入弹窗按业务场景再补）。
-5. **AppTabRow、floating navigation、Bottom Sheet**。
+5. **AppTabRow、floating navigation、Bottom Sheet**（已完成：`AppTabRow`、`AppBottomNavigation(floating)` 及其设置开关、`AppBottomSheet` 及投屏调试日志场景）。
 6. **Scaffold 滚动顶栏、Pull-to-Refresh、Blur、自适应布局**。
 
 每一批都应遵守 `AGENTS.md`：一份业务 API、两套原生实现，并在完成一个独立功能后提交。
