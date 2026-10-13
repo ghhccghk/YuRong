@@ -29,6 +29,9 @@ fun SettingsScreen(
     var showCustomColorPicker by remember { mutableStateOf(false) }
     val useMiuix = LocalUiThemeStyle.current == UiThemeStyle.Miuix
     val dimensions = AppDesign.dimensions
+    // 下拉菜单的选项文本与枚举 entries 一一对应，保证索引可直接回写到 AppAppearance。
+    val uiStyleOptions = UiThemeStyle.entries.map { it.label }
+    val paletteOptions = AppPaletteStyle.entries.map { it.label }
     val pagePadding = PaddingValues(
         horizontal = if (useMiuix) 0.dp else dimensions.pageHorizontalPadding,
         vertical = if (useMiuix) 0.dp else dimensions.pageVerticalPadding,
@@ -69,18 +72,15 @@ fun SettingsScreen(
 
         item {
             AppSection(title = "界面风格", modifier = sectionModifier) {
-                // 界面风格是二选一开关，使用 CheckboxPreference 更直观。
-                AppCheckboxPreference(
-                    checked = appearance.uiStyle == UiThemeStyle.Miuix,
-                    onCheckedChange = { enabled ->
-                        onAppearanceChange(
-                            appearance.copy(
-                                uiStyle = if (enabled) UiThemeStyle.Miuix else UiThemeStyle.Material3,
-                            ),
-                        )
+                // 主题切换使用列表弹窗：Miuix 走 SpinnerPreference 的 ListPopup，Material 3 走 DropdownMenu。
+                AppPopupPreference(
+                    title = "界面风格",
+                    summary = "Miuix 为 HyperOS 风格，Material 3 保留原生 Material 设计",
+                    options = uiStyleOptions,
+                    selectedIndex = UiThemeStyle.entries.indexOf(appearance.uiStyle),
+                    onSelectedIndexChange = { index ->
+                        onAppearanceChange(appearance.copy(uiStyle = UiThemeStyle.entries[index]))
                     },
-                    title = "Miuix 界面",
-                    summary = "关闭后使用 Material 3",
                 )
             }
         }
@@ -169,13 +169,13 @@ fun SettingsScreen(
                     )
                 }
 
-                AppListRow(
+                // 调色板取值较多，改用列表弹窗选择，避免反复点击才能找到目标项。
+                AppPopupPreference(
                     title = "调色板",
-                    value = appearance.paletteStyle.label,
-                    onClick = {
-                        val entries = AppPaletteStyle.entries
-                        val next = entries[(entries.indexOf(appearance.paletteStyle) + 1) % entries.size]
-                        onAppearanceChange(appearance.copy(paletteStyle = next))
+                    options = paletteOptions,
+                    selectedIndex = AppPaletteStyle.entries.indexOf(appearance.paletteStyle),
+                    onSelectedIndexChange = { index ->
+                        onAppearanceChange(appearance.copy(paletteStyle = AppPaletteStyle.entries[index]))
                     },
                 )
             }
@@ -209,12 +209,12 @@ fun SettingsScreen(
                     }
                 }
 
-                AppListRow(
+                AppActionPreference(
                     title = "当前颜色",
                     value = appSeedColor(appearance, systemAccentColor).toHexColor(),
                     onClick = { showCustomColorPicker = true },
                 )
-                AppListRow(
+                AppActionPreference(
                     title = "自定义主题色",
                     summary = "支持 HSV 滑条、网格调色盘和十六进制输入",
                     value = "选择",

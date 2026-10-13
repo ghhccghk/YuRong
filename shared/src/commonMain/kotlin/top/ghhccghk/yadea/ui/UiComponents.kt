@@ -1,6 +1,8 @@
 package top.ghhccghk.yadea.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -15,6 +17,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.OutlinedButton
@@ -24,6 +28,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,10 +48,13 @@ import top.yukonga.miuix.kmp.basic.Button as MiuixButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
 import top.yukonga.miuix.kmp.basic.CardDefaults as MiuixCardDefaults
+import top.yukonga.miuix.kmp.basic.DropdownItem as MiuixDropdownItem
 import top.yukonga.miuix.kmp.basic.Slider as MiuixSlider
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.basic.TextField as MiuixTextField
+import top.yukonga.miuix.kmp.preference.ArrowPreference as MiuixArrowPreference
 import top.yukonga.miuix.kmp.preference.CheckboxPreference as MiuixCheckboxPreference
+import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference as MiuixSpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference as MiuixSwitchPreference
 import top.yukonga.miuix.kmp.theme.LocalContentColor as MiuixLocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -478,6 +489,199 @@ fun AppCheckboxPreference(
                 onCheckedChange = onCheckedChange,
                 enabled = enabled,
                 modifier = modifier,
+            )
+        },
+    )
+}
+
+/**
+ * 列表弹窗选择型设置项：整行可点击，点击后从列表弹窗中选择一项。
+ *
+ * Miuix 风格使用原生 [MiuixSpinnerPreference]，其弹层即 ListPopup；
+ * Material 3 风格使用原生 DropdownMenu 承担同样的“从列表中选择”语义。
+ * 两种风格都保持整行点击、启用状态和提交时机一致。
+ *
+ * @param options 选项文本列表，索引与 [selectedIndex] 一一对应。
+ * @param selectedIndex 当前选中项索引，越界时视为未选中（只展示标题与摘要）。
+ * @param onSelectedIndexChange 选中新选项时回调；重复选中当前项不会触发，避免多余写入。
+ */
+@Composable
+fun AppPopupPreference(
+    title: String,
+    options: List<String>,
+    selectedIndex: Int,
+    onSelectedIndexChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    summary: String? = null,
+    enabled: Boolean = true,
+    contentPadding: PaddingValues = PaddingValues(
+        horizontal = AppDesign.dimensions.itemHorizontalPadding,
+        vertical = AppDesign.dimensions.itemVerticalPadding,
+    ),
+) {
+    val selectedOption = options.getOrNull(selectedIndex)
+    AppStyleContent(
+        material = {
+            var expanded by remember { mutableStateOf(false) }
+            // modifier 应用在最外层可布局节点，保证与 Miuix 分支的插槽位置一致。
+            Box(modifier = modifier) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            enabled = enabled,
+                            role = Role.Button,
+                            onClick = { expanded = true },
+                        )
+                        .padding(contentPadding),
+                    horizontalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        AppText(
+                            text = title,
+                            style = AppDesign.typography.itemTitle,
+                            color = if (enabled) AppDesign.colors.onSurface else AppDesign.colors.onSurfaceVariant,
+                        )
+                        if (summary != null) {
+                            AppText(
+                                text = summary,
+                                style = AppDesign.typography.summary,
+                                color = AppDesign.colors.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    if (selectedOption != null) {
+                        AppText(
+                            text = selectedOption,
+                            style = AppDesign.typography.value,
+                            color = AppDesign.colors.onSurfaceVariant,
+                        )
+                    }
+                }
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                ) {
+                    options.forEachIndexed { index, option ->
+                        val selected = index == selectedIndex
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = option,
+                                    color = if (selected) AppDesign.colors.primary
+                                    else AppDesign.colors.onSurface,
+                                )
+                            },
+                            onClick = {
+                                expanded = false
+                                if (!selected) onSelectedIndexChange(index)
+                            },
+                            // Material 3 没有 Miuix 的勾选图标，用文本勾号保持同一选中语义。
+                            leadingIcon = if (selected) {
+                                { Text(text = "\u2713", color = AppDesign.colors.primary) }
+                            } else {
+                                null
+                            },
+                        )
+                    }
+                }
+            }
+        },
+        miuix = {
+            MiuixSpinnerPreference(
+                items = options.map { option -> MiuixDropdownItem(text = option) },
+                selectedIndex = selectedIndex,
+                title = title,
+                summary = summary,
+                enabled = enabled,
+                modifier = modifier,
+                onSelectedIndexChange = { index ->
+                    if (index != selectedIndex) onSelectedIndexChange(index)
+                },
+            )
+        },
+    )
+}
+
+/**
+ * 动作/跳转型设置项：整行可点击，右侧展示当前值与“可继续操作”的箭头。
+ *
+ * Miuix 风格使用原生 [MiuixArrowPreference]（自带箭头与按压反馈）；
+ * Material 3 风格沿用与 AppListRow 一致的点击行，并补上箭头提示。
+ */
+@Composable
+fun AppActionPreference(
+    title: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    summary: String? = null,
+    value: String? = null,
+    enabled: Boolean = true,
+    contentPadding: PaddingValues = PaddingValues(
+        horizontal = AppDesign.dimensions.itemHorizontalPadding,
+        vertical = AppDesign.dimensions.itemVerticalPadding,
+    ),
+) {
+    AppStyleContent(
+        material = {
+            Row(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        enabled = enabled,
+                        role = Role.Button,
+                        onClick = onClick,
+                    )
+                    .padding(contentPadding),
+                horizontalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    AppText(
+                        text = title,
+                        style = AppDesign.typography.itemTitle,
+                        color = if (enabled) AppDesign.colors.onSurface else AppDesign.colors.onSurfaceVariant,
+                    )
+                    if (summary != null) {
+                        AppText(
+                            text = summary,
+                            style = AppDesign.typography.summary,
+                            color = AppDesign.colors.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (value != null) {
+                    AppText(
+                        text = value,
+                        style = AppDesign.typography.value,
+                        color = AppDesign.colors.onSurfaceVariant,
+                    )
+                }
+                // Material 3 没有独立箭头组件，用字符箭头保持同一视觉语义。
+                AppText(
+                    text = "\u203A",
+                    style = AppDesign.typography.value,
+                    color = AppDesign.colors.outline,
+                )
+            }
+        },
+        miuix = {
+            MiuixArrowPreference(
+                title = title,
+                summary = summary,
+                modifier = modifier,
+                enabled = enabled,
+                onClick = onClick,
+                endActions = {
+                    if (value != null) {
+                        AppText(
+                            text = value,
+                            style = AppDesign.typography.value,
+                            color = AppDesign.colors.onSurfaceVariant,
+                        )
+                    }
+                },
             )
         },
     )
