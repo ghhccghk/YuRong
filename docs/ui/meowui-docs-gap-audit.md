@@ -4,7 +4,7 @@
 
 ## 1. 当前验证结果
 
-最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，以及 Miuix 侧的 AMOLED 纯黑）：
+最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，以及 Miuix 颜色标准的独立设置）：
 
 - `:shared:compileKotlinJvm`
 - `:shared:compileKotlinJs`
@@ -25,7 +25,7 @@
 | 动态取色 | 部分完成 | Android accent + `appSeedColor` | Android 有系统 accent；其他平台回退 seed |
 | Seed color | 已完成 | `seedColorArgb`、`appSeedColor` | 支持持久化 |
 | Palette style | 已完成 | `AppPaletteStyle`、MaterialKolor/Miuix 映射 | 支持 9 种风格 |
-| Color spec | 部分完成 | `toMiuixColorSpec` | 当前只由 palette 推导；没有独立设置项 |
+| Color spec | 已完成 | `AppColorSpec` + `colorSpec` 持久化 | 默认跟随 palette 推导，也可显式选择 Spec 2021 / Spec 2025；仅作用于 Miuix Monet |
 | AMOLED | 已完成 | `withAmoledBackground`（Material `ColorScheme` / Miuix `Colors` 两个重载） | 暗色模式下两套风格都会压黑大面积底色 token |
 | 主题动画 | 已完成 | `AppColorTransition` | Material/Miuix 颜色列表插值 |
 | 设置持久化 | 已完成 | `AppPreferences` + 平台 store | Android/JVM/JS/Wasm/iOS 均有后端 |
@@ -55,17 +55,18 @@
 | 自适应布局 | 缺失 | 无双栏/宽屏布局组件 | 当前仍是固定 tab 页面 |
 | 触觉反馈 | 缺失 | 无统一 `AppHaptics` | Miuix 原生控件自带部分反馈，Material/自绘控件未补齐 |
 | 可访问性 | 部分完成 | 色块和控件有部分 semantics | 仍需系统检查图标、选择、禁用、重复点击 |
-| schema 迁移 | 已完成 | `SCHEMA_VERSION` + 增量迁移 + 未来版本保护 | v1 -> v2 -> v3 纯增量迁移，未来版本不被 `write` 覆盖 |
+| schema 迁移 | 已完成 | `SCHEMA_VERSION` + 增量迁移 + 未来版本保护 | v1 -> v2 -> v3 -> v4 纯增量迁移，未来版本不被 `write` 覆盖 |
 
 ## 3. 已经正常工作的部分
 
 ### 主题和颜色
 
-- `AppAppearance` 已统一管理 UI 风格、明暗模式、颜色来源、seed、preset、palette、AMOLED、动画开关、Miuix Monet 开关。
+- `AppAppearance` 已统一管理 UI 风格、明暗模式、颜色来源、seed、preset、palette、颜色标准、AMOLED、动画开关、Miuix Monet 开关。
 - Miuix 可整体关闭 Monet（`miuixMonetEnabled`）；关闭后不再由种子色生成配色，回退到 Miuix 原生 HyperOS 配色。
 - `materialKolor 5.0.1` 已声明为 KMP 依赖，Gradle metadata 包含 Android、JVM、JS、Wasm、iOS target。
 - Material 使用 `dynamicColorScheme` 生成完整 `ColorScheme`。
 - Miuix 使用 `ThemeController` 和 palette style 生成完整 `Colors`。
+- Miuix 的颜色标准可独立于调色板选择（`AppColorSpec`）：`Auto` 沿用调色板推导结果，显式选择 Spec 2021 / Spec 2025 时交给用户决定；调色板本身不支持 Spec 2025 时 Miuix 会自动降级到 Spec 2021，不会报错。该设置项只在 Monet 开启时显示。
 - AMOLED 对两套风格分别处理，语义对齐：
   - Material 侧压黑 `background/surface/surfaceDim/surfaceContainer/Low/Lowest`。
   - Miuix 侧压黑 `background/surface/surfaceVariant/surfaceContainer/High/Highest`，因为它没有 `surfaceDim` 与 `Low(est)` 档位。
@@ -125,9 +126,12 @@
 
 ### P0：设置 schema 迁移（已处理）
 
-`AppPreferences.kt` 现在把当前版本定义为 2（`AppPreferenceKeys.SCHEMA_VERSION`），迁移策略明确：
+`AppPreferences.kt` 现在把当前版本定义为 4（`AppPreferenceKeys.SCHEMA_VERSION`），迁移策略明确：
 
-- v1 -> v2 属于纯增量迁移：新增的 `miuix_monet` 由 `PreferenceKey` 默认值补齐为 `true`。
+- 每次版本升级都属于纯增量迁移：新增的键由 `PreferenceKey` 默认值补齐，不重置用户已有配置。
+- v1 -> v2 补 `miuix_monet`（默认 `true`，升级后仍是原有 Monet 配色）。
+- v2 -> v3 补 `floating_navigation_bar`（默认 `false`，升级后仍是原有常规底栏）。
+- v3 -> v4 补 `color_spec`（默认 `Auto`，升级后仍按调色板推导颜色标准）。
 - 版本 0/缺失值按历史配置对待，保留已有键值（历史 key 兼容），只有缺失的新键才回退默认值，不重置用户配置。
 - 高于当前版本的数据禁止被 `write` 覆盖，返回 `PreferenceWriteResult.Failure`。
 - 已补充默认值、回环、旧 schema、未来 schema 的测试。
@@ -179,18 +183,18 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 - 明暗模式。
 - 颜色来源。
 - palette。
+- 颜色标准独立选择（仅 Monet 开启时显示）。
 - AMOLED。
 - 动画。
 - 自定义颜色。
+- Miuix Monet 开关。
+- 悬浮底栏开关。
 
 缺少：
 - 实时主题预览头图。
-- 颜色标准独立选择。
-- Miuix Monet 开关（已实现）。
 - 界面缩放。
-- 悬浮底栏开关。
-- Blur 开关。
-- Predictive Back 开关。
+- Blur 开关（底层缺少跨平台模糊能力，暂不提供开关）。
+- Predictive Back 开关（需要各平台原生能力，暂不提供开关）。
 - 自定义 preference 插槽。
 
 这些不是当前业务必需，但会影响外观设置的完整性。
