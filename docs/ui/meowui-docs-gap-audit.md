@@ -4,7 +4,7 @@
 
 ## 1. 当前验证结果
 
-最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造，以及 AppTip/AppLoadingDialog 反馈组件）：
+最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件，以及顶栏动作与 AppAlertDialog 基础弹窗）：
 
 - `:shared:compileKotlinJvm`
 - `:shared:compileKotlinJs`
@@ -40,8 +40,8 @@
 | Popup / Dropdown | 已完成 | `AppPopupPreference` | Miuix `OverlaySpinnerPreference`（ListPopup）+ Material `DropdownMenu`；界面风格与调色板已改用 |
 | Text input preference | 缺失 | 无 `AppTextInputPreference` | 只有取色器 hex 输入 |
 | Action preference | 已完成 | `AppActionPreference` | Miuix `ArrowPreference` + Material 点击行加箭头；颜色动作行已改用 |
-| Dialog | 部分完成 | `AppColorPickerDialog`、`AppLoadingDialog` | Alert、Single choice、Text input 仍未实现 |
-| TopBar actions/menu | 缺失 | `AppTopBar(title)` | 没有 icon/text/menu actions |
+| Dialog | 部分完成 | `AppColorPickerDialog`、`AppLoadingDialog`、`AppAlertDialog` | 基础 Alert 已完成；Single choice、Text input 仍未实现 |
+| TopBar actions/menu | 部分完成 | `AppTopBar(title, actions)`、`AppIconButton` | 支持单个图标动作；文字动作、下拉菜单仍未实现 |
 | 搜索框 | 缺失 | 无 `AppSearchBar` | 当前项目暂无搜索场景 |
 | Scaffold 滚动顶栏 | 部分完成 | `AppScaffold` | 基础 Scaffold 已有；没有共享 nested scroll、折叠顶栏、Blur backdrop |
 | Tab | 缺失 | 无 `AppTabRow` | 设置里的模式选择使用 `AppFilterChip` |
@@ -93,6 +93,13 @@
 - `AppLoadingDialog` 在 Miuix 使用原生 `WindowDialog`，Material 3 使用原生 `AlertDialog`，用于连接、投屏这类长时间操作的进度反馈。
 - 连接页（WiFi/BLE 失败、P2P 部分设备失败）与投屏页（投屏失败、协商中）已接入上述组件。
 
+### 顶栏与弹窗
+
+- `AppTopBar(title, modifier, actions)` 在 Miuix 下把标题与操作都交给原生 `MiuixTopAppBar`；Material 3 下页面标题仍由页面内 `AppPageHeader` 承担，只有传入 `actions` 时才渲染一个不显示标题的原生 `TopAppBar` 承载操作，避免标题重复。
+- `AppIconButton` 为顶栏等紧凑位置提供单一图标操作：Miuix 用 `MiuixIconButton` + `MiuixIcon`，Material 3 用 `IconButton` + `Icon`，两者都从各自的 `ContentColor` CompositionLocal 取默认着色。
+- `AppAlertDialog` 覆盖标题、说明文字与确认/取消的基础确认场景：Miuix 用原生 `WindowDialog`，Material 3 用原生 `AlertDialog`；`dismissText` 为空时退化为单按钮告知型弹窗。
+- 连接页已接入真实场景：BLE 处于连接状态时顶栏出现“断开 BLE 连接”图标动作，点击后由 `AppAlertDialog` 二次确认，确认后调用既有的 `disconnectBle()`，未新增协议层逻辑。
+
 ### 持久化
 
 - `PreferenceStore` 具备 `read/observe/write/delete/clear`。
@@ -136,6 +143,12 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 - `AppHaptics`（未实现）：Miuix 原生控件自带部分触觉反馈，Material 与自绘控件尚未统一。
 
 `AppColors` 同步补充了 `errorContainer`/`onErrorContainer`，由 Material 3 与 Miuix 原生错误容器色映射，供错误类提示复用。
+
+### P1：Dialog 只覆盖基础确认场景
+
+- `AppAlertDialog`（已完成）：标题 + 说明 + 确认/取消，支持单按钮退化，已用于 BLE 断开确认。
+- 单选列表弹窗未实现：Miuix 侧可基于 `WindowDialog` + `ListPopup` 组合，Material 3 侧用 `AlertDialog` + 单选行；目前选择型设置已由 `AppPopupPreference` 覆盖，暂不重复实现。
+- 文本输入弹窗未实现：现有唯一文本输入场景（取色器 hex）在 `AppColorPickerDialog` 内闭环，暂不需要独立组件。
 
 ### P1：Scaffold 只有基础能力
 
@@ -189,7 +202,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 1. **设置 schema 迁移和未来版本保护**（已完成）。
 2. **AppCheckboxPreference / AppPopupPreference / AppActionPreference（已完成）**；`AppSliderPreference`、`AppTextInputPreference` 等有真实业务设置项后再补。
 3. **AppTip、AppLoadingIndicator/AppLoadingDialog、统一错误/成功反馈**（已完成；`AppSnackbar` 等有业务场景再补）。
-4. **AppTopBar actions/menu 和基础 Dialog**。
+4. **AppTopBar actions/menu 和基础 Dialog**（已完成：`AppTopBar` 支持 actions + `AppIconButton` + `AppAlertDialog`；文字动作、下拉菜单、单选/输入弹窗按业务场景再补）。
 5. **AppTabRow、floating navigation、Bottom Sheet**。
 6. **Scaffold 滚动顶栏、Pull-to-Refresh、Blur、自适应布局**。
 
