@@ -86,6 +86,15 @@ fun ConnectionScreen(viewModel: AppViewModel) {
         }
 
         if (selectedMode == ConnectionMode.AccessPoint) {
+            if (wifiState == WifiConnectionState.Failed) {
+                item {
+                    AppTip(
+                        kind = AppTipKind.Error,
+                        title = "WiFi 连接失败",
+                        message = "请确认 SSID 与密码是否正确，或改用 P2P 直连模式。",
+                    )
+                }
+            }
             item {
                 AppSection(title = "WiFi 连接") {
                     AppListRow(
@@ -159,6 +168,15 @@ fun ConnectionScreen(viewModel: AppViewModel) {
         }
 
         if (selectedMode == ConnectionMode.PeerToPeer) {
+            if (p2pDevices.any { it.status == P2pStatus.Failed }) {
+                item {
+                    AppTip(
+                        kind = AppTipKind.Warning,
+                        title = "部分 P2P 设备连接失败",
+                        message = "可在设备列表中重新点击该设备重试。",
+                    )
+                }
+            }
             item {
                 AppSection(title = "P2P 设备发现") {
                     AppListRow(
@@ -202,6 +220,16 @@ fun ConnectionScreen(viewModel: AppViewModel) {
                         }
                     }
                 }
+            }
+        }
+
+        if (bleState == BleConnectionState.Failed) {
+            item {
+                AppTip(
+                    kind = AppTipKind.Error,
+                    title = "BLE 连接失败",
+                    message = "请确认仪表已上电并处于扫描范围内，然后重新扫描。",
+                )
             }
         }
 

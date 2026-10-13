@@ -52,6 +52,12 @@ fun MirrorScreen(viewModel: AppViewModel) {
     val isMirroring = mirrorState == MirrorState.Running
     val dimensions = AppDesign.dimensions
 
+    // 协商阶段的加载弹窗允许手动关闭，避免长时间等待时界面被完全锁死。
+    var loadingDialogDismissed by remember { mutableStateOf(false) }
+    LaunchedEffect(mirrorState) {
+        if (mirrorState == MirrorState.Negotiating) loadingDialogDismissed = false
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -65,6 +71,16 @@ fun MirrorScreen(viewModel: AppViewModel) {
                 title = "投屏控制",
                 subtitle = mirrorStatus,
             )
+        }
+
+        if (mirrorState == MirrorState.Failed) {
+            item {
+                AppTip(
+                    kind = AppTipKind.Error,
+                    title = "投屏失败",
+                    message = mirrorStatus,
+                )
+            }
         }
 
         item {
@@ -284,6 +300,13 @@ fun MirrorScreen(viewModel: AppViewModel) {
             }
         }
     }
+
+    AppLoadingDialog(
+        show = mirrorState == MirrorState.Negotiating && !loadingDialogDismissed,
+        title = "正在连接仪表",
+        message = mirrorStatus,
+        onDismissRequest = { loadingDialogDismissed = true },
+    )
 }
 
 @Composable
