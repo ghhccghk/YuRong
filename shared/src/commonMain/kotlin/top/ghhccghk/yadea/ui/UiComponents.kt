@@ -27,6 +27,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow as MaterialTabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -55,6 +57,7 @@ import top.yukonga.miuix.kmp.basic.DropdownItem as MiuixDropdownItem
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
 import top.yukonga.miuix.kmp.basic.Slider as MiuixSlider
+import top.yukonga.miuix.kmp.basic.TabRow as MiuixTabRow
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.basic.TextField as MiuixTextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference as MiuixArrowPreference
@@ -366,6 +369,56 @@ fun AppFilterChip(
             ) {
                 Text(label, style = AppDesign.typography.label)
             }
+        },
+    )
+}
+
+/**
+ * 分段标签栏：用于在同一页面内切换内容分组。
+ *
+ * 两套风格都使用各自原生的 TabRow：Miuix 是可横滑的胶囊标签，
+ * Material 3 是带下划线指示器的原生 TabRow。
+ * 两种风格的选中索引、回调时机和无障碍角色（Tab）保持一致。
+ *
+ * @param tabs 标签文案，顺序与 [selectedIndex] 一一对应。
+ * @param selectedIndex 当前选中的标签索引。
+ * @param onSelected 切换到其他标签时的回调；重复选中当前标签不会触发。
+ * @param modifier 应用于最外层可布局节点。
+ */
+@Composable
+fun AppTabRow(
+    tabs: List<String>,
+    selectedIndex: Int,
+    onSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AppStyleContent(
+        material = {
+            MaterialTabRow(
+                selectedTabIndex = selectedIndex,
+                modifier = modifier,
+                containerColor = AppDesign.colors.surface,
+                contentColor = AppDesign.colors.onSurfaceVariant,
+            ) {
+                tabs.forEachIndexed { index, tab ->
+                    Tab(
+                        selected = index == selectedIndex,
+                        onClick = { if (index != selectedIndex) onSelected(index) },
+                        text = {
+                            Text(text = tab, style = AppDesign.typography.label)
+                        },
+                    )
+                }
+            }
+        },
+        miuix = {
+            // Miuix 的 TabRow 自带选中胶囊、按压反馈与 Role.Tab 语义，无需再补。
+            MiuixTabRow(
+                tabs = tabs,
+                selectedTabIndex = selectedIndex,
+                onTabSelected = { index -> if (index != selectedIndex) onSelected(index) },
+                modifier = modifier,
+            )
         },
     )
 }

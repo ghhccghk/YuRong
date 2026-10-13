@@ -66,23 +66,15 @@ fun ConnectionScreen(viewModel: AppViewModel) {
         }
 
         item {
-            Row(
+            // 两种连接方式互斥且都会切换下方内容，用分段标签栏表达比并排的 FilterChip 更准确。
+            AppTabRow(
+                tabs = listOf("AP 热点", "P2P 设备"),
+                selectedIndex = if (selectedMode == ConnectionMode.AccessPoint) 0 else 1,
+                onSelected = { index ->
+                    selectedMode = if (index == 0) ConnectionMode.AccessPoint else ConnectionMode.PeerToPeer
+                },
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
-            ) {
-                AppFilterChip(
-                    selected = selectedMode == ConnectionMode.AccessPoint,
-                    onClick = { selectedMode = ConnectionMode.AccessPoint },
-                    label = "AP 热点",
-                    modifier = Modifier.weight(1f),
-                )
-                AppFilterChip(
-                    selected = selectedMode == ConnectionMode.PeerToPeer,
-                    onClick = { selectedMode = ConnectionMode.PeerToPeer },
-                    label = "P2P 设备",
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            )
         }
 
         if (selectedMode == ConnectionMode.AccessPoint) {

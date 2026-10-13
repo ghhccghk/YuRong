@@ -107,22 +107,18 @@ fun SettingsScreen(
 
         item {
             AppSection(title = "明暗模式", modifier = sectionModifier) {
-                Row(
+                // 三种模式互斥且都可选，用分段标签栏更贴近设置页语义。
+                AppTabRow(
+                    tabs = AppThemeMode.entries.map { it.label },
+                    selectedIndex = AppThemeMode.entries.indexOf(appearance.themeMode),
+                    onSelected = { index ->
+                        onAppearanceChange(appearance.copy(themeMode = AppThemeMode.entries[index]))
+                    },
                     modifier = Modifier.fillMaxWidth().padding(
                         horizontal = dimensions.itemHorizontalPadding,
                         vertical = dimensions.itemVerticalPadding,
                     ),
-                    horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
-                ) {
-                    AppThemeMode.entries.forEach { mode ->
-                        AppFilterChip(
-                            selected = appearance.themeMode == mode,
-                            onClick = { onAppearanceChange(appearance.copy(themeMode = mode)) },
-                            label = mode.label,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
+                )
             }
         }
 
