@@ -4,7 +4,7 @@
 
 ## 1. 当前验证结果
 
-最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗，以及 AppTabRow 分段选择、Miuix 悬浮底栏开关和 AppBottomSheet 底部面板）：
+最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，以及 AppScaffold 的嵌套滚动与折叠顶栏）：
 
 - `:shared:compileKotlinJvm`
 - `:shared:compileKotlinJs`
@@ -43,7 +43,7 @@
 | Dialog | 部分完成 | `AppColorPickerDialog`、`AppLoadingDialog`、`AppAlertDialog` | 基础 Alert 已完成；Single choice、Text input 仍未实现 |
 | TopBar actions/menu | 部分完成 | `AppTopBar(title, actions)`、`AppIconButton` | 支持单个图标动作；文字动作、下拉菜单仍未实现 |
 | 搜索框 | 缺失 | 无 `AppSearchBar` | 当前项目暂无搜索场景 |
-| Scaffold 滚动顶栏 | 部分完成 | `AppScaffold` | 基础 Scaffold 已有；没有共享 nested scroll、折叠顶栏、Blur backdrop |
+| Scaffold 滚动顶栏 | 部分完成 | `AppScaffold(scrollBehavior)`、`AppTopBar(scrollBehavior)` | 已支持共享嵌套滚动与顶栏收起/展开；Blur backdrop、Pull-to-Refresh 协作、overlay host 仍未实现 |
 | Tab | 已完成 | `AppTabRow` | Material 3 与 Miuix 都用原生 `TabRow`；连接页 AP/P2P 与设置页明暗模式已改用 |
 | 普通/悬浮底栏 | 已完成 | `AppBottomNavigation(floating)` | Miuix 可选原生 `FloatingNavigationBar` 悬浮胶囊；Material 3 保持原生 `NavigationBar` |
 | 导航分页 | 缺失 | 无 pager | 当前使用四个固定 tab |
@@ -106,6 +106,8 @@
 - `AppBottomNavigation` 增加 `floating` 参数：Miuix 开启后使用原生 `FloatingNavigationBar` 悬浮胶囊（可在设置页关闭回到常规底栏），Material 3 始终使用原生 `NavigationBar`，两者选中与回调时机一致。
 - `AppBottomSheet` 承载从底部滑出的次级内容：Material 3 使用原生 `ModalBottomSheet`，Miuix 使用原生 `WindowBottomSheet`；下滑、点击遮罩与返回键都统一回调 `onDismissRequest`。
 - 投屏页的“调试日志”由页内长列表改为顶栏图标动作 + 底部面板，离开投屏页时面板自动关闭，未改动任何投屏协议逻辑。
+- `AppScrollBehavior` / `rememberAppScrollBehavior()` 把两套风格的 scrollBehavior 收敛为一个业务语义对象：业务页面创建一次后同时交给 `AppScaffold`（挂载 `nestedScroll`）与 `AppTopBar`（驱动收起/展开），页面不接触任何一方主题的私有类型。
+- 未传入滚动行为时 `AppScaffold` 不额外包裹容器，保持原有固定顶栏结构；主界面已接入，Miuix 顶栏随内容滚动收起为小标题，Material 3 的顶栏动作同样随滚动隐藏并在回滚时恢复。
 
 ### 持久化
 
@@ -159,10 +161,8 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 
 ### P1：Scaffold 只有基础能力
 
-当前 `AppScaffold` 没有 MeowUI 的：
+`AppScaffold` 已补上共享 nested scroll 与顶栏折叠/展开（`AppScrollBehavior`），仍未实现 MeowUI 的：
 
-- 共享 nested scroll。
-- 顶栏折叠/展开。
 - top bar / bottom bar Blur backdrop。
 - pull-to-refresh 协作。
 - overlay host。
@@ -211,6 +211,6 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 3. **AppTip、AppLoadingIndicator/AppLoadingDialog、统一错误/成功反馈**（已完成；`AppSnackbar` 等有业务场景再补）。
 4. **AppTopBar actions/menu 和基础 Dialog**（已完成：`AppTopBar` 支持 actions + `AppIconButton` + `AppAlertDialog`；文字动作、下拉菜单、单选/输入弹窗按业务场景再补）。
 5. **AppTabRow、floating navigation、Bottom Sheet**（已完成：`AppTabRow`、`AppBottomNavigation(floating)` 及其设置开关、`AppBottomSheet` 及投屏调试日志场景）。
-6. **Scaffold 滚动顶栏、Pull-to-Refresh、Blur、自适应布局**。
+6. **Scaffold 滚动顶栏（已完成共享嵌套滚动 + 折叠顶栏）、Pull-to-Refresh、Blur、自适应布局**（其余项等有业务场景再补）。
 
 每一批都应遵守 `AGENTS.md`：一份业务 API、两套原生实现，并在完成一个独立功能后提交。
