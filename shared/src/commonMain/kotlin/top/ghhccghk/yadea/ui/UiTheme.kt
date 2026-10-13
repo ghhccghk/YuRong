@@ -265,10 +265,13 @@ fun AppTheme(
                     }
                 }
                 MiuixTheme(controller = controller) {
+                    // AMOLED 纯黑只改底色 token；放在动画之前，开关切换也能复用同一套颜色过渡。
+                    val baseColors = MiuixTheme.colorScheme
+                        .withAmoledBackground(appearance.amoledDarkEnabled && darkTheme)
                     val animatedColors = if (appearance.themeAnimationsEnabled) {
-                        MiuixTheme.colorScheme.animateAsState()
+                        baseColors.animateAsState()
                     } else {
-                        MiuixTheme.colorScheme
+                        baseColors
                     }
                     MiuixTheme(colors = animatedColors) {
                     val tokens = rememberMiuixAppThemeTokens(darkTheme)

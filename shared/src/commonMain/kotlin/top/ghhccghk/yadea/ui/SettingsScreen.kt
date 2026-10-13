@@ -243,7 +243,7 @@ fun SettingsScreen(
                         onAppearanceChange(appearance.copy(amoledDarkEnabled = it))
                     },
                     title = "AMOLED 纯黑",
-                    summary = "仅暗色模式生效，保持卡片和控件层次",
+                    summary = "仅暗色模式生效，Material 3 与 Miuix 的页面底色都会压成纯黑",
                 )
                 AppSwitchPreference(
                     checked = appearance.themeAnimationsEnabled,

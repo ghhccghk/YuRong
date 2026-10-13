@@ -6,6 +6,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import com.materialkolor.PaletteStyle as MaterialKolorPaletteStyle
 import com.materialkolor.dynamicColorScheme
+import top.yukonga.miuix.kmp.theme.Colors as MiuixColors
 import top.yukonga.miuix.kmp.theme.ThemeColorSpec as MiuixThemeColorSpec
 import top.yukonga.miuix.kmp.theme.ThemePaletteStyle as MiuixThemePaletteStyle
 
@@ -110,5 +111,26 @@ private fun ColorScheme.withAmoledBackground(enabled: Boolean): ColorScheme =
             surfaceContainerLowest = Color.Black,
             surfaceContainerLow = Color.Black,
             surfaceContainer = Color.Black,
+        )
+    }
+
+/**
+ * Miuix 侧的 AMOLED 纯黑变换，与 Material 侧的 [ColorScheme.withAmoledBackground] 语义对齐。
+ *
+ * 只把承担"大面积底色"职责的 token 压成纯黑，文字、描边、分隔线和控件色保持原值，
+ * 这样在纯黑背景上依然保留可读的层次。Miuix 没有 surfaceDim / surfaceContainerLow(est)，
+ * 因此额外覆盖 surfaceVariant 与高低两档 container，以涵盖 Card、ListPopup、悬浮底栏等容器。
+ */
+internal fun MiuixColors.withAmoledBackground(enabled: Boolean): MiuixColors =
+    if (!enabled) {
+        this
+    } else {
+        copy(
+            background = Color.Black,
+            surface = Color.Black,
+            surfaceVariant = Color.Black,
+            surfaceContainer = Color.Black,
+            surfaceContainerHigh = Color.Black,
+            surfaceContainerHighest = Color.Black,
         )
     }
