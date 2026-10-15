@@ -4,12 +4,12 @@
 
 ## 1. 当前验证结果
 
-最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，Miuix 颜色标准的独立设置，以及设置页顶部的实时主题预览卡片，连接页设备列表的 AppSearchBar 即时搜索，连接页的 AppPullToRefresh 下拉刷新，主界面的 AppAdaptiveScaffold 宽屏侧边导航，以及设置页的界面缩放（AppSliderPreference 滑条 + LocalDensity 全局缩放））：
+最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，Miuix 颜色标准的独立设置，以及设置页顶部的实时主题预览卡片，连接页设备列表的 AppSearchBar 即时搜索，连接页的 AppPullToRefresh 下拉刷新，主界面的 AppAdaptiveScaffold 宽屏侧边导航，设置页的界面缩放（AppSliderPreference 滑条 + LocalDensity 全局缩放），以及反馈组件的 AppSnackbar（一份业务状态桥接两套原生 SnackbarHostState，并接入 BLE 断开 / Wi-Fi 断开 / 停止投屏三个真实场景））：
 
 - `:shared:compileKotlinJvm`
 - `:shared:compileKotlinJs`
 - `:shared:compileKotlinWasmJs`
-- `:shared:jvmTest`
+- `:shared:jvmTest`（121 个用例全部通过）
 - `:androidApp:assembleDebug`
 - `:desktopApp:build`
 
@@ -49,7 +49,7 @@
 | 普通/悬浮底栏 | 已完成 | `AppBottomNavigation(floating)` | Miuix 可选原生 `FloatingNavigationBar` 悬浮胶囊；Material 3 保持原生 `NavigationBar` |
 | 导航分页 | 缺失 | 无 pager | 当前使用四个固定 tab |
 | Bottom Sheet | 已完成 | `AppBottomSheet` | Material 3 `ModalBottomSheet` / Miuix `WindowBottomSheet`；投屏调试日志已接入 |
-| Snackbar | 缺失 | 无组件 | 操作反馈目前依赖 `AppTip` 与状态文本 |
+| Snackbar | 已完成 | `AppSnackbar`、`AppSnackbarHost`、`rememberAppSnackbarHostState` | Miuix 与 Material 3 各自使用原生 `SnackbarHost`；BLE 断开、Wi-Fi 断开、停止投屏已接入 |
 | Tip | 已完成 | `AppTip`、`AppTipKind` | 信息/成功/警告/错误四种类型，两风格共用语义 token |
 | Pull to refresh | 已完成 | `AppPullToRefresh` | Material 3 `PullToRefreshBox` / Miuix `PullToRefresh`；连接页已接入 WiFi 重扫与 P2P 重新发现 |
 | Blur | 缺失 | 无 `MeowBlur` 对应能力 | 当前项目未启用表面模糊；跨平台模糊要先确认 Miuix / Compose 版本能否复用，本轮暂缓 |
@@ -115,7 +115,9 @@
 
 - `AppTip` 覆盖信息/成功/警告/错误四种类型，两种风格都使用原生 Card 与 `AppDesign` 语义色，带 live region 和关闭按钮无障碍语义。
 - `AppLoadingDialog` 在 Miuix 使用原生 `WindowDialog`，Material 3 使用原生 `AlertDialog`，用于连接、投屏这类长时间操作的进度反馈。
-- 连接页（WiFi/BLE 失败、P2P 部分设备失败）与投屏页（投屏失败、协商中）已接入上述组件。
+- `AppSnackbar` 承担一次性操作的轻量确认：`AppSnackbarHostState` 同时持有 Miuix 与 Material 3 两套原生 `SnackbarHostState`，按当前风格转发 `showSnackbar`，业务页面只持有同一个状态对象，不感知风格类型。
+- 提示宿主由 `AppScaffold` / `AppAdaptiveScaffold` 的 `snackbarHost` 槽位挂载，定位与底部导航避让交给各自原生 Scaffold；切换风格时会主动清掉另一种风格上残留的提示，避免对应的 `showSnackbar` 协程永远挂起。
+- 连接页（WiFi/BLE 失败、P2P 部分设备失败）与投屏页（投屏失败、协商中）已接入上述组件；BLE 断开、Wi-Fi 断开、停止投屏改用轻量提示回报结果。
 
 ### 顶栏与弹窗
 
@@ -179,7 +181,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 
 - `AppTip`（已完成）：信息/成功/警告/错误四种类型，Miuix 与 Material 3 都用原生 Card 承载，配色取自 `AppDesign` 语义 token；连接页与投屏页已接入错误/警告提示。
 - `AppLoadingDialog`（已完成）：Miuix 使用原生 `WindowDialog`，Material 3 使用原生 `AlertDialog`；投屏协商阶段已接入，可手动关闭。
-- `AppSnackbar`（未实现）：Miuix 有原生 Snackbar，但需要跨平台的 host/state 抽象，等出现明确业务场景再补。
+- `AppSnackbar`（已完成）：`AppSnackbarHostState` 把两套原生 host/state 收敛成一份业务状态，时长与结果由 `AppSnackbarDuration` / `AppSnackbarResult` 表达；已接入 BLE 断开、Wi-Fi 断开、停止投屏三个真实场景，映射关系由 `AppSnackbarTest` 覆盖。
 - `AppHaptics`（未实现）：Miuix 原生控件自带部分触觉反馈，Material 与自绘控件尚未统一。
 
 `AppColors` 同步补充了 `errorContainer`/`onErrorContainer`，由 Material 3 与 Miuix 原生错误容器色映射，供错误类提示复用。
@@ -240,7 +242,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 
 1. **设置 schema 迁移和未来版本保护**（已完成）。
 2. **AppCheckboxPreference / AppPopupPreference / AppActionPreference / AppSliderPreference（已完成）**；`AppTextInputPreference` 等有真实业务设置项后再补。
-3. **AppTip、AppLoadingIndicator/AppLoadingDialog、统一错误/成功反馈**（已完成；`AppSnackbar` 等有业务场景再补）。
+3. **AppTip、AppLoadingIndicator/AppLoadingDialog、AppSnackbar 统一错误/成功反馈**（已完成：`AppTip`、`AppLoadingDialog`、`AppSnackbar` 及其 BLE 断开 / Wi-Fi 断开 / 停止投屏三个场景；`AppHaptics` 等有业务场景再补）。
 4. **AppTopBar actions/menu 和基础 Dialog**（已完成：`AppTopBar` 支持 actions + `AppIconButton` + `AppAlertDialog`；文字动作、下拉菜单、单选/输入弹窗按业务场景再补）。
 5. **AppTabRow、floating navigation、Bottom Sheet**（已完成：`AppTabRow`、`AppBottomNavigation(floating)` 及其设置开关、`AppBottomSheet` 及投屏调试日志场景）。
 6. **Scaffold 滚动顶栏（已完成共享嵌套滚动 + 折叠顶栏）、Pull-to-Refresh（已完成 `AppPullToRefresh` 与连接页接入）、自适应布局（已完成 `AppAdaptiveScaffold` 宽屏侧边导航）、Blur**（其余项等有业务场景再补）。

@@ -13,9 +13,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.ble.BleConnectionState
 import top.ghhccghk.yadea.wifi.P2pStatus
 import top.ghhccghk.yadea.wifi.WifiConnectionState
@@ -30,7 +32,11 @@ fun ConnectionScreen(
     viewModel: AppViewModel,
     // 顶栏滚动行为由主界面创建后传入，下拉刷新时与 Miuix 顶栏的展开/收起协同。
     scrollBehavior: AppScrollBehavior? = null,
+    // 轻量提示状态由主界面创建后传入，用于回报一次性操作的结果。
+    snackbarHostState: AppSnackbarHostState? = null,
 ) {
+    // 提示由本页面自己的作用域发起，页面离开组合时挂起的提示会随之取消。
+    val feedbackScope = rememberCoroutineScope()
     var wifiSsid by remember { mutableStateOf("") }
     var wifiPassword by remember { mutableStateOf("") }
     var selectedMode by remember { mutableStateOf(ConnectionMode.AccessPoint) }
@@ -161,7 +167,13 @@ fun ConnectionScreen(
                                 AppText(if (isScanningWifi) "扫描中..." else "扫描网络")
                             }
                             AppOutlinedButton(
-                                onClick = { viewModel.disconnectWifi() },
+                                onClick = {
+                                    viewModel.disconnectWifi()
+                                    // 断开是一次性操作，用轻量提示确认，不需要长期占用页面空间。
+                                    snackbarHostState?.let { state ->
+                                        feedbackScope.launch { state.showSnackbar("已断开 Wi-Fi 连接") }
+                                    }
+                                },
                                 modifier = Modifier.weight(1f),
                             ) { AppText("断开") }
                         }

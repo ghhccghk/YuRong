@@ -18,11 +18,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.ble.BleAdapter
 import top.ghhccghk.yadea.ble.BleConnectionState
 import top.ghhccghk.yadea.mirror.FrameSourceFactory
@@ -120,6 +122,9 @@ private fun MainScreenContent(
     var showMirrorLog by remember { mutableStateOf(false) }
     // 顶栏滚动行为由页面创建一次，再分别交给脚手架与顶栏；两种风格各自使用原生实现。
     val scrollBehavior = rememberAppScrollBehavior()
+    // 轻量提示状态同样在页面顶层创建一次：宿主挂在脚手架上，各页面共用同一个状态。
+    val snackbarHostState = rememberAppSnackbarHostState()
+    val feedbackScope = rememberCoroutineScope()
     val topBarActions: (@Composable RowScope.() -> Unit)? = when {
         selectedDestination == MainDestination.Connection && bleState == BleConnectionState.Connected -> {
             {
@@ -158,6 +163,8 @@ private fun MainScreenContent(
         },
         // 悬浮底栏是 Miuix 专属外观选项，Material 3 下该开关不生效。
         floatingNavigation = appearance.floatingNavigationBarEnabled,
+        // 提示宿主由脚手架挂载，窄屏与宽屏两种布局下都能显示。
+        snackbarHost = { AppSnackbarHost(snackbarHostState) },
         scrollBehavior = scrollBehavior,
     ) { padding ->
         MainDestinationContent(
@@ -169,6 +176,8 @@ private fun MainScreenContent(
             modifier = Modifier.padding(padding),
             // 连接页的下拉刷新需要与顶栏滚动行为协同，这里把同一个对象继续传下去。
             scrollBehavior = scrollBehavior,
+            // 连接页与投屏页的操作结果复用同一个提示状态。
+            snackbarHostState = snackbarHostState,
         )
     }
 
@@ -209,6 +218,10 @@ private fun MainScreenContent(
         onConfirm = {
             confirmBleDisconnect = false
             viewModel.disconnectBle()
+            // 断开属于一次性操作，用轻量提示确认结果，避免再占用页面空间。
+            feedbackScope.launch {
+                snackbarHostState.showSnackbar("已断开 BLE 连接")
+            }
         },
         onDismissRequest = { confirmBleDisconnect = false },
     )
@@ -223,11 +236,12 @@ private fun MainDestinationContent(
     systemAccentColor: androidx.compose.ui.graphics.Color? = null,
     modifier: Modifier = Modifier,
     scrollBehavior: AppScrollBehavior? = null,
+    snackbarHostState: AppSnackbarHostState? = null,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         when (destination) {
-            MainDestination.Connection -> ConnectionScreen(viewModel, scrollBehavior)
-            MainDestination.Mirror -> MirrorScreen(viewModel)
+            MainDestination.Connection -> ConnectionScreen(viewModel, scrollBehavior, snackbarHostState)
+            MainDestination.Mirror -> MirrorScreen(viewModel, snackbarHostState)
             MainDestination.Device -> DeviceScreen()
             MainDestination.Settings -> SettingsScreen(
                 appearance = appearance,

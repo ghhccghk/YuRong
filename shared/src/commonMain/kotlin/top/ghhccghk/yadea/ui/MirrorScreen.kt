@@ -15,16 +15,24 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.mirror.FrameCropConfig
 import top.ghhccghk.yadea.mirror.MirrorPreviewPanel
 import top.ghhccghk.yadea.mirror.MirrorState
 
 @Composable
-fun MirrorScreen(viewModel: AppViewModel) {
+fun MirrorScreen(
+    viewModel: AppViewModel,
+    // 轻量提示状态由主界面创建后传入，用于回报一次性操作的结果。
+    snackbarHostState: AppSnackbarHostState? = null,
+) {
+    // 提示由本页面自己的作用域发起，页面离开组合时挂起的提示会随之取消。
+    val feedbackScope = rememberCoroutineScope()
     val mirrorState by viewModel.mirrorState.collectAsState()
     val mirrorStatus by viewModel.mirrorStatus.collectAsState()
     val frameCount by viewModel.frameCount.collectAsState()
@@ -254,7 +262,13 @@ fun MirrorScreen(viewModel: AppViewModel) {
             ) {
                 if (isMirroring) {
                     AppButton(
-                        onClick = { viewModel.stopMirror() },
+                        onClick = {
+                            viewModel.stopMirror()
+                            // 停止投屏后页面已回到待命状态，用轻量提示确认这次操作。
+                            snackbarHostState?.let { state ->
+                                feedbackScope.launch { state.showSnackbar("已停止投屏") }
+                            }
+                        },
                         modifier = Modifier.weight(1f).height(56.dp),
                         containerColor = AppDesign.colors.error,
                     ) {

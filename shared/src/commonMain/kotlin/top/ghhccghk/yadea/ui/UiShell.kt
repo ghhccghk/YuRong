@@ -77,6 +77,7 @@ fun rememberAppScrollBehavior(): AppScrollBehavior {
  *
  * @param topBar 顶栏内容，通常为 [AppTopBar]。
  * @param bottomBar 底部导航，通常为 [AppBottomNavigation]。
+ * @param snackbarHost 轻量提示宿主，通常为 [AppSnackbarHost]；不传时不展示任何提示。
  * @param scrollBehavior 可选的顶栏滚动行为；传入后内容滚动会带动顶栏收起/展开，
  *   为空时保持原有固定顶栏布局（不额外包裹容器）。
  * @param content 页面内容；参数为需要页面自行消费的窗口内边距。
@@ -85,6 +86,7 @@ fun rememberAppScrollBehavior(): AppScrollBehavior {
 fun AppScaffold(
     topBar: @Composable () -> Unit = {},
     bottomBar: @Composable () -> Unit = {},
+    snackbarHost: @Composable () -> Unit = {},
     scrollBehavior: AppScrollBehavior? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
@@ -109,6 +111,8 @@ fun AppScaffold(
             Scaffold(
                 topBar = topBar,
                 bottomBar = bottomBar,
+                // 提示宿主交给原生 Scaffold 定位，自动避开底部导航与系统栏。
+                snackbarHost = snackbarHost,
                 content = wrappedContent,
             )
         },
@@ -116,6 +120,7 @@ fun AppScaffold(
             MiuixScaffold(
                 topBar = topBar,
                 bottomBar = bottomBar,
+                snackbarHost = snackbarHost,
                 content = wrappedContent,
             )
         },
@@ -264,6 +269,7 @@ fun appNavigationLayoutMode(availableWidth: Dp): AppNavigationLayoutMode =
  * @param onSelected 选中回调；重复选中当前项不会触发。
  * @param topBar 顶栏内容，通常为 [AppTopBar]。
  * @param floatingNavigation 是否使用 Miuix 悬浮胶囊底栏；只影响窄屏下的 Miuix 分支。
+ * @param snackbarHost 轻量提示宿主，语义与 [AppScaffold] 一致；两种布局下都会挂载。
  * @param scrollBehavior 可选的顶栏滚动行为，语义与 [AppScaffold] 一致。
  * @param content 页面内容；参数为需要页面自行消费的窗口内边距。
  */
@@ -274,6 +280,7 @@ fun AppAdaptiveScaffold(
     onSelected: (Int) -> Unit,
     topBar: @Composable () -> Unit = {},
     floatingNavigation: Boolean = false,
+    snackbarHost: @Composable () -> Unit = {},
     scrollBehavior: AppScrollBehavior? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
@@ -292,6 +299,7 @@ fun AppAdaptiveScaffold(
                     Box(modifier = Modifier.weight(1f)) {
                         AppScaffold(
                             topBar = topBar,
+                            snackbarHost = snackbarHost,
                             scrollBehavior = scrollBehavior,
                             content = content,
                         )
@@ -302,6 +310,7 @@ fun AppAdaptiveScaffold(
             AppNavigationLayoutMode.BottomNavigation -> {
                 AppScaffold(
                     topBar = topBar,
+                    snackbarHost = snackbarHost,
                     bottomBar = {
                         AppBottomNavigation(
                             items = navigationItems,
