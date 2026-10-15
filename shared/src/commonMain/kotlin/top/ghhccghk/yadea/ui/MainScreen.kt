@@ -170,6 +170,8 @@ private fun MainScreenContent(
             onAppearanceChange = onAppearanceChange,
             systemAccentColor = systemAccentColor,
             modifier = Modifier.padding(padding),
+            // 连接页的下拉刷新需要与顶栏滚动行为协同，这里把同一个对象继续传下去。
+            scrollBehavior = scrollBehavior,
         )
     }
 
@@ -223,10 +225,11 @@ private fun MainDestinationContent(
     onAppearanceChange: (AppAppearance) -> Unit,
     systemAccentColor: androidx.compose.ui.graphics.Color? = null,
     modifier: Modifier = Modifier,
+    scrollBehavior: AppScrollBehavior? = null,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         when (destination) {
-            MainDestination.Connection -> ConnectionScreen(viewModel)
+            MainDestination.Connection -> ConnectionScreen(viewModel, scrollBehavior)
             MainDestination.Mirror -> MirrorScreen(viewModel)
             MainDestination.Device -> DeviceScreen()
             MainDestination.Settings -> SettingsScreen(

@@ -71,6 +71,9 @@ class AppViewModel(
     val p2pConnected: StateFlow<Boolean> = _p2pConnected.asStateFlow()
     private val _p2pScanStatus = MutableStateFlow("空闲")
     val p2pScanStatus: StateFlow<String> = _p2pScanStatus.asStateFlow()
+    // 与 p2pScanStatus 文案同步的布尔状态，供下拉刷新等界面判断 P2P 是否仍在发现中。
+    private val _isScanningP2p = MutableStateFlow(false)
+    val isScanningP2p: StateFlow<Boolean> = _isScanningP2p.asStateFlow()
     val p2pGroupOwnerIp: StateFlow<String> = p2pManager?.groupOwnerIp ?: MutableStateFlow("")
     val p2pGroupFormed: StateFlow<Boolean> = p2pManager?.isGroupFormed ?: MutableStateFlow(false)
 
@@ -111,7 +114,12 @@ class AppViewModel(
         if (p2pManager != null) {
             scope.launch { p2pManager.discoveredPeers.collect { _p2pDevices.value = it } }
             scope.launch { p2pManager.connectionState.collect { _p2pConnected.value = (it == P2pStatus.Connected) } }
-            scope.launch { p2pManager.isDiscovering.collect { _p2pScanStatus.value = if (it) "扫描中..." else "空闲" } }
+            scope.launch {
+                p2pManager.isDiscovering.collect {
+                    _isScanningP2p.value = it
+                    _p2pScanStatus.value = if (it) "扫描中..." else "空闲"
+                }
+            }
         }
     }
 
