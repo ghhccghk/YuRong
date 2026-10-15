@@ -98,9 +98,10 @@ fun ConnectionScreen(
             }
 
             item {
-                // 两种连接方式互斥且都会切换下方内容，用分段标签栏表达比并排的 FilterChip 更准确。
-                AppTabRow(
-                    tabs = listOf("AP 热点", "P2P 设备"),
+                // 两种连接方式互斥且都会切换下方内容，用分段选择控件表达比并排的 FilterChip 更准确；
+                // 该组件不注册 nestedScroll，切换时不会影响整页的上下拖动。
+                AppSegmentedControl(
+                    options = listOf("AP 热点", "P2P 设备"),
                     selectedIndex = if (selectedMode == ConnectionMode.AccessPoint) 0 else 1,
                     onSelected = { index ->
                         selectedMode = if (index == 0) ConnectionMode.AccessPoint else ConnectionMode.PeerToPeer

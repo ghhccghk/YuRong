@@ -2,7 +2,6 @@ package top.ghhccghk.yadea.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -170,9 +169,10 @@ fun SettingsScreen(
 
         item {
             AppSection(title = "明暗模式", modifier = sectionModifier) {
-                // 三种模式互斥且都可选，用分段标签栏更贴近设置页语义。
-                AppTabRow(
-                    tabs = AppThemeMode.entries.map { it.label },
+                // 三种模式互斥，用分段选择控件表达比开关更贴近设置页语义；
+                // 分段控件不注册 nestedScroll，切换时不会让整页失去上下拖动能力。
+                AppSegmentedControl(
+                    options = AppThemeMode.entries.map { it.label },
                     selectedIndex = AppThemeMode.entries.indexOf(appearance.themeMode),
                     onSelected = { index ->
                         onAppearanceChange(appearance.copy(themeMode = AppThemeMode.entries[index]))
@@ -187,39 +187,22 @@ fun SettingsScreen(
 
         item {
             AppSection(title = "颜色来源", modifier = sectionModifier) {
-                Row(
+                // 三种来源互斥；系统不提供强调色时“动态”置灰，其余两项仍可切换。
+                AppSegmentedControl(
+                    options = AppColorSource.entries.map { it.label },
+                    selectedIndex = AppColorSource.entries.indexOf(appearance.colorSource),
+                    onSelected = { index ->
+                        onAppearanceChange(appearance.copy(colorSource = AppColorSource.entries[index]))
+                    },
+                    enabled = { index ->
+                        AppColorSource.entries[index] != AppColorSource.SystemDynamic ||
+                            systemAccentColor != null
+                    },
                     modifier = Modifier.fillMaxWidth().padding(
                         horizontal = dimensions.itemHorizontalPadding,
                         vertical = dimensions.itemVerticalPadding,
                     ),
-                    horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
-                ) {
-                    AppFilterChip(
-                        selected = appearance.colorSource == AppColorSource.SystemDynamic,
-                        onClick = {
-                            onAppearanceChange(appearance.copy(colorSource = AppColorSource.SystemDynamic))
-                        },
-                        label = "动态",
-                        enabled = systemAccentColor != null,
-                        modifier = Modifier.weight(1f),
-                    )
-                    AppFilterChip(
-                        selected = appearance.colorSource == AppColorSource.SeedColor,
-                        onClick = {
-                            onAppearanceChange(appearance.copy(colorSource = AppColorSource.SeedColor))
-                        },
-                        label = "自定义",
-                        modifier = Modifier.weight(1f),
-                    )
-                    AppFilterChip(
-                        selected = appearance.colorSource == AppColorSource.Preset,
-                        onClick = {
-                            onAppearanceChange(appearance.copy(colorSource = AppColorSource.Preset))
-                        },
-                        label = "预设",
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+                )
 
                 if (systemAccentColor == null) {
                     AppListRow(
@@ -310,6 +293,14 @@ private val AppThemeMode.label: String
         AppThemeMode.System -> "跟随系统"
         AppThemeMode.Light -> "亮色"
         AppThemeMode.Dark -> "暗色"
+    }
+
+/** 颜色来源的显示名称，顺序与 [AppColorSource.entries] 一致。 */
+private val AppColorSource.label: String
+    get() = when (this) {
+        AppColorSource.SystemDynamic -> "动态"
+        AppColorSource.SeedColor -> "自定义"
+        AppColorSource.Preset -> "预设"
     }
 
 private val AppColorSpec.label: String

@@ -27,8 +27,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow as MaterialTabRow
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -57,7 +59,7 @@ import top.yukonga.miuix.kmp.basic.DropdownItem as MiuixDropdownItem
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
 import top.yukonga.miuix.kmp.basic.Slider as MiuixSlider
-import top.yukonga.miuix.kmp.basic.TabRow as MiuixTabRow
+import top.yukonga.miuix.kmp.basic.Surface as MiuixSurface
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.basic.TextField as MiuixTextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference as MiuixArrowPreference
@@ -375,51 +377,96 @@ fun AppFilterChip(
 }
 
 /**
- * 分段标签栏：用于在同一页面内切换内容分组。
+ * 分段选择控件：在一行内互斥选择，用于明暗模式、连接方式等“多选一”场景。
  *
- * 两套风格都使用各自原生的 TabRow：Miuix 是可横滑的胶囊标签，
- * Material 3 是带下划线指示器的原生 TabRow。
- * 两种风格的选中索引、回调时机和无障碍角色（Tab）保持一致。
+ * 这里刻意不使用两套原生的 TabRow：Miuix 的 TabRow 内部注册了 nestedScroll 连接器，
+ * 会把纵向滚动事件全部吞并，放在可滚动页面里会导致整页无法上下拖动。
+ * 改为 Row + 各自原生容器（Material 3 的 SegmentedButton、Miuix 的 Surface）后，
+ * 选中语义、按压反馈与禁用状态保持一致，同时不再干扰父级滚动。
  *
- * @param tabs 标签文案，顺序与 [selectedIndex] 一一对应。
- * @param selectedIndex 当前选中的标签索引。
- * @param onSelected 切换到其他标签时的回调；重复选中当前标签不会触发。
+ * @param options 选项文案，顺序与 [selectedIndex] 一一对应。
+ * @param selectedIndex 当前选中项索引；越界时视为全部未选中。
+ * @param onSelected 选中新选项时回调；重复选中当前项不会触发。
+ * @param enabled 逐项可用性判断，例如“动态”在系统不提供强调色时需要禁用。
  * @param modifier 应用于最外层可布局节点。
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppTabRow(
-    tabs: List<String>,
+fun AppSegmentedControl(
+    options: List<String>,
     selectedIndex: Int,
     onSelected: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    enabled: (Int) -> Boolean = { true },
 ) {
+    val dimensions = AppDesign.dimensions
     AppStyleContent(
         material = {
-            MaterialTabRow(
-                selectedTabIndex = selectedIndex,
-                modifier = modifier,
-                containerColor = AppDesign.colors.surface,
-                contentColor = AppDesign.colors.onSurfaceVariant,
-            ) {
-                tabs.forEachIndexed { index, tab ->
-                    Tab(
+            SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
+                options.forEachIndexed { index, option ->
+                    SegmentedButton(
                         selected = index == selectedIndex,
                         onClick = { if (index != selectedIndex) onSelected(index) },
-                        text = {
-                            Text(text = tab, style = AppDesign.typography.label)
+                        enabled = enabled(index),
+                        // 首尾两端的圆角由 Material 3 的 itemShape 统一处理。
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                        modifier = Modifier.weight(1f),
+                        // 默认的对勾图标会挤占文字宽度，这里只保留文字，与 Miuix 分支保持一致。
+                        icon = {},
+                        label = {
+                            Text(text = option, style = AppDesign.typography.label, maxLines = 1)
                         },
                     )
                 }
             }
         },
         miuix = {
-            // Miuix 的 TabRow 自带选中胶囊、按压反馈与 Role.Tab 语义，无需再补。
-            MiuixTabRow(
-                tabs = tabs,
-                selectedTabIndex = selectedIndex,
-                onTabSelected = { index -> if (index != selectedIndex) onSelected(index) },
-                modifier = modifier,
-            )
+            Row(
+                modifier = modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+            ) {
+                options.forEachIndexed { index, option ->
+                    val selected = index == selectedIndex
+                    val itemEnabled = enabled(index)
+                    // 选中项用主色填充，未选中项用次级容器色，禁用项统一降级为灰色。
+                    val itemColor = when {
+                        !itemEnabled -> MiuixTheme.colorScheme.disabledSecondaryVariant
+                        selected -> MiuixTheme.colorScheme.primary
+                        else -> MiuixTheme.colorScheme.secondaryVariant
+                    }
+                    val itemContentColor = when {
+                        !itemEnabled -> MiuixTheme.colorScheme.disabledOnSecondaryVariant
+                        selected -> MiuixTheme.colorScheme.onPrimary
+                        else -> MiuixTheme.colorScheme.onSecondaryVariant
+                    }
+                    MiuixSurface(
+                        onClick = { if (!selected) onSelected(index) },
+                        enabled = itemEnabled,
+                        shape = AppDesign.shapes.item,
+                        color = itemColor,
+                        contentColor = itemContentColor,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    horizontal = dimensions.buttonInsideHorizontal,
+                                    vertical = dimensions.buttonInsideVertical,
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            MiuixText(
+                                text = option,
+                                style = AppDesign.typography.label,
+                                color = itemContentColor,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
         },
     )
 }
