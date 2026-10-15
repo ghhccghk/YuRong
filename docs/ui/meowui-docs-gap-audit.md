@@ -4,7 +4,7 @@
 
 ## 1. 当前验证结果
 
-最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，Miuix 颜色标准的独立设置，以及设置页顶部的实时主题预览卡片，与连接页设备列表的 AppSearchBar 即时搜索）：
+最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，Miuix 颜色标准的独立设置，以及设置页顶部的实时主题预览卡片，连接页设备列表的 AppSearchBar 即时搜索，与连接页的 AppPullToRefresh 下拉刷新）：
 
 - `:shared:compileKotlinJvm`
 - `:shared:compileKotlinJs`
@@ -44,14 +44,14 @@
 | Dialog | 部分完成 | `AppColorPickerDialog`、`AppLoadingDialog`、`AppAlertDialog` | 基础 Alert 已完成；Single choice、Text input 仍未实现 |
 | TopBar actions/menu | 部分完成 | `AppTopBar(title, actions)`、`AppIconButton` | 支持单个图标动作；文字动作、下拉菜单仍未实现 |
 | 搜索框 | 已完成 | `AppSearchBar` | 连接页 WiFi / P2P / BLE 设备列表已接入即时过滤 |
-| Scaffold 滚动顶栏 | 部分完成 | `AppScaffold(scrollBehavior)`、`AppTopBar(scrollBehavior)` | 已支持共享嵌套滚动与顶栏收起/展开；Blur backdrop、Pull-to-Refresh 协作、overlay host 仍未实现 |
+| Scaffold 滚动顶栏 | 部分完成 | `AppScaffold(scrollBehavior)`、`AppTopBar(scrollBehavior)` | 已支持共享嵌套滚动与顶栏收起/展开；Pull-to-Refresh 协作已由 `AppPullToRefresh` 补齐；Blur backdrop、overlay host 仍未实现 |
 | Tab | 已完成 | `AppTabRow` | Material 3 与 Miuix 都用原生 `TabRow`；连接页 AP/P2P 与设置页明暗模式已改用 |
 | 普通/悬浮底栏 | 已完成 | `AppBottomNavigation(floating)` | Miuix 可选原生 `FloatingNavigationBar` 悬浮胶囊；Material 3 保持原生 `NavigationBar` |
 | 导航分页 | 缺失 | 无 pager | 当前使用四个固定 tab |
 | Bottom Sheet | 已完成 | `AppBottomSheet` | Material 3 `ModalBottomSheet` / Miuix `WindowBottomSheet`；投屏调试日志已接入 |
 | Snackbar | 缺失 | 无组件 | 操作反馈目前依赖 `AppTip` 与状态文本 |
 | Tip | 已完成 | `AppTip`、`AppTipKind` | 信息/成功/警告/错误四种类型，两风格共用语义 token |
-| Pull to refresh | 缺失 | 无组件 | 当前页面无刷新需求 |
+| Pull to refresh | 已完成 | `AppPullToRefresh` | Material 3 `PullToRefreshBox` / Miuix `PullToRefresh`；连接页已接入 WiFi 重扫与 P2P 重新发现 |
 | Blur | 缺失 | 无 `MeowBlur` 对应能力 | 当前项目未启用表面模糊 |
 | 自适应布局 | 缺失 | 无双栏/宽屏布局组件 | 当前仍是固定 tab 页面 |
 | 触觉反馈 | 缺失 | 无统一 `AppHaptics` | Miuix 原生控件自带部分反馈，Material/自绘控件未补齐 |
@@ -94,6 +94,14 @@
 - 业务页面只传 `query`、`onQueryChange`、`label`、`enabled` 与 `modifier`，不接触任何一套风格的私有类型。
 - `matchesSearchQuery` 统一过滤规则：去掉首尾空白、忽略大小写、任一字段包含即命中、关键字为空时放行全部、字段为 `null` 时视为不匹配。
 - 连接页已接入真实业务场景：WiFi 扫描结果按 `ssid` 过滤（先过滤再取前 5 条），P2P 设备与 BLE 设备按名称和地址过滤，无匹配时显示空状态；只改界面过滤，未触碰扫描与连接逻辑。
+
+### 下拉刷新
+
+- `AppPullToRefresh` 提供统一的“下拉重新加载”语义：Material 3 使用原生 `PullToRefreshBox`（M3 默认指示器与阈值），Miuix 使用原生 `PullToRefresh`（原生圆环指示器与下拉文案）。
+- 业务页面只传 `isRefreshing`、`onRefresh`、`enabled`、可选的 `scrollBehavior` 与可滚动内容，不接触任何一套风格的私有类型。
+- 内容必须是真正可滚动的容器（`LazyColumn` / `verticalScroll`），否则两套风格的嵌套滚动都收不到手势。
+- `scrollBehavior` 传入的是脚手架创建的同一个滚动行为对象，Miuix 下让下拉手势与顶栏展开/收起协同；Material 3 的 `PullToRefreshBox` 不需要该参数。
+- 连接页已接入真实业务场景：AP 模式下拉重新扫描 WiFi，P2P 模式下拉重新发起设备发现，刷新指示器直接绑定后台扫描状态，扫描进行中忽略重复触发；BLE 保留显式扫描按钮，避免与“停止扫描”状态互相干扰。
 
 ### 设置交互
 
@@ -181,7 +189,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 `AppScaffold` 已补上共享 nested scroll 与顶栏折叠/展开（`AppScrollBehavior`），仍未实现 MeowUI 的：
 
 - top bar / bottom bar Blur backdrop。
-- pull-to-refresh 协作。
+- pull-to-refresh 协作（已由 `AppPullToRefresh` 与连接页接入补齐）。
 - overlay host。
 
 这不影响当前四个 tab 的基础布局，但会限制后续复杂页面。
@@ -228,7 +236,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 3. **AppTip、AppLoadingIndicator/AppLoadingDialog、统一错误/成功反馈**（已完成；`AppSnackbar` 等有业务场景再补）。
 4. **AppTopBar actions/menu 和基础 Dialog**（已完成：`AppTopBar` 支持 actions + `AppIconButton` + `AppAlertDialog`；文字动作、下拉菜单、单选/输入弹窗按业务场景再补）。
 5. **AppTabRow、floating navigation、Bottom Sheet**（已完成：`AppTabRow`、`AppBottomNavigation(floating)` 及其设置开关、`AppBottomSheet` 及投屏调试日志场景）。
-6. **Scaffold 滚动顶栏（已完成共享嵌套滚动 + 折叠顶栏）、Pull-to-Refresh、Blur、自适应布局**（其余项等有业务场景再补）。
-7. **通用列表能力（搜索框已完成）**：`AppSearchBar` 已接入连接页的 WiFi / P2P / BLE 设备列表，统一过滤规则由 `matchesSearchQuery` 承担并配有单元测试；后续按真实业务场景再评估 Pull-to-Refresh 与自适应布局。
+6. **Scaffold 滚动顶栏（已完成共享嵌套滚动 + 折叠顶栏）、Pull-to-Refresh（已完成 `AppPullToRefresh` 与连接页接入）、Blur、自适应布局**（其余项等有业务场景再补）。
+7. **通用列表能力（搜索框已完成）**：`AppSearchBar` 已接入连接页的 WiFi / P2P / BLE 设备列表，统一过滤规则由 `matchesSearchQuery` 承担并配有单元测试；`AppPullToRefresh` 已补齐下拉刷新，后续按真实业务场景再评估自适应布局。
 
 每一批都应遵守 `AGENTS.md`：一份业务 API、两套原生实现，并在完成一个独立功能后提交。
