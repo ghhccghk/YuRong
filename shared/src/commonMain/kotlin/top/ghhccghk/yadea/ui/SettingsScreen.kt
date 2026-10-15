@@ -72,6 +72,15 @@ fun SettingsScreen(
         }
 
         item {
+            // 顶部预览卡片：随风格、明暗模式与配色实时变化，切换前可以先确认效果。
+            AppThemePreview(
+                styleLabel = appearance.uiStyle.label,
+                modeLabel = appearance.themeMode.label,
+                modifier = sectionModifier,
+            )
+        }
+
+        item {
             AppSection(title = "界面风格", modifier = sectionModifier) {
                 // 主题切换使用列表弹窗：Miuix 走 SpinnerPreference 的 ListPopup，Material 3 走 DropdownMenu。
                 AppPopupPreference(
