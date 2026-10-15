@@ -30,6 +30,7 @@ class AppPreferencesTest {
         assertEquals(true, appearance.miuixMonetEnabled)
         assertEquals(false, appearance.floatingNavigationBarEnabled)
         assertEquals(AppColorSpec.Auto, appearance.colorSpec)
+        assertEquals(1f, appearance.uiScale)
     }
 
     @Test
@@ -48,6 +49,7 @@ class AppPreferencesTest {
             miuixMonetEnabled = false,
             floatingNavigationBarEnabled = true,
             colorSpec = AppColorSpec.Spec2025,
+            uiScale = 1.2f,
         )
 
         assertTrue(preferences.write(expected) is PreferenceWriteResult.Success)
@@ -171,6 +173,7 @@ class AppPreferencesTest {
         assertEquals(UiThemeStyle.Miuix, appearance.uiStyle)
         assertEquals(AppPaletteStyle.Vibrant, appearance.paletteStyle)
         assertEquals(AppColorSpec.Auto, appearance.colorSpec)
+        assertEquals(1f, appearance.uiScale)
     }
 
     @Test
@@ -208,6 +211,54 @@ class AppPreferencesTest {
         assertTrue(result is PreferenceWriteResult.Failure)
         assertEquals(futureVersion, store.read(AppPreferenceKeys.schemaVersion))
         assertEquals(UiThemeStyle.Material3, preferences.read().uiStyle)
+    }
+
+    @Test
+    fun legacySchemaKeepsUserDataAndDefaultsUiScaleTo100Percent() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        // 模拟 schema 4 的旧配置：只写入当时存在的键，没有 ui_scale_percent。
+        store.write(AppPreferenceKeys.schemaVersion, 4)
+        store.write(AppPreferenceKeys.uiStyle, UiThemeStyle.Miuix.storageName)
+        store.write(AppPreferenceKeys.colorSpec, AppColorSpec.Spec2025.name)
+
+        val appearance = AppPreferences(store).read()
+
+        assertEquals(UiThemeStyle.Miuix, appearance.uiStyle)
+        assertEquals(AppColorSpec.Spec2025, appearance.colorSpec)
+        assertEquals(1f, appearance.uiScale)
+    }
+
+    @Test
+    fun uiScaleRoundTripsThroughStoreAsPercent() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        val preferences = AppPreferences(store)
+
+        assertTrue(preferences.write(AppAppearance(uiScale = 1.3f)) is PreferenceWriteResult.Success)
+
+        // 界面缩放按百分比整数落库，避免浮点误差。
+        assertEquals(130, store.read(AppPreferenceKeys.uiScalePercent))
+        assertEquals(1.3f, preferences.read().uiScale)
+        assertEquals(1.3f, preferences.observe().first().uiScale)
+    }
+
+    @Test
+    fun uiScaleIsSnappedToNearestStepOnWrite() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        val preferences = AppPreferences(store)
+
+        assertTrue(preferences.write(AppAppearance(uiScale = 1.24f)) is PreferenceWriteResult.Success)
+
+        // 1.24 更接近 1.2 而不是 1.3。
+        assertEquals(120, store.read(AppPreferenceKeys.uiScalePercent))
+        assertEquals(1.2f, preferences.read().uiScale)
+    }
+
+    @Test
+    fun unknownUiScalePercentFallsBackToNearestStep() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        store.write(AppPreferenceKeys.uiScalePercent, 0)
+
+        assertEquals(0.8f, AppPreferences(store).read().uiScale)
     }
 
     @Test

@@ -63,6 +63,7 @@ import top.yukonga.miuix.kmp.basic.TextField as MiuixTextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference as MiuixArrowPreference
 import top.yukonga.miuix.kmp.preference.CheckboxPreference as MiuixCheckboxPreference
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference as MiuixSpinnerPreference
+import top.yukonga.miuix.kmp.preference.SliderPreference as MiuixSliderPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference as MiuixSwitchPreference
 import top.yukonga.miuix.kmp.theme.LocalContentColor as MiuixLocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -547,6 +548,95 @@ fun AppCheckboxPreference(
                 onCheckedChange = onCheckedChange,
                 enabled = enabled,
                 modifier = modifier,
+            )
+        },
+    )
+}
+
+/**
+ * 带标题与摘要的滑条设置项，对应 Miuix 的 SliderPreference 与 Material 3 的 Slider。
+ *
+ * 两种风格都把滑条放在标题/摘要下方，并且保持相同的回调时机：
+ * 拖动过程中持续回调 [onValueChange]（用于即时预览），拖动结束后再回调
+ * [onValueChangeFinished]（用于落库），避免每一帧都触发设置写入。
+ *
+ * @param title 设置项标题。
+ * @param value 当前值，超出 [valueRange] 时会被收敛。
+ * @param valueRange 取值区间。
+ * @param valueText 可选的当前值文本，显示在标题行末尾；为空时不显示。
+ * @param steps 端点之间的离散档位数，0 表示连续取值；与两套原生 Slider 的语义一致。
+ * @param onValueChangeFinished 拖动结束回调，可为空。
+ * @param contentPadding 内容内边距，默认沿用 [AppDesign] 的行内边距。
+ */
+@Composable
+fun AppSliderPreference(
+    title: String,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+    modifier: Modifier = Modifier,
+    summary: String? = null,
+    valueText: String? = null,
+    steps: Int = 0,
+    enabled: Boolean = true,
+    onValueChangeFinished: (() -> Unit)? = null,
+    contentPadding: PaddingValues = PaddingValues(
+        horizontal = AppDesign.dimensions.itemHorizontalPadding,
+        vertical = AppDesign.dimensions.itemVerticalPadding,
+    ),
+) {
+    // 复用 AppSlider 的收敛规则：退化区间与越界值都先归一化，两套风格拿到的是同一份值。
+    val sliderState = resolveSliderState(value, valueRange)
+    val submitValue: (Float) -> Unit = { rawValue ->
+        onValueChange(sliderState.submitValue(rawValue))
+    }
+    val safeSteps = steps.coerceAtLeast(0)
+
+    AppStyleContent(
+        material = {
+            Column(
+                modifier = modifier.fillMaxWidth().padding(contentPadding),
+                verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.compactSpacing),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        AppText(title, style = AppDesign.typography.itemTitle)
+                        if (summary != null) {
+                            AppText(summary, style = AppDesign.typography.summary)
+                        }
+                    }
+                    if (valueText != null) {
+                        AppText(valueText, style = AppDesign.typography.value)
+                    }
+                }
+                Slider(
+                    value = sliderState.value,
+                    onValueChange = submitValue,
+                    valueRange = sliderState.valueRange,
+                    steps = safeSteps,
+                    enabled = enabled,
+                    onValueChangeFinished = onValueChangeFinished,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        miuix = {
+            // Miuix 的 SliderPreference 自带标题、摘要与滑条排布，滑条位于标题下方。
+            MiuixSliderPreference(
+                title = title,
+                summary = summary,
+                value = sliderState.value,
+                onValueChange = submitValue,
+                modifier = modifier,
+                enabled = enabled,
+                valueRange = sliderState.valueRange,
+                steps = safeSteps,
+                valueText = valueText,
+                onValueChangeFinished = onValueChangeFinished,
             )
         },
     )

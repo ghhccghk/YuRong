@@ -4,7 +4,7 @@
 
 ## 1. 当前验证结果
 
-最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，Miuix 颜色标准的独立设置，以及设置页顶部的实时主题预览卡片，连接页设备列表的 AppSearchBar 即时搜索，连接页的 AppPullToRefresh 下拉刷新，以及主界面的 AppAdaptiveScaffold 宽屏侧边导航）：
+最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，Miuix 颜色标准的独立设置，以及设置页顶部的实时主题预览卡片，连接页设备列表的 AppSearchBar 即时搜索，连接页的 AppPullToRefresh 下拉刷新，主界面的 AppAdaptiveScaffold 宽屏侧边导航，以及设置页的界面缩放（AppSliderPreference 滑条 + LocalDensity 全局缩放））：
 
 - `:shared:compileKotlinJvm`
 - `:shared:compileKotlinJs`
@@ -37,7 +37,7 @@
 | 设置分组 | 部分完成 | `AppSection`、`AppListRow` | 视觉分组已有；没有 MeowUI 的收集式稳定 key/分段圆角 |
 | Switch preference | 已完成 | `AppSwitchPreference` | Material/Miuix 分支 |
 | Checkbox preference | 已完成 | `AppCheckboxPreference` | Material Checkbox + Miuix CheckboxPreference；作为通用语义组件保留 |
-| Slider preference | 部分完成 | `AppSlider` | 有通用 Slider；没有标题/摘要/值/提交语义的 Preference 行 |
+| Slider preference | 已完成 | `AppSliderPreference` | Material 3 原生 `Slider` / Miuix 原生 `SliderPreference`（标题、摘要、当前值文本、拖动中预览 + 松手落库）；设置页“界面缩放”已接入 |
 | Popup / Dropdown | 已完成 | `AppPopupPreference` | Miuix `OverlaySpinnerPreference`（ListPopup）+ Material `DropdownMenu`；界面风格与调色板已改用 |
 | Text input preference | 缺失 | 无 `AppTextInputPreference` | 只有取色器 hex 输入 |
 | Action preference | 已完成 | `AppActionPreference` | Miuix `ArrowPreference` + Material 点击行加箭头；颜色动作行已改用 |
@@ -52,17 +52,17 @@
 | Snackbar | 缺失 | 无组件 | 操作反馈目前依赖 `AppTip` 与状态文本 |
 | Tip | 已完成 | `AppTip`、`AppTipKind` | 信息/成功/警告/错误四种类型，两风格共用语义 token |
 | Pull to refresh | 已完成 | `AppPullToRefresh` | Material 3 `PullToRefreshBox` / Miuix `PullToRefresh`；连接页已接入 WiFi 重扫与 P2P 重新发现 |
-| Blur | 缺失 | 无 `MeowBlur` 对应能力 | 当前项目未启用表面模糊 |
+| Blur | 缺失 | 无 `MeowBlur` 对应能力 | 当前项目未启用表面模糊；跨平台模糊要先确认 Miuix / Compose 版本能否复用，本轮暂缓 |
 | 自适应布局 | 部分完成 | `AppAdaptiveScaffold`、`AppNavigationLayoutMode` | 宽度达到 600dp 断点后把底部导航换成侧边导航栏；双栏内容分栏仍未实现 |
 | 触觉反馈 | 缺失 | 无统一 `AppHaptics` | Miuix 原生控件自带部分反馈，Material/自绘控件未补齐 |
 | 可访问性 | 部分完成 | 色块和控件有部分 semantics | 仍需系统检查图标、选择、禁用、重复点击 |
-| schema 迁移 | 已完成 | `SCHEMA_VERSION` + 增量迁移 + 未来版本保护 | v1 -> v2 -> v3 -> v4 纯增量迁移，未来版本不被 `write` 覆盖 |
+| schema 迁移 | 已完成 | `SCHEMA_VERSION` + 增量迁移 + 未来版本保护 | v1 -> v2 -> v3 -> v4 -> v5 纯增量迁移，未来版本不被 `write` 覆盖 |
 
 ## 3. 已经正常工作的部分
 
 ### 主题和颜色
 
-- `AppAppearance` 已统一管理 UI 风格、明暗模式、颜色来源、seed、preset、palette、颜色标准、AMOLED、动画开关、Miuix Monet 开关。
+- `AppAppearance` 已统一管理 UI 风格、明暗模式、颜色来源、seed、preset、palette、颜色标准、AMOLED、动画开关、Miuix Monet 开关与界面缩放。
 - Miuix 可整体关闭 Monet（`miuixMonetEnabled`）；关闭后不再由种子色生成配色，回退到 Miuix 原生 HyperOS 配色。
 - `materialKolor 5.0.1` 已声明为 KMP 依赖，Gradle metadata 包含 Android、JVM、JS、Wasm、iOS target。
 - Material 使用 `dynamicColorScheme` 生成完整 `ColorScheme`。
@@ -108,6 +108,8 @@
 - `AppPopupPreference` 统一承担“从列表中选择一项”的语义：Miuix 走原生 SpinnerPreference（ListPopup），Material 3 走 DropdownMenu，重复选中当前项不会触发写入。
 - 界面风格与调色板已从开关/循环点击改为列表弹窗选择；颜色入口行使用 `AppActionPreference`，Miuix 下带原生箭头与按压反馈。
 - `AppCheckboxPreference` 保留为通用组件，供后续布尔型设置项复用。
+- `AppSliderPreference` 承担数值型设置行：整行含标题、摘要、当前值文本与滑条，Material 3 使用原生 `Slider`，Miuix 使用原生 `SliderPreference`（滑条排在标题下方），两者回调时机一致。
+- 设置页“界面缩放”是第一个真实数值型设置项，拖动中只更新本地草稿做即时预览，松手后才吸附档位并写入设置。
 
 ### 反馈组件
 
@@ -146,12 +148,13 @@
 
 ### P0：设置 schema 迁移（已处理）
 
-`AppPreferences.kt` 现在把当前版本定义为 4（`AppPreferenceKeys.SCHEMA_VERSION`），迁移策略明确：
+`AppPreferences.kt` 现在把当前版本定义为 5（`AppPreferenceKeys.SCHEMA_VERSION`），迁移策略明确：
 
 - 每次版本升级都属于纯增量迁移：新增的键由 `PreferenceKey` 默认值补齐，不重置用户已有配置。
 - v1 -> v2 补 `miuix_monet`（默认 `true`，升级后仍是原有 Monet 配色）。
 - v2 -> v3 补 `floating_navigation_bar`（默认 `false`，升级后仍是原有常规底栏）。
 - v3 -> v4 补 `color_spec`（默认 `Auto`，升级后仍按调色板推导颜色标准）。
+- v4 -> v5 补 `ui_scale_percent`（默认 `100`，升级后界面尺寸保持不变）。
 - 版本 0/缺失值按历史配置对待，保留已有键值（历史 key 兼容），只有缺失的新键才回退默认值，不重置用户配置。
 - 高于当前版本的数据禁止被 `write` 覆盖，返回 `PreferenceWriteResult.Failure`。
 - 已补充默认值、回环、旧 schema、未来 schema 的测试。
@@ -165,7 +168,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 - `AppCheckboxPreference`（已完成）。
 - `AppPopupPreference`（已完成）：Miuix 使用 `OverlaySpinnerPreference`（内部为 ListPopup），Material 3 使用 `DropdownMenu`。
 - `AppActionPreference`（已完成）：Miuix 使用 `ArrowPreference`，Material 3 使用点击行加箭头提示。
-- `AppSliderPreference`（未实现）：当前没有数值型设置项，缺少真实业务场景。
+- `AppSliderPreference`（已完成）：Material 3 使用原生 `Slider`，Miuix 使用原生 `SliderPreference`；设置页“界面缩放”是第一个真实数值型设置项，拖动中即时预览、松手吸附档位再落库。
 - `AppTextInputPreference`（未实现）：Miuix 偏好组件里没有对应的文本输入 Preference，取色器内的 hex 输入已覆盖现有需求。
 
 这些组件保持两种风格的整行点击、启用状态和提交时机一致，并沿用 `AppDesign` token。
@@ -194,6 +197,8 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 - top bar / bottom bar Blur backdrop。
 - overlay host。
 
+这两项需要跨平台模糊与浮层宿主能力，本轮按计划暂缓，等确认 Miuix 与 Compose 版本可复用后再评估。
+
 这不影响当前四个 tab 的基础布局，但会限制后续复杂页面。
 
 ### P2：设置 UI 缺少 MeowUI Appearance Page 的完整结构
@@ -209,9 +214,9 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 - 自定义颜色。
 - Miuix Monet 开关。
 - 悬浮底栏开关。
+- 界面缩放（80% ~ 130%，步进 10%）。
 
 缺少：
-- 界面缩放。
 - Blur 开关（底层缺少跨平台模糊能力，暂不提供开关）。
 - Predictive Back 开关（需要各平台原生能力，暂不提供开关）。
 - 自定义 preference 插槽。
@@ -234,7 +239,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 ## 6. 推荐补齐顺序
 
 1. **设置 schema 迁移和未来版本保护**（已完成）。
-2. **AppCheckboxPreference / AppPopupPreference / AppActionPreference（已完成）**；`AppSliderPreference`、`AppTextInputPreference` 等有真实业务设置项后再补。
+2. **AppCheckboxPreference / AppPopupPreference / AppActionPreference / AppSliderPreference（已完成）**；`AppTextInputPreference` 等有真实业务设置项后再补。
 3. **AppTip、AppLoadingIndicator/AppLoadingDialog、统一错误/成功反馈**（已完成；`AppSnackbar` 等有业务场景再补）。
 4. **AppTopBar actions/menu 和基础 Dialog**（已完成：`AppTopBar` 支持 actions + `AppIconButton` + `AppAlertDialog`；文字动作、下拉菜单、单选/输入弹窗按业务场景再补）。
 5. **AppTabRow、floating navigation、Bottom Sheet**（已完成：`AppTabRow`、`AppBottomNavigation(floating)` 及其设置开关、`AppBottomSheet` 及投屏调试日志场景）。

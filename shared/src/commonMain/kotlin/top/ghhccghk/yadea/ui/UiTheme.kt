@@ -18,7 +18,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -102,6 +104,8 @@ data class AppAppearance(
     val miuixMonetEnabled: Boolean = true,
     // 是否让 Miuix 使用 HyperOS 悬浮胶囊底栏；Material 3 没有对应的原生样式，始终使用常规底栏。
     val floatingNavigationBarEnabled: Boolean = false,
+    // 界面缩放倍率；1.0 为原始尺寸，持久化时按百分比整数保存。
+    val uiScale: Float = 1f,
 )
 
 @Immutable
@@ -256,7 +260,11 @@ fun AppTheme(
     val materialColors = rememberAppMaterialColorScheme(appearance, darkTheme, systemAccentColor).let {
         if (appearance.themeAnimationsEnabled) it.animateAsState() else it
     }
-    CompositionLocalProvider(LocalUiThemeStyle provides appearance.uiStyle) {
+    // 界面缩放与界面风格一次性下发：同一份 Density 覆盖同时作用于两套风格，业务页面不需要感知缩放。
+    CompositionLocalProvider(
+        LocalUiThemeStyle provides appearance.uiStyle,
+        LocalDensity provides rememberScaledDensity(appearance.uiScale),
+    ) {
         when (appearance.uiStyle) {
             UiThemeStyle.Miuix -> {
                 // 关闭 Monet 时不再由种子色生成配色，改用 Miuix 原生亮/暗色板。
@@ -305,6 +313,28 @@ fun AppTheme(
                     content()
                 }
             }
+        }
+    }
+}
+
+/**
+ * 计算界面缩放后的 Density：同时缩放布局用的 dp 与文字用的 sp。
+ *
+ * 缩放值先吸附到 [AppInterfaceScale] 的档位再使用，1.0 倍时直接返回原始 Density，
+ * 保持未开启缩放时的渲染路径完全不变。
+ */
+@Composable
+private fun rememberScaledDensity(scale: Float): Density {
+    val density = LocalDensity.current
+    val normalized = AppInterfaceScale.snap(scale)
+    return remember(density, normalized) {
+        if (normalized == 1f) {
+            density
+        } else {
+            Density(
+                density = density.density * normalized,
+                fontScale = density.fontScale * normalized,
+            )
         }
     }
 }

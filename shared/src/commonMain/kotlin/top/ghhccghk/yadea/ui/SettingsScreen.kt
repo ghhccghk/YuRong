@@ -27,6 +27,8 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     var showCustomColorPicker by remember { mutableStateOf(false) }
+    // 界面缩放只在拖动结束后写入设置，拖动过程中的值先放在本地草稿里做即时预览。
+    var scaleDraft by remember(appearance.uiScale) { mutableStateOf(appearance.uiScale) }
     val useMiuix = LocalUiThemeStyle.current == UiThemeStyle.Miuix
     val dimensions = AppDesign.dimensions
     // 下拉菜单的选项文本与枚举 entries 一一对应，保证索引可直接回写到 AppAppearance。
@@ -140,6 +142,29 @@ fun SettingsScreen(
                         },
                     )
                 }
+            }
+        }
+
+        item {
+            AppSection(title = "界面缩放", modifier = sectionModifier) {
+                // 缩放同时作用于布局尺寸与文字，两套风格共用同一份设置。
+                AppSliderPreference(
+                    title = "界面缩放",
+                    summary = "同时缩放界面尺寸与文字，共 6 个档位",
+                    value = scaleDraft,
+                    onValueChange = { scaleDraft = it },
+                    onValueChangeFinished = {
+                        // 松手后吸附到最近的档位再落库，避免写入 109.9999% 这类中间值。
+                        val committed = AppInterfaceScale.snap(scaleDraft)
+                        scaleDraft = committed
+                        if (committed != appearance.uiScale) {
+                            onAppearanceChange(appearance.copy(uiScale = committed))
+                        }
+                    },
+                    valueRange = AppInterfaceScale.range,
+                    steps = AppInterfaceScale.STEPS,
+                    valueText = AppInterfaceScale.label(scaleDraft),
+                )
             }
         }
 

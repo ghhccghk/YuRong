@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.map
 import top.ghhccghk.yadea.ui.AppAppearance
 import top.ghhccghk.yadea.ui.AppColorSource
 import top.ghhccghk.yadea.ui.AppColorSpec
+import top.ghhccghk.yadea.ui.AppInterfaceScale
 import top.ghhccghk.yadea.ui.AppPaletteStyle
 import top.ghhccghk.yadea.ui.AppThemeMode
 import top.ghhccghk.yadea.ui.UiThemeStyle
@@ -15,7 +16,8 @@ object AppPreferenceKeys {
     // 1 -> 2：新增 miuix_monet（Miuix 是否启用 Monet 动态配色）。
     // 2 -> 3：新增 floating_navigation_bar（Miuix 是否启用悬浮底栏）。
     // 3 -> 4：新增 color_spec（Miuix Monet 使用的颜色标准）。
-    const val SCHEMA_VERSION = 4
+    // 4 -> 5：新增 ui_scale_percent（界面缩放百分比）。
+    const val SCHEMA_VERSION = 5
 
     val schemaVersion = PreferenceKey.int("app_settings_schema_version", SCHEMA_VERSION)
     val uiStyle = PreferenceKey.string("ui_style", UiThemeStyle.Miuix.storageName)
@@ -36,6 +38,9 @@ object AppPreferenceKeys {
     // 默认跟随调色板，保证旧版本（schema 3 及更早）升级后配色外观不变。
     val colorSpec = PreferenceKey.string("color_spec", AppColorSpec.Auto.name)
 
+    // 默认 100%，保证旧版本（schema 4 及更早）升级后界面尺寸不变。
+    val uiScalePercent = PreferenceKey.int("ui_scale_percent", 100)
+
     val all: List<PreferenceKey<*>> = listOf(
         schemaVersion,
         uiStyle,
@@ -49,6 +54,7 @@ object AppPreferenceKeys {
         miuixMonet,
         floatingNavigationBar,
         colorSpec,
+        uiScalePercent,
     )
 }
 
@@ -67,6 +73,7 @@ class AppPreferences(
         miuixMonet = store.read(AppPreferenceKeys.miuixMonet),
         floatingNavigationBar = store.read(AppPreferenceKeys.floatingNavigationBar),
         colorSpec = store.read(AppPreferenceKeys.colorSpec),
+        uiScalePercent = store.read(AppPreferenceKeys.uiScalePercent),
     )
 
     fun observe(): Flow<AppAppearance> {
@@ -87,6 +94,7 @@ class AppPreferences(
                 miuixMonet = values[9] as Boolean,
                 floatingNavigationBar = values[10] as Boolean,
                 colorSpec = values[11] as String,
+                uiScalePercent = values[12] as Int,
             )
         }
     }
@@ -116,6 +124,7 @@ class AppPreferences(
             AppPreferenceKeys.miuixMonet to appearance.miuixMonetEnabled,
             AppPreferenceKeys.floatingNavigationBar to appearance.floatingNavigationBarEnabled,
             AppPreferenceKeys.colorSpec to appearance.colorSpec.name,
+            AppPreferenceKeys.uiScalePercent to AppInterfaceScale.percentOf(appearance.uiScale),
         )
         for ((key, value) in writes) {
             val result = writeTyped(key, value)
@@ -148,6 +157,7 @@ class AppPreferences(
         miuixMonet: Boolean,
         floatingNavigationBar: Boolean,
         colorSpec: String,
+        uiScalePercent: Int,
     ): AppAppearance {
         // 未知枚举、损坏值一律回退到安全默认值，保证读取不崩溃。
         // 旧版本缺失的新键都由 PreferenceKey 默认值补齐
@@ -165,6 +175,8 @@ class AppPreferences(
             miuixMonetEnabled = miuixMonet,
             floatingNavigationBarEnabled = floatingNavigationBar,
             colorSpec = AppColorSpec.entries.firstOrNull { it.name == colorSpec } ?: AppColorSpec.Auto,
+            // 界面缩放以百分比整数存储；损坏值由 AppInterfaceScale 收敛到最近的合法档位。
+            uiScale = AppInterfaceScale.percentToScale(uiScalePercent),
         )
     }
 }
