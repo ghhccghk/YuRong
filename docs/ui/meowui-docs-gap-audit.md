@@ -4,7 +4,7 @@
 
 ## 1. 当前验证结果
 
-最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，Miuix 颜色标准的独立设置，以及设置页顶部的实时主题预览卡片）：
+最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，Miuix 颜色标准的独立设置，以及设置页顶部的实时主题预览卡片，与连接页设备列表的 AppSearchBar 即时搜索）：
 
 - `:shared:compileKotlinJvm`
 - `:shared:compileKotlinJs`
@@ -43,7 +43,7 @@
 | Action preference | 已完成 | `AppActionPreference` | Miuix `ArrowPreference` + Material 点击行加箭头；颜色动作行已改用 |
 | Dialog | 部分完成 | `AppColorPickerDialog`、`AppLoadingDialog`、`AppAlertDialog` | 基础 Alert 已完成；Single choice、Text input 仍未实现 |
 | TopBar actions/menu | 部分完成 | `AppTopBar(title, actions)`、`AppIconButton` | 支持单个图标动作；文字动作、下拉菜单仍未实现 |
-| 搜索框 | 缺失 | 无 `AppSearchBar` | 当前项目暂无搜索场景 |
+| 搜索框 | 已完成 | `AppSearchBar` | 连接页 WiFi / P2P / BLE 设备列表已接入即时过滤 |
 | Scaffold 滚动顶栏 | 部分完成 | `AppScaffold(scrollBehavior)`、`AppTopBar(scrollBehavior)` | 已支持共享嵌套滚动与顶栏收起/展开；Blur backdrop、Pull-to-Refresh 协作、overlay host 仍未实现 |
 | Tab | 已完成 | `AppTabRow` | Material 3 与 Miuix 都用原生 `TabRow`；连接页 AP/P2P 与设置页明暗模式已改用 |
 | 普通/悬浮底栏 | 已完成 | `AppBottomNavigation(floating)` | Miuix 可选原生 `FloatingNavigationBar` 悬浮胶囊；Material 3 保持原生 `NavigationBar` |
@@ -87,6 +87,13 @@
   - 取消不修改正式配置。
 - `AppThemePresetSwatch` 使用 `Role.RadioButton` 和 `contentDescription`。
 - `AppColorPickerTest` 已覆盖 hex 解析和预设 ID 唯一性。
+
+### 列表与搜索
+
+- `AppSearchBar` 提供统一的搜索输入语义：Material 3 使用原生 `OutlinedTextField` 加搜索图标与按需出现的清除按钮，Miuix 使用原生 `SearchBar` + `InputField`（胶囊外形、原生清空图标，返回键收起搜索时同步清空关键字）。
+- 业务页面只传 `query`、`onQueryChange`、`label`、`enabled` 与 `modifier`，不接触任何一套风格的私有类型。
+- `matchesSearchQuery` 统一过滤规则：去掉首尾空白、忽略大小写、任一字段包含即命中、关键字为空时放行全部、字段为 `null` 时视为不匹配。
+- 连接页已接入真实业务场景：WiFi 扫描结果按 `ssid` 过滤（先过滤再取前 5 条），P2P 设备与 BLE 设备按名称和地址过滤，无匹配时显示空状态；只改界面过滤，未触碰扫描与连接逻辑。
 
 ### 设置交互
 
@@ -201,9 +208,9 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 
 这些不是当前业务必需，但会影响外观设置的完整性。
 
-### P2：单选/输入弹窗、菜单、搜索等通用能力尚未实现
+### P2：单选/输入弹窗、菜单等通用能力尚未实现
 
-单选列表弹窗、文本输入弹窗、下拉菜单与搜索框仍属于通用 UI 能力，当前业务页面没有强需求，但 MeowUI 文档已经验证它们是统一 UI 体系的一部分。Bottom Sheet 已完成，见第 3 节“导航与面板”。
+搜索框已随连接页设备列表落地，见第 3 节“列表与搜索”；单选列表弹窗、文本输入弹窗与下拉菜单仍属于通用 UI 能力，当前业务页面没有强需求，但 MeowUI 文档已经验证它们是统一 UI 体系的一部分。Bottom Sheet 已完成，见第 3 节“导航与面板”。
 
 ## 5. 不建议直接照搬的部分
 
@@ -222,5 +229,6 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 4. **AppTopBar actions/menu 和基础 Dialog**（已完成：`AppTopBar` 支持 actions + `AppIconButton` + `AppAlertDialog`；文字动作、下拉菜单、单选/输入弹窗按业务场景再补）。
 5. **AppTabRow、floating navigation、Bottom Sheet**（已完成：`AppTabRow`、`AppBottomNavigation(floating)` 及其设置开关、`AppBottomSheet` 及投屏调试日志场景）。
 6. **Scaffold 滚动顶栏（已完成共享嵌套滚动 + 折叠顶栏）、Pull-to-Refresh、Blur、自适应布局**（其余项等有业务场景再补）。
+7. **通用列表能力（搜索框已完成）**：`AppSearchBar` 已接入连接页的 WiFi / P2P / BLE 设备列表，统一过滤规则由 `matchesSearchQuery` 承担并配有单元测试；后续按真实业务场景再评估 Pull-to-Refresh 与自适应布局。
 
 每一批都应遵守 `AGENTS.md`：一份业务 API、两套原生实现，并在完成一个独立功能后提交。
