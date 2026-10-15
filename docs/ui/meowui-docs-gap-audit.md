@@ -4,12 +4,12 @@
 
 ## 1. 当前验证结果
 
-最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，Miuix 颜色标准的独立设置，以及设置页顶部的实时主题预览卡片，连接页设备列表的 AppSearchBar 即时搜索，连接页的 AppPullToRefresh 下拉刷新，主界面的 AppAdaptiveScaffold 宽屏侧边导航，设置页的界面缩放（AppSliderPreference 滑条 + LocalDensity 全局缩放），以及反馈组件的 AppSnackbar（一份业务状态桥接两套原生 SnackbarHostState，并接入 BLE 断开 / Wi-Fi 断开 / 停止投屏三个真实场景））：
+最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，Miuix 颜色标准的独立设置，以及设置页顶部的实时主题预览卡片，连接页设备列表的 AppSearchBar 即时搜索，连接页的 AppPullToRefresh 下拉刷新，主界面的 AppAdaptiveScaffold 宽屏侧边导航，设置页的界面缩放（AppSliderPreference 滑条 + LocalDensity 全局缩放），以及反馈组件的 AppSnackbar（一份业务状态桥接两套原生 SnackbarHostState，并接入 BLE 断开 / Wi-Fi 断开 / 停止投屏三个真实场景），以及宽屏内容双栏 `AppAdaptiveTwoColumn`（设备信息页首个接入））：
 
 - `:shared:compileKotlinJvm`
 - `:shared:compileKotlinJs`
 - `:shared:compileKotlinWasmJs`
-- `:shared:jvmTest`（121 个用例全部通过）
+- `:shared:jvmTest`（125 个用例全部通过）
 - `:androidApp:assembleDebug`
 - `:desktopApp:build`
 
@@ -53,7 +53,7 @@
 | Tip | 已完成 | `AppTip`、`AppTipKind` | 信息/成功/警告/错误四种类型，两风格共用语义 token |
 | Pull to refresh | 已完成 | `AppPullToRefresh` | Material 3 `PullToRefreshBox` / Miuix `PullToRefresh`；连接页已接入 WiFi 重扫与 P2P 重新发现 |
 | Blur | 缺失 | 无 `MeowBlur` 对应能力 | 当前项目未启用表面模糊；跨平台模糊要先确认 Miuix / Compose 版本能否复用，本轮暂缓 |
-| 自适应布局 | 部分完成 | `AppAdaptiveScaffold`、`AppNavigationLayoutMode` | 宽度达到 600dp 断点后把底部导航换成侧边导航栏；双栏内容分栏仍未实现 |
+| 自适应布局 | 已完成 | `AppAdaptiveScaffold`、`AppAdaptiveTwoColumn` | 宽度达到 600dp 后把底部导航换成侧边导航栏；内容区达到 840dp 后由 `AppAdaptiveTwoColumn` 拆成左右双栏 |
 | 触觉反馈 | 缺失 | 无统一 `AppHaptics` | Miuix 原生控件自带部分反馈，Material/自绘控件未补齐 |
 | 可访问性 | 部分完成 | 色块和控件有部分 semantics | 仍需系统检查图标、选择、禁用、重复点击 |
 | schema 迁移 | 已完成 | `SCHEMA_VERSION` + 增量迁移 + 未来版本保护 | v1 -> v2 -> v3 -> v4 -> v5 纯增量迁移，未来版本不被 `write` 覆盖 |
@@ -136,6 +136,8 @@
 - 未传入滚动行为时 `AppScaffold` 不额外包裹容器，保持原有固定顶栏结构；主界面已接入，Miuix 顶栏随内容滚动收起为小标题，Material 3 的顶栏动作同样随滚动隐藏并在回滚时恢复。
 - `AppAdaptiveScaffold` 承担宽屏自适应导航：可用宽度达到 600dp（`AppNavigationRailBreakpoint`）时把底部导航换成左侧导航栏，窄屏完全保持原有底部导航结构；断点判断抽成纯函数 `appNavigationLayoutMode()`，由 `AppNavigationLayoutModeTest` 覆盖 360dp / 599dp / 600dp / 1280dp 四个宽度。
 - 侧边导航栏同样是一份业务 API、两套原生实现：Miuix 使用原生 `NavigationRail` + `NavigationRailItem`（自带系统栏内边距与选中指示器），Material 3 使用原生 `NavigationRail` + `NavigationRailItem`，两者共用同一份 `AppNavigationItem` 与选中回调。
+- `AppAdaptiveTwoColumn` 承担内容区自适应分栏：可用宽度达到 840dp（`AppContentTwoColumnBreakpoint`）时把两组内容并排展示，窄屏按原顺序上下堆叠；断点判断同样抽成纯函数 `appContentLayoutMode()`，由 `AppContentLayoutModeTest` 覆盖 360dp / 839dp / 840dp / 1280dp 四个宽度。
+- 设备信息页是首个接入页面：左栏为仪表配置与 BLE 协议，右栏为应用信息与协议命令；页面只把分组拆成两段交给组件，不接触断点、窗口尺寸或任何一方主题类型。
 - 宽屏布局只替换导航形态，内容区仍复用 `AppScaffold`，因此顶栏折叠、嵌套滚动与下拉刷新在两种布局下行为一致；`floatingNavigation` 只影响窄屏的 Miuix 分支。
 
 ### 持久化
@@ -194,7 +196,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 
 ### P1：Scaffold 只有基础能力
 
-`AppScaffold` 已补上共享 nested scroll 与顶栏折叠/展开（`AppScrollBehavior`），`AppAdaptiveScaffold` 已补上宽屏侧边导航（见第 3 节“导航与面板”），仍未实现 MeowUI 的：
+`AppScaffold` 已补上共享 nested scroll 与顶栏折叠/展开（`AppScrollBehavior`），`AppAdaptiveScaffold` 已补上宽屏侧边导航，`AppAdaptiveTwoColumn` 已补上宽屏内容双栏（见第 3 节“导航与面板”），仍未实现 MeowUI 的：
 
 - top bar / bottom bar Blur backdrop。
 - overlay host。
@@ -245,7 +247,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 3. **AppTip、AppLoadingIndicator/AppLoadingDialog、AppSnackbar 统一错误/成功反馈**（已完成：`AppTip`、`AppLoadingDialog`、`AppSnackbar` 及其 BLE 断开 / Wi-Fi 断开 / 停止投屏三个场景；`AppHaptics` 等有业务场景再补）。
 4. **AppTopBar actions/menu 和基础 Dialog**（已完成：`AppTopBar` 支持 actions + `AppIconButton` + `AppAlertDialog`；文字动作、下拉菜单、单选/输入弹窗按业务场景再补）。
 5. **AppTabRow、floating navigation、Bottom Sheet**（已完成：`AppTabRow`、`AppBottomNavigation(floating)` 及其设置开关、`AppBottomSheet` 及投屏调试日志场景）。
-6. **Scaffold 滚动顶栏（已完成共享嵌套滚动 + 折叠顶栏）、Pull-to-Refresh（已完成 `AppPullToRefresh` 与连接页接入）、自适应布局（已完成 `AppAdaptiveScaffold` 宽屏侧边导航）、Blur**（其余项等有业务场景再补）。
-7. **通用列表与自适应布局（搜索框、下拉刷新、宽屏侧栏均已完成）**：`AppSearchBar` 已接入连接页的 WiFi / P2P / BLE 设备列表，统一过滤规则由 `matchesSearchQuery` 承担并配有单元测试；`AppPullToRefresh` 已补齐下拉刷新；`AppAdaptiveScaffold` 按 600dp 断点接入宽屏侧边导航，断点行为由 `AppNavigationLayoutModeTest` 覆盖。
+6. **Scaffold 滚动顶栏（已完成共享嵌套滚动 + 折叠顶栏）、Pull-to-Refresh（已完成 `AppPullToRefresh` 与连接页接入）、自适应布局（已完成 `AppAdaptiveScaffold` 宽屏侧边导航与 `AppAdaptiveTwoColumn` 宽屏内容双栏）、Blur**（其余项等有业务场景再补）。
+7. **通用列表与自适应布局（搜索框、下拉刷新、宽屏侧栏均已完成）**：`AppSearchBar` 已接入连接页的 WiFi / P2P / BLE 设备列表，统一过滤规则由 `matchesSearchQuery` 承担并配有单元测试；`AppPullToRefresh` 已补齐下拉刷新；`AppAdaptiveScaffold` 按 600dp 断点接入宽屏侧边导航，断点行为由 `AppNavigationLayoutModeTest` 覆盖；内容区再按 840dp 断点由 `AppAdaptiveTwoColumn` 拆成双栏，设备信息页已接入，断点行为由 `AppContentLayoutModeTest` 覆盖。
 
 每一批都应遵守 `AGENTS.md`：一份业务 API、两套原生实现，并在完成一个独立功能后提交。

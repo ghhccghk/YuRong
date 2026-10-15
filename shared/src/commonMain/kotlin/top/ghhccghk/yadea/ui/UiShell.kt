@@ -1,12 +1,15 @@
 package top.ghhccghk.yadea.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -257,6 +260,85 @@ fun appNavigationLayoutMode(availableWidth: Dp): AppNavigationLayoutMode =
     } else {
         AppNavigationLayoutMode.BottomNavigation
     }
+
+/** 内容分栏断点：内容区可用宽度达到该值后，页面内容拆成左右两栏。 */
+val AppContentTwoColumnBreakpoint: Dp = 840.dp
+
+/** 页面内容分栏模式：窄屏单栏，宽屏左右双栏。 */
+enum class AppContentLayoutMode {
+    /** 单栏：所有分组自上而下依次排列。 */
+    SingleColumn,
+
+    /** 双栏：分组拆到左右两栏并排展示，充分利用宽屏与桌面窗口。 */
+    TwoColumn,
+}
+
+/**
+ * 根据内容区可用宽度推导分栏模式。
+ *
+ * 与 [appNavigationLayoutMode] 一样抽成纯函数，断点行为可以直接被单元测试覆盖；
+ * 这里测量的是扣除侧边导航之后的内容区宽度，因此双栏会比侧边导航晚一档出现。
+ *
+ * @param availableWidth 内容区可用的最大宽度。
+ */
+fun appContentLayoutMode(availableWidth: Dp): AppContentLayoutMode =
+    if (availableWidth >= AppContentTwoColumnBreakpoint) {
+        AppContentLayoutMode.TwoColumn
+    } else {
+        AppContentLayoutMode.SingleColumn
+    }
+
+/**
+ * 自适应双栏内容：宽屏把两组内容并排展示，窄屏按 [primary]、[secondary] 的顺序上下堆叠。
+ *
+ * 只负责分栏，不关心栏内是什么；页面把分组拆成两段传进来即可，既不需要自己判断断点，
+ * 也不需要接触任何一方的主题类型。栏内间距交给调用方，避免出现双重间距。
+ *
+ * @param modifier 额外修饰符，作用于最外层容器。
+ * @param columnSpacing 双栏时两栏之间的水平间距。
+ * @param rowSpacing 单栏时两段之间的垂直间距，以及双栏时栏内分组的垂直间距。
+ * @param primary 第一组内容；双栏时在左，单栏时在上。
+ * @param secondary 第二组内容；双栏时在右，单栏时在下。
+ */
+@Composable
+fun AppAdaptiveTwoColumn(
+    modifier: Modifier = Modifier,
+    columnSpacing: Dp = 0.dp,
+    rowSpacing: Dp = 0.dp,
+    primary: @Composable () -> Unit,
+    secondary: @Composable () -> Unit,
+) {
+    // 与 AppAdaptiveScaffold 一致，用 BoxWithConstraints 测量自身可用宽度后再按断点分栏。
+    BoxWithConstraints(modifier = modifier) {
+        when (appContentLayoutMode(maxWidth)) {
+            AppContentLayoutMode.TwoColumn -> {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(columnSpacing),
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(rowSpacing),
+                    ) { primary() }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(rowSpacing),
+                    ) { secondary() }
+                }
+            }
+
+            AppContentLayoutMode.SingleColumn -> {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(rowSpacing),
+                ) {
+                    primary()
+                    secondary()
+                }
+            }
+        }
+    }
+}
 
 /**
  * 自适应脚手架：窄屏沿用底部导航，宽屏把导航换成左侧导航栏。
