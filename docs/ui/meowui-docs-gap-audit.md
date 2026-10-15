@@ -4,7 +4,7 @@
 
 ## 1. 当前验证结果
 
-最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，以及 Miuix 颜色标准的独立设置）：
+最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，Miuix 颜色标准的独立设置，以及设置页顶部的实时主题预览卡片）：
 
 - `:shared:compileKotlinJvm`
 - `:shared:compileKotlinJs`
@@ -32,7 +32,8 @@
 | 设置类型和默认值 | 已完成 | `PreferenceKey`/`PreferenceType` | 类型安全 key 和默认值 |
 | 设置 Flow/Compose 绑定 | 已完成 | `rememberAppAppearance` | 支持读取、观察和异步写入 |
 | 预设色 | 已完成 | `AppThemePresets` | 稳定 ID、亮暗共用 seed |
-| 完整取色器 | 部分完成 | `AppColorPickerDialog` | 滑条/网格/hex/预览/确认取消已有；没有实时全局主题预览 |
+| 完整取色器 | 部分完成 | `AppColorPickerDialog` | 滑条/网格/hex/预览/确认取消已有；取色过程中不会实时改写全局主题 |
+| 实时主题预览 | 已完成 | `AppThemePreview` | 设置页顶部预览卡片，随风格、明暗模式与配色实时变化 |
 | 设置分组 | 部分完成 | `AppSection`、`AppListRow` | 视觉分组已有；没有 MeowUI 的收集式稳定 key/分段圆角 |
 | Switch preference | 已完成 | `AppSwitchPreference` | Material/Miuix 分支 |
 | Checkbox preference | 已完成 | `AppCheckboxPreference` | Material Checkbox + Miuix CheckboxPreference；作为通用语义组件保留 |
@@ -73,6 +74,7 @@
   - 文字、描边、分隔线和控件色保持原值，纯黑背景上仍有可读层次；变换放在颜色过渡动画之前，开关切换会走同一套插值。
   - `MiuixAmoledSchemeTest` 覆盖"关闭时原样返回""开启时压黑底色 token""开启时保留文字与描边"三种情况。
 - `AppColorTransition` 使用单进度插值，开关关闭时直接使用目标颜色。
+- `AppThemePreview` 是设置页顶部的实时预览卡片，只使用 `AppDesign`/`AppText`/`AppCard`/`AppButton` 等语义 API：展示 primary、primaryContainer、secondaryContainer、surfaceContainerHighest、error 色卡与示例标题、正文、按钮、只读开关，切换风格、明暗或配色时立即反映结果，切换前可以先确认效果。
 
 ### 取色
 
@@ -180,6 +182,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 ### P2：设置 UI 缺少 MeowUI Appearance Page 的完整结构
 
 当前已经有：
+- 实时主题预览卡片。
 - 明暗模式。
 - 颜色来源。
 - palette。
@@ -191,7 +194,6 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 - 悬浮底栏开关。
 
 缺少：
-- 实时主题预览头图。
 - 界面缩放。
 - Blur 开关（底层缺少跨平台模糊能力，暂不提供开关）。
 - Predictive Back 开关（需要各平台原生能力，暂不提供开关）。
