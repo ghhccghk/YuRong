@@ -144,7 +144,11 @@ private fun MainScreenContent(
         else -> null
     }
 
-    AppScaffold(
+    // 宽屏自动换成侧边导航栏，窄屏保持底部导航；两种布局共用同一份导航项与回调。
+    AppAdaptiveScaffold(
+        navigationItems = navigationItems,
+        selectedIndex = selectedDestination.ordinal,
+        onSelected = { onDestinationChange(MainDestination.entries[it]) },
         topBar = {
             AppTopBar(
                 title = selectedDestination.label,
@@ -152,15 +156,8 @@ private fun MainScreenContent(
                 scrollBehavior = scrollBehavior,
             )
         },
-        bottomBar = {
-            AppBottomNavigation(
-                items = navigationItems,
-                selectedIndex = selectedDestination.ordinal,
-                onSelected = { onDestinationChange(MainDestination.entries[it]) },
-                // 悬浮底栏是 Miuix 专属外观选项，Material 3 下该开关不生效。
-                floating = appearance.floatingNavigationBarEnabled,
-            )
-        },
+        // 悬浮底栏是 Miuix 专属外观选项，Material 3 下该开关不生效。
+        floatingNavigation = appearance.floatingNavigationBarEnabled,
         scrollBehavior = scrollBehavior,
     ) { padding ->
         MainDestinationContent(

@@ -1,12 +1,17 @@
 package top.ghhccghk.yadea.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail as MaterialNavigationRail
+import androidx.compose.material3.NavigationRailItem as MaterialNavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -19,11 +24,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBar as MiuixFloatingNavigationBar
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem as MiuixFloatingNavigationBarItem
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.NavigationBar as MiuixNavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem as MiuixNavigationBarItem
+import top.yukonga.miuix.kmp.basic.NavigationRail as MiuixNavigationRail
+import top.yukonga.miuix.kmp.basic.NavigationRailItem as MiuixNavigationRailItem
 import top.yukonga.miuix.kmp.basic.Scaffold as MiuixScaffold
 import top.yukonga.miuix.kmp.basic.ScrollBehavior as MiuixScrollBehaviorState
 import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
@@ -211,6 +220,139 @@ fun AppBottomNavigation(
                             label = item.label,
                         )
                     }
+                }
+            }
+        },
+    )
+}
+
+/** 自适应导航断点：可用宽度达到该值时改用侧边导航栏，与 Material 3 的 medium 窗口宽度保持一致。 */
+val AppNavigationRailBreakpoint: Dp = 600.dp
+
+/** 顶层导航布局模式：窄屏使用底部导航，宽屏使用侧边导航栏。 */
+enum class AppNavigationLayoutMode {
+    /** 窄屏：底部导航栏。 */
+    BottomNavigation,
+
+    /** 宽屏：左侧导航栏。 */
+    NavigationRail,
+}
+
+/**
+ * 根据可用宽度推导导航布局模式。
+ *
+ * 抽成纯函数是为了让断点行为可以直接被单元测试覆盖，页面只负责把测量到的宽度传进来，
+ * 不需要自己关心具体断点数值。
+ *
+ * @param availableWidth 当前布局可用的最大宽度。
+ */
+fun appNavigationLayoutMode(availableWidth: Dp): AppNavigationLayoutMode =
+    if (availableWidth >= AppNavigationRailBreakpoint) {
+        AppNavigationLayoutMode.NavigationRail
+    } else {
+        AppNavigationLayoutMode.BottomNavigation
+    }
+
+/**
+ * 自适应脚手架：窄屏沿用底部导航，宽屏把导航换成左侧导航栏。
+ *
+ * 内容区仍然复用 [AppScaffold]，所以顶栏、嵌套滚动与下拉刷新在两种布局下行为一致，
+ * 业务页面不需要知道自己当前运行在哪种布局里。
+ *
+ * @param navigationItems 顶层导航项，与 [AppBottomNavigation] 共用同一份数据。
+ * @param selectedIndex 当前选中项索引。
+ * @param onSelected 选中回调；重复选中当前项不会触发。
+ * @param topBar 顶栏内容，通常为 [AppTopBar]。
+ * @param floatingNavigation 是否使用 Miuix 悬浮胶囊底栏；只影响窄屏下的 Miuix 分支。
+ * @param scrollBehavior 可选的顶栏滚动行为，语义与 [AppScaffold] 一致。
+ * @param content 页面内容；参数为需要页面自行消费的窗口内边距。
+ */
+@Composable
+fun AppAdaptiveScaffold(
+    navigationItems: List<AppNavigationItem>,
+    selectedIndex: Int,
+    onSelected: (Int) -> Unit,
+    topBar: @Composable () -> Unit = {},
+    floatingNavigation: Boolean = false,
+    scrollBehavior: AppScrollBehavior? = null,
+    content: @Composable (PaddingValues) -> Unit,
+) {
+    // 用 BoxWithConstraints 测量当前窗口宽度，再按断点决定导航形态；
+    // 这样业务页面无需接触任何平台窗口尺寸 API。
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        when (appNavigationLayoutMode(maxWidth)) {
+            AppNavigationLayoutMode.NavigationRail -> {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    AppNavigationRail(
+                        items = navigationItems,
+                        selectedIndex = selectedIndex,
+                        onSelected = onSelected,
+                    )
+                    // 侧边导航只替换底栏，内容区继续走 AppScaffold，保持顶栏与滚动行为不变。
+                    Box(modifier = Modifier.weight(1f)) {
+                        AppScaffold(
+                            topBar = topBar,
+                            scrollBehavior = scrollBehavior,
+                            content = content,
+                        )
+                    }
+                }
+            }
+
+            AppNavigationLayoutMode.BottomNavigation -> {
+                AppScaffold(
+                    topBar = topBar,
+                    bottomBar = {
+                        AppBottomNavigation(
+                            items = navigationItems,
+                            selectedIndex = selectedIndex,
+                            onSelected = onSelected,
+                            floating = floatingNavigation,
+                        )
+                    },
+                    scrollBehavior = scrollBehavior,
+                    content = content,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 宽屏侧边导航栏：Miuix 使用原生 [MiuixNavigationRail]，Material 3 使用原生 [MaterialNavigationRail]。
+ *
+ * 两种风格都只接收业务语义参数，业务页面不接触任何一方的私有类型；
+ * Miuix 侧栏自带系统栏内边距处理，Material 3 侧栏沿用官方默认配色。
+ */
+@Composable
+private fun AppNavigationRail(
+    items: List<AppNavigationItem>,
+    selectedIndex: Int,
+    onSelected: (Int) -> Unit,
+) {
+    AppStyleContent(
+        material = {
+            MaterialNavigationRail {
+                items.forEachIndexed { index, item ->
+                    MaterialNavigationRailItem(
+                        selected = selectedIndex == index,
+                        onClick = { onSelected(index) },
+                        // Material 3 侧栏没有对应的矢量图标来源，沿用与底栏一致的文本占位图标。
+                        icon = { Text(item.fallbackText, style = AppDesign.typography.title) },
+                        label = { Text(item.label) },
+                    )
+                }
+            }
+        },
+        miuix = {
+            MiuixNavigationRail(modifier = Modifier.fillMaxHeight()) {
+                items.forEachIndexed { index, item ->
+                    MiuixNavigationRailItem(
+                        selected = selectedIndex == index,
+                        onClick = { onSelected(index) },
+                        icon = item.icon,
+                        label = item.label,
+                    )
                 }
             }
         },
