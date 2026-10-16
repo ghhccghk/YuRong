@@ -4,12 +4,12 @@
 
 ## 1. 当前验证结果
 
-最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppSegmentedControl 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，Miuix 颜色标准的独立设置，以及设置页顶部的实时主题预览卡片，连接页设备列表的 AppSearchBar 即时搜索，连接页的 AppPullToRefresh 下拉刷新，主界面的 AppAdaptiveScaffold 宽屏侧边导航，设置页的界面缩放（AppSliderPreference 滑条 + LocalDensity 全局缩放），以及反馈组件的 AppSnackbar（一份业务状态桥接两套原生 SnackbarHostState，并接入 BLE 断开 / Wi-Fi 断开 / 停止投屏三个真实场景），宽屏内容双栏 `AppAdaptiveTwoColumn`（设备信息页首个接入），以及 `TabRow` 全面替换为分段控件、动态配色同步修复、Android 预测性返回、主题预览卡片重做、连接与投屏合并）：
+最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppSegmentedControl 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，Miuix 颜色标准的独立设置，以及设置页顶部的实时主题预览卡片，连接页设备列表的 AppSearchBar 即时搜索，连接页的 AppPullToRefresh 下拉刷新，主界面的 AppAdaptiveScaffold 宽屏侧边导航，设置页的界面缩放（AppSliderPreference 滑条 + LocalDensity 全局缩放），以及反馈组件的 AppSnackbar（一份业务状态桥接两套原生 SnackbarHostState，并接入 BLE 断开 / Wi-Fi 断开 / 停止投屏三个真实场景），宽屏内容双栏 `AppAdaptiveTwoColumn`（设备信息页首个接入），以及 `TabRow` 全面替换为分段控件、动态配色同步修复（AppDesign token 缓存键改为颜色快照，修掉 Miuix 换色时"只有一部分组件跟着切"）、Android 预测性返回、主题预览卡片重做、连接与投屏合并）：
 
 - `:shared:compileKotlinJvm`
 - `:shared:compileKotlinJs`
 - `:shared:compileKotlinWasmJs`
-- `:shared:jvmTest`（130 个用例全部通过）
+- `:shared:jvmTest`（133 个用例全部通过）
 - `:androidApp:assembleDebug`
 - `:desktopApp:build`
 
@@ -75,6 +75,9 @@
   - 文字、描边、分隔线和控件色保持原值，纯黑背景上仍有可读层次；变换放在颜色过渡动画之前，开关切换会走同一套插值。
   - `MiuixAmoledSchemeTest` 覆盖"关闭时原样返回""开启时压黑底色 token""开启时保留文字与描边"三种情况。
 - `AppColorTransition` 使用单进度插值，开关关闭时直接使用目标颜色。
+- Miuix 的 `Colors` 是字段为 `mutableStateOf` 的可变 `@Stable` 类：`MiuixTheme(colors = ...)` 只会对同一个实例就地更新字段（`updateColorsFrom`），对象引用不变、也没有重写 `equals`。因此 `rememberMiuixAppThemeTokens` 不能把实例本身当 `remember` 的 key，否则 `AppDesign.colors` 会永远停留在首次组合的配色——读取 `AppDesign` 的组件不换色，而直接读 `MiuixTheme.colorScheme` 的原生组件会换色，表现为"只有一部分组件跟着切"。现在改用颜色快照 `toColorList()` 作为缓存键，任意字段变化都会触发重组并重算 token。
+  - `MiuixColors.toColorList()` 同时是颜色过渡动画和 token 缓存的唯一来源，Miuix 新增颜色字段时必须同步补充。
+  - `MiuixColorSnapshotTest` 用反射逐个就地改写颜色字段，锁定"快照覆盖全部颜色字段"与"快照往返顺序一致"；`MiuixDynamicColorSwitchTest` 用 `ImageComposeScene` 离屏渲染真实跑一遍 `AppTheme`，断言换种子色后 `AppDesign.colors.primary` 已经变化（修复前该用例必然失败）。
 - Miuix 分支在 `MiuixTheme(colors = ...)` 内层显式提供 `MiuixLocalContentColor`（跟随动画后的 `onBackground`）：`MiuixTheme` 只重新提供颜色、排版与 Indication，不会更新 Miuix 自己的内容色，否则 `MiuixText`、`MiuixTextField`、`MiuixIcon` 等组件会一直沿用外层 controller 的静态内容色，切换动态配色时不同步。
 - `AppThemePreview` 是设置页顶部的实时预览卡片，参考 KernelSU 的设置页改成一台手机缩略图：外框、应用名、顶部高亮卡片、正文行与底部胶囊导航全部取自 `AppDesign` 语义 token，底部导航入口数量与真实导航一致（`navigationItemCount`）。
 - 缩略图下方用一行 caption 说明当前生效的界面风格与明暗模式；切换风格、明暗模式、配色或 Miuix Monet 开关时预览立即跟随变化，缩略图只表达层级关系、不承载任何交互。
