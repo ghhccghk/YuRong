@@ -38,7 +38,6 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.ListView
 import top.yukonga.miuix.kmp.icon.extended.Phone
-import top.yukonga.miuix.kmp.icon.extended.ScreenMirroring
 import top.yukonga.miuix.kmp.icon.extended.SearchDevice
 import top.yukonga.miuix.kmp.icon.extended.Settings
 
@@ -48,9 +47,19 @@ private enum class MainDestination(
     val fallbackText: String,
 ) {
     Connection("连接", MiuixIcons.SearchDevice, "📡"),
-    Mirror("投屏", MiuixIcons.ScreenMirroring, "🖥"),
     Device("设备", MiuixIcons.Phone, "📱"),
     Settings("设置", MiuixIcons.Settings, "⚙"),
+}
+
+/**
+ * 连接页的两个子功能。
+ *
+ * 合并后「投屏」不再是顶层入口，而是连接页下的子功能，
+ * 与「设备连接」共用同一个脚手架、顶栏动作和滚动宿主。
+ */
+private enum class ConnectionSection(val label: String) {
+    Device("设备连接"),
+    Mirror("投屏"),
 }
 
 @Composable
@@ -120,13 +129,18 @@ private fun MainScreenContent(
     // 投屏日志属于次级信息，改为顶栏动作 + 底部面板，避免长期占用页面空间。
     val debugLog by viewModel.debugLog.collectAsState()
     var showMirrorLog by remember { mutableStateOf(false) }
+    // 连接页内的子功能（设备连接 / 投屏）；离开连接页后保留选择，返回时回到原来的子页。
+    var connectionSection by remember { mutableStateOf(ConnectionSection.Device) }
     // 顶栏滚动行为由页面创建一次，再分别交给脚手架与顶栏；两种风格各自使用原生实现。
     val scrollBehavior = rememberAppScrollBehavior()
     // 轻量提示状态同样在页面顶层创建一次：宿主挂在脚手架上，各页面共用同一个状态。
     val snackbarHostState = rememberAppSnackbarHostState()
     val feedbackScope = rememberCoroutineScope()
     val topBarActions: (@Composable RowScope.() -> Unit)? = when {
-        selectedDestination == MainDestination.Connection && bleState == BleConnectionState.Connected -> {
+        // 断开 BLE 只与设备连接子页相关，切到投屏子页时收起，避免误触。
+        selectedDestination == MainDestination.Connection &&
+            connectionSection == ConnectionSection.Device &&
+            bleState == BleConnectionState.Connected -> {
             {
                 AppIconButton(
                     icon = MiuixIcons.Close,
@@ -136,7 +150,8 @@ private fun MainScreenContent(
             }
         }
 
-        selectedDestination == MainDestination.Mirror -> {
+        selectedDestination == MainDestination.Connection &&
+            connectionSection == ConnectionSection.Mirror -> {
             {
                 AppIconButton(
                     icon = MiuixIcons.ListView,
@@ -149,10 +164,16 @@ private fun MainScreenContent(
         else -> null
     }
 
-    // 系统返回手势：非连接页先回到连接页根页面；连接页根不拦截，
-    // 直接把事件交回系统处理（Android 13+ 会播放预测性返回动画）。
-    AppBackHandler(enabled = selectedDestination != MainDestination.Connection) {
-        onDestinationChange(MainDestination.Connection)
+    // 系统返回手势：非连接页先回到连接页；连接页的投屏子页先回到设备子页；
+    // 连接页的设备子页不拦截，直接把事件交回系统处理（Android 13+ 会播放预测性返回动画）。
+    val canNavigateBack = selectedDestination != MainDestination.Connection ||
+        connectionSection != ConnectionSection.Device
+    AppBackHandler(enabled = canNavigateBack) {
+        if (selectedDestination != MainDestination.Connection) {
+            onDestinationChange(MainDestination.Connection)
+        } else {
+            connectionSection = ConnectionSection.Device
+        }
     }
 
     // 宽屏自动换成侧边导航栏，窄屏保持底部导航；两种布局共用同一份导航项与回调。
@@ -175,6 +196,8 @@ private fun MainScreenContent(
     ) { padding ->
         MainDestinationContent(
             destination = selectedDestination,
+            connectionSection = connectionSection,
+            onConnectionSectionChange = { connectionSection = it },
             viewModel = viewModel,
             appearance = appearance,
             onAppearanceChange = onAppearanceChange,
@@ -188,8 +211,9 @@ private fun MainScreenContent(
     }
 
     AppBottomSheet(
-        // 离开投屏页时面板自动关闭，避免切页后仍停留在旧的日志内容上。
-        show = showMirrorLog && selectedDestination == MainDestination.Mirror,
+        // 离开投屏子页时面板自动关闭，避免切页后仍停留在旧的日志内容上。
+        show = showMirrorLog && selectedDestination == MainDestination.Connection &&
+            connectionSection == ConnectionSection.Mirror,
         onDismissRequest = { showMirrorLog = false },
         title = "调试日志",
     ) {
@@ -236,6 +260,8 @@ private fun MainScreenContent(
 @Composable
 private fun MainDestinationContent(
     destination: MainDestination,
+    connectionSection: ConnectionSection,
+    onConnectionSectionChange: (ConnectionSection) -> Unit,
     viewModel: AppViewModel,
     appearance: AppAppearance,
     onAppearanceChange: (AppAppearance) -> Unit,
@@ -246,14 +272,58 @@ private fun MainDestinationContent(
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         when (destination) {
-            MainDestination.Connection -> ConnectionScreen(viewModel, scrollBehavior, snackbarHostState)
-            MainDestination.Mirror -> MirrorScreen(viewModel, snackbarHostState)
+            // 连接页承载两个子功能：设备连接与投屏。
+            MainDestination.Connection -> ConnectionHubScreen(
+                section = connectionSection,
+                onSectionChange = onConnectionSectionChange,
+                viewModel = viewModel,
+                scrollBehavior = scrollBehavior,
+                snackbarHostState = snackbarHostState,
+            )
             MainDestination.Device -> DeviceScreen()
             MainDestination.Settings -> SettingsScreen(
                 appearance = appearance,
                 onAppearanceChange = onAppearanceChange,
                 systemAccentColor = systemAccentColor,
             )
+        }
+    }
+}
+
+/**
+ * 连接页宿主：顶部用分段控件切换「设备连接」与「投屏」两个子功能。
+ *
+ * 两个子页面各自保留原有实现与滚动容器，这里只用 weight 占位，
+ * 避免把两个 LazyColumn 嵌套在一起；分段控件不注册 nestedScroll，
+ * 因此切换子功能不会影响下方页面的上下拖动。
+ */
+@Composable
+private fun ConnectionHubScreen(
+    section: ConnectionSection,
+    onSectionChange: (ConnectionSection) -> Unit,
+    viewModel: AppViewModel,
+    scrollBehavior: AppScrollBehavior? = null,
+    snackbarHostState: AppSnackbarHostState? = null,
+    modifier: Modifier = Modifier,
+) {
+    val dimensions = AppDesign.dimensions
+    Column(modifier = modifier.fillMaxSize()) {
+        AppSegmentedControl(
+            options = ConnectionSection.entries.map { it.label },
+            selectedIndex = ConnectionSection.entries.indexOf(section),
+            onSelected = { onSectionChange(ConnectionSection.entries[it]) },
+            // 只保留上方与两侧间距：下方间距由子页面自己的 contentPadding 提供，避免双重留白。
+            modifier = Modifier.fillMaxWidth().padding(
+                start = dimensions.pageHorizontalPadding,
+                top = dimensions.controlSpacing,
+                end = dimensions.pageHorizontalPadding,
+            ),
+        )
+        Box(modifier = Modifier.weight(1f)) {
+            when (section) {
+                ConnectionSection.Device -> ConnectionScreen(viewModel, scrollBehavior, snackbarHostState)
+                ConnectionSection.Mirror -> MirrorScreen(viewModel, snackbarHostState)
+            }
         }
     }
 }
