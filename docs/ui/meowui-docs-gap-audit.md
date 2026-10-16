@@ -4,16 +4,17 @@
 
 ## 1. 当前验证结果
 
-最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppSegmentedControl 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，Miuix 颜色标准的独立设置，以及设置页顶部的实时主题预览卡片，连接页设备列表的 AppSearchBar 即时搜索，连接页的 AppPullToRefresh 下拉刷新，主界面的 AppAdaptiveScaffold 宽屏侧边导航，设置页的界面缩放（AppSliderPreference 滑条 + LocalDensity 全局缩放），以及反馈组件的 AppSnackbar（一份业务状态桥接两套原生 SnackbarHostState，并接入 BLE 断开 / Wi-Fi 断开 / 停止投屏三个真实场景），宽屏内容双栏 `AppAdaptiveTwoColumn`（设备信息页首个接入），以及 `TabRow` 全面替换为分段控件、动态配色同步修复（AppDesign token 缓存键改为颜色快照，修掉 Miuix 换色时"只有一部分组件跟着切"）、Android 预测性返回、主题预览卡片重做、连接与投屏合并）：
+最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppSegmentedControl 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，Miuix 颜色标准的独立设置，以及设置页顶部的实时主题预览卡片，连接页设备列表的 AppSearchBar 即时搜索，连接页的 AppPullToRefresh 下拉刷新，主界面的 AppAdaptiveScaffold 宽屏侧边导航，设置页的界面缩放（AppSliderPreference 滑条 + LocalDensity 全局缩放），以及反馈组件的 AppSnackbar（一份业务状态桥接两套原生 SnackbarHostState，并接入 BLE 断开 / Wi-Fi 断开 / 停止投屏三个真实场景），宽屏内容双栏 `AppAdaptiveTwoColumn`（设备信息页首个接入），以及 `TabRow` 全面替换为分段控件、动态配色同步修复（AppDesign token 缓存键改为颜色快照，修掉 Miuix 换色时"只有一部分组件跟着切"）、Android 预测性返回、主题预览卡片重做、连接与投屏合并、Material 3 无顶栏动作时嵌套滚动吞掉内容滑动的修复）：
 
 - `:shared:compileKotlinJvm`
 - `:shared:compileKotlinJs`
 - `:shared:compileKotlinWasmJs`
-- `:shared:jvmTest`（133 个用例全部通过）
+- `:shared:jvmTest`（194 个用例全部通过）
 - `:androidApp:assembleDebug`
 - `:desktopApp:build`
+- `:webApp:jsBrowserDistribution`
 
-当前没有重新执行 Android/Desktop 截图矩阵。iOS 完整编译仍受仓库原有 `JpegEncoder.ios.kt`、`PlatformBitmap.ios.kt`、`CurrentTime.ios.kt` 编译问题影响。
+最近一次视觉回归在 Android 14 模拟器（1080x2200 / density 420）上执行：设置页在 Miuix 与 Material 3 两种风格、浅色与深色两种模式、预设色与动态取色两种来源下各截取一次，确认「Miuix 切回 Material 3 后仍可上下拖动」「切成动态取色后分组标题、滑条与分段控件同步换色」「连接页的投屏子页与底栏导航点击均可达」。未重新执行 Desktop/Web 截图矩阵。`:webApp:assemble` 的 wasmJs 生产优化步骤在本机以 `wasm-opt.exe`（binaryen 130）崩溃退出（NTSTATUS 0xC0000409）而失败，属于本机工具链问题，`:shared:compileKotlinWasmJs` 与 `:webApp:jsBrowserDistribution` 均通过。iOS 完整编译仍受仓库原有 `JpegEncoder.ios.kt`、`PlatformBitmap.ios.kt`、`CurrentTime.ios.kt` 编译问题影响。
 
 ## 2. 功能状态总览
 
@@ -44,7 +45,7 @@
 | Dialog | 部分完成 | `AppColorPickerDialog`、`AppLoadingDialog`、`AppAlertDialog` | 基础 Alert 已完成；Single choice、Text input 本轮决定不做 |
 | TopBar actions/menu | 部分完成 | `AppTopBar(title, actions)`、`AppIconButton` | 支持单个图标动作；文字动作、下拉菜单仍未实现 |
 | 搜索框 | 已完成 | `AppSearchBar` | 连接页 WiFi / P2P / BLE 设备列表已接入即时过滤 |
-| Scaffold 滚动顶栏 | 部分完成 | `AppScaffold(scrollBehavior)`、`AppTopBar(scrollBehavior)` | 已支持共享嵌套滚动与顶栏收起/展开；Pull-to-Refresh 协作已由 `AppPullToRefresh` 补齐；Blur backdrop、overlay host 仍未实现 |
+| Scaffold 滚动顶栏 | 部分完成 | `AppScaffold(scrollBehavior)`、`AppTopBar(scrollBehavior)` | 已支持共享嵌套滚动与顶栏收起/展开；无顶栏动作时不再吞掉内容滑动；Pull-to-Refresh 协作已由 `AppPullToRefresh` 补齐；Blur backdrop、overlay host 仍未实现 |
 | 分段选择 | 已完成 | `AppSegmentedControl` | Material 3 `SingleChoiceSegmentedButtonRow` / Miuix 自绘分段控件；已替换全部 `TabRow` 用法（连接页 AP/P2P、设置页明暗模式与颜色来源、连接页设备连接/投屏子页） |
 | 普通/悬浮底栏 | 已完成 | `AppBottomNavigation(floating)` | Miuix 可选原生 `FloatingNavigationBar` 悬浮胶囊；Material 3 保持原生 `NavigationBar` |
 | 导航分页 | 缺失 | 无 pager | 当前使用三个固定入口（连接 / 设备 / 设置），投屏已并入连接页 |
@@ -131,6 +132,9 @@
 - `AppIconButton` 为顶栏等紧凑位置提供单一图标操作：Miuix 用 `MiuixIconButton` + `MiuixIcon`，Material 3 用 `IconButton` + `Icon`，两者都从各自的 `ContentColor` CompositionLocal 取默认着色。
 - `AppAlertDialog` 覆盖标题、说明文字与确认/取消的基础确认场景：Miuix 用原生 `WindowDialog`，Material 3 用原生 `AlertDialog`；`dismissText` 为空时退化为单按钮告知型弹窗。
 - 连接页已接入真实场景：BLE 处于连接状态时顶栏出现“断开 BLE 连接”图标动作，点击后由 `AppAlertDialog` 二次确认，确认后调用既有的 `disconnectBle()`，未新增协议层逻辑。
+- Material 3 在未传 `actions` 时不渲染原生 `TopAppBar`，但 `AppScaffold` 仍然挂了 `nestedScroll`；原生 `EnterAlwaysScrollBehavior.onPreScroll` 只要 `heightOffset` 变化就会消费纵向位移，而顶栏缺席时 `heightOffsetLimit` 仍是初始哨兵值，于是所有上滑都被吃掉，页面看起来“无法触摸”。
+- 修法：`AppScrollBehavior` 用 `setMaterialTopBarPresent` 记录 Material 顶栏是否真的渲染，只有存在时才把 `onPreScroll/onPostScroll/onPreFling/onPostFling` 转发给 Material 的 `nestedScrollConnection`，否则返回 `Offset.Zero` / `Velocity.Zero`；`AppTopBar` 在 Material 分支用 `DisposableEffect` 登记与注销该状态。Miuix 分支始终渲染原生顶栏，行为不变。
+- 回归测试 `AppTopBarScrollTest` 用无窗口的 `ImageComposeScene` 播放真实触摸拖动（`PointerType.Touch` + 按下状态的多步 Move），分别覆盖 Miuix 对照组、Material 3 无顶栏动作、以及 Material 3 有顶栏动作时顶栏仍能正常收起，避免过度修复；另有 `UiStyleSwitchInteractivityTest` 覆盖 ListPopup 展开时切回 Material 3 后点击仍可达。
 
 ### 导航与面板
 
