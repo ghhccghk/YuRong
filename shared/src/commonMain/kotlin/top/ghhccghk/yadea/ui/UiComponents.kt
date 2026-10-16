@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.selection.toggleable
@@ -498,12 +499,49 @@ fun AppStatusChip(connected: Boolean, text: String) {
     )
 }
 
+/** 设置项左侧图标的尺寸，与两套风格的标题字号保持视觉平衡。 */
+private val PreferenceLeadingIconSize = 20.dp
+
+/**
+ * 两套风格共用的装饰性前置图标（设置项、列表行左侧）。
+ *
+ * 图标的含义已由同一行的标题表达，因此 contentDescription 固定为 null，
+ * 避免无障碍服务重复朗读；需要独立语义的图标请改用 [AppIconButton]。
+ * 这里只依赖语义色 token，因此 Miuix 与 Material 3 下渲染结果一致。
+ */
+@Composable
+internal fun AppPreferenceLeadingIcon(icon: ImageVector) {
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = AppDesign.colors.onSurfaceVariant,
+        modifier = Modifier.size(PreferenceLeadingIconSize),
+    )
+}
+
+/**
+ * Miuix 分支的装饰性前置图标，作为 preference 的 startAction 插槽内容。
+ *
+ * [icon] 为空时不渲染任何内容，Miuix 的插槽会自动收敛为 0 宽度且不占用间距。
+ */
+@Composable
+private fun MiuixPreferenceLeadingIcon(icon: ImageVector?) {
+    if (icon == null) return
+    MiuixIcon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+        modifier = Modifier.size(PreferenceLeadingIconSize),
+    )
+}
+
 @Composable
 fun AppSwitchPreference(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     title: String,
     summary: String? = null,
+    leadingIcon: ImageVector? = null,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(
         horizontal = AppDesign.dimensions.itemHorizontalPadding,
@@ -514,9 +552,13 @@ fun AppSwitchPreference(
         material = {
             Row(
                 modifier = modifier.fillMaxWidth().padding(contentPadding),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // 左侧图标只做视觉引导，语义由标题承担。
+                if (leadingIcon != null) {
+                    AppPreferenceLeadingIcon(leadingIcon)
+                }
                 Column(modifier = Modifier.weight(1f)) {
                     AppText(title, style = AppDesign.typography.sectionTitle)
                     if (summary != null) {
@@ -535,6 +577,8 @@ fun AppSwitchPreference(
                 onCheckedChange = onCheckedChange,
                 title = title,
                 summary = summary,
+                // 前置图标走 Miuix 原生 startAction 插槽，位置与 Material 分支一致。
+                startAction = { MiuixPreferenceLeadingIcon(leadingIcon) },
                 modifier = modifier,
             )
         },
@@ -623,6 +667,7 @@ fun AppSliderPreference(
     valueRange: ClosedFloatingPointRange<Float>,
     modifier: Modifier = Modifier,
     summary: String? = null,
+    leadingIcon: ImageVector? = null,
     valueText: String? = null,
     steps: Int = 0,
     enabled: Boolean = true,
@@ -647,9 +692,13 @@ fun AppSliderPreference(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // 左侧图标只做视觉引导，语义由标题承担。
+                    if (leadingIcon != null) {
+                        AppPreferenceLeadingIcon(leadingIcon)
+                    }
                     Column(modifier = Modifier.weight(1f)) {
                         AppText(title, style = AppDesign.typography.itemTitle)
                         if (summary != null) {
@@ -676,6 +725,8 @@ fun AppSliderPreference(
             MiuixSliderPreference(
                 title = title,
                 summary = summary,
+                // 前置图标走 Miuix 原生 startAction 插槽，位置与 Material 分支一致。
+                startAction = { MiuixPreferenceLeadingIcon(leadingIcon) },
                 value = sliderState.value,
                 onValueChange = submitValue,
                 modifier = modifier,
@@ -708,6 +759,7 @@ fun AppPopupPreference(
     onSelectedIndexChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
     summary: String? = null,
+    leadingIcon: ImageVector? = null,
     enabled: Boolean = true,
     contentPadding: PaddingValues = PaddingValues(
         horizontal = AppDesign.dimensions.itemHorizontalPadding,
@@ -732,6 +784,10 @@ fun AppPopupPreference(
                     horizontalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // 左侧图标只做视觉引导，语义由标题承担。
+                    if (leadingIcon != null) {
+                        AppPreferenceLeadingIcon(leadingIcon)
+                    }
                     Column(modifier = Modifier.weight(1f)) {
                         AppText(
                             text = title,
@@ -789,6 +845,8 @@ fun AppPopupPreference(
                 selectedIndex = selectedIndex,
                 title = title,
                 summary = summary,
+                // 前置图标走 Miuix 原生 startAction 插槽，位置与 Material 分支一致。
+                startAction = { MiuixPreferenceLeadingIcon(leadingIcon) },
                 enabled = enabled,
                 modifier = modifier,
                 onSelectedIndexChange = { index ->
@@ -811,6 +869,7 @@ fun AppActionPreference(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     summary: String? = null,
+    leadingIcon: ImageVector? = null,
     value: String? = null,
     enabled: Boolean = true,
     contentPadding: PaddingValues = PaddingValues(
@@ -832,6 +891,10 @@ fun AppActionPreference(
                 horizontalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // 左侧图标只做视觉引导，语义由标题承担。
+                if (leadingIcon != null) {
+                    AppPreferenceLeadingIcon(leadingIcon)
+                }
                 Column(modifier = Modifier.weight(1f)) {
                     AppText(
                         text = title,
@@ -865,6 +928,8 @@ fun AppActionPreference(
             MiuixArrowPreference(
                 title = title,
                 summary = summary,
+                // 前置图标走 Miuix 原生 startAction 插槽，位置与 Material 分支一致。
+                startAction = { MiuixPreferenceLeadingIcon(leadingIcon) },
                 modifier = modifier,
                 enabled = enabled,
                 onClick = onClick,

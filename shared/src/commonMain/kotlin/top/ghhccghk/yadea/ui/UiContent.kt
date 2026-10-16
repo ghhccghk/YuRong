@@ -13,6 +13,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator as MiuixCircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.SmallTitle as MiuixSmallTitle
@@ -86,6 +87,8 @@ fun AppSection(
 fun AppListRow(
     title: String,
     summary: String? = null,
+    // 左侧装饰性图标，只做视觉引导，语义由 title 承担。
+    leadingIcon: ImageVector? = null,
     value: String? = null,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
@@ -107,6 +110,10 @@ fun AppListRow(
             horizontalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // 前置图标只做视觉引导，语义由标题承担。
+            if (leadingIcon != null) {
+                AppPreferenceLeadingIcon(leadingIcon)
+            }
             Column(modifier = Modifier.weight(1f)) {
                 AppText(
                     text = title,

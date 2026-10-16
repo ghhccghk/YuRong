@@ -1,6 +1,7 @@
 package top.ghhccghk.yadea.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +18,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Background
+import top.yukonga.miuix.kmp.icon.extended.Edit
+import top.yukonga.miuix.kmp.icon.extended.Filter
+import top.yukonga.miuix.kmp.icon.extended.GridView
+import top.yukonga.miuix.kmp.icon.extended.Image
+import top.yukonga.miuix.kmp.icon.extended.Layers
+import top.yukonga.miuix.kmp.icon.extended.Photos
+import top.yukonga.miuix.kmp.icon.extended.Theme
+import top.yukonga.miuix.kmp.icon.extended.Tune
+import top.yukonga.miuix.kmp.icon.extended.Update
+import top.yukonga.miuix.kmp.icon.extended.ZoomOut
 
 @Composable
 fun SettingsScreen(
@@ -73,12 +86,27 @@ fun SettingsScreen(
         }
 
         item {
-            // 顶部预览卡片：随风格、明暗模式与配色实时变化，切换前可以先确认效果。
-            AppThemePreview(
-                styleLabel = appearance.uiStyle.label,
-                modeLabel = appearance.themeMode.label,
+            // 顶部主题区：手机缩略图预览 + 明暗模式分段选择。
+            // 参考 KernelSU 主题设置页，把“预览”和“模式切换”收进同一视觉区块，切换前就能确认效果。
+            Column(
                 modifier = sectionModifier,
-            )
+                verticalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+            ) {
+                AppThemePreview(
+                    styleLabel = appearance.uiStyle.label,
+                    modeLabel = appearance.themeMode.label,
+                )
+                // 三种明暗模式互斥，用分段控件表达比开关更贴近设置页语义；
+                // 分段控件不注册 nestedScroll，切换时不会让整页失去上下拖动能力。
+                AppSegmentedControl(
+                    options = AppThemeMode.entries.map { it.label },
+                    selectedIndex = AppThemeMode.entries.indexOf(appearance.themeMode),
+                    onSelected = { index ->
+                        onAppearanceChange(appearance.copy(themeMode = AppThemeMode.entries[index]))
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
 
         item {
@@ -86,6 +114,8 @@ fun SettingsScreen(
                 // 主题切换使用列表弹窗：Miuix 走 SpinnerPreference 的 ListPopup，Material 3 走 DropdownMenu。
                 AppPopupPreference(
                     title = "界面风格",
+                    // 前置图标只做视觉引导，语义由标题承担。
+                    leadingIcon = MiuixIcons.Theme,
                     summary = "Miuix 为 HyperOS 风格，Material 3 保留原生 Material 设计",
                     options = uiStyleOptions,
                     selectedIndex = UiThemeStyle.entries.indexOf(appearance.uiStyle),
@@ -106,6 +136,8 @@ fun SettingsScreen(
                             onAppearanceChange(appearance.copy(miuixMonetEnabled = it))
                         },
                         title = "Monet 动态配色",
+                        // 前置图标只做视觉引导，语义由标题承担。
+                        leadingIcon = MiuixIcons.Tune,
                         summary = if (appearance.miuixMonetEnabled) {
                             "根据壁纸或种子色生成 Miuix 配色"
                         } else {
@@ -116,6 +148,8 @@ fun SettingsScreen(
                         // 颜色标准只影响 Monet 生成的配色，关闭 Monet 后没有作用，因此跟随 Monet 开关显示。
                         AppPopupPreference(
                             title = "颜色标准",
+                            // 前置图标只做视觉引导，语义由标题承担。
+                            leadingIcon = MiuixIcons.Filter,
                             summary = "Spec 2025 支持 Tonal Spot、Neutral、Vibrant、Expressive 四种调色板",
                             options = colorSpecOptions,
                             selectedIndex = AppColorSpec.entries.indexOf(appearance.colorSpec),
@@ -134,6 +168,8 @@ fun SettingsScreen(
                             onAppearanceChange(appearance.copy(floatingNavigationBarEnabled = it))
                         },
                         title = "悬浮底栏",
+                        // 前置图标只做视觉引导，语义由标题承担。
+                        leadingIcon = MiuixIcons.Layers,
                         summary = if (appearance.floatingNavigationBarEnabled) {
                             "底部导航使用 HyperOS 悬浮胶囊样式"
                         } else {
@@ -149,6 +185,8 @@ fun SettingsScreen(
                 // 缩放同时作用于布局尺寸与文字，两套风格共用同一份设置。
                 AppSliderPreference(
                     title = "界面缩放",
+                    // 前置图标只做视觉引导，语义由标题承担。
+                    leadingIcon = MiuixIcons.ZoomOut,
                     summary = "同时缩放界面尺寸与文字，共 6 个档位",
                     value = scaleDraft,
                     onValueChange = { scaleDraft = it },
@@ -163,24 +201,6 @@ fun SettingsScreen(
                     valueRange = AppInterfaceScale.range,
                     steps = AppInterfaceScale.STEPS,
                     valueText = AppInterfaceScale.label(scaleDraft),
-                )
-            }
-        }
-
-        item {
-            AppSection(title = "明暗模式", modifier = sectionModifier) {
-                // 三种模式互斥，用分段选择控件表达比开关更贴近设置页语义；
-                // 分段控件不注册 nestedScroll，切换时不会让整页失去上下拖动能力。
-                AppSegmentedControl(
-                    options = AppThemeMode.entries.map { it.label },
-                    selectedIndex = AppThemeMode.entries.indexOf(appearance.themeMode),
-                    onSelected = { index ->
-                        onAppearanceChange(appearance.copy(themeMode = AppThemeMode.entries[index]))
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(
-                        horizontal = dimensions.itemHorizontalPadding,
-                        vertical = dimensions.itemVerticalPadding,
-                    ),
                 )
             }
         }
@@ -207,6 +227,8 @@ fun SettingsScreen(
                 if (systemAccentColor == null) {
                     AppListRow(
                         title = "动态颜色",
+                        // 前置图标只做视觉引导，语义由标题承担。
+                        leadingIcon = MiuixIcons.Photos,
                         summary = "当前平台不支持，已回退到自定义颜色",
                     )
                 }
@@ -214,6 +236,8 @@ fun SettingsScreen(
                 // 调色板取值较多，改用列表弹窗选择，避免反复点击才能找到目标项。
                 AppPopupPreference(
                     title = "调色板",
+                    // 前置图标只做视觉引导，语义由标题承担。
+                    leadingIcon = MiuixIcons.GridView,
                     options = paletteOptions,
                     selectedIndex = AppPaletteStyle.entries.indexOf(appearance.paletteStyle),
                     onSelectedIndexChange = { index ->
@@ -253,11 +277,15 @@ fun SettingsScreen(
 
                 AppActionPreference(
                     title = "当前颜色",
+                    // 前置图标只做视觉引导，语义由标题承担。
+                    leadingIcon = MiuixIcons.Image,
                     value = appSeedColor(appearance, systemAccentColor).toHexColor(),
                     onClick = { showCustomColorPicker = true },
                 )
                 AppActionPreference(
                     title = "自定义主题色",
+                    // 前置图标只做视觉引导，语义由标题承担。
+                    leadingIcon = MiuixIcons.Edit,
                     summary = "支持 HSV 滑条、网格调色盘和十六进制输入",
                     value = "选择",
                     onClick = { showCustomColorPicker = true },
@@ -273,6 +301,8 @@ fun SettingsScreen(
                         onAppearanceChange(appearance.copy(amoledDarkEnabled = it))
                     },
                     title = "AMOLED 纯黑",
+                    // 前置图标只做视觉引导，语义由标题承担。
+                    leadingIcon = MiuixIcons.Background,
                     summary = "仅暗色模式生效，Material 3 与 Miuix 的页面底色都会压成纯黑",
                 )
                 AppSwitchPreference(
@@ -281,6 +311,8 @@ fun SettingsScreen(
                         onAppearanceChange(appearance.copy(themeAnimationsEnabled = it))
                     },
                     title = "主题切换动画",
+                    // 前置图标只做视觉引导，语义由标题承担。
+                    leadingIcon = MiuixIcons.Update,
                     summary = "在颜色方案变化时平滑过渡",
                 )
             }
@@ -291,8 +323,8 @@ fun SettingsScreen(
 private val AppThemeMode.label: String
     get() = when (this) {
         AppThemeMode.System -> "跟随系统"
-        AppThemeMode.Light -> "亮色"
-        AppThemeMode.Dark -> "暗色"
+        AppThemeMode.Light -> "浅色"
+        AppThemeMode.Dark -> "深色"
     }
 
 /** 颜色来源的显示名称，顺序与 [AppColorSource.entries] 一致。 */
