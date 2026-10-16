@@ -4,12 +4,12 @@
 
 ## 1. 当前验证结果
 
-最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppTabRow 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，Miuix 颜色标准的独立设置，以及设置页顶部的实时主题预览卡片，连接页设备列表的 AppSearchBar 即时搜索，连接页的 AppPullToRefresh 下拉刷新，主界面的 AppAdaptiveScaffold 宽屏侧边导航，设置页的界面缩放（AppSliderPreference 滑条 + LocalDensity 全局缩放），以及反馈组件的 AppSnackbar（一份业务状态桥接两套原生 SnackbarHostState，并接入 BLE 断开 / Wi-Fi 断开 / 停止投屏三个真实场景），以及宽屏内容双栏 `AppAdaptiveTwoColumn`（设备信息页首个接入））：
+最近一次共享平台与 Android/Desktop 验证通过（Miuix Monet 开关、CheckboxPreference 与 ListPopup 选择型 Preference 改造、AppTip/AppLoadingDialog 反馈组件、顶栏动作与 AppAlertDialog 基础弹窗、AppSegmentedControl 分段选择、Miuix 悬浮底栏开关、AppBottomSheet 底部面板，AppScaffold 的嵌套滚动与折叠顶栏，Miuix 侧的 AMOLED 纯黑，Miuix 颜色标准的独立设置，以及设置页顶部的实时主题预览卡片，连接页设备列表的 AppSearchBar 即时搜索，连接页的 AppPullToRefresh 下拉刷新，主界面的 AppAdaptiveScaffold 宽屏侧边导航，设置页的界面缩放（AppSliderPreference 滑条 + LocalDensity 全局缩放），以及反馈组件的 AppSnackbar（一份业务状态桥接两套原生 SnackbarHostState，并接入 BLE 断开 / Wi-Fi 断开 / 停止投屏三个真实场景），宽屏内容双栏 `AppAdaptiveTwoColumn`（设备信息页首个接入），以及 `TabRow` 全面替换为分段控件、动态配色同步修复、Android 预测性返回、主题预览卡片重做、连接与投屏合并）：
 
 - `:shared:compileKotlinJvm`
 - `:shared:compileKotlinJs`
 - `:shared:compileKotlinWasmJs`
-- `:shared:jvmTest`（125 个用例全部通过）
+- `:shared:jvmTest`（130 个用例全部通过）
 - `:androidApp:assembleDebug`
 - `:desktopApp:build`
 
@@ -33,7 +33,7 @@
 | 设置 Flow/Compose 绑定 | 已完成 | `rememberAppAppearance` | 支持读取、观察和异步写入 |
 | 预设色 | 已完成 | `AppThemePresets` | 稳定 ID、亮暗共用 seed |
 | 完整取色器 | 部分完成 | `AppColorPickerDialog` | 滑条/网格/hex/预览/确认取消已有；取色过程中不会实时改写全局主题 |
-| 实时主题预览 | 已完成 | `AppThemePreview` | 设置页顶部预览卡片，随风格、明暗模式与配色实时变化 |
+| 实时主题预览 | 已完成 | `AppThemePreview` | 设置页顶部的手机缩略图预览，随风格、明暗模式、配色与 Miuix Monet 开关实时变化 |
 | 设置分组 | 部分完成 | `AppSection`、`AppListRow` | 视觉分组已有；没有 MeowUI 的收集式稳定 key/分段圆角 |
 | Switch preference | 已完成 | `AppSwitchPreference` | Material/Miuix 分支 |
 | Checkbox preference | 已完成 | `AppCheckboxPreference` | Material Checkbox + Miuix CheckboxPreference；作为通用语义组件保留 |
@@ -45,9 +45,10 @@
 | TopBar actions/menu | 部分完成 | `AppTopBar(title, actions)`、`AppIconButton` | 支持单个图标动作；文字动作、下拉菜单仍未实现 |
 | 搜索框 | 已完成 | `AppSearchBar` | 连接页 WiFi / P2P / BLE 设备列表已接入即时过滤 |
 | Scaffold 滚动顶栏 | 部分完成 | `AppScaffold(scrollBehavior)`、`AppTopBar(scrollBehavior)` | 已支持共享嵌套滚动与顶栏收起/展开；Pull-to-Refresh 协作已由 `AppPullToRefresh` 补齐；Blur backdrop、overlay host 仍未实现 |
-| Tab | 已完成 | `AppTabRow` | Material 3 与 Miuix 都用原生 `TabRow`；连接页 AP/P2P 与设置页明暗模式已改用 |
+| 分段选择 | 已完成 | `AppSegmentedControl` | Material 3 `SingleChoiceSegmentedButtonRow` / Miuix 自绘分段控件；已替换全部 `TabRow` 用法（连接页 AP/P2P、设置页明暗模式与颜色来源、连接页设备连接/投屏子页） |
 | 普通/悬浮底栏 | 已完成 | `AppBottomNavigation(floating)` | Miuix 可选原生 `FloatingNavigationBar` 悬浮胶囊；Material 3 保持原生 `NavigationBar` |
-| 导航分页 | 缺失 | 无 pager | 当前使用四个固定 tab |
+| 导航分页 | 缺失 | 无 pager | 当前使用三个固定入口（连接 / 设备 / 设置），投屏已并入连接页 |
+| 预测性返回 | 已完成 | `AppBackHandler` + `android:enableOnBackInvokedCallback` | Android 13+ 走 `OnBackInvokedCallback` 由系统播放返回动画；其余平台由 Compose 宿主调度，无系统返回手势时不触发 |
 | Bottom Sheet | 已完成 | `AppBottomSheet` | Material 3 `ModalBottomSheet` / Miuix `WindowBottomSheet`；投屏调试日志已接入 |
 | Snackbar | 已完成 | `AppSnackbar`、`AppSnackbarHost`、`rememberAppSnackbarHostState` | Miuix 与 Material 3 各自使用原生 `SnackbarHost`；BLE 断开、Wi-Fi 断开、停止投屏已接入 |
 | Tip | 已完成 | `AppTip`、`AppTipKind` | 信息/成功/警告/错误四种类型，两风格共用语义 token |
@@ -74,7 +75,9 @@
   - 文字、描边、分隔线和控件色保持原值，纯黑背景上仍有可读层次；变换放在颜色过渡动画之前，开关切换会走同一套插值。
   - `MiuixAmoledSchemeTest` 覆盖"关闭时原样返回""开启时压黑底色 token""开启时保留文字与描边"三种情况。
 - `AppColorTransition` 使用单进度插值，开关关闭时直接使用目标颜色。
-- `AppThemePreview` 是设置页顶部的实时预览卡片，只使用 `AppDesign`/`AppText`/`AppCard`/`AppButton` 等语义 API：展示 primary、primaryContainer、secondaryContainer、surfaceContainerHighest、error 色卡与示例标题、正文、按钮、只读开关，切换风格、明暗或配色时立即反映结果，切换前可以先确认效果。
+- Miuix 分支在 `MiuixTheme(colors = ...)` 内层显式提供 `MiuixLocalContentColor`（跟随动画后的 `onBackground`）：`MiuixTheme` 只重新提供颜色、排版与 Indication，不会更新 Miuix 自己的内容色，否则 `MiuixText`、`MiuixTextField`、`MiuixIcon` 等组件会一直沿用外层 controller 的静态内容色，切换动态配色时不同步。
+- `AppThemePreview` 是设置页顶部的实时预览卡片，参考 KernelSU 的设置页改成一台手机缩略图：外框、应用名、顶部高亮卡片、正文行与底部胶囊导航全部取自 `AppDesign` 语义 token，底部导航入口数量与真实导航一致（`navigationItemCount`）。
+- 缩略图下方用一行 caption 说明当前生效的界面风格与明暗模式；切换风格、明暗模式、配色或 Miuix Monet 开关时预览立即跟随变化，缩略图只表达层级关系、不承载任何交互。
 
 ### 取色
 
@@ -128,7 +131,9 @@
 
 ### 导航与面板
 
-- `AppTabRow` 提供分段选择语义：Miuix 与 Material 3 都使用各自原生 `TabRow`，保持相同的选中索引回调与禁用行为；连接页 AP/P2P 与设置页明暗模式已改用。
+- `AppSegmentedControl` 提供分段选择语义：Material 3 使用原生 `SingleChoiceSegmentedButtonRow`，Miuix 使用自绘分段控件，两者保持相同的选中索引回调与禁用行为，并且都不注册 `nestedScroll`，切换分段不会影响页面上下拖动。
+- 它替换了原先基于 `TabRow` 的 `AppTabRow`：`TabRow` 在 Miuix 下会卷走整页的嵌套滚动，切换明暗模式后页面无法继续上下拖动，选中态视觉也不符合设置页语义。
+- 连接页把「设备连接」与「投屏」合并为一个入口：顶层导航由四个入口收敛为「连接 / 设备 / 设置」，投屏成为连接页下的子功能，与设备连接共用同一个脚手架、顶栏动作与滚动宿主；两个子页面各自保留原有实现，用 `weight` 占位而不是嵌套 `LazyColumn`。
 - `AppBottomNavigation` 增加 `floating` 参数：Miuix 开启后使用原生 `FloatingNavigationBar` 悬浮胶囊（可在设置页关闭回到常规底栏），Material 3 始终使用原生 `NavigationBar`，两者选中与回调时机一致。
 - `AppBottomSheet` 承载从底部滑出的次级内容：Material 3 使用原生 `ModalBottomSheet`，Miuix 使用原生 `WindowBottomSheet`；下滑、点击遮罩与返回键都统一回调 `onDismissRequest`。
 - 投屏页的“调试日志”由页内长列表改为顶栏图标动作 + 底部面板，离开投屏页时面板自动关闭，未改动任何投屏协议逻辑。
@@ -139,6 +144,12 @@
 - `AppAdaptiveTwoColumn` 承担内容区自适应分栏：可用宽度达到 840dp（`AppContentTwoColumnBreakpoint`）时把两组内容并排展示，窄屏按原顺序上下堆叠；断点判断同样抽成纯函数 `appContentLayoutMode()`，由 `AppContentLayoutModeTest` 覆盖 360dp / 839dp / 840dp / 1280dp 四个宽度。
 - 设备信息页是首个接入页面：左栏为仪表配置与 BLE 协议，右栏为应用信息与协议命令；页面只把分组拆成两段交给组件，不接触断点、窗口尺寸或任何一方主题类型。
 - 宽屏布局只替换导航形态，内容区仍复用 `AppScaffold`，因此顶栏折叠、嵌套滚动与下拉刷新在两种布局下行为一致；`floatingNavigation` 只影响窄屏的 Miuix 分支。
+
+### 返回手势
+
+- `AppBackHandler` 封装系统返回语义，业务页面只描述“返回时该做什么”，不直接依赖平台 API。
+- Android 在清单里声明 `android:enableOnBackInvokedCallback="true"` 后走 `OnBackInvokedCallback`，Android 13+ 由系统播放预测性返回动画；Desktop / Web / iOS 由 Compose 宿主提供返回事件调度器，没有系统返回手势时不会触发。
+- `enabled = false` 时不注册回调，事件继续交给系统处理（例如在根页面退出应用）。
 
 ### 持久化
 
@@ -203,7 +214,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 
 这两项需要跨平台模糊与浮层宿主能力，本轮按计划暂缓，等确认 Miuix 与 Compose 版本可复用后再评估。
 
-这不影响当前四个 tab 的基础布局，但会限制后续复杂页面。
+这不影响当前三个入口的基础布局，但会限制后续复杂页面。
 
 ### P2：设置 UI 缺少 MeowUI Appearance Page 的完整结构
 
@@ -219,10 +230,10 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 - Miuix Monet 开关。
 - 悬浮底栏开关。
 - 界面缩放（80% ~ 130%，步进 10%）。
+- 系统返回手势（`AppBackHandler`，Android 13+ 播放预测性返回动画）。
 
 缺少：
 - Blur 开关（底层缺少跨平台模糊能力，暂不提供开关）。
-- Predictive Back 开关（需要各平台原生能力，暂不提供开关）。
 - 自定义 preference 插槽。
 
 这些不是当前业务必需，但会影响外观设置的完整性。
@@ -246,7 +257,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 2. **AppCheckboxPreference / AppPopupPreference / AppActionPreference / AppSliderPreference（已完成）**；`AppTextInputPreference` 等有真实业务设置项后再补。
 3. **AppTip、AppLoadingIndicator/AppLoadingDialog、AppSnackbar 统一错误/成功反馈**（已完成：`AppTip`、`AppLoadingDialog`、`AppSnackbar` 及其 BLE 断开 / Wi-Fi 断开 / 停止投屏三个场景；`AppHaptics` 等有业务场景再补）。
 4. **AppTopBar actions/menu 和基础 Dialog**（已完成：`AppTopBar` 支持 actions + `AppIconButton` + `AppAlertDialog`；文字动作、下拉菜单、单选/输入弹窗按业务场景再补）。
-5. **AppTabRow、floating navigation、Bottom Sheet**（已完成：`AppTabRow`、`AppBottomNavigation(floating)` 及其设置开关、`AppBottomSheet` 及投屏调试日志场景）。
+5. **分段选择（AppSegmentedControl）、floating navigation、Bottom Sheet**（已完成：`AppSegmentedControl`、`AppBottomNavigation(floating)` 及其设置开关、`AppBottomSheet` 及投屏调试日志场景）。
 6. **Scaffold 滚动顶栏（已完成共享嵌套滚动 + 折叠顶栏）、Pull-to-Refresh（已完成 `AppPullToRefresh` 与连接页接入）、自适应布局（已完成 `AppAdaptiveScaffold` 宽屏侧边导航与 `AppAdaptiveTwoColumn` 宽屏内容双栏）、Blur**（其余项等有业务场景再补）。
 7. **通用列表与自适应布局（搜索框、下拉刷新、宽屏侧栏均已完成）**：`AppSearchBar` 已接入连接页的 WiFi / P2P / BLE 设备列表，统一过滤规则由 `matchesSearchQuery` 承担并配有单元测试；`AppPullToRefresh` 已补齐下拉刷新；`AppAdaptiveScaffold` 按 600dp 断点接入宽屏侧边导航，断点行为由 `AppNavigationLayoutModeTest` 覆盖；内容区再按 840dp 断点由 `AppAdaptiveTwoColumn` 拆成双栏，设备信息页已接入，断点行为由 `AppContentLayoutModeTest` 覆盖。
 
