@@ -39,9 +39,9 @@
 | Checkbox preference | 已完成 | `AppCheckboxPreference` | Material Checkbox + Miuix CheckboxPreference；作为通用语义组件保留 |
 | Slider preference | 已完成 | `AppSliderPreference` | Material 3 原生 `Slider` / Miuix 原生 `SliderPreference`（标题、摘要、当前值文本、拖动中预览 + 松手落库）；设置页“界面缩放”已接入 |
 | Popup / Dropdown | 已完成 | `AppPopupPreference` | Miuix `OverlaySpinnerPreference`（ListPopup）+ Material `DropdownMenu`；界面风格与调色板已改用 |
-| Text input preference | 缺失 | 无 `AppTextInputPreference` | 只有取色器 hex 输入 |
+| Text input preference | 暂不实现 | 无 `AppTextInputPreference` | 本轮决定不做：现有唯一文本输入场景（取色器 hex）已在 `AppColorPickerDialog` 内闭环 |
 | Action preference | 已完成 | `AppActionPreference` | Miuix `ArrowPreference` + Material 点击行加箭头；颜色动作行已改用 |
-| Dialog | 部分完成 | `AppColorPickerDialog`、`AppLoadingDialog`、`AppAlertDialog` | 基础 Alert 已完成；Single choice、Text input 仍未实现 |
+| Dialog | 部分完成 | `AppColorPickerDialog`、`AppLoadingDialog`、`AppAlertDialog` | 基础 Alert 已完成；Single choice、Text input 本轮决定不做 |
 | TopBar actions/menu | 部分完成 | `AppTopBar(title, actions)`、`AppIconButton` | 支持单个图标动作；文字动作、下拉菜单仍未实现 |
 | 搜索框 | 已完成 | `AppSearchBar` | 连接页 WiFi / P2P / BLE 设备列表已接入即时过滤 |
 | Scaffold 滚动顶栏 | 部分完成 | `AppScaffold(scrollBehavior)`、`AppTopBar(scrollBehavior)` | 已支持共享嵌套滚动与顶栏收起/展开；Pull-to-Refresh 协作已由 `AppPullToRefresh` 补齐；Blur backdrop、overlay host 仍未实现 |
@@ -55,7 +55,7 @@
 | Pull to refresh | 已完成 | `AppPullToRefresh` | Material 3 `PullToRefreshBox` / Miuix `PullToRefresh`；连接页已接入 WiFi 重扫与 P2P 重新发现 |
 | Blur | 缺失 | 无 `MeowBlur` 对应能力 | 当前项目未启用表面模糊；跨平台模糊要先确认 Miuix / Compose 版本能否复用，本轮暂缓 |
 | 自适应布局 | 已完成 | `AppAdaptiveScaffold`、`AppAdaptiveTwoColumn` | 宽度达到 600dp 后把底部导航换成侧边导航栏；内容区达到 840dp 后由 `AppAdaptiveTwoColumn` 拆成左右双栏 |
-| 触觉反馈 | 缺失 | 无统一 `AppHaptics` | Miuix 原生控件自带部分反馈，Material/自绘控件未补齐 |
+| 触觉反馈 | 暂不实现 | 无统一 `AppHaptics` | 本轮决定不做：等有真实业务场景再补；Miuix 原生控件已自带部分反馈 |
 | 可访问性 | 部分完成 | 色块和控件有部分 semantics | 仍需系统检查图标、选择、禁用、重复点击 |
 | schema 迁移 | 已完成 | `SCHEMA_VERSION` + 增量迁移 + 未来版本保护 | v1 -> v2 -> v3 -> v4 -> v5 纯增量迁移，未来版本不被 `write` 覆盖 |
 
@@ -179,7 +179,7 @@
 
 后续新增设置项时：递增 `SCHEMA_VERSION`、在 `AppPreferenceKeys.all` 末尾追加 key、同步 `read`/`observe`/`write`/`decode`，并补测试。
 
-### P1：缺少数值型/选择型 Preference 组件（进行中）
+### P1：缺少数值型/选择型 Preference 组件（已完成，`AppTextInputPreference` 本轮决定不做）
 
 MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input、Action Preference 逐步补齐：
 
@@ -187,7 +187,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 - `AppPopupPreference`（已完成）：Miuix 使用 `OverlaySpinnerPreference`（内部为 ListPopup），Material 3 使用 `DropdownMenu`。
 - `AppActionPreference`（已完成）：Miuix 使用 `ArrowPreference`，Material 3 使用点击行加箭头提示。
 - `AppSliderPreference`（已完成）：Material 3 使用原生 `Slider`，Miuix 使用原生 `SliderPreference`；设置页“界面缩放”是第一个真实数值型设置项，拖动中即时预览、松手吸附档位再落库。
-- `AppTextInputPreference`（未实现）：Miuix 偏好组件里没有对应的文本输入 Preference，取色器内的 hex 输入已覆盖现有需求。
+- `AppTextInputPreference`（本轮决定不做）：Miuix 偏好组件里没有对应的文本输入 Preference，取色器内的 hex 输入已覆盖现有需求；等出现真实的文本型设置项再补。
 
 这些组件保持两种风格的整行点击、启用状态和提交时机一致，并沿用 `AppDesign` token。
 
@@ -198,15 +198,15 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 - `AppTip`（已完成）：信息/成功/警告/错误四种类型，Miuix 与 Material 3 都用原生 Card 承载，配色取自 `AppDesign` 语义 token；连接页与投屏页已接入错误/警告提示。
 - `AppLoadingDialog`（已完成）：Miuix 使用原生 `WindowDialog`，Material 3 使用原生 `AlertDialog`；投屏协商阶段已接入，可手动关闭。
 - `AppSnackbar`（已完成）：`AppSnackbarHostState` 把两套原生 host/state 收敛成一份业务状态，时长与结果由 `AppSnackbarDuration` / `AppSnackbarResult` 表达；已接入 BLE 断开、Wi-Fi 断开、停止投屏三个真实场景，映射关系由 `AppSnackbarTest` 覆盖。
-- `AppHaptics`（未实现）：Miuix 原生控件自带部分触觉反馈，Material 与自绘控件尚未统一。
+- `AppHaptics`（本轮决定不做）：Miuix 原生控件自带部分触觉反馈，Material 与自绘控件尚未统一；等有真实业务场景再补，不提前抽象。
 
 `AppColors` 同步补充了 `errorContainer`/`onErrorContainer`，由 Material 3 与 Miuix 原生错误容器色映射，供错误类提示复用。
 
 ### P1：Dialog 只覆盖基础确认场景
 
 - `AppAlertDialog`（已完成）：标题 + 说明 + 确认/取消，支持单按钮退化，已用于 BLE 断开确认。
-- 单选列表弹窗未实现：Miuix 侧可基于 `WindowDialog` + `ListPopup` 组合，Material 3 侧用 `AlertDialog` + 单选行；目前选择型设置已由 `AppPopupPreference` 覆盖，暂不重复实现。
-- 文本输入弹窗未实现：现有唯一文本输入场景（取色器 hex）在 `AppColorPickerDialog` 内闭环，暂不需要独立组件。
+- 单选列表弹窗（本轮决定不做）：Miuix 侧可基于 `WindowDialog` + `ListPopup` 组合，Material 3 侧用 `AlertDialog` + 单选行；目前选择型设置已由 `AppPopupPreference` 覆盖，暂不重复实现。
+- 文本输入弹窗（本轮决定不做）：现有唯一文本输入场景（取色器 hex）在 `AppColorPickerDialog` 内闭环，暂不需要独立组件。
 
 ### P1：Scaffold 只有基础能力
 
@@ -243,7 +243,16 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 
 ### P2：单选/输入弹窗、菜单等通用能力尚未实现
 
-搜索框已随连接页设备列表落地，见第 3 节“列表与搜索”；单选列表弹窗、文本输入弹窗与下拉菜单仍属于通用 UI 能力，当前业务页面没有强需求，但 MeowUI 文档已经验证它们是统一 UI 体系的一部分。Bottom Sheet 已完成，见第 3 节“导航与面板”。
+搜索框已随连接页设备列表落地，见第 3 节“列表与搜索”；单选列表弹窗、文本输入弹窗与下拉菜单属于通用 UI 能力，当前业务页面没有强需求，本轮决定不做。MeowUI 文档已经验证它们是统一 UI 体系的一部分，等出现真实使用场景时再按“一份业务 API、两套原生实现”补齐。Bottom Sheet 已完成，见第 3 节“导航与面板”。
+
+### 本轮明确暂缓：等有真实业务场景再补
+
+以下两类能力本轮**决定不实现**，避免为凑齐 MeowUI 文档提前抽象没有业务场景的组件：
+
+1. **`AppHaptics`（统一触觉反馈）**：Miuix 原生控件已自带部分反馈，当前没有需要主动触发振动的业务动作，等出现真实场景（例如长按确认、拖动吸附）再补。
+2. **`AppTextInputPreference`、单选列表弹窗、文本输入弹窗、下拉菜单**：现有文本输入（取色器 hex）已在 `AppColorPickerDialog` 内闭环，选择型设置已由 `AppPopupPreference` 覆盖，当前业务页面没有强需求。
+
+后续如果出现真实使用场景，再按“一份业务 API、两套原生实现”的规则补齐，并同步更新第 2 节的状态表。
 
 ## 5. 不建议直接照搬的部分
 
@@ -257,9 +266,9 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 ## 6. 推荐补齐顺序
 
 1. **设置 schema 迁移和未来版本保护**（已完成）。
-2. **AppCheckboxPreference / AppPopupPreference / AppActionPreference / AppSliderPreference（已完成）**；`AppTextInputPreference` 等有真实业务设置项后再补。
-3. **AppTip、AppLoadingIndicator/AppLoadingDialog、AppSnackbar 统一错误/成功反馈**（已完成：`AppTip`、`AppLoadingDialog`、`AppSnackbar` 及其 BLE 断开 / Wi-Fi 断开 / 停止投屏三个场景；`AppHaptics` 等有业务场景再补）。
-4. **AppTopBar actions/menu 和基础 Dialog**（已完成：`AppTopBar` 支持 actions + `AppIconButton` + `AppAlertDialog`；文字动作、下拉菜单、单选/输入弹窗按业务场景再补）。
+2. **AppCheckboxPreference / AppPopupPreference / AppActionPreference / AppSliderPreference（已完成）**；`AppTextInputPreference` 本轮决定不做，等出现真实的文本型设置项再补。
+3. **AppTip、AppLoadingIndicator/AppLoadingDialog、AppSnackbar 统一错误/成功反馈**（已完成：`AppTip`、`AppLoadingDialog`、`AppSnackbar` 及其 BLE 断开 / Wi-Fi 断开 / 停止投屏三个场景；`AppHaptics` 本轮决定不做，等有真实业务场景再补）。
+4. **AppTopBar actions/menu 和基础 Dialog**（已完成：`AppTopBar` 支持 actions + `AppIconButton` + `AppAlertDialog`；文字动作、下拉菜单、单选/输入弹窗本轮决定不做，等有业务场景再补）。
 5. **分段选择（AppSegmentedControl）、floating navigation、Bottom Sheet**（已完成：`AppSegmentedControl`、`AppBottomNavigation(floating)` 及其设置开关、`AppBottomSheet` 及投屏调试日志场景）。
 6. **Scaffold 滚动顶栏（已完成共享嵌套滚动 + 折叠顶栏）、Pull-to-Refresh（已完成 `AppPullToRefresh` 与连接页接入）、自适应布局（已完成 `AppAdaptiveScaffold` 宽屏侧边导航与 `AppAdaptiveTwoColumn` 宽屏内容双栏）、Blur**（其余项等有业务场景再补）。
 7. **通用列表与自适应布局（搜索框、下拉刷新、宽屏侧栏均已完成）**：`AppSearchBar` 已接入连接页的 WiFi / P2P / BLE 设备列表，统一过滤规则由 `matchesSearchQuery` 承担并配有单元测试；`AppPullToRefresh` 已补齐下拉刷新；`AppAdaptiveScaffold` 按 600dp 断点接入宽屏侧边导航，断点行为由 `AppNavigationLayoutModeTest` 覆盖；内容区再按 840dp 断点由 `AppAdaptiveTwoColumn` 拆成双栏，设备信息页已接入，断点行为由 `AppContentLayoutModeTest` 覆盖。
