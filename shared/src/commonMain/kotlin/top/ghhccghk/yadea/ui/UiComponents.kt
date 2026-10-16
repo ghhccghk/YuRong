@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -52,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import top.yukonga.miuix.kmp.basic.BasicComponent as MiuixBasicComponent
 import top.yukonga.miuix.kmp.basic.Button as MiuixButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
@@ -237,6 +240,8 @@ fun AppTextField(
     shape: Shape = AppDesign.shapes.field,
     enabled: Boolean = true,
     singleLine: Boolean = true,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
 ) {
     AppStyleContent(
         material = {
@@ -248,6 +253,8 @@ fun AppTextField(
                 enabled = enabled,
                 label = { Text(label) },
                 singleLine = singleLine,
+                keyboardOptions = keyboardOptions,
+                keyboardActions = keyboardActions,
             )
         },
         miuix = {
@@ -259,6 +266,8 @@ fun AppTextField(
                 enabled = enabled,
                 label = label,
                 singleLine = singleLine,
+                keyboardOptions = keyboardOptions,
+                keyboardActions = keyboardActions,
             )
         },
     )
@@ -1052,4 +1061,122 @@ fun ScreenTitle(title: String) {
             color = AppDesign.colors.onBackground,
         )
     }
+}
+
+/**
+ * 设置项「标题 + 可选摘要」文案块，供输入型设置项的两套风格复用。
+ *
+ * 这里只输出两段文本，不负责布局，因此可以直接放进各自的 Column 里，
+ * 保证 Miuix 与 Material 3 的标题层级、颜色规则完全一致。
+ */
+@Composable
+private fun PreferenceTitleBlock(
+    title: String,
+    summary: String?,
+    enabled: Boolean,
+) {
+    AppText(
+        text = title,
+        style = AppDesign.typography.itemTitle,
+        color = if (enabled) AppDesign.colors.onSurface else AppDesign.colors.onSurfaceVariant,
+    )
+    if (summary != null) {
+        AppText(
+            text = summary,
+            style = AppDesign.typography.summary,
+            color = AppDesign.colors.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * 带标题与摘要的文本输入设置项。
+ *
+ * Material 3 分支使用原生 `OutlinedTextField`（经 [AppTextField] 转发），
+ * Miuix 分支把原生 [MiuixTextField] 放进 [MiuixBasicComponent] 的内容槽，
+ * 因此两套风格都保留各自原生的输入框外观、聚焦动画与键盘行为。
+ *
+ * 输入内容由调用方持有（受控组件）：每次键入都会回调 [onValueChange]，由调用方决定是否落库；
+ * 两套风格的提交时机与启用状态完全一致。
+ *
+ * @param title 设置项标题。
+ * @param value 当前文本。
+ * @param onValueChange 文本变化回调。
+ * @param summary 次级说明文案；为空时不渲染。
+ * @param label 输入框的浮动标签文案；为空时输入框不显示标签。
+ * @param leadingIcon 可选的装饰性前置图标。
+ * @param enabled 是否可编辑。
+ * @param singleLine 是否单行输入。
+ * @param contentPadding 内容内边距，默认沿用 [AppDesign] 的行内边距。
+ */
+@Composable
+fun AppTextInputPreference(
+    title: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    summary: String? = null,
+    label: String = "",
+    leadingIcon: ImageVector? = null,
+    enabled: Boolean = true,
+    singleLine: Boolean = true,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    contentPadding: PaddingValues = PaddingValues(
+        horizontal = AppDesign.dimensions.itemHorizontalPadding,
+        vertical = AppDesign.dimensions.itemVerticalPadding,
+    ),
+) {
+    AppStyleContent(
+        material = {
+            Column(
+                modifier = modifier.fillMaxWidth().padding(contentPadding),
+                // 标题与输入框之间保持紧凑间距，与其他设置项的行高节奏一致。
+                verticalArrangement = Arrangement.spacedBy(AppDesign.dimensions.compactSpacing),
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(AppDesign.dimensions.controlSpacing),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // 左侧图标只做视觉引导，语义由标题承担。
+                    if (leadingIcon != null) {
+                        AppPreferenceLeadingIcon(leadingIcon)
+                    }
+                    Column { PreferenceTitleBlock(title = title, summary = summary, enabled = enabled) }
+                }
+                AppTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    label = label,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = enabled,
+                    singleLine = singleLine,
+                    keyboardOptions = keyboardOptions,
+                    keyboardActions = keyboardActions,
+                )
+            }
+        },
+        miuix = {
+            MiuixBasicComponent(
+                modifier = modifier,
+                // 前置图标走 Miuix 原生 startAction 插槽，位置与 Material 分支一致。
+                startAction = { MiuixPreferenceLeadingIcon(leadingIcon) },
+                insideMargin = contentPadding,
+            ) {
+                PreferenceTitleBlock(title = title, summary = summary, enabled = enabled)
+                MiuixTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    // Miuix 的 BasicComponent 内容槽自带 Column，间距只能由子项自己补。
+                    modifier = Modifier.fillMaxWidth().padding(top = AppDesign.dimensions.compactSpacing),
+                    cornerRadius = AppDesign.dimensions.fieldCornerRadius,
+                    enabled = enabled,
+                    label = label,
+                    singleLine = singleLine,
+                    keyboardOptions = keyboardOptions,
+                    keyboardActions = keyboardActions,
+                )
+            }
+        },
+    )
 }
