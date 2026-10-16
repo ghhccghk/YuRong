@@ -91,6 +91,8 @@ kotlin {
         }
         jvmTest.dependencies {
             implementation(libs.kotlin.testJunit)
+            // 离屏渲染测试（ImageComposeScene）需要 skiko 本地库；仅测试用，不影响其他目标平台。
+            implementation(compose.desktop.currentOs)
         }
         jsMain.dependencies {
             implementation(libs.wrappers.browser)
