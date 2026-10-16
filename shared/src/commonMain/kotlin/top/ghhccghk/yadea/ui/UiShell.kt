@@ -21,13 +21,20 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBar as MiuixFloatingNavigationBar
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem as MiuixFloatingNavigationBarItem
@@ -57,9 +64,62 @@ class AppScrollBehavior internal constructor(
     internal val material: TopAppBarScrollBehavior,
     internal val miuix: MiuixScrollBehaviorState,
 ) {
+    /**
+     * Material 3 原生顶栏当前是否真的参与布局。
+     *
+     * Material 3 只在页面提供页面级操作时才渲染原生 TopAppBar，而它的原生滚动行为只要被挂到
+     * 嵌套滚动链上就会把竖直位移累加到内部 heightOffset 上；顶栏缺席时收缩下限仍是初始哨兵值
+     * （等于可以无限收缩），于是内容区的拖动会被整体吃掉，表现为“切回 Material 3 后页面拖不动”。
+     * 这里记录顶栏是否渲染，供 Material 侧滚动连接决定是否转发事件。
+     */
+    private var materialTopBarPresent by mutableStateOf(false)
+
+    /** 由 [AppTopBar] 在渲染或移除 Material 原生顶栏时登记；业务页面不需要接触。 */
+    internal fun setMaterialTopBarPresent(present: Boolean) {
+        materialTopBarPresent = present
+    }
+
+    /**
+     * Material 3 侧的嵌套滚动连接：没有原生顶栏时退化成空连接，把拖动位移全部让给内容区；
+     * 有顶栏时才委托给原生行为，保留“上滑收起、下滑展开”的既有表现。
+     */
+    private val materialConnection: NestedScrollConnection = object : NestedScrollConnection {
+        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset =
+            if (materialTopBarPresent) {
+                material.nestedScrollConnection.onPreScroll(available, source)
+            } else {
+                Offset.Zero
+            }
+
+        override fun onPostScroll(
+            consumed: Offset,
+            available: Offset,
+            source: NestedScrollSource,
+        ): Offset =
+            if (materialTopBarPresent) {
+                material.nestedScrollConnection.onPostScroll(consumed, available, source)
+            } else {
+                Offset.Zero
+            }
+
+        override suspend fun onPreFling(available: Velocity): Velocity =
+            if (materialTopBarPresent) {
+                material.nestedScrollConnection.onPreFling(available)
+            } else {
+                Velocity.Zero
+            }
+
+        override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity =
+            if (materialTopBarPresent) {
+                material.nestedScrollConnection.onPostFling(consumed, available)
+            } else {
+                Velocity.Zero
+            }
+    }
+
     /** 当前界面风格对应的嵌套滚动连接。 */
     internal fun nestedScrollConnection(style: UiThemeStyle): NestedScrollConnection =
-        if (style == UiThemeStyle.Miuix) miuix.nestedScrollConnection else material.nestedScrollConnection
+        if (style == UiThemeStyle.Miuix) miuix.nestedScrollConnection else materialConnection
 }
 
 /**
@@ -151,6 +211,13 @@ fun AppTopBar(
 ) {
     AppStyleContent(
         material = {
+            // Material 3 只有存在页面级操作时才渲染原生顶栏；这里把“顶栏是否真实渲染”同步给滚动
+            // 行为，避免顶栏缺席时原生 enterAlways 行为仍把内容区的拖动全部吃掉（详见 AppScrollBehavior）。
+            val materialTopBarPresent = actions != null
+            DisposableEffect(scrollBehavior, materialTopBarPresent) {
+                scrollBehavior?.setMaterialTopBarPresent(materialTopBarPresent)
+                onDispose { scrollBehavior?.setMaterialTopBarPresent(false) }
+            }
             if (actions != null) {
                 TopAppBar(
                     // 标题交给页面内的 AppPageHeader，这里只承载页面级操作。
