@@ -83,7 +83,14 @@ private fun List<Color>.toColorScheme(): ColorScheme {
     )
 }
 
-private fun MiuixColors.toColorList(): List<Color> = listOf(
+/**
+ * Miuix 配色快照：按构造函数顺序把 [MiuixColors] 的全部颜色字段展开成不可变列表。
+ *
+ * 除用于颜色过渡动画外，它还充当 AppDesign token 的缓存键：Miuix 的 [MiuixColors] 是字段为
+ * mutableStateOf 的可变 @Stable 类，就地更新字段时对象引用不变，只有快照内容会变。
+ * 因此 Miuix 新增颜色字段时必须同步补充这里，否则该字段既不会参与过渡动画，也不会触发 token 重算。
+ */
+internal fun MiuixColors.toColorList(): List<Color> = listOf(
     primary, onPrimary, primaryVariant, onPrimaryVariant, error, onError, errorContainer, onErrorContainer,
     disabledPrimary, disabledOnPrimary, disabledPrimaryButton, disabledOnPrimaryButton, disabledPrimarySlider,
     primaryContainer, onPrimaryContainer, secondary, onSecondary, secondaryVariant, onSecondaryVariant,
@@ -96,7 +103,8 @@ private fun MiuixColors.toColorList(): List<Color> = listOf(
     onSurfaceContainerHighest, outline, dividerLine, windowDimming, sliderKeyPoint, sliderKeyPointForeground, sliderBackground,
 )
 
-private fun List<Color>.toMiuixColors(): MiuixColors {
+// 需要给配色快照做往返校验（见 MiuixColorSnapshotTest），因此开放到模块可见。
+internal fun List<Color>.toMiuixColors(): MiuixColors {
     var index = 0
     fun next(): Color = this[index++]
     return MiuixColors(

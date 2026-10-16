@@ -362,6 +362,7 @@ private fun rememberMaterialAppThemeTokens(darkTheme: Boolean): AppThemeTokens {
     val colors = MaterialTheme.colorScheme
     val typography = MaterialTheme.typography
     val status = appStatusColors(darkTheme)
+    // Material 的 ColorScheme 是不可变实例，配色变化时会换成新对象，因此可以直接作为 key。
     return remember(colors, typography, darkTheme) {
         AppThemeTokens(
             colors = AppColors(
@@ -429,7 +430,12 @@ private fun rememberMiuixAppThemeTokens(darkTheme: Boolean): AppThemeTokens {
     val colors = MiuixTheme.colorScheme
     val typography = MiuixTheme.textStyles
     val status = appStatusColors(darkTheme)
-    return remember(colors, typography, darkTheme) {
+    // Miuix 的 Colors 是字段为 mutableStateOf 的可变 @Stable 类：切换配色时 MiuixTheme 只会就地更新
+    // 同一个实例的字段，对象引用不变，也没有重写 equals。若直接拿实例当 remember 的 key，
+    // token 会永远停留在首次组合的那套配色，表现就是“只有一部分组件跟着换色”。
+    // 这里在组合期读一份颜色快照作为 key：任意字段变化都会触发重组并重算 token。
+    val colorSnapshot = colors.toColorList()
+    return remember(colorSnapshot, typography, darkTheme) {
         AppThemeTokens(
             colors = AppColors(
                 primary = colors.primary,
