@@ -149,6 +149,12 @@ private fun MainScreenContent(
         else -> null
     }
 
+    // 系统返回手势：非连接页先回到连接页根页面；连接页根不拦截，
+    // 直接把事件交回系统处理（Android 13+ 会播放预测性返回动画）。
+    AppBackHandler(enabled = selectedDestination != MainDestination.Connection) {
+        onDestinationChange(MainDestination.Connection)
+    }
+
     // 宽屏自动换成侧边导航栏，窄屏保持底部导航；两种布局共用同一份导航项与回调。
     AppAdaptiveScaffold(
         navigationItems = navigationItems,

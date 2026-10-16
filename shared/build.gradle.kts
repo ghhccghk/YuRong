@@ -65,6 +65,8 @@ kotlin {
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
             implementation(libs.compose.ui)
+            // 系统返回手势 / 预测性返回：Android 由 Activity 的返回回调承接，其余平台由 Compose 宿主提供调度器
+            implementation(libs.compose.uiBackhandler)
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
