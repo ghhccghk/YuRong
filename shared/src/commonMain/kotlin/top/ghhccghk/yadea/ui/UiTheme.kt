@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
+import top.yukonga.miuix.kmp.theme.LocalContentColor as MiuixLocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.settings.AppPreferences
@@ -294,13 +295,19 @@ fun AppTheme(
                         baseColors
                     }
                     MiuixTheme(colors = animatedColors) {
-                    val tokens = rememberMiuixAppThemeTokens(darkTheme)
-                    CompositionLocalProvider(LocalAppThemeTokens provides tokens) {
-                        MaterialTheme(
-                            colorScheme = materialColors,
-                            content = content,
-                        )
-                    }
+                        // MiuixTheme(colors = ...) 只会重新提供 LocalColors / TextStyles / Indication，
+                        // 不会更新 Miuix 自己的 LocalContentColor；而 MiuixText、MiuixTextField、MiuixIcon
+                        // 等组件在没有显式颜色时都会回退到它。这里显式跟随动画后的 onBackground，
+                        // 否则这些组件会一直沿用外层 controller 的静态内容色，动态配色切换时不同步。
+                        CompositionLocalProvider(MiuixLocalContentColor provides animatedColors.onBackground) {
+                            val tokens = rememberMiuixAppThemeTokens(darkTheme)
+                            CompositionLocalProvider(LocalAppThemeTokens provides tokens) {
+                                MaterialTheme(
+                                    colorScheme = materialColors,
+                                    content = content,
+                                )
+                            }
+                        }
                     }
                 }
             }
