@@ -81,6 +81,10 @@ kotlin {
             implementation(libs.miuix.squircle)
             // Optional: Add miuix-nav for navigation
             implementation(libs.miuix.nav)
+            // Miuix 官方模糊库：为顶栏/底栏提供背景模糊，运行时能力由 AppBlur 统一门控。
+            implementation(libs.miuix.blur)
+            // Miuix 着色器能力库：只用于查询 RenderEffect / RuntimeShader 的运行时支持。
+            implementation(libs.miuix.shader)
             implementation(libs.materialkolor)
         }
         commonTest.dependencies {
