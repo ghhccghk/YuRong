@@ -42,6 +42,9 @@ fun SettingsScreen(
     // 界面缩放只在拖动结束后写入设置，拖动过程中的值先放在本地草稿里做即时预览。
     var scaleDraft by remember(appearance.uiScale) { mutableStateOf(appearance.uiScale) }
     val useMiuix = LocalUiThemeStyle.current == UiThemeStyle.Miuix
+    // Miuix 模糊的运行时能力检查：Android 需要 API 33+（RuntimeShader）才能模糊，
+    // 不支持时把开关置灰，避免用户打开一个永远没有效果的选项。
+    val blurSupport = rememberAppBlurSupport()
     val dimensions = AppDesign.dimensions
     // 下拉菜单的选项文本与枚举 entries 一一对应，保证索引可直接回写到 AppAppearance。
     val uiStyleOptions = UiThemeStyle.entries.map { it.label }
@@ -174,6 +177,25 @@ fun SettingsScreen(
                             "底部导航使用 HyperOS 悬浮胶囊样式"
                         } else {
                             "使用常规底部导航栏"
+                        },
+                    )
+                    AppSwitchPreference(
+                        checked = appearance.blurEnabled,
+                        onCheckedChange = {
+                            onAppearanceChange(appearance.copy(blurEnabled = it))
+                        },
+                        title = "背景模糊",
+                        // 前置图标只做视觉引导，语义由标题承担。
+                        leadingIcon = MiuixIcons.Background,
+                        // 平台不支持时禁用开关，并直接说明原因。
+                        enabled = blurSupport.blurSupported,
+                        summary = when {
+                            !blurSupport.blurSupported ->
+                                "当前平台或 Android 版本不支持 Miuix 模糊效果"
+                            appearance.blurEnabled ->
+                                "顶栏与底栏使用官方 miuix-blur 背景模糊"
+                            else ->
+                                "使用纯色顶栏与底栏"
                         },
                     )
                 }
