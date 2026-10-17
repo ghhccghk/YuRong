@@ -551,6 +551,7 @@ fun AppSwitchPreference(
     title: String,
     summary: String? = null,
     leadingIcon: ImageVector? = null,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(
         horizontal = AppDesign.dimensions.itemHorizontalPadding,
@@ -577,6 +578,7 @@ fun AppSwitchPreference(
                 Switch(
                     checked = checked,
                     onCheckedChange = onCheckedChange,
+                    enabled = enabled,
                 )
             }
         },
@@ -589,6 +591,7 @@ fun AppSwitchPreference(
                 // 前置图标走 Miuix 原生 startAction 插槽，位置与 Material 分支一致。
                 startAction = { MiuixPreferenceLeadingIcon(leadingIcon) },
                 modifier = modifier,
+                enabled = enabled,
             )
         },
     )

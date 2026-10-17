@@ -31,6 +31,8 @@ class AppPreferencesTest {
         assertEquals(false, appearance.floatingNavigationBarEnabled)
         assertEquals(AppColorSpec.Auto, appearance.colorSpec)
         assertEquals(1f, appearance.uiScale)
+        // 模糊默认关闭：旧配置升级后外观保持不变。
+        assertEquals(false, appearance.blurEnabled)
     }
 
     @Test
@@ -50,6 +52,7 @@ class AppPreferencesTest {
             floatingNavigationBarEnabled = true,
             colorSpec = AppColorSpec.Spec2025,
             uiScale = 1.2f,
+            blurEnabled = true,
         )
 
         assertTrue(preferences.write(expected) is PreferenceWriteResult.Success)
@@ -270,5 +273,33 @@ class AppPreferencesTest {
 
         assertEquals(false, preferences.read().miuixMonetEnabled)
         assertEquals(false, preferences.observe().first().miuixMonetEnabled)
+    }
+
+    @Test
+    fun blurToggleRoundTripsThroughStore() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        val preferences = AppPreferences(store)
+
+        assertTrue(preferences.write(AppAppearance(blurEnabled = true)) is PreferenceWriteResult.Success)
+
+        assertEquals(true, store.read(AppPreferenceKeys.blurEnabled))
+        assertEquals(true, preferences.read().blurEnabled)
+        assertEquals(true, preferences.observe().first().blurEnabled)
+    }
+
+    @Test
+    fun legacySchemaKeepsUserDataAndDefaultsBlurOff() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        // 模拟 schema 5 的旧配置：只写入当时存在的键，没有 blur_enabled。
+        store.write(AppPreferenceKeys.schemaVersion, 5)
+        store.write(AppPreferenceKeys.uiStyle, UiThemeStyle.Miuix.storageName)
+        store.write(AppPreferenceKeys.uiScalePercent, 120)
+
+        val appearance = AppPreferences(store).read()
+
+        // 旧配置的用户数据必须保留，新增的模糊开关回退到安全默认值 false。
+        assertEquals(UiThemeStyle.Miuix, appearance.uiStyle)
+        assertEquals(1.2f, appearance.uiScale)
+        assertEquals(false, appearance.blurEnabled)
     }
 }

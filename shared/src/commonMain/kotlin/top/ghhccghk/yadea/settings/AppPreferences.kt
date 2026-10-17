@@ -17,7 +17,8 @@ object AppPreferenceKeys {
     // 2 -> 3：新增 floating_navigation_bar（Miuix 是否启用悬浮底栏）。
     // 3 -> 4：新增 color_spec（Miuix Monet 使用的颜色标准）。
     // 4 -> 5：新增 ui_scale_percent（界面缩放百分比）。
-    const val SCHEMA_VERSION = 5
+    // 5 -> 6：新增 blur_enabled（Miuix 是否启用官方 miuix-blur 背景模糊）。
+    const val SCHEMA_VERSION = 6
 
     val schemaVersion = PreferenceKey.int("app_settings_schema_version", SCHEMA_VERSION)
     val uiStyle = PreferenceKey.string("ui_style", UiThemeStyle.Miuix.storageName)
@@ -41,6 +42,9 @@ object AppPreferenceKeys {
     // 默认 100%，保证旧版本（schema 4 及更早）升级后界面尺寸不变。
     val uiScalePercent = PreferenceKey.int("ui_scale_percent", 100)
 
+    // 默认关闭，保证旧版本（schema 5 及更早）升级后仍是原有纯色顶栏与底栏。
+    val blurEnabled = PreferenceKey.boolean("blur_enabled", false)
+
     val all: List<PreferenceKey<*>> = listOf(
         schemaVersion,
         uiStyle,
@@ -55,6 +59,7 @@ object AppPreferenceKeys {
         floatingNavigationBar,
         colorSpec,
         uiScalePercent,
+        blurEnabled,
     )
 }
 
@@ -74,6 +79,7 @@ class AppPreferences(
         floatingNavigationBar = store.read(AppPreferenceKeys.floatingNavigationBar),
         colorSpec = store.read(AppPreferenceKeys.colorSpec),
         uiScalePercent = store.read(AppPreferenceKeys.uiScalePercent),
+        blurEnabled = store.read(AppPreferenceKeys.blurEnabled),
     )
 
     fun observe(): Flow<AppAppearance> {
@@ -95,6 +101,7 @@ class AppPreferences(
                 floatingNavigationBar = values[10] as Boolean,
                 colorSpec = values[11] as String,
                 uiScalePercent = values[12] as Int,
+                blurEnabled = values[13] as Boolean,
             )
         }
     }
@@ -125,6 +132,7 @@ class AppPreferences(
             AppPreferenceKeys.floatingNavigationBar to appearance.floatingNavigationBarEnabled,
             AppPreferenceKeys.colorSpec to appearance.colorSpec.name,
             AppPreferenceKeys.uiScalePercent to AppInterfaceScale.percentOf(appearance.uiScale),
+            AppPreferenceKeys.blurEnabled to appearance.blurEnabled,
         )
         for ((key, value) in writes) {
             val result = writeTyped(key, value)
@@ -158,6 +166,7 @@ class AppPreferences(
         floatingNavigationBar: Boolean,
         colorSpec: String,
         uiScalePercent: Int,
+        blurEnabled: Boolean,
     ): AppAppearance {
         // 未知枚举、损坏值一律回退到安全默认值，保证读取不崩溃。
         // 旧版本缺失的新键都由 PreferenceKey 默认值补齐
@@ -177,6 +186,7 @@ class AppPreferences(
             colorSpec = AppColorSpec.entries.firstOrNull { it.name == colorSpec } ?: AppColorSpec.Auto,
             // 界面缩放以百分比整数存储；损坏值由 AppInterfaceScale 收敛到最近的合法档位。
             uiScale = AppInterfaceScale.percentToScale(uiScalePercent),
+            blurEnabled = blurEnabled,
         )
     }
 }

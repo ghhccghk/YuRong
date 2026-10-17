@@ -107,6 +107,8 @@ data class AppAppearance(
     val floatingNavigationBarEnabled: Boolean = false,
     // 界面缩放倍率；1.0 为原始尺寸，持久化时按百分比整数保存。
     val uiScale: Float = 1f,
+    // 是否让 Miuix 顶栏/底栏使用官方 miuix-blur 背景模糊；默认关闭，保证旧配置升级后外观不变。
+    val blurEnabled: Boolean = false,
 )
 
 @Immutable
