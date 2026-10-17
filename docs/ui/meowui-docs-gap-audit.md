@@ -47,7 +47,7 @@
 | Dialog | 已完成 | `AppColorPickerDialog`、`AppLoadingDialog`、`AppAlertDialog`、`AppSingleChoiceDialog`、`AppTextInputDialog` | 基础 Alert、单选列表、文本输入均已有两套原生实现；单选结果与输入内容都在确认时才提交给调用方 |
 | TopBar actions/menu | 部分完成 | `AppTopBar(title, actions)`、`AppIconButton`、`AppDropdownMenu` | 图标动作与图标下拉动作菜单已可用；纯文字动作仍未实现 |
 | 搜索框 | 已完成 | `AppSearchBar` | 连接页 WiFi / P2P / BLE 设备列表已接入即时过滤 |
-| Scaffold 滚动顶栏 | 部分完成 | `AppScaffold(scrollBehavior)`、`AppTopBar(scrollBehavior)` | 已支持共享嵌套滚动与顶栏收起/展开；无顶栏动作时不再吞掉内容滑动；Pull-to-Refresh 协作已由 `AppPullToRefresh` 补齐；Blur backdrop、overlay host 仍未实现 |
+| Scaffold 滚动顶栏 | 部分完成 | `AppScaffold(scrollBehavior)`、`AppTopBar(scrollBehavior)` | 已支持共享嵌套滚动与顶栏收起/展开；无顶栏动作时不再吞掉内容滑动；Pull-to-Refresh 协作已由 `AppPullToRefresh` 补齐；Blur backdrop 已完成（仅 Miuix，默认关闭），overlay host 仍未实现 |
 | 分段选择 | 已完成 | `AppSegmentedControl` | Material 3 `SingleChoiceSegmentedButtonRow` / Miuix 自绘分段控件；已替换全部 `TabRow` 用法（连接页 AP/P2P、设置页明暗模式与颜色来源、连接页设备连接/投屏子页） |
 | 普通/悬浮底栏 | 已完成 | `AppBottomNavigation(floating)` | Miuix 可选原生 `FloatingNavigationBar` 悬浮胶囊；Material 3 保持原生 `NavigationBar` |
 | 导航分页 | 缺失 | 无 pager | 当前使用三个固定入口（连接 / 设备 / 设置），投屏已并入连接页 |
@@ -56,11 +56,11 @@
 | Snackbar | 已完成 | `AppSnackbar`、`AppSnackbarHost`、`rememberAppSnackbarHostState` | Miuix 与 Material 3 各自使用原生 `SnackbarHost`；BLE 断开、Wi-Fi 断开、停止投屏已接入 |
 | Tip | 已完成 | `AppTip`、`AppTipKind` | 信息/成功/警告/错误四种类型，两风格共用语义 token |
 | Pull to refresh | 已完成 | `AppPullToRefresh` | Material 3 `PullToRefreshBox` / Miuix `PullToRefresh`；连接页已接入 WiFi 重扫与 P2P 重新发现 |
-| Blur | 缺失 | 无 `MeowBlur` 对应能力 | 当前项目未启用表面模糊；跨平台模糊要先确认 Miuix / Compose 版本能否复用，本轮暂缓 |
+| Blur | 已完成 | `AppBlurSupport`、`rememberAppBlurSupport`、`AppScaffold(blurEnabled)` | 仅 Miuix 生效（Material 3 保持原生）：使用官方 `miuix-blur` / `miuix-shader`，`rememberLayerBackdrop` 捕获 Scaffold 内容，顶栏/底栏/悬浮底栏用 `Modifier.textureBlur` 各自裁剪形状；由 `isRenderEffectSupported`（API 32+）/ `isRuntimeShaderSupported`（API 33+）做运行时门控，默认关闭 |
 | 自适应布局 | 已完成 | `AppAdaptiveScaffold`、`AppAdaptiveTwoColumn` | 宽度达到 600dp 后把底部导航换成侧边导航栏；内容区达到 840dp 后由 `AppAdaptiveTwoColumn` 拆成左右双栏 |
 | 触觉反馈 | 已完成 | `AppHaptics`、`rememberAppHaptics` | 业务语义枚举统一映射到 Compose `HapticFeedbackType`，两套风格共用同一实现；不支持触觉的平台为空操作 |
 | 可访问性 | 部分完成 | 色块和控件有部分 semantics | 仍需系统检查图标、选择、禁用、重复点击 |
-| schema 迁移 | 已完成 | `SCHEMA_VERSION` + 增量迁移 + 未来版本保护 | v1 -> v2 -> v3 -> v4 -> v5 纯增量迁移，未来版本不被 `write` 覆盖 |
+| schema 迁移 | 已完成 | `SCHEMA_VERSION` + 增量迁移 + 未来版本保护 | v1 -> v2 -> v3 -> v4 -> v5 -> v6 纯增量迁移，未来版本不被 `write` 覆盖 |
 
 ## 3. 已经正常工作的部分
 
@@ -219,16 +219,14 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 - `AppSingleChoiceDialog`（已完成）：Miuix 侧为 `WindowDialog` + 原生 `RadioButtonPreference` 列表，Material 3 侧为 `AlertDialog` + `RadioButton` 单选行；弹窗内部维护待选索引，点击「确定」才通过 `onConfirm` 提交，取消/点击外部/返回键都不会改动调用方持有的配置，选项过多时列表区域内部滚动。索引归一化由 `resolvePendingSelection` 承担，`AppSingleChoiceDialogTest` 覆盖越界索引回退为「未选中」。
 - `AppTextInputDialog`（已完成）：Miuix 侧为 `WindowDialog`，Material 3 侧为 `AlertDialog`，两套风格的「说明文案 + 输入框」共用同一个内容块 `DialogInputContent`，保证排版一致；输入内容由调用方持有，确认前的键入不会写入配置，`confirmEnabled` 供调用方做内容校验。
 
-### P1：Scaffold 只有基础能力
+### P1：Scaffold Blur backdrop 已完成，overlay host 未实现
 
-`AppScaffold` 已补上共享 nested scroll 与顶栏折叠/展开（`AppScrollBehavior`），`AppAdaptiveScaffold` 已补上宽屏侧边导航，`AppAdaptiveTwoColumn` 已补上宽屏内容双栏（见第 3 节“导航与面板”），仍未实现 MeowUI 的：
+`AppScaffold` 已补上共享 nested scroll 与顶栏折叠/展开（`AppScrollBehavior`），`AppAdaptiveScaffold` 已补上宽屏侧边导航，`AppAdaptiveTwoColumn` 已补上宽屏内容双栏（见第 3 节“导航与面板”）。MeowUI 的两项 Scaffold 扩展当前状态如下。
 
-- top bar / bottom bar Blur backdrop。
-- overlay host。
+- top bar / bottom bar Blur backdrop（已完成）：只作用于 Miuix，Material 3 保持原生、不接模糊。使用官方 `miuix-blur` / `miuix-shader`：`rememberLayerBackdrop` 捕获 Scaffold 内容（先铺底色再 `drawContent`），`Modifier.layerBackdrop` 挂在外层 Box，顶栏/底栏/悬浮底栏各自用 `Modifier.textureBlur` 按自身形状裁剪。整体门控为 `blurEnabled && backdropSupported && blurSupported`，默认关闭，旧配置升级后外观不变；能力检查由 `isRenderEffectSupported`（API 32+）与 `isRuntimeShaderSupported`（API 33+）完成，设置页开关在运行时不支持时置灰。
+- overlay host（未实现）：仍需要浮层宿主能力，本轮按计划暂缓，等有业务场景再评估。
 
-这两项需要跨平台模糊与浮层宿主能力，本轮按计划暂缓，等确认 Miuix 与 Compose 版本可复用后再评估。
-
-这不影响当前三个入口的基础布局，但会限制后续复杂页面。
+Blur backdrop 已可用于后续复杂页面；overlay host 不影响当前三个入口的基础布局。
 
 ### P2：设置 UI 缺少 MeowUI Appearance Page 的完整结构
 
@@ -247,8 +245,9 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 - 系统返回手势（`AppBackHandler`，Android 13+ 播放预测性返回动画）。
 
 缺少：
-- Blur 开关（底层缺少跨平台模糊能力，暂不提供开关）。
 - 自定义 preference 插槽。
+
+Blur 开关已补充（仅 Miuix 生效，默认关闭，运行时不支持时置灰），见第 4 节 P1“Scaffold Blur backdrop”。
 
 这些不是当前业务必需，但会影响外观设置的完整性。
 
@@ -261,7 +260,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 - **`AppSingleChoiceDialog` / `AppTextInputDialog`**：单选列表弹窗与文本输入弹窗，见第 4 节 P1“Dialog 场景”。
 - **`AppHaptics`**：统一触觉反馈语义，见第 4 节 P1“缺少反馈组件”。
 
-仍然暂缓的只有需要跨平台模糊与浮层宿主的能力：top bar / bottom bar Blur backdrop 与 overlay host，见第 4 节 P1“Scaffold 只有基础能力”。这些组件当前尚未有业务页面接入，属于“先备好能力、等业务使用”的状态。
+仍然暂缓的只有 overlay host（浮层宿主能力），见第 4 节 P1“Scaffold Blur backdrop 已完成，overlay host 未实现”。top bar / bottom bar Blur backdrop 已完成，但这些组件当前尚未有业务页面接入，属于“先备好能力、等业务使用”的状态。
 
 ## 5. 不建议直接照搬的部分
 
@@ -279,7 +278,7 @@ MeowUI 文档中的 Checkbox、Slider Preference、Popup/Dropdown、Text input�
 3. **AppTip、AppLoadingIndicator/AppLoadingDialog、AppSnackbar 统一错误/成功反馈、AppHaptics 触觉反馈**（已完成：`AppTip`、`AppLoadingDialog`、`AppSnackbar` 及其 BLE 断开 / Wi-Fi 断开 / 停止投屏三个场景；`AppHaptics` 提供统一语义与映射测试，等待业务动作接入）。
 4. **AppTopBar actions/menu 和 Dialog 场景**（已完成：`AppTopBar` 支持 actions + `AppIconButton`、`AppDropdownMenu` 下拉动作菜单，以及 `AppAlertDialog`、`AppSingleChoiceDialog`、`AppTextInputDialog` 三个弹窗；纯文字动作仍未实现，等有业务场景再补）。
 5. **分段选择（AppSegmentedControl）、floating navigation、Bottom Sheet**（已完成：`AppSegmentedControl`、`AppBottomNavigation(floating)` 及其设置开关、`AppBottomSheet` 及投屏调试日志场景）。
-6. **Scaffold 滚动顶栏（已完成共享嵌套滚动 + 折叠顶栏）、Pull-to-Refresh（已完成 `AppPullToRefresh` 与连接页接入）、自适应布局（已完成 `AppAdaptiveScaffold` 宽屏侧边导航与 `AppAdaptiveTwoColumn` 宽屏内容双栏）、Blur**（其余项等有业务场景再补）。
+6. **Scaffold 滚动顶栏（已完成共享嵌套滚动 + 折叠顶栏）、Pull-to-Refresh（已完成 `AppPullToRefresh` 与连接页接入）、自适应布局（已完成 `AppAdaptiveScaffold` 宽屏侧边导航与 `AppAdaptiveTwoColumn` 宽屏内容双栏）、Blur backdrop（已完成，仅 Miuix，默认关闭）**（overlay host 仍暂缓，等有业务场景再补）。
 7. **通用列表与自适应布局（搜索框、下拉刷新、宽屏侧栏均已完成）**：`AppSearchBar` 已接入连接页的 WiFi / P2P / BLE 设备列表，统一过滤规则由 `matchesSearchQuery` 承担并配有单元测试；`AppPullToRefresh` 已补齐下拉刷新；`AppAdaptiveScaffold` 按 600dp 断点接入宽屏侧边导航，断点行为由 `AppNavigationLayoutModeTest` 覆盖；内容区再按 840dp 断点由 `AppAdaptiveTwoColumn` 拆成双栏，设备信息页已接入，断点行为由 `AppContentLayoutModeTest` 覆盖。
 
 每一批都应遵守 `AGENTS.md`：一份业务 API、两套原生实现，并在完成一个独立功能后提交。
