@@ -3,6 +3,7 @@ package top.ghhccghk.yadea.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,15 +12,12 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -204,7 +202,8 @@ private fun MainScreenContent(
             appearance = appearance,
             onAppearanceChange = onAppearanceChange,
             systemAccentColor = systemAccentColor,
-            modifier = Modifier.padding(padding),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = padding,
             // 连接页的下拉刷新需要与顶栏滚动行为协同，这里把同一个对象继续传下去。
             scrollBehavior = scrollBehavior,
             // 连接页与投屏页的操作结果复用同一个提示状态。
@@ -259,6 +258,22 @@ private fun MainScreenContent(
     )
 }
 
+
+@Composable
+fun appPagePadding(scaffoldPadding: PaddingValues): PaddingValues {
+    val useMiuix = LocalUiThemeStyle.current == UiThemeStyle.Miuix
+    val dimensions = AppDesign.dimensions
+    // useMiuix 沿用你原来那处的取法
+    val horizontal = if (useMiuix) 0.dp else dimensions.pageHorizontalPadding
+    val vertical = if (useMiuix) 0.dp else dimensions.pageVerticalPadding
+    return PaddingValues(
+        start = horizontal,
+        end = horizontal,
+        top = vertical + scaffoldPadding.calculateTopPadding(),
+        bottom = vertical + scaffoldPadding.calculateBottomPadding(),
+    )
+}
+
 @Composable
 private fun MainDestinationContent(
     destination: MainDestination,
@@ -268,6 +283,7 @@ private fun MainDestinationContent(
     appearance: AppAppearance,
     onAppearanceChange: (AppAppearance) -> Unit,
     systemAccentColor: androidx.compose.ui.graphics.Color? = null,
+    contentPadding: PaddingValues = PaddingValues(),
     modifier: Modifier = Modifier,
     scrollBehavior: AppScrollBehavior? = null,
     snackbarHostState: AppSnackbarHostState? = null,
@@ -277,14 +293,16 @@ private fun MainDestinationContent(
             // 连接页承载两个子功能：设备连接与投屏。
             MainDestination.Connection -> ConnectionHubScreen(
                 section = connectionSection,
+                contentPadding = appPagePadding(contentPadding),       // 新增
                 onSectionChange = onConnectionSectionChange,
                 viewModel = viewModel,
                 scrollBehavior = scrollBehavior,
                 snackbarHostState = snackbarHostState,
             )
-            MainDestination.Device -> DeviceScreen()
+            MainDestination.Device -> DeviceScreen(contentPadding = appPagePadding(contentPadding))
             MainDestination.Settings -> SettingsScreen(
                 appearance = appearance,
+                contentPadding = appPagePadding(contentPadding),       // 新增
                 onAppearanceChange = onAppearanceChange,
                 systemAccentColor = systemAccentColor,
             )
@@ -307,9 +325,11 @@ private fun ConnectionHubScreen(
     scrollBehavior: AppScrollBehavior? = null,
     snackbarHostState: AppSnackbarHostState? = null,
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues,
 ) {
     val dimensions = AppDesign.dimensions
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState())
+        .padding(contentPadding),) {
         AppSegmentedControl(
             options = ConnectionSection.entries.map { it.label },
             selectedIndex = ConnectionSection.entries.indexOf(section),

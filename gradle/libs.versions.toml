@@ -9,18 +9,20 @@ androidx-core = "1.19.1"
 androidx-espresso = "3.7.0"
 androidx-lifecycle = "2.11.0"
 androidx-testExt = "1.3.0"
-composeMultiplatform = "1.12.1"
+composeMultiplatform = "1.12.2"
+hiddenapibypass = "6.2"
 junit = "4.13.2"
-kotlin = "2.4.20"
-kotlin-wrappers = "2026.9.3"
+kotlin = "2.4.21"
+kotlin-wrappers = "2026.10.0"
 kotlinx-coroutines = "1.11.0"
 material3 = "1.12.0-alpha03"
 cameraLifecycle = "1.6.2"
 miuixUi = "0.9.4"
 materialKolor = "5.0.1"
-javacv = "1.5.11"
+javacv = "1.5.14"
 
 [libraries]
+hiddenapibypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", version.ref = "hiddenapibypass" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test-common", version.ref = "kotlin" }
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 junit = { module = "junit:junit", version.ref = "junit" }

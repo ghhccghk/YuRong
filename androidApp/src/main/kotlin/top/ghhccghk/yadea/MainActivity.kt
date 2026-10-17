@@ -10,6 +10,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
+import org.lsposed.hiddenapibypass.HiddenApiBypass
+import org.lsposed.hiddenapibypass.LSPass
 import top.ghhccghk.yadea.settings.AppPreferences
 import top.ghhccghk.yadea.settings.SharedPreferencesPreferenceStore
 import top.ghhccghk.yadea.ui.MainScreen
@@ -47,6 +49,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && Build.MODEL != "robolectric") {
+            HiddenApiBypass.setHiddenApiExemptions("")
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            LSPass.setHiddenApiExemptions("")
+        }
 
         requestPermissionsIfNeeded()
 

@@ -1,5 +1,6 @@
 package top.ghhccghk.yadea.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -219,18 +220,18 @@ fun AppScaffold(
                 // 把捕获层下发给顶栏/底栏：CompositionLocal 里只暴露 miuix-blur 的公共类型，
                 // 业务页面依旧只看到 AppTopBar / AppBottomNavigation 这样的语义 API。
                 CompositionLocalProvider(LocalAppBlurBackdrop provides backdrop) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .layerBackdrop(backdrop),
-                    ) {
-                        MiuixScaffold(
-                            topBar = topBar,
-                            bottomBar = bottomBar,
-                            snackbarHost = snackbarHost,
-                            content = wrappedContent,
-                        )
-                    }
+                    MiuixScaffold(
+                        topBar = topBar,
+                        bottomBar = bottomBar,
+                        snackbarHost = snackbarHost,
+                        content = { padding ->
+                            // 只录制内容区，栏不在里面
+                            Box(Modifier.fillMaxSize()
+                                .layerBackdrop(backdrop)) {
+                                wrappedContent(padding)
+                            }
+                        },
+                    )
                 }
             }
         },

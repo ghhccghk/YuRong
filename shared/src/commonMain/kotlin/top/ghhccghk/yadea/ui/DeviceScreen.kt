@@ -16,14 +16,11 @@ import androidx.compose.ui.Modifier
  * 分栏与断点判断都交给 [AppAdaptiveTwoColumn]，页面本身不接触任何风格或窗口尺寸 API。
  */
 @Composable
-fun DeviceScreen() {
+fun DeviceScreen(contentPadding: PaddingValues) {
     val dimensions = AppDesign.dimensions
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            horizontal = dimensions.pageHorizontalPadding,
-            vertical = dimensions.pageVerticalPadding,
-        ),
+        contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(dimensions.sectionSpacing),
     ) {
         item {

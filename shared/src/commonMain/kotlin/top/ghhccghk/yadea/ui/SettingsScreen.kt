@@ -37,6 +37,7 @@ fun SettingsScreen(
     onAppearanceChange: (AppAppearance) -> Unit,
     systemAccentColor: Color? = null,
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues,
 ) {
     var showCustomColorPicker by remember { mutableStateOf(false) }
     // 界面缩放只在拖动结束后写入设置，拖动过程中的值先放在本地草稿里做即时预览。
@@ -50,10 +51,7 @@ fun SettingsScreen(
     val uiStyleOptions = UiThemeStyle.entries.map { it.label }
     val paletteOptions = AppPaletteStyle.entries.map { it.label }
     val colorSpecOptions = AppColorSpec.entries.map { it.label }
-    val pagePadding = PaddingValues(
-        horizontal = if (useMiuix) 0.dp else dimensions.pageHorizontalPadding,
-        vertical = if (useMiuix) 0.dp else dimensions.pageVerticalPadding,
-    )
+    val pagePadding = contentPadding
     val sectionModifier = if (useMiuix) {
         Modifier.fillMaxWidth().padding(horizontal = 12.dp)
     } else {
