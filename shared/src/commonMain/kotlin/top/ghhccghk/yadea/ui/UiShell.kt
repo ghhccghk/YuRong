@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -21,6 +22,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -29,6 +31,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -36,8 +40,13 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import top.yukonga.miuix.kmp.blur.BlurDefaults
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBar as MiuixFloatingNavigationBar
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem as MiuixFloatingNavigationBarItem
+import top.yukonga.miuix.kmp.basic.FloatingToolbarDefaults
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.NavigationBar as MiuixNavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem as MiuixNavigationBarItem
@@ -46,6 +55,7 @@ import top.yukonga.miuix.kmp.basic.NavigationRailItem as MiuixNavigationRailItem
 import top.yukonga.miuix.kmp.basic.Scaffold as MiuixScaffold
 import top.yukonga.miuix.kmp.basic.ScrollBehavior as MiuixScrollBehaviorState
 import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 data class AppNavigationItem(
     val label: String,
@@ -143,6 +153,9 @@ fun rememberAppScrollBehavior(): AppScrollBehavior {
  * @param snackbarHost 轻量提示宿主，通常为 [AppSnackbarHost]；不传时不展示任何提示。
  * @param scrollBehavior 可选的顶栏滚动行为；传入后内容滚动会带动顶栏收起/展开，
  *   为空时保持原有固定顶栏布局（不额外包裹容器）。
+ * @param blurEnabled 是否允许顶栏/底栏使用 Miuix 官方 miuix-blur 背景模糊。
+ *   只有当前风格为 Miuix、且运行时同时支持背景记录与 RuntimeShader 时才真正生效；
+ *   Material 3 风格完全走原生实现，不受该参数影响。
  * @param content 页面内容；参数为需要页面自行消费的窗口内边距。
  */
 @Composable
@@ -151,6 +164,7 @@ fun AppScaffold(
     bottomBar: @Composable () -> Unit = {},
     snackbarHost: @Composable () -> Unit = {},
     scrollBehavior: AppScrollBehavior? = null,
+    blurEnabled: Boolean = false,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val style = LocalUiThemeStyle.current
@@ -180,12 +194,45 @@ fun AppScaffold(
             )
         },
         miuix = {
-            MiuixScaffold(
-                topBar = topBar,
-                bottomBar = bottomBar,
-                snackbarHost = snackbarHost,
-                content = wrappedContent,
-            )
+            // 运行时能力检查：Android 上模糊依赖 RuntimeShader（API 33+），背景记录支架依赖
+            // RenderEffect（API 32+），Skiko 系（Desktop / iOS / Web）恒为可用。
+            // 三者缺一都退回原有的纯色顶栏/底栏，保证 minSdk 24 的单 APK 也能正常运行。
+            val blurSupport = rememberAppBlurSupport()
+            val blurActive = blurEnabled && blurSupport.isUsable
+            if (!blurActive) {
+                MiuixScaffold(
+                    topBar = topBar,
+                    bottomBar = bottomBar,
+                    snackbarHost = snackbarHost,
+                    content = wrappedContent,
+                )
+            } else {
+                // 背景色需要在组合期取出：AppDesign.colors 是 @Composable 属性，
+                // 不能直接在 DrawScope 的 onDraw 回调里读取。
+                val backgroundColor = AppDesign.colors.background
+                // rememberLayerBackdrop 只捕获自身内容，不包含父级 Scaffold 的背景，
+                // 所以先在 onDraw 里铺一层不透明底色，避免透明像素被模糊成色块。
+                val backdrop = rememberLayerBackdrop {
+                    drawRect(backgroundColor)
+                    drawContent()
+                }
+                // 把捕获层下发给顶栏/底栏：CompositionLocal 里只暴露 miuix-blur 的公共类型，
+                // 业务页面依旧只看到 AppTopBar / AppBottomNavigation 这样的语义 API。
+                CompositionLocalProvider(LocalAppBlurBackdrop provides backdrop) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .layerBackdrop(backdrop),
+                    ) {
+                        MiuixScaffold(
+                            topBar = topBar,
+                            bottomBar = bottomBar,
+                            snackbarHost = snackbarHost,
+                            content = wrappedContent,
+                        )
+                    }
+                }
+            }
         },
     )
 }
@@ -201,6 +248,9 @@ fun AppScaffold(
  * @param title 页面标题，Miuix 模式下显示在原生顶栏。
  * @param actions 页面级操作，例如图标按钮；为空时不渲染任何操作。
  * @param scrollBehavior 与 [AppScaffold] 相同的滚动行为；传入后顶栏随内容滚动收起/展开。
+ *
+ * 当 [AppScaffold] 启用模糊时（[LocalAppBlurBackdrop] 非空），Miuix 顶栏会把自身底色置为
+ * 透明并叠加 Modifier.textureBlur，让下方内容以模糊形式透出；Material 3 分支始终不变。
  */
 @Composable
 fun AppTopBar(
@@ -233,12 +283,31 @@ fun AppTopBar(
             }
         },
         miuix = {
-            MiuixTopAppBar(
-                title = title,
-                modifier = modifier,
-                actions = { actions?.invoke(this) },
-                scrollBehavior = scrollBehavior?.miuix,
-            )
+            // 从脚手架下发的捕获层读取模糊能力：为空表示当前未启用模糊或平台不支持，
+            // 此时完全保持原生纯色顶栏，不引入任何额外绘制。
+            val backdrop = LocalAppBlurBackdrop.current
+            if (backdrop == null) {
+                MiuixTopAppBar(
+                    title = title,
+                    modifier = modifier,
+                    actions = { actions?.invoke(this) },
+                    scrollBehavior = scrollBehavior?.miuix,
+                )
+            } else {
+                // 顶栏横跨整个窗口，用矩形裁剪即可与原生外观对齐。
+                MiuixTopAppBar(
+                    title = title,
+                    modifier = modifier.textureBlur(
+                        backdrop = backdrop,
+                        shape = RectangleShape,
+                        blurRadius = BlurDefaults.BlurRadius,
+                    ),
+                    // 底色必须透明，否则会盖住刚画好的模糊层。
+                    color = Color.Transparent,
+                    actions = { actions?.invoke(this) },
+                    scrollBehavior = scrollBehavior?.miuix,
+                )
+            }
         },
     )
 }
@@ -251,6 +320,10 @@ fun AppTopBar(
  * @param onSelected 选中回调；重复选中当前项不会触发。
  * @param floating 是否使用 Miuix 悬浮胶囊底栏。Material 3 没有对应的原生样式，
  *   该参数只影响 Miuix 分支，Material 3 始终保持原生 NavigationBar。
+ *
+ * 当 [AppScaffold] 启用模糊时（[LocalAppBlurBackdrop] 非空），Miuix 底栏会把底色置为透明并
+ * 叠加 Modifier.textureBlur：常规底栏使用矩形裁剪，悬浮胶囊底栏使用与自身一致的圆角，
+ * 保证模糊区域和胶囊圆角严丝合缝。Material 3 分支始终不变。
  */
 @Composable
 fun AppBottomNavigation(
@@ -273,9 +346,21 @@ fun AppBottomNavigation(
             }
         },
         miuix = {
+            val backdrop = LocalAppBlurBackdrop.current
             if (floating) {
                 // 悬浮底栏为图标 + 语义标签形式，自带阴影、圆角与系统栏内边距处理。
-                MiuixFloatingNavigationBar {
+                // 模糊区域的圆角必须与胶囊圆角一致，否则会在四角露出直角边。
+                MiuixFloatingNavigationBar(
+                    modifier = backdrop?.let {
+                        Modifier.textureBlur(
+                            backdrop = it,
+                            shape = RoundedCornerShape(FloatingToolbarDefaults.CornerRadius),
+                            blurRadius = BlurDefaults.BlurRadius,
+                        )
+                    } ?: Modifier,
+                    // 底色透明，让模糊层完整透出。
+                    color = backdrop?.let { Color.Transparent } ?: MiuixTheme.colorScheme.surfaceContainer,
+                ) {
                     items.forEachIndexed { index, item ->
                         MiuixFloatingNavigationBarItem(
                             selected = selectedIndex == index,
@@ -285,8 +370,27 @@ fun AppBottomNavigation(
                         )
                     }
                 }
-            } else {
+            } else if (backdrop == null) {
                 MiuixNavigationBar {
+                    items.forEachIndexed { index, item ->
+                        MiuixNavigationBarItem(
+                            selected = selectedIndex == index,
+                            onClick = { onSelected(index) },
+                            icon = item.icon,
+                            label = item.label,
+                        )
+                    }
+                }
+            } else {
+                // 常规底栏整条横跨窗口，矩形裁剪即可；分隔线由 Miuix 自己绘制在模糊层之上。
+                MiuixNavigationBar(
+                    modifier = Modifier.textureBlur(
+                        backdrop = backdrop,
+                        shape = RectangleShape,
+                        blurRadius = BlurDefaults.BlurRadius,
+                    ),
+                    color = Color.Transparent,
+                ) {
                     items.forEachIndexed { index, item ->
                         MiuixNavigationBarItem(
                             selected = selectedIndex == index,
@@ -420,6 +524,8 @@ fun AppAdaptiveTwoColumn(
  * @param floatingNavigation 是否使用 Miuix 悬浮胶囊底栏；只影响窄屏下的 Miuix 分支。
  * @param snackbarHost 轻量提示宿主，语义与 [AppScaffold] 一致；两种布局下都会挂载。
  * @param scrollBehavior 可选的顶栏滚动行为，语义与 [AppScaffold] 一致。
+ * @param blurEnabled 是否允许顶栏/底栏使用 Miuix 官方 miuix-blur 背景模糊，语义与 [AppScaffold] 一致；
+ *   宽屏下会透传给内容区的 [AppScaffold]（侧边导航栏本身不做模糊）。
  * @param content 页面内容；参数为需要页面自行消费的窗口内边距。
  */
 @Composable
@@ -431,6 +537,7 @@ fun AppAdaptiveScaffold(
     floatingNavigation: Boolean = false,
     snackbarHost: @Composable () -> Unit = {},
     scrollBehavior: AppScrollBehavior? = null,
+    blurEnabled: Boolean = false,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     // 用 BoxWithConstraints 测量当前窗口宽度，再按断点决定导航形态；
@@ -450,6 +557,7 @@ fun AppAdaptiveScaffold(
                             topBar = topBar,
                             snackbarHost = snackbarHost,
                             scrollBehavior = scrollBehavior,
+                            blurEnabled = blurEnabled,
                             content = content,
                         )
                     }
@@ -469,6 +577,7 @@ fun AppAdaptiveScaffold(
                         )
                     },
                     scrollBehavior = scrollBehavior,
+                    blurEnabled = blurEnabled,
                     content = content,
                 )
             }

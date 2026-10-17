@@ -193,6 +193,8 @@ private fun MainScreenContent(
         // 提示宿主由脚手架挂载，窄屏与宽屏两种布局下都能显示。
         snackbarHost = { AppSnackbarHost(snackbarHostState) },
         scrollBehavior = scrollBehavior,
+        // 背景模糊同样是 Miuix 专属外观选项：Material 3 与不支持的平台会自动退回纯色顶栏/底栏。
+        blurEnabled = appearance.blurEnabled,
     ) { padding ->
         MainDestinationContent(
             destination = selectedDestination,
