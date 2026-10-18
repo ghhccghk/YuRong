@@ -11,6 +11,7 @@ import top.ghhccghk.yadea.ui.AppColorSpec
 import top.ghhccghk.yadea.ui.AppPaletteStyle
 import top.ghhccghk.yadea.ui.AppThemeMode
 import top.ghhccghk.yadea.ui.UiThemeStyle
+import top.ghhccghk.yadea.auth.AuthUser
 
 class AppPreferencesTest {
     @Test
@@ -117,6 +118,30 @@ class AppPreferencesTest {
         assertTrue(preferences.write(AppAppearance()) is PreferenceWriteResult.Success)
 
         assertEquals(AppPreferenceKeys.SCHEMA_VERSION, store.read(AppPreferenceKeys.schemaVersion))
+    }
+
+    @Test
+    fun authKeysRoundTripAndDoNotResetAppearance() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        val preferences = AppPreferences(store)
+        preferences.write(AppAppearance(themeMode = AppThemeMode.Dark))
+        val user = AuthUser(
+            id = 9,
+            token = "token",
+            userId = "u9",
+            mobile = "13800138000",
+            nickName = "车主",
+        )
+
+        assertTrue(preferences.writeAuth(user) is PreferenceWriteResult.Success)
+        assertEquals("token", store.read(AppPreferenceKeys.usrToken))
+        assertTrue(store.read(AppPreferenceKeys.usrInfo).contains("\"nickName\""))
+        assertEquals(AppThemeMode.Dark, preferences.read().themeMode)
+
+        assertTrue(preferences.clearAuth() is PreferenceWriteResult.Success)
+        assertEquals("", store.read(AppPreferenceKeys.usrToken))
+        assertEquals("", store.read(AppPreferenceKeys.usrInfo))
+        assertEquals(AppThemeMode.Dark, preferences.read().themeMode)
     }
 
     @Test

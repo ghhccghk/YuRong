@@ -3,6 +3,10 @@ package top.ghhccghk.yadea.settings
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlin.random.Random
+import top.ghhccghk.yadea.auth.AuthProfileCodec
+import top.ghhccghk.yadea.auth.AuthSessionSnapshot
+import top.ghhccghk.yadea.auth.AuthUser
 import top.ghhccghk.yadea.ui.AppAppearance
 import top.ghhccghk.yadea.ui.AppColorSource
 import top.ghhccghk.yadea.ui.AppColorSpec
@@ -18,7 +22,8 @@ object AppPreferenceKeys {
     // 3 -> 4：新增 color_spec（Miuix Monet 使用的颜色标准）。
     // 4 -> 5：新增 ui_scale_percent（界面缩放百分比）。
     // 5 -> 6：新增 blur_enabled（Miuix 是否启用官方 miuix-blur 背景模糊）。
-    const val SCHEMA_VERSION = 6
+    // 6 -> 7：新增 usr_token / usr_info / login_id（登录态）。
+    const val SCHEMA_VERSION = 7
 
     val schemaVersion = PreferenceKey.int("app_settings_schema_version", SCHEMA_VERSION)
     val uiStyle = PreferenceKey.string("ui_style", UiThemeStyle.Miuix.storageName)
@@ -44,6 +49,12 @@ object AppPreferenceKeys {
 
     // 默认关闭，保证旧版本（schema 5 及更早）升级后仍是原有纯色顶栏与底栏。
     val blurEnabled = PreferenceKey.boolean("blur_enabled", false)
+
+    val usrToken = PreferenceKey.string("usr_token", "")
+    val usrInfo = PreferenceKey.string("usr_info", "")
+    val loginId = PreferenceKey.string("login_id", "")
+
+    val authKeys: List<PreferenceKey<*>> = listOf(usrToken, usrInfo, loginId)
 
     val all: List<PreferenceKey<*>> = listOf(
         schemaVersion,
@@ -143,6 +154,52 @@ class AppPreferences(
 
     suspend fun reset(): PreferenceWriteResult = write(AppAppearance())
 
+    /** 读取持久化登录态；损坏的用户 JSON 会回退为未登录。 */
+    fun readAuth(): AuthSessionSnapshot {
+        val token = store.read(AppPreferenceKeys.usrToken)
+        val user = AuthProfileCodec.decode(store.read(AppPreferenceKeys.usrInfo))
+        return AuthSessionSnapshot(
+            token = token,
+            user = user,
+            loginId = store.read(AppPreferenceKeys.loginId),
+        )
+    }
+
+    /** 保存登录态。`usr_info` 使用与原实现相同的 JSON 字段名。 */
+    suspend fun writeAuth(user: AuthUser): PreferenceWriteResult {
+        val storedSchemaVersion = store.read(AppPreferenceKeys.schemaVersion)
+        if (storedSchemaVersion > AppPreferenceKeys.SCHEMA_VERSION) {
+            return PreferenceWriteResult.Failure(
+                IllegalStateException(
+                    "Stored settings schema $storedSchemaVersion is newer than supported " +
+                        "${AppPreferenceKeys.SCHEMA_VERSION}.",
+                ),
+            )
+        }
+        val currentLoginId = store.read(AppPreferenceKeys.loginId)
+            .ifBlank { newLoginId() }
+        val writes = listOf(
+            AppPreferenceKeys.schemaVersion to AppPreferenceKeys.SCHEMA_VERSION,
+            AppPreferenceKeys.usrToken to user.token,
+            AppPreferenceKeys.usrInfo to AuthProfileCodec.encode(user),
+            AppPreferenceKeys.loginId to currentLoginId,
+        )
+        for ((key, value) in writes) {
+            val result = writeTyped(key, value)
+            if (result != PreferenceWriteResult.Success) return result
+        }
+        return PreferenceWriteResult.Success
+    }
+
+    /** 只清理登录相关 key，不动外观设置。 */
+    suspend fun clearAuth(): PreferenceWriteResult {
+        for (key in AppPreferenceKeys.authKeys) {
+            val result = store.delete(key)
+            if (result != PreferenceWriteResult.Success) return result
+        }
+        return PreferenceWriteResult.Success
+    }
+
     private suspend fun writeTyped(key: PreferenceKey<*>, value: Any): PreferenceWriteResult =
         when (key.type) {
             PreferenceType.Boolean -> store.write(key as PreferenceKey<Boolean>, value as Boolean)
@@ -188,5 +245,12 @@ class AppPreferences(
             uiScale = AppInterfaceScale.percentToScale(uiScalePercent),
             blurEnabled = blurEnabled,
         )
+    }
+
+    private fun newLoginId(): String {
+        val bytes = ByteArray(8) { Random.nextInt(0, 256).toByte() }
+        return "device-" + bytes.joinToString("") {
+            ((it.toInt() and 0xFF)).toString(16).padStart(2, '0')
+        }
     }
 }
