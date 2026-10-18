@@ -262,6 +262,7 @@ object Crypto {
     }
 
     private fun aesEcbPkcs5Decrypt(key: ByteArray, ciphertext: ByteArray): ByteArray? {
+        requireAesKey(key)
         if (ciphertext.isEmpty() || ciphertext.size % BLOCK_SIZE != 0) return null
         val schedule = expandKey(key)
         val out = ByteArray(ciphertext.size)
