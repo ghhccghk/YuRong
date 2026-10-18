@@ -118,4 +118,73 @@ class YadeaAuthGatewayTest {
         )
         assertTrue(gateway.sendSmsCode("13800138000") is AuthResult.Success)
     }
+
+    @Test
+    fun tokenLogin_postsOneTapFieldsAndParsesUser() = runBlocking {
+        val plain = """
+            {"success":true,"data":{
+              "id":9,"token":"bearer-9","userId":"u9","nickName":"Token 车主"
+            }}
+        """.trimIndent()
+        var requestBody = ""
+        val gateway = YadeaAuthGateway(
+            transport = object : HttpTransport {
+                override suspend fun execute(request: HttpRequest): HttpResponse {
+                    assertTrue(request.url.endsWith("user/loginByToken"))
+                    requestBody = request.body.orEmpty()
+                    return HttpResponse(200, encrypted(plain))
+                }
+            },
+            timestampProvider = { 1L },
+            deviceIdProvider = { "device-1" },
+            registrationIdProvider = { "push-1" },
+            oppoPushIdProvider = { "oppo-1" },
+        )
+
+        val result = gateway.loginByToken(TokenLoginRequest("login-token-1", "gyuid-1"))
+        assertTrue(result is AuthResult.Success)
+        assertEquals("bearer-9", (result as AuthResult.Success).data.token)
+
+        val payload = signedJson(requestBody)
+        assertTrue(payload.contains("\"loginToken\":\"login-token-1\""))
+        assertTrue(payload.contains("\"gyuid\":\"gyuid-1\""))
+        assertTrue(payload.contains("\"appName\":\"YADEA\""))
+        assertTrue(payload.contains("\"verificationType\":\"1\""))
+        assertTrue(payload.contains("\"registrationId\":\"push-1\""))
+        assertTrue(payload.contains("\"oppoPushId\":\"oppo-1\""))
+    }
+
+    @Test
+    fun advancedLogin_postsProvidedJsonAndHeaderOverrides() = runBlocking {
+        val plain = """
+            {"success":true,"data":{"id":10,"token":"bearer-10","nickName":"参数车主"}}
+        """.trimIndent()
+        var requestBody = ""
+        val gateway = YadeaAuthGateway(
+            transport = object : HttpTransport {
+                override suspend fun execute(request: HttpRequest): HttpResponse {
+                    assertTrue(request.url.endsWith("user/loginByPassword"))
+                    assertEquals("CUSTOM_BRAND", request.headers["device-brand"])
+                    requestBody = request.body.orEmpty()
+                    return HttpResponse(200, encrypted(plain))
+                }
+            },
+            timestampProvider = { 1L },
+        )
+
+        val result = gateway.loginWithParameters(
+            RawLoginRequest(
+                path = "user/loginByPassword",
+                businessJson = """
+                    {"account":"13800138000","password":"Abc12345","accountType":"1","appType":"1"}
+                """.trimIndent(),
+                headers = mapOf("device-brand" to "CUSTOM_BRAND"),
+            ),
+        )
+        assertTrue(result is AuthResult.Success)
+        val payload = signedJson(requestBody)
+        assertTrue(payload.contains("\"_gateway\":\"True\""))
+        assertTrue(payload.contains("\"account\":\"13800138000\""))
+        assertTrue(payload.contains("\"accountType\":\"1\""))
+    }
 }

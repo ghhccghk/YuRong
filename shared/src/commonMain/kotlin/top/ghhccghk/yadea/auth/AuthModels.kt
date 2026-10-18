@@ -48,6 +48,28 @@ data class PasswordLoginRequest(
     val accountType: AuthAccountType,
 )
 
+/**
+ * 原客户端 `p46` 的一键认证 token 登录。
+ *
+ * [token] 对应请求字段 `loginToken`，[gyuid] 对应极光认证的 `gyuid`。
+ */
+data class TokenLoginRequest(
+    val token: String,
+    val gyuid: String = "",
+)
+
+/**
+ * 高级登录参数。
+ *
+ * [businessJson] 是签名前的业务 JSON（对应原客户端 `f84.b` 的输出），
+ * 不是 wire 上的 `gatewaySign=...&gatewayTimestamp=...` 表单。
+ */
+data class RawLoginRequest(
+    val path: String,
+    val businessJson: String,
+    val headers: Map<String, String> = emptyMap(),
+)
+
 sealed interface AuthResult<out T> {
     data class Success<T>(val data: T) : AuthResult<T>
     data class Failure(val message: String, val code: Int? = null) : AuthResult<Nothing>
@@ -63,6 +85,10 @@ interface AuthGateway {
     suspend fun loginByPassword(request: PasswordLoginRequest): AuthResult<AuthUser>
     suspend fun sendSmsCode(mobile: String): AuthResult<Unit>
     suspend fun loginBySms(mobile: String, code: String): AuthResult<AuthUser>
+    suspend fun loginByToken(request: TokenLoginRequest): AuthResult<AuthUser>
+    /** 直接使用已有 Bearer token 校验并建立本地会话。 */
+    suspend fun importBearerToken(token: String): AuthResult<AuthUser>
+    suspend fun loginWithParameters(request: RawLoginRequest): AuthResult<AuthUser>
 }
 
 /** `usr_info` 的扁平 JSON 编解码，避免为几个字段引入序列化依赖。 */

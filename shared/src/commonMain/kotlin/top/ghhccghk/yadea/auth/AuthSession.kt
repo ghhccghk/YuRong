@@ -129,6 +129,73 @@ class AuthController(
         }
     }
 
+    fun loginByToken(token: String, gyuid: String = "") {
+        val trimmedToken = token.trim()
+        if (trimmedToken.isBlank()) {
+            _state.value = _state.value.copy(error = "请输入 Token")
+            return
+        }
+        val gateway = gateway ?: return unavailable()
+        scope.launch {
+            _state.value = _state.value.copy(busy = true, error = null, notice = null)
+            when (val result = runCatching {
+                if (trimmedToken.startsWith("Bearer ", ignoreCase = true)) {
+                    gateway.importBearerToken(trimmedToken)
+                } else {
+                    gateway.loginByToken(
+                        TokenLoginRequest(
+                            token = trimmedToken,
+                            gyuid = gyuid.trim(),
+                        ),
+                    )
+                }
+            }.getOrElse { AuthResult.Failure(it.message ?: "Token 登录失败") }) {
+                is AuthResult.Success -> saveUser(result.data)
+                is AuthResult.Failure -> _state.value = _state.value.copy(
+                    busy = false,
+                    error = result.message,
+                )
+            }
+        }
+    }
+
+    fun loginWithParameters(path: String, businessJson: String, headersText: String) {
+        val trimmedPath = path.trim()
+        val trimmedJson = businessJson.trim()
+        if (trimmedPath.isBlank()) {
+            _state.value = _state.value.copy(error = "请输入登录接口路径")
+            return
+        }
+        if (trimmedJson.isBlank()) {
+            _state.value = _state.value.copy(error = "请输入签名前的业务 JSON")
+            return
+        }
+        val (headers, headerError) = parseHeaderLines(headersText)
+        if (headerError != null) {
+            _state.value = _state.value.copy(error = headerError)
+            return
+        }
+        val gateway = gateway ?: return unavailable()
+        scope.launch {
+            _state.value = _state.value.copy(busy = true, error = null, notice = null)
+            when (val result = runCatching {
+                gateway.loginWithParameters(
+                    RawLoginRequest(
+                        path = trimmedPath,
+                        businessJson = trimmedJson,
+                        headers = headers,
+                    ),
+                )
+            }.getOrElse { AuthResult.Failure(it.message ?: "参数登录失败") }) {
+                is AuthResult.Success -> saveUser(result.data)
+                is AuthResult.Failure -> _state.value = _state.value.copy(
+                    busy = false,
+                    error = result.message,
+                )
+            }
+        }
+    }
+
     fun logout() {
         countdownJob?.cancel()
         scope.launch {
@@ -181,5 +248,25 @@ class AuthController(
             busy = false,
             error = "登录服务未配置，请稍后再试",
         )
+    }
+
+    private fun parseHeaderLines(text: String): Pair<Map<String, String>, String?> {
+        val result = linkedMapOf<String, String>()
+        for ((index, rawLine) in text.lineSequence().withIndex()) {
+            val line = rawLine.trim()
+            if (line.isBlank() || line.startsWith("#")) continue
+            val separator = line.indexOf('=')
+            if (separator <= 0) {
+                return emptyMap<String, String>() to
+                    "请求头第 ${index + 1} 行格式应为 key=value"
+            }
+            val key = line.substring(0, separator).trim()
+            if (key.isBlank()) {
+                return emptyMap<String, String>() to
+                    "请求头第 ${index + 1} 行缺少名称"
+            }
+            result[key] = line.substring(separator + 1).trim()
+        }
+        return result to null
     }
 }

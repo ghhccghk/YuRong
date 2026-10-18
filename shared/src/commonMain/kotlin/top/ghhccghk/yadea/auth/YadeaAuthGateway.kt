@@ -69,11 +69,75 @@ class YadeaAuthGateway(
         return post("user/loginBySms", json)
     }
 
+    override suspend fun loginByToken(request: TokenLoginRequest): AuthResult<AuthUser> {
+        val json = sortedJson(
+            mapOf(
+                "_gateway" to "True",
+                "appName" to "YADEA",
+                "gyuid" to request.gyuid,
+                "loginToken" to request.token,
+                "oppoPushId" to oppoPushIdProvider(),
+                "registrationId" to registrationIdProvider(),
+                "verificationType" to "1",
+            ),
+        )
+        return post("user/loginByToken", json)
+    }
+
+    override suspend fun importBearerToken(token: String): AuthResult<AuthUser> {
+        val normalized = token.trim()
+        if (normalized.isBlank()) return AuthResult.Failure("请输入 Token")
+        val result = postRaw(
+            path = "app-common/ping",
+            businessJson = sortedJson(mapOf("_gateway" to "True")),
+            authToken = normalized,
+        )
+        return when (result) {
+            is AuthResult.Failure -> result
+            is AuthResult.Success -> AuthResult.Success(
+                AuthUser(
+                    token = normalized,
+                    nickName = "Token 用户",
+                ),
+            )
+        }
+    }
+
+    override suspend fun loginWithParameters(request: RawLoginRequest): AuthResult<AuthUser> {
+        val path = request.path.trim().trimStart('/')
+        if (path.isBlank() ||
+            path.startsWith("http://", ignoreCase = true) ||
+            path.startsWith("https://", ignoreCase = true) ||
+            path.contains("..")
+        ) {
+            return AuthResult.Failure("登录路径不合法")
+        }
+        val json = ensureGatewayBusinessJson(request.businessJson)
+            ?: return AuthResult.Failure(
+                "业务 JSON 格式不正确；请填写签名前的 JSON，而不是 gatewaySign 表单",
+            )
+        val response = when (
+            val result = postRaw(
+                path = path,
+                businessJson = json,
+                headerOverrides = request.headers,
+            )
+        ) {
+            is AuthResult.Failure -> return result
+            is AuthResult.Success -> result.data
+        }
+        return parseUser(response)
+    }
+
     private suspend fun post(path: String, businessJson: String): AuthResult<AuthUser> {
         val response = when (val result = postRaw(path, businessJson)) {
             is AuthResult.Failure -> return result
             is AuthResult.Success -> result.data
         }
+        return parseUser(response)
+    }
+
+    private fun parseUser(response: String): AuthResult<AuthUser> {
         val data = JsonSupport.objectField(response, "data")
             ?: return AuthResult.Failure("登录响应缺少用户信息")
         val user = AuthUser(
@@ -93,10 +157,18 @@ class YadeaAuthGateway(
         return AuthResult.Success(user)
     }
 
-    private suspend fun postRaw(path: String, businessJson: String): AuthResult<String> {
+    private suspend fun postRaw(
+        path: String,
+        businessJson: String,
+        authToken: String = "",
+        headerOverrides: Map<String, String> = emptyMap(),
+    ): AuthResult<String> {
         val timestamp = timestampProvider()
         val body = GatewaySigner.formBody(businessJson, timestamp)
-        val headers = GatewayHeaders.ensureGatewayAppId(baseUrl + path, commonHeaders())
+        val headers = GatewayHeaders.ensureGatewayAppId(
+            baseUrl + path,
+            commonHeaders(authToken) + headerOverrides,
+        )
         NetworkLog.write(
             "AUTH -> POST ${baseUrl + path} ts=$timestamp " +
                 "headers=${NetworkLog.headers(headers)} ${NetworkLog.formSummary(body)}",
@@ -131,10 +203,49 @@ class YadeaAuthGateway(
         return AuthResult.Success(plain)
     }
 
-    private fun commonHeaders(): Map<String, String> =
+    private fun ensureGatewayBusinessJson(raw: String): String? {
+        val text = raw.trim()
+        if (!text.startsWith("{") || !text.endsWith("}")) return null
+        val compact = compactJson(text)
+        if (Regex("\"_gateway\"\\s*:").containsMatchIn(compact)) return compact
+        val body = compact.removePrefix("{").removeSuffix("}")
+        return if (body.isBlank()) {
+            """{"_gateway":"True"}"""
+        } else {
+            compactJson("""{"_gateway":"True",$body}""")
+        }
+    }
+
+    /** 去掉 JSON 字符串外的空白，避免粘贴的多行参数影响签名稳定性。 */
+    private fun compactJson(text: String): String = buildString(text.length) {
+        var inString = false
+        var escaped = false
+        for (c in text) {
+            if (inString) {
+                append(c)
+                when {
+                    escaped -> escaped = false
+                    c == '\\' -> escaped = true
+                    c == '"' -> inString = false
+                }
+            } else {
+                when {
+                    c == '"' -> {
+                        inString = true
+                        append(c)
+                    }
+                    c.isWhitespace() -> Unit
+                    else -> append(c)
+                }
+            }
+        }
+    }
+
+    private fun commonHeaders(authToken: String = ""): Map<String, String> =
         GatewayRequestHeaders.build(
             clientInfo = clientInfoProvider(),
             deviceId = deviceIdProvider(),
+            token = authToken,
         )
 
     private fun decryptResponse(response: HttpResponse): String? {
