@@ -19,6 +19,8 @@ import top.ghhccghk.yadea.ble.AndroidBleAdapter
 import top.ghhccghk.yadea.settings.AppPreferences
 import top.ghhccghk.yadea.settings.SharedPreferencesPreferenceStore
 import top.ghhccghk.yadea.network.createHttpTransport
+import top.ghhccghk.yadea.auth.YadeaAuthGateway
+import top.ghhccghk.yadea.ota.YadeaOtaGateway
 import top.ghhccghk.yadea.ui.MainScreen
 import top.ghhccghk.yadea.vehicle.BleVehicleStatusSource
 import top.ghhccghk.yadea.vehicle.MutableVehicleProfileSource
@@ -75,17 +77,30 @@ class MainActivity : ComponentActivity() {
         val vehicleStatus = BleVehicleStatusSource(vehicleBleAdapter, lifecycleScope)
             .also { vehicleStatusSource = it }
         val appPreferences = AppPreferences(SharedPreferencesPreferenceStore(this))
+        val httpTransport = createHttpTransport()
         val vehicleProfileSource = MutableVehicleProfileSource()
         val profileController = VehicleProfileController(
             source = vehicleProfileSource,
             gateway = YadeaVehicleProfileGateway(
-                transport = createHttpTransport(),
+                transport = httpTransport,
                 tokenProvider = { appPreferences.readAuth().token },
                 loginIdProvider = { appPreferences.readAuth().loginId },
             ),
             scope = lifecycleScope,
         )
         profileController.refresh()
+        val authGateway = YadeaAuthGateway(
+            transport = httpTransport,
+            timestampProvider = { System.currentTimeMillis() },
+            deviceIdProvider = { appPreferences.readAuth().loginId },
+        )
+        val otaGateway = YadeaOtaGateway(
+            transport = httpTransport,
+            profileProvider = { vehicleProfileSource.profile.value },
+            tokenProvider = { appPreferences.readAuth().token },
+            loginIdProvider = { appPreferences.readAuth().loginId },
+            timestampProvider = { System.currentTimeMillis() },
+        )
         val frameSourceFactory = AndroidFrameSourceFactory(this, this)
         val permissionChecker = AndroidPermissionChecker(this)
         val screenCaptureAuthorizer: ScreenCaptureAuthorizer = AndroidScreenCaptureAuthorizer(this)
@@ -97,6 +112,8 @@ class MainActivity : ComponentActivity() {
                 vehicleStatusSource = vehicleStatus,
                 vehicleProfileSource = vehicleProfileSource,
                 carSettingCommandSink = AndroidVehicleSettingCommandSink(vehicleBleAdapter),
+                authGateway = authGateway,
+                otaGateway = otaGateway,
                 p2pManager = p2pManager,
                 frameSourceFactory = frameSourceFactory,
                 permissionChecker = permissionChecker,

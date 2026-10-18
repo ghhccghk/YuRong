@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 data class VehicleProfile(
     val vin: String = "",
     val modelNo: String = "",
+    val modelName: String = "",
     /** 联动款标记；原实现用 `dLinkTag`/车型号判断联动款。 */
     val dLinkTag: String = "",
     val vehicleImageUrl: String = "",

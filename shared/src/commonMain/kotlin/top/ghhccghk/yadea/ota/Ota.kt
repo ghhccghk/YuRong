@@ -11,6 +11,7 @@ data class OtaPackage(
     val version: String,
     val sizeBytes: Long = 0L,
     val releaseNotes: String = "",
+    val downloadUrl: String = "",
 )
 
 enum class OtaStage {

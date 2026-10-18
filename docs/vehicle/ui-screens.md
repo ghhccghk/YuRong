@@ -50,6 +50,12 @@
 - 协议未勾选时登录按钮仍可点击，点击后再串行校验并提示。
 - 登录成功写入 `usr_token` / `usr_info` / `login_id`；退出只清理这三个 key。
 
+网络层实现于 `auth/YadeaAuthGateway.kt`：
+
+- `user/loginByPassword`、`user/loginBySms`、`user/sendCode`；
+- form body 只保留 `gatewaySign` + `gatewayTimestamp`；
+- 响应先 URLDecode，再 AES-ECB 解密，读取 `success/code/msg/data`。
+
 ## 4. OTA
 
 `OtaFlow` 是纯状态机，覆盖：
@@ -58,6 +64,12 @@
 
 失败与取消分别进入 `Failed` / `Cancelled`。当前仓库没有确认 OTA 帧结构，
 因此界面只依赖 `OtaGateway`，不在 `commonMain` 里猜协议。
+
+`ota/YadeaOtaGateway.kt` 已接入：
+
+- `firmwareVersion/latestVersion` 检查更新；
+- `upgradeTask/queryTaskList/V4` 查询任务；
+- 固件下载/写入仍由平台 OTA 传输实现，当前不会伪报成功。
 
 ## 5. IoT 车联网续费
 
