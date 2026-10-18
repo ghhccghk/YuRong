@@ -2,6 +2,8 @@ package top.ghhccghk.yadea
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -10,11 +12,14 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.lsposed.hiddenapibypass.LSPass
+import top.ghhccghk.yadea.ble.AndroidBleAdapter
 import top.ghhccghk.yadea.settings.AppPreferences
 import top.ghhccghk.yadea.settings.SharedPreferencesPreferenceStore
 import top.ghhccghk.yadea.ui.MainScreen
+import top.ghhccghk.yadea.vehicle.BleVehicleStatusSource
 import top.ghhccghk.yadea.wifi.AndroidWifiP2pManager
 import top.ghhccghk.yadea.mirror.source.AndroidFrameSourceFactory
 import top.ghhccghk.yadea.mirror.MediaSourcePicker
@@ -22,6 +27,9 @@ import top.ghhccghk.yadea.mirror.ScreenCaptureAuthorizer
 import top.ghhccghk.yadea.ui.AndroidPermissionChecker
 
 class MainActivity : ComponentActivity() {
+
+    private var bleAdapter: AndroidBleAdapter? = null
+    private var vehicleStatusSource: BleVehicleStatusSource? = null
 
     private val requiredPermissions: Array<String>
         get() = buildList {
@@ -59,6 +67,9 @@ class MainActivity : ComponentActivity() {
         requestPermissionsIfNeeded()
 
         val p2pManager = AndroidWifiP2pManager(this)
+        val vehicleBleAdapter = AndroidBleAdapter(this).also { bleAdapter = it }
+        val vehicleStatus = BleVehicleStatusSource(vehicleBleAdapter, lifecycleScope)
+            .also { vehicleStatusSource = it }
         val frameSourceFactory = AndroidFrameSourceFactory(this, this)
         val permissionChecker = AndroidPermissionChecker(this)
         val screenCaptureAuthorizer: ScreenCaptureAuthorizer = AndroidScreenCaptureAuthorizer(this)
@@ -66,12 +77,22 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MainScreen(
+                bleAdapter = vehicleBleAdapter,
+                vehicleStatusSource = vehicleStatus,
                 p2pManager = p2pManager,
                 frameSourceFactory = frameSourceFactory,
                 permissionChecker = permissionChecker,
                 screenCaptureAuthorizer = screenCaptureAuthorizer,
                 mediaSourcePicker = mediaSourcePicker,
                 preferences = AppPreferences(SharedPreferencesPreferenceStore(this@MainActivity)),
+                onOpenExternalUrl = { url ->
+                    runCatching {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    }
+                },
+                vehicleImageContent = { url, modifier ->
+                    AndroidVehicleImage(url, modifier)
+                },
                 systemAccentColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     Color(ContextCompat.getColor(this@MainActivity, android.R.color.system_accent1_500))
                 } else {
@@ -82,6 +103,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        vehicleStatusSource?.dispose()
+        bleAdapter?.close()
         super.onDestroy()
     }
 

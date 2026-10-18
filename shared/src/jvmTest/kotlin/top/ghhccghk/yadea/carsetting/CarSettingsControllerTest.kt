@@ -66,4 +66,37 @@ class CarSettingsControllerTest {
         assertEquals(before.kind, after.kind)
         assertEquals("车辆设置通道未接入", controller.state.value.message)
     }
+
+    @Test
+    fun smaliCommandMapping_usesConfirmedIdsAndParameters() {
+        val items = items().associateBy { it.id }
+        assertEquals(
+            VehicleSettingCommand("LEAVE_THE_CAR_AUTO_LOCK_ON", 0x53),
+            VehicleSettingCommands.forItem(items.getValue("security.auto_lock")),
+        )
+        assertEquals(
+            VehicleSettingCommand("WARING_SOUND_CLOSE", 0x63),
+            VehicleSettingCommands.forItem(
+                items.getValue("light.find_sound").copy(
+                    kind = CarSettingKind.Toggle(false),
+                ),
+            ),
+        )
+        assertEquals(
+            VehicleSettingCommand("BRAKE_RECOVER_LEVEL", 0x3D, parameter = 3),
+            VehicleSettingCommands.forItem(
+                items.getValue("ride.recover").copy(
+                    kind = CarSettingKind.Choice(2, listOf("弱", "中", "强")),
+                ),
+            ),
+        )
+        assertEquals(
+            VehicleSettingCommand("BRIGHTNESS_ADJUST_VALUE", 0x134, parameter = 80),
+            VehicleSettingCommands.forItem(items.getValue("meter.brightness")),
+        )
+        assertEquals(
+            VehicleSettingCommand("BRIGHTNESS_ADJUST_SWITCH", 0x135, parameter = 1),
+            VehicleSettingCommands.forItem(items.getValue("meter.auto_brightness")),
+        )
+    }
 }

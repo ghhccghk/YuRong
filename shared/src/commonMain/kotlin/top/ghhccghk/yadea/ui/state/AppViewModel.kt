@@ -21,6 +21,7 @@ import top.ghhccghk.yadea.network.TcpTransport
 import top.ghhccghk.yadea.network.UdpTransport
 import top.ghhccghk.yadea.network.createTcpTransport
 import top.ghhccghk.yadea.network.createUdpTransport
+import top.ghhccghk.yadea.vehicle.VehicleBleConstants
 import top.ghhccghk.yadea.wifi.*
 
 expect fun getCurrentTime(): DateTimeParts
@@ -154,7 +155,11 @@ class AppViewModel(
     fun scanBle() {
         scope.launch {
             _isScanningBle.value = true
-            bleAdapter?.startScan(listOf(BleProtocol.SERVICE_UUID), 10_000)
+            // 同时扫描投屏仪表与整车服务；车辆页依赖整车 b360/b362 通道。
+            bleAdapter?.startScan(
+                listOf(BleProtocol.SERVICE_UUID, VehicleBleConstants.SERVICE_MAIN),
+                10_000,
+            )
             _bleDevices.value = bleAdapter?.discoveredDevices?.value ?: emptyList()
             _isScanningBle.value = false
         }
@@ -166,6 +171,17 @@ class AppViewModel(
         scope.launch {
             _bleState.value = BleConnectionState.Connecting
             bleAdapter?.connect(address)
+            // 车辆设备在服务发现后订阅整车主特征；失败不影响已有的投屏仪表连接路径。
+            runCatching {
+                val services = bleAdapter?.discoverServices().orEmpty()
+                if (services.any { it.uuid.equals(VehicleBleConstants.SERVICE_MAIN, ignoreCase = true) }) {
+                    bleAdapter?.setNotification(
+                        VehicleBleConstants.SERVICE_MAIN,
+                        VehicleBleConstants.CHAR_MAIN,
+                        true,
+                    )
+                }
+            }
             _bleState.value = BleConnectionState.Connected
             _bleConnectedName.value = name
         }

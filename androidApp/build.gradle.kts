@@ -15,6 +15,8 @@ dependencies {
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.hiddenapibypass)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.ui)
 
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)

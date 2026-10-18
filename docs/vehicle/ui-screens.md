@@ -14,6 +14,11 @@
 - UI 只消费 `StateFlow` 与语义回调，不直接访问 BLE、HTTP 或 OTA 协议。
 - 未注入平台实现时，界面展示明确的“通道未接入 / 等待车辆状态”空态，**不伪造车辆数据**。
 - `VehicleStatusSource` 负责把 `TtpInfoParser` 的结果提供给车辆信息页。
+- 已提供 `BleVehicleStatusSource`：过滤整车 b360/b362（及通知服务）特征，
+  解析 `0x2A/0x7A` 完整报文后写入 `StateFlow<TtpInfo?>`。
+- `VehicleProfileSource` 提供云端资料：`dLinkTag` 判定联动款，
+  `vehicleImageUrl` 对应 `VehicleInfoBean.getVehicleImage()`（`skinPicUrl` 优先，回退 `imgUrl`）。
+- Android 端 `AndroidVehicleImage` 直接加载远程车图，不新增图片库依赖。
 - `AuthGateway` 负责密码登录、短信验证码与验证码登录；本地会话通过
   `AppPreferenceKeys.usrToken/usrInfo/loginId` 持久化。
 - `CarSettingWriter` 负责把设置项翻译成 BLE `CommandTempBean` 或 IoT 请求。
@@ -49,7 +54,19 @@
 失败与取消分别进入 `Failed` / `Cancelled`。当前仓库没有确认 OTA 帧结构，
 因此界面只依赖 `OtaGateway`，不在 `commonMain` 里猜协议。
 
-## 5. 验证
+## 5. IoT 车联网续费
+
+`VehicleIotServiceInfo` 对应 `VehicleInfoBean` 的 `iotExpireDays`、
+`iotCardExpireTime` 以及 `VehicleManageDLineBean.iotServiceDetail`。
+
+- `expireDays < 0`：已到期；
+- `expireDays < -90`：原实现提示“已自动注销”，按钮文案改为“查看服务”；
+- 续费入口使用 `IotWxSmartDialogHelper` 的 H5：
+  `https://tspapph5.yadeaiot.com.cn/#/flow-recharge-iot-new-index?vin=...&bikeNickName=...`
+
+入口只在车辆资料存在 `iotService` 时显示，不在所有车型上硬编码。
+
+## 6. 验证
 
 ```powershell
 $env:GRADLE_USER_HOME = "C:\Users\DozenOregano696\.gradle"

@@ -4,16 +4,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import top.ghhccghk.yadea.vehicle.TtpInfo
 import top.ghhccghk.yadea.vehicle.VehicleInfoFormatter
 import top.ghhccghk.yadea.vehicle.VehicleInfoUiModel
+import top.ghhccghk.yadea.vehicle.IotRenewalLinks
+import top.ghhccghk.yadea.vehicle.VehicleProfile
 
 /**
  * 车辆信息页。
@@ -26,6 +32,9 @@ fun VehicleInfoScreen(
     status: TtpInfo?,
     connected: Boolean,
     contentPadding: PaddingValues,
+    profile: VehicleProfile? = null,
+    vehicleImageContent: (@Composable (String, Modifier) -> Unit)? = null,
+    onOpenIotRenewal: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val model = VehicleInfoFormatter.format(status, connected)
@@ -42,7 +51,46 @@ fun VehicleInfoScreen(
             )
         }
         item {
-            VehicleHeroCard(model)
+            VehicleHeroCard(
+                model = model,
+                profile = profile,
+                vehicleImageContent = vehicleImageContent,
+            )
+        }
+        if (profile?.iotService != null) {
+            item {
+                AppSection(title = "车联网服务") {
+                    AppListRow(
+                        title = "智能网联服务",
+                        summary = when {
+                            profile.iotService.isPermanentlyExpired ->
+                                "已超过 90 天未续费，系统已自动注销"
+                            profile.iotService.isExpired ->
+                                "服务已到期，远程控车、定位与投屏导航暂不可用"
+                            else ->
+                                "到期后 90 天内可续费恢复"
+                        },
+                        value = if (profile.iotService.isExpired) "已到期" else "正常",
+                        showDivider = true,
+                    )
+                    AppListRow(
+                        title = "到期时间",
+                        value = profile.iotService.cardExpireTime.ifBlank { "—" },
+                        summary = profile.iotService.expireDays?.let { "剩余 $it 天" },
+                    )
+                    if (onOpenIotRenewal != null) {
+                        AppButton(
+                            onClick = { onOpenIotRenewal(IotRenewalLinks.build(profile)) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            AppText(
+                                IotRenewalLinks.actionLabel(profile.iotService),
+                                style = AppDesign.typography.button,
+                            )
+                        }
+                    }
+                }
+            }
         }
         if (status == null) {
             item {
@@ -120,50 +168,100 @@ fun VehicleInfoScreen(
 }
 
 @Composable
-private fun VehicleHeroCard(model: VehicleInfoUiModel) {
+private fun VehicleHeroCard(
+    model: VehicleInfoUiModel,
+    profile: VehicleProfile?,
+    vehicleImageContent: (@Composable (String, Modifier) -> Unit)?,
+) {
     val dimensions = AppDesign.dimensions
-    AppCard(
-        modifier = Modifier.fillMaxWidth(),
-        containerColor = AppDesign.colors.primaryContainer,
-        contentColor = AppDesign.colors.onPrimaryContainer,
-    ) {
-        Column(
-            modifier = Modifier.padding(
+    val linked = profile?.isLinkedModel == true
+    val background = if (linked) {
+        Brush.linearGradient(
+            listOf(
+                AppDesign.colors.primaryContainer,
+                AppDesign.colors.secondaryContainer,
+            ),
+        )
+    } else {
+        Brush.linearGradient(
+            listOf(
+                AppDesign.colors.surfaceContainerHighest,
+                AppDesign.colors.surfaceVariant,
+            ),
+        )
+    }
+    val foreground = if (linked) {
+        AppDesign.colors.onPrimaryContainer
+    } else {
+        AppDesign.colors.onSurfaceContainerHighest
+    }
+    val subtitle = if (profile == null) {
+        model.connectionLabel
+    } else {
+        "${model.connectionLabel} · ${if (linked) "联动款" else "普通款"}"
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(AppDesign.shapes.section)
+            .background(background)
+            .padding(
                 horizontal = dimensions.itemHorizontalPadding,
                 vertical = dimensions.itemVerticalPadding,
             ),
-            verticalArrangement = Arrangement.spacedBy(dimensions.compactSpacing),
-        ) {
-            AppText(
-                text = model.connectionLabel,
-                style = AppDesign.typography.summary,
-                color = AppDesign.colors.onPrimaryContainer,
-            )
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(dimensions.compactSpacing)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    AppText(
+                        text = profile?.bikeNickName?.ifBlank { null } ?: "我的车辆",
+                        style = AppDesign.typography.sectionTitle,
+                        color = foreground,
+                    )
+                    AppText(
+                        text = subtitle,
+                        style = AppDesign.typography.summary,
+                        color = foreground,
+                    )
+                }
+                if (profile?.vehicleImageUrl?.isNotBlank() == true && vehicleImageContent != null) {
+                    vehicleImageContent(profile.vehicleImageUrl, Modifier)
+                }
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Bottom,
             ) {
-                MetricBlock(label = "车速", value = model.speedLabel, modifier = Modifier.weight(1f))
-                MetricBlock(label = "电量", value = model.batteryLabel, modifier = Modifier.weight(1f))
-                MetricBlock(label = "续航", value = model.rangeLabel, modifier = Modifier.weight(1f))
+                MetricBlock("车速", model.speedLabel, foreground, Modifier.weight(1f))
+                MetricBlock("电量", model.batteryLabel, foreground, Modifier.weight(1f))
+                MetricBlock("续航", model.rangeLabel, foreground, Modifier.weight(1f))
             }
         }
     }
 }
 
 @Composable
-private fun MetricBlock(label: String, value: String, modifier: Modifier = Modifier) {
+private fun MetricBlock(
+    label: String,
+    value: String,
+    color: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier = modifier) {
         AppText(
             text = value,
             style = AppDesign.typography.title,
-            color = AppDesign.colors.onPrimaryContainer,
+            color = color,
         )
         AppText(
             text = label,
             style = AppDesign.typography.caption,
-            color = AppDesign.colors.onPrimaryContainer,
+            color = color,
         )
     }
 }
