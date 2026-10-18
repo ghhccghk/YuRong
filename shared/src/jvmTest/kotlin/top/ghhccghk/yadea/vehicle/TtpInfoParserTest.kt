@@ -192,6 +192,23 @@ class TtpInfoParserTest {
     }
 
     @Test
+    fun parse_remainingMileage_usesTenths() {
+        val d = packet(0xB0, 0x00)
+        d[0x43] = 0x7B // 123 → 12.3
+        d[0x44] = 0x00
+        assertEquals(12.3f, TtpInfoParser.parse(d).remainingMileage, 0.0001f)
+    }
+
+    @Test
+    fun parse_busbarCurrent_subtractsFiveHundred() {
+        val d = packet(0xB0, 0x00)
+        // 原始 6000 → 600.0 - 500.0 = 100.0
+        d[0x2A] = 0x70
+        d[0x2B] = 0x17
+        assertEquals(100.0f, TtpInfoParser.parse(d).busbarCurrent, 0.01f)
+    }
+
+    @Test
     fun parse_currentSpeedValue_invalidStaysNegativeOne() {
         val d = packet(0xB0, 0xFF.toByte())
         val info = TtpInfoParser.parse(d)
