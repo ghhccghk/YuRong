@@ -58,7 +58,7 @@
 | `softwareSecondaryVersionCode` | `m` | 0x06 | — | 8 | — |
 | `softwarePrimaryVersionCode` | `m` | 0x07 | — | 8 | — |
 | `parkingStatus` | `C` | 0x08 | 0 | 3 | 0=已锁，1=未锁 |
-| `electricScooterLightStatus` | `G` | 0x08 | 4 | 2 | — |
+| `electricScooterLightStatus` | `G` | 0x08 | 6 | 2 | — |
 | `accountPermissions` | `H` | `[0x09,0x00]` | — | 16 | — |
 | `electricScooterPowerGear` | `d` | 0x0A | 4 | 4 | — |
 | `electricScooterMotorTemperature` | `m` | 0x0B | — | 8 | `- 40` |
@@ -93,11 +93,11 @@
 | `withOnVehicleStatus` | `d` | 0x1D | 4 | 4 |
 | `maximumSpeedModeStatus` | `d` | 0x1E | 0 | 4 |
 | `withOnVehicleTimeStatus` | `d` | 0x1E | 4 | 4 |
-| `maximumSpeedDefault` | `m` | 0x1F | — | 8 |
-| `maximumSpeedCurrent` | `m` | 0x20 | — | 8（有效 0–254） |
-| `aplStatus` | `m` | 0x21 | — | 8 |
-| `aplColorStatus` | `m` | 0x22 | — | 8 |
-| `aplBreathStatus` | `m` | 0x23 | — | 8 |
+| `maximumSpeedDefault` | `m` | 0x21 | — | 8 |
+| `maximumSpeedCurrent` | `m` | 0x22 | — | 8（有效 0–254） |
+| `aplStatus` | `G` | 0x23 | 0 | 2 |
+| `aplColorStatus` | `C` | 0x23 | 2 | 3 |
+| `aplBreathStatus` | `G` | 0x23 | 5 | 2 |
 | `aplBreathFrequency` | `G` | 0x24 | 0 | 2 |
 | `leaveVehicleAutoLockStatus` | `G` | 0x24 | 2 | 2 |
 | `leaveVehicleAutoLockTimeStatus` | `G` | 0x24 | 4 | 2 |
@@ -116,7 +116,7 @@
 
 | 字段 | 调用 | 偏移 | 字节序 | 后处理 |
 | --- | --- | --- | --- | --- |
-| `totalBatteryCount` | `d` | 0x42 | 2 | — |
+| `totalBatteryCount` | `d` | 0x42 | 4 | — |
 | `remainingMileage` | `H` | `[0x43,0x44]` | 小端 | `× 0.1f` + 保留 1 位小数 |
 | `currentOdoValue` | `e` | `[0x45..0x48]` | 小端 | `× 0.1f` |
 | `totalBatterySoc` | `m` | 0x49 | — | — |
@@ -126,13 +126,14 @@
 | `realKeyStatus` | `G` | 0x4D | 0 | — |
 | `speedGear` | `C` | 0x4D | 2 | — |
 | `onOffStatus` | `c` | 0x4E | 0 | 5 位 |
-| `whistleMode` | `G` | 0x4E | 2 | — |
-| `nfcWorkMode` | `G` | 0x4E | 4 | — |
-| `nfcLearningCardMode` | `G` | 0x4E | 6 | — |
+| `whistleMode` | `G` | 0x4E | 5 | — |
+| `whistleCurrentStatus` | `G` | 0x4F | 0 | — |
+| `nfcWorkMode` | `C` | 0x4F | 2 | 3 位 |
+| `nfcLearningCardMode` | `C` | 0x4F | 5 | 3 位 |
 | `totalBatteryVoltage` | `H` | `[0x50,0x51]` | 小端 | `× 0.1f` |
 | `totalBatteryElectricity` | `H` | `[0x52,0x53]` | 小端 | `× 0.1f` **再 `- 1000.0f`** |
 | `batteryWorkingStatus` | `d` | 0x54 | 0 | — |
-| `batteryChargingStatus` | `C` | 0x54 | 2 | — |
+| `batteryChargingStatus` | `C` | 0x54 | 4 | — |
 | `tBFullChargeRemainingMin` | `H` | `[0x55,0x56]` | 小端 | — |
 | `pBElectricitySoc` | `m` | 0x57 | — | `× 0.5f`，**> 200 判无效** |
 | `sBElectricitySoc` | `m` | 0x58 | — | 同上 |
@@ -140,12 +141,69 @@
 | `faultCodeProtocolVersion1` | `C` | 0x59 | 3 | — |
 | `faultCodeProtocolVersion2` | `m` | 0x5A | — | — |
 | `faultCode0..7` | `J` | `[0x5B..0x6A]` | **大端** | 仅当 v2==`0xF2` 且 amount>0 |
-| `batteryChargingPowerStatus` | `G` | 0x70 | 4 | — |
+| `batteryChargingPowerStatus` | `G` | 0x70 | 6 | — |
 | `batteryChargingLimitValue` | `C` | 0x70 | 3 | — |
 | `batteryChargingPowerValue` | `m` | 0x71 | — | `× 2`（整数） |
-| `drivingMemory` | `C` | 0x8E | 0 | — |
-| `activateX` | `G` | 0x8E | 2 | — |
+| `drivingMemory` | `C` | 0x8E | 5 | 3 位 |
+| `activateX` | `G` | 0x8E | 3 | 2 位 |
 | `cruiseControl` | `G` | 0x8F | 0 | — |
+
+### 5.1 `0x6A` 之后的状态位（已实现）
+
+这些字段由 `TtpExtendedInfo` 承载，解析入口仍是 `TtpInfoParser.parse`。
+下表按字节偏移汇总，位宽由提取器决定（`G`=2、`C`=3、`d`=4、`c`=5、`a`=高位变宽）。
+
+| off | 字段（同一字节按 shift 从低到高） |
+| ---: | --- |
+| 0x6B | `eBikeBatteryHealth`（`m`） |
+| 0x6C | `smartKeysLongClickStatus`/`customFunctionLong`（`d` 0）、`smartKeysShortClickStatus`/`customFunctionShort`（`d` 4） |
+| 0x6D | `simulatedSoundWaveStatus`（`G` 0）、`simulatedSoundWaveModeStatus`（`d` 2）、`absFunctionStatus`（`G` 6） |
+| 0x6E | `batteryBindStatus`（`G` 0）、`batteryMutualRecognition`/`blueLightSwitch`（`G` 2）、`reversingState`（`G` 4）、`helpCarState`（`G` 6） |
+| 0x6F | `constSpeedState`（`G` 0）、`templeSettingStatus`（`G` 2）、`lightBeltStatus`（`G` 6） |
+| 0x70 | `lightBeltColor`（`C` 0）、`batteryChargingLimitValue`（`C` 3）、`batteryChargingPowerStatus`（`G` 6） |
+| 0x71 | `batteryChargingPowerValue`（`m`，×2） |
+| 0x74 | `carNaviType`（`G` 4；-1/0→TFT_IMG，1→TFT，其余→AV） |
+| 0x75 | `seatHeatSwitchStatus`（`G` 4）、`seatHeatLevelStatus`（`G` 6） |
+| 0x76 | `tPowerStatus`（`G` 4）、`customDriveSwitchStatus`（`G` 6） |
+| 0x77 | `capacitySettingStatus`（`m`） |
+| 0x79 | `customDriveLevelStatus`（`C` 0）、`frontCollisionWarning`（`G` 3） |
+| 0x7A | `turnToSoundReminders`（`G` 0） |
+| 0x7F | `familyAccountAutoState`（`G` 0）、`fcmRadarEnable`（`G` 2）、`rcwRadarEnable`（`G` 4）、`fcmRadarSwitch`（`G` 6） |
+| 0x80 | `rcwRadarSwitch`（`G` 0）、`bsdRadar`（`G` 2）、`fcwRadarMode`（`G` 4）、`rcwRadarMode`（`G` 6） |
+| 0x81 | `fcwRadarWorking`（`G` 0）、`rcwRadarWorking`（`G` 2）、`vehicleConfigFailureCause`（`d` 4） |
+| 0x82 | `mcuConfigFailureCause`（`C` 0）、`icmConfigFailureCause`（`C` 3）、`vehicleConfigResult`（`G` 6） |
+| 0x83 | `mcuConfigFailureResult`（`G` 0）、`icmConfigFailureResult`（`G` 2）、`almConfigFailureResult`（`G` 4）、`vehicleConfigStatus`（`G` 6） |
+| 0x84 | `brightnessAdjustValue`（`m`） |
+| 0x85 | `autoBleRangingBaseValue`（`m`） |
+| 0x86–0x87 | `autoBleRangingEnvironmentalFactor`（`H`，小端） |
+| 0x88 | `rangingStatus`（`G` 0）、`sleepModeSwitch`（`G` 2）、`clearBluetoothKey`（`G` 4）、`longEnduranceStatus`（`G` 6） |
+| 0x89 | `customizeThrottleSensitivity`（`C` 0）、`customizeEnergyLevel`（`C` 3）、`customizeEnergyState`（`G` 6） |
+| 0x8A | `customizeTcs`（`G` 4） |
+| 0x8B | `bleRangingBaseValue`（`a` 0） |
+| 0x8C–0x8D | `bleRangingEnvironmentalFactor` = `a(8C,0) + a(8D,0)` |
+| 0x8E | `bleRangingState`（`C` 0）、`activateX`（`G` 3）、`drivingMemory`（`C` 5） |
+| 0x8F | `cruiseControl`（`G` 0）、`primaryCardOneStatus`（`C` 2）、`primaryCardTwoStatus`（`C` 5） |
+| 0x90 | `childCardOneStatus`（`C` 0）、`childCardTwoStatus`（`C` 3） |
+| 0x91 | `childCardThreeStatus`（`C` 0）、`childCardFourStatus`（`C` 3）、`ecuType`（`G` 6） |
+| 0x92 | `childCardFiveStatus`（`C` 0）、`simulatedSoundWaveVolumeStatus`（`c` 3） |
+| 0x93–0x97 | `supplierCode`（倒序读 0x97→0x93，逐字节转字符） |
+| 0x98 | `productModel`（`m`） |
+| 0x99–0x9A | `powerOnPwd`（`H`） |
+| 0x9B–0x9C | `batteryTemperature`（`H`，×0.1，−100） |
+| 0x9D–0x9E | `otaCode`（`H`） |
+| 0x9F–0xA0 | `calorie`（`H`） |
+| 0xA3 | `simulatedSoundWaveOnlineStatus`（`G` 0）、`brakePowerDownFunctionStatus`（`G` 4）、`dvrFormatStatus`/`wifiRestState`（`G` 6） |
+| 0xA4–0xA6 | `cumulativeCalories`（`D`，3 字节小端，×0.1） |
+| 0xA7–0xA9 | `cumulativeCarbonEmissions`（`D`，3 字节小端，×0.1） |
+| 0xAA | `tcsWorkMode`（`C` 0）、`motorAngleMarkerLearningState`（`G` 3） |
+| 0xAB | `motorAngleMarkerLearningSupportState`（`G` 0）、`steepSlopeState`（`G` 2）、`rampSlopeState`（`G` 4）、`syncTimeResult`（`G` 6） |
+| 0xAC | `syncTimeResultStatus`（`G` 0）、`voltageSettingStatus`（`C` 2） |
+| 0xAD | `trackModeStatus`（`G` 0）、`eleHandleLock`（`G` 2）、`tricycleLockStat`（`G` 4）、`tricycleLeftDoorStat`（`G` 6） |
+| 0xAE | `tricycleRightDoorStat`（`G` 0）、`customWallpaperFeedback`（`G` 2）、`customSkinFeedback`（`G` 4）、`gearMemorySettingFeedback`（`G` 6） |
+
+此外还有分布在低偏移的扩展字段：`0x1D` 的 Wi-Fi/亮度、`0x1E` 的 DVR Wi-Fi、
+`0x23` 的氛围灯、`0x2E/0x2F` 的衍生状态，以及 `0x0A–0x19` 的 eBike 骑行数据。
+完整字段名见 `TtpExtendedInfo`，对拍用例见 `TtpInfoParserTest`。
 
 ## 6. 缩放规则汇总
 
@@ -153,7 +211,8 @@
 | --- | --- | --- |
 | `electricScooterMotorTemperature` | — | `- 40` |
 | `electricScooterCyclingPower` | `× 0.1f` | — |
-| `busbarVoltage` `busbarCurrent` | `× 0.1f` | — |
+| `busbarVoltage` | `× 0.1f` | — |
+| `busbarCurrent` | `× 0.1f` | `- 500.0f` |
 | `remainingMileage` `currentOdoValue` `currentTripValue` `currentSpeedValue` | `× 0.1f` | `remainingMileage` 额外保留 1 位小数 |
 | `totalBatteryVoltage` | `× 0.1f` | — |
 | `totalBatteryElectricity` | `× 0.1f` | `- 1000.0f` |
@@ -217,7 +276,7 @@ speedLimitReleased       = G(d, 5, 0)
    | `currentSpeedValue` | 已确认 |
    | `remainingMileage` | 已确认 |
    | `maximumSpeedCurrent` | 已确认 |
-   | `drivingMemory` | 已确认（0x8E bit0-2） |
+   | `drivingMemory` | 已确认（0x8E bit5-7） |
    | `cruiseControl` | 已确认（0x8F bit0-1） |
 
 3. 其余字段按需增量补齐
@@ -227,6 +286,6 @@ speedLimitReleased       = G(d, 5, 0)
 | 项 | 说明 |
 | --- | --- |
 | `remainingMileage` 的舍入模式 | 原实现用 `BigDecimal.setScale(1, mode)`，KMP 无 `BigDecimal` |
-| 0x6A 之后到报文末尾的字段 | 部分状态位与配置字段未逐一核对 |
+| 0x6A 之后到报文末尾的字段 | 已实现，见 `TtpExtendedInfo` |
 | `l76.y` 与 `l76.z` 的完整差异 | 目前只确认 2 个字段 |
 | 经纬度的 double 转换 | 3 字节小端后的换算系数未确认 |

@@ -211,7 +211,7 @@ $env:GRADLE_USER_HOME = "C:\Users\DozenOregano696\.gradle"
 
 | 项 | 影响 |
 | --- | --- |
-| `l76.z` 的 0x6A 之后字段 | 状态解析完整性 |
+| `l76.z` 的 0x6A 之后字段 | 已实现为 `TtpExtendedInfo`，并有分段对拍测试 |
 | `remainingMileage` 的舍入模式 | KMP 无 `BigDecimal` |
 | 握手帧 `b0`/`U`/`V`/`X`/`Y` 实现 | 鉴权可行性与帧正确性 |
 | `r85.g()` / `r85.b()` 语义 | 同上 |
