@@ -70,6 +70,26 @@ class VehicleProfileGatewayTest {
     }
 
     @Test
+    fun gatewayLoadsAllBoundVehicles() = runBlocking {
+        val body = """
+            {"data":[
+              {"vin":"V1","modelName":"X1","imgUrl":"https://cdn/1.png"},
+              {"vin":"V2","modelName":"X2","imgUrl":"https://cdn/2.png"}
+            ]}
+        """.trimIndent()
+        val gateway = YadeaVehicleProfileGateway(
+            transport = object : HttpTransport {
+                override suspend fun execute(request: HttpRequest) = HttpResponse(200, body)
+            },
+            tokenProvider = { "t" },
+        )
+        val profiles = gateway.loadAll()
+        assertEquals(2, profiles.size)
+        assertEquals("V1", profiles[0].vin)
+        assertEquals("V2", profiles[1].vin)
+    }
+
+    @Test
     fun gatewayReturnsNullWithoutToken() = runBlocking {
         val gateway = YadeaVehicleProfileGateway(
             transport = object : HttpTransport {

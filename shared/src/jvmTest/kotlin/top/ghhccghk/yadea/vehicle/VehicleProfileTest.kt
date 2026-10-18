@@ -34,4 +34,19 @@ class VehicleProfileTest {
         assertTrue(VehicleProfile(dLinkTag = "1").isLinkedModel)
         assertFalse(VehicleProfile().isLinkedModel)
     }
+
+    @Test
+    fun garageSelectionKeepsChosenVehicle() {
+        val source = MutableVehicleProfileSource()
+        source.updateAll(
+            listOf(
+                VehicleProfile(vin = "V1", modelName = "X1"),
+                VehicleProfile(vin = "V2", modelName = "X2"),
+            ),
+        )
+        assertEquals("V1", source.profile.value?.vin)
+        source.select("V2")
+        assertEquals("V2", source.profile.value?.vin)
+        assertEquals(2, source.profiles.value.size)
+    }
 }

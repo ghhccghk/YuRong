@@ -6,10 +6,12 @@ import top.ghhccghk.yadea.network.HttpRequest
 import top.ghhccghk.yadea.network.HttpTransport
 import top.ghhccghk.yadea.network.GatewayClientInfo
 import top.ghhccghk.yadea.network.GatewayRequestHeaders
+import top.ghhccghk.yadea.network.JsonSupport
 import top.ghhccghk.yadea.network.NetworkLog
 
 interface VehicleProfileGateway {
     suspend fun load(): VehicleProfile?
+    suspend fun loadAll(): List<VehicleProfile> = listOfNotNull(load())
 }
 
 /**
@@ -26,9 +28,11 @@ class YadeaVehicleProfileGateway(
     private val clientInfoProvider: () -> GatewayClientInfo = { GatewayClientInfo() },
 ) : VehicleProfileGateway {
 
-    override suspend fun load(): VehicleProfile? {
+    override suspend fun load(): VehicleProfile? = loadAll().firstOrNull()
+
+    override suspend fun loadAll(): List<VehicleProfile> {
         val token = tokenProvider().trim()
-        if (token.isBlank()) return null
+        if (token.isBlank()) return emptyList()
         val url = baseUrl + "userBike/queryBindingBike"
         val headers = GatewayRequestHeaders.build(
             clientInfo = clientInfoProvider(),
@@ -44,13 +48,18 @@ class YadeaVehicleProfileGateway(
             ),
         ) ?: run {
             NetworkLog.write("PROFILE !! no response")
-            return null
+            return emptyList()
         }
         NetworkLog.write(
             "PROFILE <- ${response.status} raw=${NetworkLog.body(response.body)}",
         )
-        if (response.status !in 200..299) return null
-        val objectText = firstDataObject(response.body) ?: return null
+        if (response.status !in 200..299) return emptyList()
+        val objectTexts = JsonSupport.arrayObjects(response.body, "data")
+            .ifEmpty { listOfNotNull(JsonSupport.objectField(response.body, "data")) }
+        return objectTexts.mapNotNull(::parseProfile)
+    }
+
+    private fun parseProfile(objectText: String): VehicleProfile? {
         return VehicleProfile(
             vin = stringField(objectText, "vin").orEmpty(),
             modelNo = stringField(objectText, "modelNo").orEmpty(),
@@ -82,9 +91,9 @@ class VehicleProfileController(
 ) {
     fun refresh() {
         scope.launch {
-            runCatching { gateway.load() }
+            runCatching { gateway.loadAll() }
                 .getOrNull()
-                ?.let(source::update)
+                ?.let(source::updateAll)
         }
     }
 }

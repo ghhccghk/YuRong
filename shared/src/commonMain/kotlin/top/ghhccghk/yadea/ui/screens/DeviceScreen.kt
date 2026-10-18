@@ -18,8 +18,9 @@ import top.ghhccghk.yadea.vehicle.VehicleProfile
 
 /** 车辆页的子功能。 */
 internal enum class VehicleSection(val label: String) {
-    Info("车辆信息"),
-    Settings("车辆设置"),
+    Info("信息"),
+    Garage("车库"),
+    Settings("设置"),
     Ota("OTA"),
     Account("账号"),
 }
@@ -36,6 +37,8 @@ internal fun VehicleHubScreen(
     status: TtpInfo?,
     connected: Boolean,
     profile: VehicleProfile?,
+    profiles: List<VehicleProfile>,
+    onSelectVehicle: (String) -> Unit,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)? = null,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)? = null,
     onOpenIotRenewal: ((String) -> Unit)? = null,
@@ -71,6 +74,12 @@ internal fun VehicleHubScreen(
                     vehicleBackgroundContent = vehicleBackgroundContent,
                     vehicleImageContent = vehicleImageContent,
                     onOpenIotRenewal = onOpenIotRenewal,
+                )
+                VehicleSection.Garage -> GarageScreen(
+                    profiles = profiles,
+                    selectedVin = profile?.vin.orEmpty(),
+                    contentPadding = pagePadding,
+                    onSelectVehicle = onSelectVehicle,
                 )
                 VehicleSection.Settings -> CarSettingsScreen(
                     controller = carSettingsController,

@@ -84,6 +84,7 @@ fun LoginScreen(
     modifier: Modifier = Modifier,
 ) {
     val auth by controller.state.collectAsState()
+    val loggedInUser = auth.session.user
     val dimensions = AppDesign.dimensions
     var mode by remember { mutableStateOf(LoginMode.Password) }
     var account by remember { mutableStateOf("") }
@@ -116,11 +117,61 @@ fun LoginScreen(
         }
         if (auth.session.isLoggedIn) {
             item {
-                AppSection(title = "当前账号") {
+                AppSection(title = "账号信息") {
                     AppListRow(
-                        title = auth.session.user?.displayName.orEmpty(),
-                        summary = auth.session.user?.accountLabel.orEmpty(),
-                        value = "已登录",
+                        title = "昵称",
+                        value = loggedInUser?.displayName.orEmpty().ifBlank { "—" },
+                        showDivider = true,
+                    )
+                    AppListRow(
+                        title = "账号",
+                        value = loggedInUser?.accountLabel.orEmpty().ifBlank { "—" },
+                        showDivider = true,
+                    )
+                    AppListRow(
+                        title = "用户 ID",
+                        value = loggedInUser?.userId.orEmpty().ifBlank {
+                            loggedInUser?.id?.takeIf { it > 0 }?.toString().orEmpty().ifBlank { "—" }
+                        },
+                        showDivider = true,
+                    )
+                    AppListRow(
+                        title = "手机号",
+                        value = loggedInUser?.mobile.orEmpty().ifBlank { "—" },
+                        showDivider = true,
+                    )
+                    AppListRow(
+                        title = "邮箱",
+                        value = loggedInUser?.email.orEmpty().ifBlank { "—" },
+                        showDivider = true,
+                    )
+                    AppListRow(
+                        title = "Token",
+                        value = maskToken(loggedInUser?.token.orEmpty()),
+                        showDivider = true,
+                    )
+                    AppListRow(
+                        title = "Token 到期",
+                        value = if ((loggedInUser?.tokenExpire ?: 0L) > 0L) "已记录" else "—",
+                        summary = loggedInUser?.tokenExpire
+                            ?.takeIf { it > 0L }
+                            ?.toString(),
+                        showDivider = true,
+                    )
+                    AppListRow(
+                        title = "登录类型",
+                        value = loginTypeLabel(loggedInUser?.loginAppType ?: 1),
+                        showDivider = true,
+                    )
+                    AppListRow(
+                        title = "用户类型",
+                        value = loggedInUser?.userType?.toString() ?: "—",
+                        showDivider = true,
+                    )
+                    AppListRow(
+                        title = "头像",
+                        value = if (loggedInUser?.picUrl.isNullOrBlank()) "—" else "已设置",
+                        summary = loggedInUser?.picUrl?.takeIf { it.isNotBlank() },
                         showDivider = true,
                     )
                     AppListRow(
@@ -373,4 +424,15 @@ fun LoginScreen(
             }
         }
     }
+}
+
+private fun maskToken(token: String): String = when {
+    token.isBlank() -> "—"
+    token.length <= 12 -> "已保存"
+    else -> "${token.take(6)}…${token.takeLast(4)}"
+}
+
+private fun loginTypeLabel(type: Int): String = when (type) {
+    1 -> "App 登录"
+    else -> "类型 $type"
 }

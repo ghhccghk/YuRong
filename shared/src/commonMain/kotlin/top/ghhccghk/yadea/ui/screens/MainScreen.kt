@@ -124,6 +124,7 @@ fun MainScreen(
         vehicleProfileSource ?: EmptyVehicleProfileSource()
     }
     val vehicleProfile by resolvedProfileSource.profile.collectAsState()
+    val vehicleProfiles by resolvedProfileSource.profiles.collectAsState()
     val authController = remember(resolvedPreferences, authGateway) {
         AuthController(AuthSession(resolvedPreferences), authGateway, featureScope)
     }
@@ -181,6 +182,8 @@ fun MainScreen(
             vehicleStatus = vehicleStatus,
             vehicleConnected = vehicleConnected,
             vehicleProfile = vehicleProfile,
+            vehicleProfiles = vehicleProfiles,
+            onSelectVehicle = resolvedProfileSource::select,
             vehicleBackgroundContent = vehicleBackgroundContent,
             vehicleImageContent = vehicleImageContent,
             onOpenExternalUrl = onOpenExternalUrl,
@@ -202,6 +205,8 @@ private fun MainScreenContent(
     vehicleStatus: TtpInfo?,
     vehicleConnected: Boolean,
     vehicleProfile: VehicleProfile?,
+    vehicleProfiles: List<VehicleProfile>,
+    onSelectVehicle: (String) -> Unit,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)?,
     onOpenExternalUrl: ((String) -> Unit)?,
@@ -308,6 +313,8 @@ private fun MainScreenContent(
             vehicleStatus = vehicleStatus,
             vehicleConnected = vehicleConnected,
             vehicleProfile = vehicleProfile,
+            vehicleProfiles = vehicleProfiles,
+            onSelectVehicle = onSelectVehicle,
             vehicleBackgroundContent = vehicleBackgroundContent,
             vehicleImageContent = vehicleImageContent,
             onOpenExternalUrl = onOpenExternalUrl,
@@ -400,6 +407,8 @@ private fun MainDestinationContent(
     vehicleStatus: TtpInfo?,
     vehicleConnected: Boolean,
     vehicleProfile: VehicleProfile?,
+    vehicleProfiles: List<VehicleProfile>,
+    onSelectVehicle: (String) -> Unit,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)?,
     onOpenExternalUrl: ((String) -> Unit)?,
@@ -428,6 +437,8 @@ private fun MainDestinationContent(
                 status = vehicleStatus,
                 connected = vehicleConnected,
                 profile = vehicleProfile,
+                profiles = vehicleProfiles,
+                onSelectVehicle = onSelectVehicle,
                 vehicleBackgroundContent = vehicleBackgroundContent,
                 vehicleImageContent = vehicleImageContent,
                 onOpenIotRenewal = onOpenExternalUrl,

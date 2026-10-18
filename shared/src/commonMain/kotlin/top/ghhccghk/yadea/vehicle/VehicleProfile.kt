@@ -48,20 +48,50 @@ data class VehicleIotServiceInfo(
 
 interface VehicleProfileSource {
     val profile: StateFlow<VehicleProfile?>
+    val profiles: StateFlow<List<VehicleProfile>>
+
+    fun select(vin: String) {}
 }
 
 class EmptyVehicleProfileSource : VehicleProfileSource {
     private val _profile = MutableStateFlow<VehicleProfile?>(null)
+    private val _profiles = MutableStateFlow<List<VehicleProfile>>(emptyList())
     override val profile: StateFlow<VehicleProfile?> = _profile.asStateFlow()
+    override val profiles: StateFlow<List<VehicleProfile>> = _profiles.asStateFlow()
 }
 
 /** 可由车辆资料接口写入的简单数据源。 */
 class MutableVehicleProfileSource : VehicleProfileSource {
     private val _profile = MutableStateFlow<VehicleProfile?>(null)
+    private val _profiles = MutableStateFlow<List<VehicleProfile>>(emptyList())
     override val profile: StateFlow<VehicleProfile?> = _profile.asStateFlow()
+    override val profiles: StateFlow<List<VehicleProfile>> = _profiles.asStateFlow()
 
     fun update(profile: VehicleProfile?) {
+        if (profile == null) {
+            _profiles.value = emptyList()
+            _profile.value = null
+            return
+        }
+        _profiles.value = listOf(profile)
         _profile.value = profile
+    }
+
+    /** 云端返回的完整车库；优先保留当前选中的 VIN。 */
+    fun updateAll(
+        profiles: List<VehicleProfile>,
+        preferredVin: String = _profile.value?.vin.orEmpty(),
+    ) {
+        val deduped = profiles
+            .filter { it.vin.isNotBlank() }
+            .distinctBy { it.vin }
+        _profiles.value = deduped
+        _profile.value = deduped.firstOrNull { it.vin == preferredVin }
+            ?: deduped.firstOrNull()
+    }
+
+    override fun select(vin: String) {
+        _profiles.value.firstOrNull { it.vin == vin }?.let { _profile.value = it }
     }
 }
 
