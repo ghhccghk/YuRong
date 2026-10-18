@@ -22,6 +22,7 @@ import top.ghhccghk.yadea.network.createHttpTransport
 import top.ghhccghk.yadea.auth.YadeaAuthGateway
 import top.ghhccghk.yadea.ota.YadeaOtaGateway
 import top.ghhccghk.yadea.ui.MainScreen
+import top.ghhccghk.yadea.ui.initAndroidFileLogger
 import top.ghhccghk.yadea.vehicle.BleVehicleStatusSource
 import top.ghhccghk.yadea.vehicle.MutableVehicleProfileSource
 import top.ghhccghk.yadea.vehicle.VehicleProfileController
@@ -63,6 +64,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        initAndroidFileLogger(applicationContext)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && Build.MODEL != "robolectric") {
             HiddenApiBypass.setHiddenApiExemptions("")

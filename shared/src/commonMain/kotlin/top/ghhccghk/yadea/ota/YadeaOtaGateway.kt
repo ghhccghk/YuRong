@@ -6,6 +6,7 @@ import top.ghhccghk.yadea.network.HttpRequest
 import top.ghhccghk.yadea.network.HttpTransport
 import top.ghhccghk.yadea.network.JsonSupport
 import top.ghhccghk.yadea.network.GatewayHeaders
+import top.ghhccghk.yadea.network.NetworkLog
 import top.ghhccghk.yadea.vehicle.VehicleProfile
 
 /**
@@ -82,31 +83,44 @@ class YadeaOtaGateway(
         val token = tokenProvider().trim()
         if (token.isBlank()) return null
         val body = GatewaySigner.formBody(businessJson, timestampProvider())
+        val url = baseUrl + path
+        val headers = GatewayHeaders.ensureGatewayAppId(
+            url,
+            buildMap {
+                put("Authorization", if (token.startsWith("Bearer ")) token else "Bearer $token")
+                put("req-id", timestampProvider().toString())
+                put("request-agent", "2")
+                put("deviceId", loginIdProvider())
+                put("os", "android")
+                put("app-name", "YADEA")
+                put("language", "zh_CN")
+                put("push-operator", "2")
+            },
+        )
+        NetworkLog.write(
+            "OTA -> POST $url headers=${NetworkLog.headers(headers)} " +
+                NetworkLog.formSummary(body),
+        )
         val response = transport.execute(
             HttpRequest(
                 method = "POST",
-                url = baseUrl + path,
-                headers = buildMap {
-                    put(GatewayHeaders.KEY_GATEWAY_APP_ID, GatewayHeaders.GATEWAY_APP_ID)
-                    put("Authorization", if (token.startsWith("Bearer ")) token else "Bearer $token")
-                    put("req-id", timestampProvider().toString())
-                    put("request-agent", "2")
-                    put("deviceId", loginIdProvider())
-                    put("os", "android")
-                    put("app-name", "YADEA")
-                    put("language", "zh_CN")
-                    put("push-operator", "2")
-                },
+                url = url,
+                headers = headers,
                 body = body,
                 contentType = "application/x-www-form-urlencoded; charset=utf-8",
             ),
-        ) ?: return null
+        ) ?: run {
+            NetworkLog.write("OTA !! no response path=$path")
+            return null
+        }
+        NetworkLog.write("OTA <- ${response.status} raw=${NetworkLog.body(response.body)}")
         if (response.status !in 200..299) return null
         val decoded = Crypto.urlDecode(response.body.trim())
         val plain = Crypto.aesEcbPkcs5Decrypt(
             GatewaySigner.AES_KEY,
             decoded,
         ) ?: decoded
+        NetworkLog.write("OTA plain path=$path ${NetworkLog.maskSensitive(plain)}")
         if (JsonSupport.boolean(plain, "success") == false) return null
         return plain
     }

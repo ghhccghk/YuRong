@@ -5,6 +5,7 @@ import top.ghhccghk.yadea.network.HttpResponse
 import top.ghhccghk.yadea.network.HttpTransport
 import top.ghhccghk.yadea.network.JsonSupport
 import top.ghhccghk.yadea.network.GatewayHeaders
+import top.ghhccghk.yadea.network.NetworkLog
 
 /**
  * Smali 确认的账号网络层。
@@ -39,7 +40,6 @@ class YadeaAuthGateway(
         val json = sortedJson(
             mapOf(
                 "_gateway" to "True",
-                "appType" to "1",
                 "mobile" to mobile,
                 "registrationId" to registrationIdProvider(),
                 "sendCode" to "1",
@@ -93,17 +93,31 @@ class YadeaAuthGateway(
     private suspend fun postRaw(path: String, businessJson: String): AuthResult<String> {
         val timestamp = timestampProvider()
         val body = GatewaySigner.formBody(businessJson, timestamp)
+        val headers = GatewayHeaders.ensureGatewayAppId(baseUrl + path, commonHeaders())
+        NetworkLog.write(
+            "AUTH -> POST ${baseUrl + path} ts=$timestamp " +
+                "headers=${NetworkLog.headers(headers)} ${NetworkLog.formSummary(body)}",
+        )
         val response = transport.execute(
             HttpRequest(
                 method = "POST",
                 url = baseUrl + path,
-                headers = commonHeaders(),
+                headers = headers,
                 body = body,
                 contentType = "application/x-www-form-urlencoded; charset=utf-8",
             ),
-        ) ?: return AuthResult.Failure("网络不可用")
-        val plain = decryptResponse(response)
-            ?: return AuthResult.Failure("响应解密失败")
+        ) ?: run {
+            NetworkLog.write("AUTH !! no response path=$path")
+            return AuthResult.Failure("网络不可用")
+        }
+        NetworkLog.write(
+            "AUTH <- ${response.status} path=$path raw=${NetworkLog.body(response.body)}",
+        )
+        val plain = decryptResponse(response) ?: run {
+            NetworkLog.write("AUTH !! decrypt failed path=$path")
+            return AuthResult.Failure("响应解密失败")
+        }
+        NetworkLog.write("AUTH plain path=$path ${NetworkLog.maskSensitive(plain)}")
         val success = JsonSupport.boolean(plain, "success") ?: false
         if (!success) {
             val message = JsonSupport.string(plain, "msg")
@@ -128,6 +142,7 @@ class YadeaAuthGateway(
     private fun decryptResponse(response: HttpResponse): String? {
         if (response.status !in 200..299) return null
         val decoded = Crypto.urlDecode(response.body.trim())
+        NetworkLog.write("AUTH decoded ${NetworkLog.body(decoded)}")
         return Crypto.aesEcbPkcs5Decrypt(GatewaySigner.AES_KEY, decoded) ?: decoded
     }
 

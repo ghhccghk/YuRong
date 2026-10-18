@@ -5,6 +5,7 @@ import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.network.HttpRequest
 import top.ghhccghk.yadea.network.HttpTransport
 import top.ghhccghk.yadea.network.GatewayHeaders
+import top.ghhccghk.yadea.network.NetworkLog
 
 interface VehicleProfileGateway {
     suspend fun load(): VehicleProfile?
@@ -26,22 +27,33 @@ class YadeaVehicleProfileGateway(
     override suspend fun load(): VehicleProfile? {
         val token = tokenProvider().trim()
         if (token.isBlank()) return null
+        val url = baseUrl + "userBike/queryBindingBike"
+        val headers = GatewayHeaders.ensureGatewayAppId(
+            url,
+            buildMap {
+                put("Authorization", if (token.startsWith("Bearer ")) token else "Bearer $token")
+                put("request-agent", "2")
+                put("deviceId", loginIdProvider())
+                put("os", "android")
+                put("app-name", "YADEA")
+                put("language", "zh_CN")
+                put("push-operator", "2")
+            },
+        )
+        NetworkLog.write("PROFILE -> GET $url headers=${NetworkLog.headers(headers)}")
         val response = transport.execute(
             HttpRequest(
                 method = "GET",
-                url = baseUrl + "userBike/queryBindingBike",
-                headers = buildMap {
-                    put(GatewayHeaders.KEY_GATEWAY_APP_ID, GatewayHeaders.GATEWAY_APP_ID)
-                    put("Authorization", if (token.startsWith("Bearer ")) token else "Bearer $token")
-                    put("request-agent", "2")
-                    put("deviceId", loginIdProvider())
-                    put("os", "android")
-                    put("app-name", "YADEA")
-                    put("language", "zh_CN")
-                    put("push-operator", "2")
-                },
+                url = url,
+                headers = headers,
             ),
-        ) ?: return null
+        ) ?: run {
+            NetworkLog.write("PROFILE !! no response")
+            return null
+        }
+        NetworkLog.write(
+            "PROFILE <- ${response.status} raw=${NetworkLog.body(response.body)}",
+        )
         if (response.status !in 200..299) return null
         val objectText = firstDataObject(response.body) ?: return null
         val image = stringField(objectText, "skinPicUrl").orEmpty()
