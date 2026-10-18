@@ -1,0 +1,60 @@
+# 车辆、账号与 OTA 界面
+
+本次实现了四个共享界面，并集中在 `MainScreen` 的“车辆”入口下：
+
+| 子页 | 文件 | 业务入口 |
+| --- | --- | --- |
+| 车辆信息 | `ui/VehicleInfoScreen.kt` | `VehicleStatusSource` |
+| 车辆设置 | `ui/CarSettingsScreen.kt` | `CarSettingsController` + `CarSettingWriter` |
+| OTA | `ui/OtaScreen.kt` | `OtaController` + `OtaGateway` |
+| 账号 | `ui/LoginScreen.kt` | `AuthController` + `AuthGateway` |
+
+## 1. 数据边界
+
+- UI 只消费 `StateFlow` 与语义回调，不直接访问 BLE、HTTP 或 OTA 协议。
+- 未注入平台实现时，界面展示明确的“通道未接入 / 等待车辆状态”空态，**不伪造车辆数据**。
+- `VehicleStatusSource` 负责把 `TtpInfoParser` 的结果提供给车辆信息页。
+- `AuthGateway` 负责密码登录、短信验证码与验证码登录；本地会话通过
+  `AppPreferenceKeys.usrToken/usrInfo/loginId` 持久化。
+- `CarSettingWriter` 负责把设置项翻译成 BLE `CommandTempBean` 或 IoT 请求。
+- `OtaGateway` 负责检查更新、下载、校验与写入。
+
+## 2. 车辆设置
+
+`CarSettingsRegistry` 提供六个主分类：
+
+1. 安全守护
+2. 灯光音效
+3. 智慧充电
+4. 骑行控制
+5. 电池
+6. 智能仪表
+
+外加实验室入口。开关采用**乐观切换**：先更新 UI，写入失败后回滚并显示提示。
+
+## 3. 登录
+
+- 支持密码登录与手机验证码登录。
+- 校验规则来自 `auth.md`：手机号、邮箱、密码字符集、4 位验证码。
+- 验证码发送成功后 60 秒倒计时。
+- 协议未勾选时登录按钮仍可点击，点击后再串行校验并提示。
+- 登录成功写入 `usr_token` / `usr_info` / `login_id`；退出只清理这三个 key。
+
+## 4. OTA
+
+`OtaFlow` 是纯状态机，覆盖：
+
+`Idle → Checking → Available → Downloading → Verifying → Installing → Completed`
+
+失败与取消分别进入 `Failed` / `Cancelled`。当前仓库没有确认 OTA 帧结构，
+因此界面只依赖 `OtaGateway`，不在 `commonMain` 里猜协议。
+
+## 5. 验证
+
+```powershell
+$env:GRADLE_USER_HOME = "C:\Users\DozenOregano696\.gradle"
+.\gradlew.bat :shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:jvmTest
+.\gradlew.bat :androidApp:assembleDebug :desktopApp:build
+```
+
+新增业务单测覆盖登录校验、会话编解码、设置回滚、OTA 状态机和车辆状态格式化。

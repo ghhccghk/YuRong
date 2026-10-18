@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,11 +26,22 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.ble.BleAdapter
 import top.ghhccghk.yadea.ble.BleConnectionState
+import top.ghhccghk.yadea.auth.AuthController
+import top.ghhccghk.yadea.auth.AuthGateway
+import top.ghhccghk.yadea.auth.AuthSession
+import top.ghhccghk.yadea.carsetting.CarSettingWriter
+import top.ghhccghk.yadea.carsetting.CarSettingsController
+import top.ghhccghk.yadea.carsetting.CarSettingsRegistry
 import top.ghhccghk.yadea.mirror.FrameSourceFactory
 import top.ghhccghk.yadea.mirror.MediaSourcePicker
 import top.ghhccghk.yadea.mirror.ScreenCaptureAuthorizer
 import top.ghhccghk.yadea.settings.AppPreferences
 import top.ghhccghk.yadea.settings.InMemoryPreferenceStore
+import top.ghhccghk.yadea.ota.OtaController
+import top.ghhccghk.yadea.ota.OtaGateway
+import top.ghhccghk.yadea.vehicle.EmptyVehicleStatusSource
+import top.ghhccghk.yadea.vehicle.TtpInfo
+import top.ghhccghk.yadea.vehicle.VehicleStatusSource
 import top.ghhccghk.yadea.wifi.WifiConnectionManager
 import top.ghhccghk.yadea.wifi.WifiP2pManager
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -45,7 +57,7 @@ private enum class MainDestination(
     val fallbackText: String,
 ) {
     Connection("连接", MiuixIcons.SearchDevice, "📡"),
-    Device("设备", MiuixIcons.Phone, "📱"),
+    Device("车辆", MiuixIcons.Phone, "🚗"),
     Settings("设置", MiuixIcons.Settings, "⚙"),
 }
 
@@ -70,6 +82,10 @@ fun MainScreen(
     screenCaptureAuthorizer: ScreenCaptureAuthorizer? = null,
     mediaSourcePicker: MediaSourcePicker? = null,
     preferences: AppPreferences? = null,
+    vehicleStatusSource: VehicleStatusSource? = null,
+    authGateway: AuthGateway? = null,
+    carSettingWriter: CarSettingWriter? = null,
+    otaGateway: OtaGateway? = null,
     systemAccentColor: androidx.compose.ui.graphics.Color? = null,
 ) {
     val resolvedPreferences = preferences ?: remember { AppPreferences(InMemoryPreferenceStore()) }
@@ -85,6 +101,34 @@ fun MainScreen(
             mediaSourcePicker,
         )
     }
+    val featureScope = rememberCoroutineScope()
+    val resolvedVehicleSource = remember(vehicleStatusSource) {
+        vehicleStatusSource ?: EmptyVehicleStatusSource()
+    }
+    val vehicleStatus by resolvedVehicleSource.status.collectAsState()
+    val vehicleConnected by resolvedVehicleSource.connected.collectAsState()
+    val authController = remember(resolvedPreferences, authGateway) {
+        AuthController(AuthSession(resolvedPreferences), authGateway, featureScope)
+    }
+    val carSettingsController = remember(carSettingWriter) {
+        CarSettingsController(
+            initialItems = CarSettingsRegistry.defaultItems(),
+            writer = carSettingWriter,
+        )
+    }
+    val otaController = remember(otaGateway) {
+        OtaController(
+            gateway = otaGateway,
+            currentVersion = "—",
+            scope = featureScope,
+        )
+    }
+    DisposableEffect(authController, otaController) {
+        onDispose {
+            authController.dispose()
+            otaController.dispose()
+        }
+    }
 
     var selectedDestination by remember { mutableStateOf(MainDestination.Connection) }
 
@@ -99,6 +143,11 @@ fun MainScreen(
             systemAccentColor = systemAccentColor,
             selectedDestination = selectedDestination,
             onDestinationChange = { selectedDestination = it },
+            vehicleStatus = vehicleStatus,
+            vehicleConnected = vehicleConnected,
+            authController = authController,
+            carSettingsController = carSettingsController,
+            otaController = otaController,
         )
     }
 }
@@ -111,6 +160,11 @@ private fun MainScreenContent(
     systemAccentColor: androidx.compose.ui.graphics.Color? = null,
     selectedDestination: MainDestination,
     onDestinationChange: (MainDestination) -> Unit,
+    vehicleStatus: TtpInfo?,
+    vehicleConnected: Boolean,
+    authController: AuthController,
+    carSettingsController: CarSettingsController,
+    otaController: OtaController,
 ) {
     val navigationItems = MainDestination.entries.map {
         AppNavigationItem(
@@ -129,6 +183,7 @@ private fun MainScreenContent(
     var showMirrorLog by remember { mutableStateOf(false) }
     // 连接页内的子功能（设备连接 / 投屏）；离开连接页后保留选择，返回时回到原来的子页。
     var connectionSection by remember { mutableStateOf(ConnectionSection.Device) }
+    var vehicleSection by remember { mutableStateOf(VehicleSection.Info) }
     // 顶栏滚动行为由页面创建一次，再分别交给脚手架与顶栏；两种风格各自使用原生实现。
     val scrollBehavior = rememberAppScrollBehavior()
     // 轻量提示状态同样在页面顶层创建一次：宿主挂在脚手架上，各页面共用同一个状态。
@@ -165,12 +220,15 @@ private fun MainScreenContent(
     // 系统返回手势：非连接页先回到连接页；连接页的投屏子页先回到设备子页；
     // 连接页的设备子页不拦截，直接把事件交回系统处理（Android 13+ 会播放预测性返回动画）。
     val canNavigateBack = selectedDestination != MainDestination.Connection ||
-        connectionSection != ConnectionSection.Device
+        connectionSection != ConnectionSection.Device ||
+        (selectedDestination == MainDestination.Device && vehicleSection != VehicleSection.Info)
     AppBackHandler(enabled = canNavigateBack) {
-        if (selectedDestination != MainDestination.Connection) {
-            onDestinationChange(MainDestination.Connection)
-        } else {
-            connectionSection = ConnectionSection.Device
+        when {
+            selectedDestination == MainDestination.Device &&
+                vehicleSection != VehicleSection.Info -> vehicleSection = VehicleSection.Info
+            selectedDestination != MainDestination.Connection ->
+                onDestinationChange(MainDestination.Connection)
+            else -> connectionSection = ConnectionSection.Device
         }
     }
 
@@ -202,6 +260,13 @@ private fun MainScreenContent(
             appearance = appearance,
             onAppearanceChange = onAppearanceChange,
             systemAccentColor = systemAccentColor,
+            vehicleSection = vehicleSection,
+            onVehicleSectionChange = { vehicleSection = it },
+            vehicleStatus = vehicleStatus,
+            vehicleConnected = vehicleConnected,
+            authController = authController,
+            carSettingsController = carSettingsController,
+            otaController = otaController,
             modifier = Modifier.fillMaxSize(),
             contentPadding = padding,
             // 连接页的下拉刷新需要与顶栏滚动行为协同，这里把同一个对象继续传下去。
@@ -283,6 +348,13 @@ private fun MainDestinationContent(
     appearance: AppAppearance,
     onAppearanceChange: (AppAppearance) -> Unit,
     systemAccentColor: androidx.compose.ui.graphics.Color? = null,
+    vehicleSection: VehicleSection,
+    onVehicleSectionChange: (VehicleSection) -> Unit,
+    vehicleStatus: TtpInfo?,
+    vehicleConnected: Boolean,
+    authController: AuthController,
+    carSettingsController: CarSettingsController,
+    otaController: OtaController,
     contentPadding: PaddingValues = PaddingValues(),
     modifier: Modifier = Modifier,
     scrollBehavior: AppScrollBehavior? = null,
@@ -299,7 +371,16 @@ private fun MainDestinationContent(
                 scrollBehavior = scrollBehavior,
                 snackbarHostState = snackbarHostState,
             )
-            MainDestination.Device -> DeviceScreen(contentPadding = appPagePadding(contentPadding))
+            MainDestination.Device -> VehicleHubScreen(
+                section = vehicleSection,
+                onSectionChange = onVehicleSectionChange,
+                status = vehicleStatus,
+                connected = vehicleConnected,
+                authController = authController,
+                carSettingsController = carSettingsController,
+                otaController = otaController,
+                contentPadding = contentPadding,
+            )
             MainDestination.Settings -> SettingsScreen(
                 appearance = appearance,
                 contentPadding = appPagePadding(contentPadding),       // 新增

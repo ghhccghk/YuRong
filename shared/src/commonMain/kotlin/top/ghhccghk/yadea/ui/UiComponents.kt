@@ -26,6 +26,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
@@ -48,6 +49,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,6 +64,7 @@ import top.yukonga.miuix.kmp.basic.CardDefaults as MiuixCardDefaults
 import top.yukonga.miuix.kmp.basic.DropdownItem as MiuixDropdownItem
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
+import top.yukonga.miuix.kmp.basic.LinearProgressIndicator as MiuixLinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Slider as MiuixSlider
 import top.yukonga.miuix.kmp.basic.Surface as MiuixSurface
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
@@ -240,6 +243,7 @@ fun AppTextField(
     shape: Shape = AppDesign.shapes.field,
     enabled: Boolean = true,
     singleLine: Boolean = true,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
 ) {
@@ -253,6 +257,7 @@ fun AppTextField(
                 enabled = enabled,
                 label = { Text(label) },
                 singleLine = singleLine,
+                visualTransformation = visualTransformation,
                 keyboardOptions = keyboardOptions,
                 keyboardActions = keyboardActions,
             )
@@ -266,8 +271,31 @@ fun AppTextField(
                 enabled = enabled,
                 label = label,
                 singleLine = singleLine,
+                visualTransformation = visualTransformation,
                 keyboardOptions = keyboardOptions,
                 keyboardActions = keyboardActions,
+            )
+        },
+    )
+}
+
+/** 两端原生进度条：传入 0..1 的进度；`null` 表示不确定进度。 */
+@Composable
+fun AppLinearProgressIndicator(
+    progress: Float?,
+    modifier: Modifier = Modifier,
+) {
+    AppStyleContent(
+        material = {
+            LinearProgressIndicator(
+                progress = { progress?.coerceIn(0f, 1f) ?: 0f },
+                modifier = modifier,
+            )
+        },
+        miuix = {
+            MiuixLinearProgressIndicator(
+                progress = progress?.coerceIn(0f, 1f),
+                modifier = modifier,
             )
         },
     )
