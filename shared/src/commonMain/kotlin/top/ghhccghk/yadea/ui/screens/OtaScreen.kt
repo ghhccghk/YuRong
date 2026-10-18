@@ -13,6 +13,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import top.ghhccghk.yadea.ota.OtaController
+import top.ghhccghk.yadea.ota.OtaMethod
 import top.ghhccghk.yadea.ota.OtaStage
 
 /** OTA 升级页。通道未注入时只展示当前版本与空态。 */
@@ -33,12 +34,40 @@ fun OtaScreen(
         item {
             AppPageHeader(
                 title = "OTA 升级",
-                subtitle = "通过车辆升级通道更新固件，升级期间请保持连接",
+                subtitle = "按蓝牙、车联网、Wi-Fi 与记录仪通道分别查看云端升级任务",
             )
+        }
+        item {
+            AppSection(title = "升级方式") {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(
+                        horizontal = dimensions.itemHorizontalPadding,
+                        vertical = dimensions.itemVerticalPadding,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(dimensions.compactSpacing),
+                ) {
+                    AppSegmentedControl(
+                        options = OtaMethod.entries.map { it.shortLabel },
+                        selectedIndex = OtaMethod.entries.indexOf(state.selectedMethod),
+                        onSelected = { controller.selectMethod(OtaMethod.entries[it]) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    AppText(
+                        text = state.selectedMethod.description,
+                        style = AppDesign.typography.summary,
+                        color = AppDesign.colors.onSurfaceVariant,
+                    )
+                }
+            }
         }
         item {
             AppSection(title = "版本信息") {
                 AppListRow("当前版本", value = state.currentVersion, showDivider = true)
+                AppListRow(
+                    "升级方式",
+                    value = state.selectedMethod.label,
+                    showDivider = true,
+                )
                 AppListRow(
                     "可用版本",
                     value = state.packageInfo?.version ?: "—",
@@ -50,6 +79,38 @@ fun OtaScreen(
                     showDivider = true,
                 )
                 AppListRow("升级状态", value = state.stage.label(), summary = state.message)
+            }
+        }
+        item {
+            AppSection(title = "${state.selectedMethod.label}任务") {
+                if (state.selectedPackages.isEmpty()) {
+                    AppEmptyState("当前通道没有云端升级任务")
+                } else {
+                    state.selectedPackages.forEachIndexed { index, pkg ->
+                        AppListRow(
+                            title = pkg.typeName.ifBlank { "车辆固件" },
+                            summary = listOfNotNull(
+                                pkg.channelLabel.takeIf { it.isNotBlank() },
+                                pkg.releaseNotes.takeIf { it.isNotBlank() },
+                                pkg.status.takeIf { it.isNotBlank() },
+                            ).joinToString(" · "),
+                            value = buildString {
+                                append(pkg.version)
+                                if (pkg.forceUpgrade) append(" · 强制")
+                            },
+                            showDivider = index != state.selectedPackages.lastIndex,
+                        )
+                    }
+                    AppText(
+                        text = "当前展示云端任务；固件下载与写入通道需按所选升级方式接入，未接入时不会伪报升级成功。",
+                        style = AppDesign.typography.summary,
+                        color = AppDesign.colors.onSurfaceVariant,
+                        modifier = Modifier.padding(
+                            horizontal = dimensions.itemHorizontalPadding,
+                            vertical = dimensions.itemVerticalPadding,
+                        ),
+                    )
+                }
             }
         }
         if (state.stage == OtaStage.Unavailable) {

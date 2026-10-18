@@ -12,7 +12,24 @@ data class OtaPackage(
     val sizeBytes: Long = 0L,
     val releaseNotes: String = "",
     val downloadUrl: String = "",
+    val method: OtaMethod = OtaMethod.Ble,
+    val firmwareType: Int = 0,
+    val typeName: String = "",
+    val channelLabel: String = "",
+    val status: String = "",
+    val forceUpgrade: Boolean = false,
 )
+
+enum class OtaMethod(
+    val label: String,
+    val shortLabel: String,
+    val description: String,
+) {
+    Ble("蓝牙升级", "蓝牙", "手机靠近车辆，通过 BLE 通道传输固件"),
+    Iot("车联网升级", "车联网", "车辆联网后由云平台下发升级任务"),
+    Wifi("Wi-Fi 升级", "Wi-Fi", "车辆与手机通过 Wi-Fi/P2P 通道升级"),
+    WifiDvr("Wi-Fi 记录仪升级", "记录仪", "行车记录仪通过独立 Wi-Fi 通道升级"),
+}
 
 enum class OtaStage {
     Unavailable,
@@ -32,6 +49,8 @@ data class OtaState(
     val currentVersion: String = "—",
     val stage: OtaStage = OtaStage.Unavailable,
     val packageInfo: OtaPackage? = null,
+    val packages: List<OtaPackage> = emptyList(),
+    val selectedMethod: OtaMethod = OtaMethod.Ble,
     val progress: Float = 0f,
     val message: String? = null,
 ) {
@@ -49,12 +68,16 @@ data class OtaState(
 
     val canCancel: Boolean
         get() = stage == OtaStage.Downloading || stage == OtaStage.Verifying || stage == OtaStage.Installing
+
+    val selectedPackages: List<OtaPackage>
+        get() = packages.filter { it.method == selectedMethod }
 }
 
 sealed interface OtaEvent {
     data class CurrentVersionChanged(val version: String) : OtaEvent
     data object CheckStarted : OtaEvent
     data class UpdateFound(val packageInfo: OtaPackage) : OtaEvent
+    data class UpdatesFound(val packages: List<OtaPackage>) : OtaEvent
     data object UpToDate : OtaEvent
     data class CheckFailed(val message: String) : OtaEvent
     data object InstallStarted : OtaEvent
@@ -75,11 +98,37 @@ object OtaFlow {
             state.copy(
                 stage = OtaStage.Available,
                 packageInfo = event.packageInfo,
+                packages = listOf(event.packageInfo),
+                selectedMethod = event.packageInfo.method,
                 progress = 0f,
                 message = null,
             )
+        is OtaEvent.UpdatesFound ->
+            if (event.packages.isEmpty()) {
+                state.copy(
+                    stage = OtaStage.UpToDate,
+                    packageInfo = null,
+                    packages = emptyList(),
+                    message = "当前已是最新版本",
+                )
+            } else {
+                val first = event.packages.first()
+                state.copy(
+                    stage = OtaStage.Available,
+                    packageInfo = first,
+                    packages = event.packages,
+                    selectedMethod = first.method,
+                    progress = 0f,
+                    message = null,
+                )
+            }
         OtaEvent.UpToDate ->
-            state.copy(stage = OtaStage.UpToDate, packageInfo = null, message = "当前已是最新版本")
+            state.copy(
+                stage = OtaStage.UpToDate,
+                packageInfo = null,
+                packages = emptyList(),
+                message = "当前已是最新版本",
+            )
         is OtaEvent.CheckFailed ->
             state.copy(stage = OtaStage.Failed, message = event.message)
         OtaEvent.InstallStarted ->
@@ -105,6 +154,8 @@ object OtaFlow {
 /** OTA 通道抽象。协议细节未在 docs 中确认，因此平台侧可在此接入官方升级链路。 */
 interface OtaGateway {
     suspend fun checkForUpdate(currentVersion: String): OtaPackage?
+    suspend fun checkForUpdates(currentVersion: String): List<OtaPackage> =
+        listOfNotNull(checkForUpdate(currentVersion))
     suspend fun install(
         packageInfo: OtaPackage,
         onProgress: suspend (progress: Float, stage: OtaStage) -> Unit,
@@ -136,11 +187,11 @@ class OtaController(
         if (job?.isActive == true) return
         job = scope.launch {
             _state.value = OtaFlow.reduce(_state.value, OtaEvent.CheckStarted)
-            val result = runCatching { gateway.checkForUpdate(_state.value.currentVersion) }
+            val result = runCatching { gateway.checkForUpdates(_state.value.currentVersion) }
             _state.value = result.fold(
-                onSuccess = { pkg ->
-                    if (pkg == null) OtaFlow.reduce(_state.value, OtaEvent.UpToDate)
-                    else OtaFlow.reduce(_state.value, OtaEvent.UpdateFound(pkg))
+                onSuccess = { packages ->
+                    if (packages.isEmpty()) OtaFlow.reduce(_state.value, OtaEvent.UpToDate)
+                    else OtaFlow.reduce(_state.value, OtaEvent.UpdatesFound(packages))
                 },
                 onFailure = {
                     OtaFlow.reduce(
@@ -150,6 +201,17 @@ class OtaController(
                 },
             )
         }
+    }
+
+    fun selectMethod(method: OtaMethod) {
+        val selected = _state.value.packages.firstOrNull { it.method == method }
+        _state.value = _state.value.copy(
+            selectedMethod = method,
+            packageInfo = selected,
+            stage = if (selected != null) OtaStage.Available else OtaStage.Idle,
+            progress = 0f,
+            message = if (selected == null) "当前通道没有可用升级任务" else null,
+        )
     }
 
     fun install() {

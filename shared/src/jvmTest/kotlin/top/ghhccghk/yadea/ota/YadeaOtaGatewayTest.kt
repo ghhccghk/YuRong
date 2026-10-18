@@ -21,9 +21,12 @@ class YadeaOtaGatewayTest {
     fun checkForUpdate_parsesFirmwareVersionAndDownload() = runBlocking {
         val plain = """
             {"success":true,"data":[{
-              "firmwareVersion":1.23,
-              "upgradeContent":"修复已知问题",
-              "url":"https://cdn/firmware.bin"
+              "firmwareType":1,
+              "firmwareVersionVOList":[{
+                "firmwareVersion":1.23,
+                "upgradeContent":"修复已知问题",
+                "url":"https://cdn/firmware.bin"
+              }]
             }]}
         """.trimIndent()
         val transport = object : HttpTransport {
