@@ -4,10 +4,10 @@
 
 | 子页 | 文件 | 业务入口 |
 | --- | --- | --- |
-| 车辆信息 | `ui/VehicleInfoScreen.kt` | `VehicleStatusSource` |
-| 车辆设置 | `ui/CarSettingsScreen.kt` | `CarSettingsController` + `CarSettingWriter` |
-| OTA | `ui/OtaScreen.kt` | `OtaController` + `OtaGateway` |
-| 账号 | `ui/LoginScreen.kt` | `AuthController` + `AuthGateway` |
+| 车辆信息 | `ui/screens/VehicleInfoScreen.kt` | `VehicleStatusSource` |
+| 车辆设置 | `ui/screens/CarSettingsScreen.kt` | `CarSettingsController` + `CarSettingWriter` |
+| OTA | `ui/screens/OtaScreen.kt` | `OtaController` + `OtaGateway` |
+| 账号 | `ui/screens/LoginScreen.kt` | `AuthController` + `AuthGateway` |
 
 ## 1. 数据边界
 

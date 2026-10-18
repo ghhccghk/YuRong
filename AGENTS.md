@@ -35,11 +35,11 @@
 
 | 文件 | 职责 |
 | --- | --- |
-| `shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/UiTheme.kt` | `UiThemeStyle`、双主题、`AppDesign` 颜色/排版/形状 token、`AppStyleContent` |
-| `shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/UiComponents.kt` | 双风格语义控件 |
-| `shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/UiShell.kt` | Scaffold、TopAppBar、底部导航 |
-| `shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/SettingsScreen.kt` | 界面风格设置 |
-| `shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/MainScreen.kt` | 应用导航与页面入口 |
+| `shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/theme/UiTheme.kt` | `UiThemeStyle`、双主题、`AppDesign` 颜色/排版/形状 token、`AppStyleContent` |
+| `shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/components/UiComponents.kt` | 双风格语义控件 |
+| `shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/components/UiShell.kt` | Scaffold、TopAppBar、底部导航 |
+| `shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/screens/SettingsScreen.kt` | 界面风格设置 |
+| `shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/screens/MainScreen.kt` | 应用导航与页面入口 |
 
 新增可复用 Composable 时：
 

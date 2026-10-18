@@ -425,7 +425,7 @@ flowchart TD
 
 **源码证实。**
 
-`shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/UiTheme.kt`
+`shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/theme/UiTheme.kt`
 
 已有：
 
