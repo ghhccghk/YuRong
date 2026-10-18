@@ -99,4 +99,28 @@ class CarSettingsControllerTest {
             VehicleSettingCommands.forItem(items.getValue("meter.auto_brightness")),
         )
     }
+
+    @Test
+    fun frameEncoder_buildsVehicleFramesForMappedCommands() {
+        val encoded = VehicleSettingFrameEncoder.encode(
+            VehicleSettingCommand("LEAVE_THE_CAR_AUTO_LOCK_ON", 0x53),
+        )
+        assertNotNull(encoded)
+        val hex = encoded!!.joinToString("") {
+            (it.toInt() and 0xFF).toString(16).padStart(2, '0').uppercase()
+        }
+        assertTrue(hex.startsWith("59443E"))
+        assertTrue(hex.endsWith("4B4A"))
+        assertTrue(
+            hex.contains(
+                "01000101F8" +
+                    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDFFFFFFFFFFFFFFF",
+            ),
+        )
+
+        val brightness = VehicleSettingFrameEncoder.encode(
+            VehicleSettingCommand("BRIGHTNESS_ADJUST_VALUE", 0x134, parameter = 80),
+        )
+        assertNotNull(brightness)
+    }
 }

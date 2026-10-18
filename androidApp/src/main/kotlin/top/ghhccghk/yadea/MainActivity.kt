@@ -18,8 +18,12 @@ import org.lsposed.hiddenapibypass.LSPass
 import top.ghhccghk.yadea.ble.AndroidBleAdapter
 import top.ghhccghk.yadea.settings.AppPreferences
 import top.ghhccghk.yadea.settings.SharedPreferencesPreferenceStore
+import top.ghhccghk.yadea.network.createHttpTransport
 import top.ghhccghk.yadea.ui.MainScreen
 import top.ghhccghk.yadea.vehicle.BleVehicleStatusSource
+import top.ghhccghk.yadea.vehicle.MutableVehicleProfileSource
+import top.ghhccghk.yadea.vehicle.VehicleProfileController
+import top.ghhccghk.yadea.vehicle.YadeaVehicleProfileGateway
 import top.ghhccghk.yadea.wifi.AndroidWifiP2pManager
 import top.ghhccghk.yadea.mirror.source.AndroidFrameSourceFactory
 import top.ghhccghk.yadea.mirror.MediaSourcePicker
@@ -70,6 +74,18 @@ class MainActivity : ComponentActivity() {
         val vehicleBleAdapter = AndroidBleAdapter(this).also { bleAdapter = it }
         val vehicleStatus = BleVehicleStatusSource(vehicleBleAdapter, lifecycleScope)
             .also { vehicleStatusSource = it }
+        val appPreferences = AppPreferences(SharedPreferencesPreferenceStore(this))
+        val vehicleProfileSource = MutableVehicleProfileSource()
+        val profileController = VehicleProfileController(
+            source = vehicleProfileSource,
+            gateway = YadeaVehicleProfileGateway(
+                transport = createHttpTransport(),
+                tokenProvider = { appPreferences.readAuth().token },
+                loginIdProvider = { appPreferences.readAuth().loginId },
+            ),
+            scope = lifecycleScope,
+        )
+        profileController.refresh()
         val frameSourceFactory = AndroidFrameSourceFactory(this, this)
         val permissionChecker = AndroidPermissionChecker(this)
         val screenCaptureAuthorizer: ScreenCaptureAuthorizer = AndroidScreenCaptureAuthorizer(this)
@@ -79,17 +95,20 @@ class MainActivity : ComponentActivity() {
             MainScreen(
                 bleAdapter = vehicleBleAdapter,
                 vehicleStatusSource = vehicleStatus,
+                vehicleProfileSource = vehicleProfileSource,
+                carSettingCommandSink = AndroidVehicleSettingCommandSink(vehicleBleAdapter),
                 p2pManager = p2pManager,
                 frameSourceFactory = frameSourceFactory,
                 permissionChecker = permissionChecker,
                 screenCaptureAuthorizer = screenCaptureAuthorizer,
                 mediaSourcePicker = mediaSourcePicker,
-                preferences = AppPreferences(SharedPreferencesPreferenceStore(this@MainActivity)),
+                preferences = appPreferences,
                 onOpenExternalUrl = { url ->
                     runCatching {
                         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                     }
                 },
+                onRefreshVehicleProfile = profileController::refresh,
                 vehicleImageContent = { url, modifier ->
                     AndroidVehicleImage(url, modifier)
                 },

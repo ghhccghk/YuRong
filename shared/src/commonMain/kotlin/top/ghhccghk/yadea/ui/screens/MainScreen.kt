@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -94,6 +95,7 @@ fun MainScreen(
     carSettingCommandSink: VehicleSettingCommandSink? = null,
     otaGateway: OtaGateway? = null,
     onOpenExternalUrl: ((String) -> Unit)? = null,
+    onRefreshVehicleProfile: (() -> Unit)? = null,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)? = null,
     systemAccentColor: androidx.compose.ui.graphics.Color? = null,
 ) {
@@ -141,6 +143,12 @@ fun MainScreen(
         onDispose {
             authController.dispose()
             otaController.dispose()
+        }
+    }
+    val authUiState by authController.state.collectAsState()
+    LaunchedEffect(authUiState.session.isLoggedIn) {
+        if (authUiState.session.isLoggedIn) {
+            onRefreshVehicleProfile?.invoke()
         }
     }
 

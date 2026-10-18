@@ -18,6 +18,7 @@
   解析 `0x2A/0x7A` 完整报文后写入 `StateFlow<TtpInfo?>`。
 - `VehicleProfileSource` 提供云端资料：`dLinkTag` 判定联动款，
   `vehicleImageUrl` 对应 `VehicleInfoBean.getVehicleImage()`（`skinPicUrl` 优先，回退 `imgUrl`）。
+- Android 启动时通过 `userBike/queryBindingBike` 拉取资料；登录成功后自动刷新。
 - Android 端 `AndroidVehicleImage` 直接加载远程车图，不新增图片库依赖。
 - `AuthGateway` 负责密码登录、短信验证码与验证码登录；本地会话通过
   `AppPreferenceKeys.usrToken/usrInfo/loginId` 持久化。
@@ -36,6 +37,10 @@
 6. 智能仪表
 
 外加实验室入口。开关采用**乐观切换**：先更新 UI，写入失败后回滚并显示提示。
+
+已映射到 Smali 命令 ID 的设置会通过 `VehicleSettingFrameEncoder` 生成
+`5944…4B4A` 控制帧，再由 `AndroidVehicleSettingCommandSink` 写入整车主特征。
+未映射的设置项会返回失败并回滚，不会猜测协议。
 
 ## 3. 登录
 
