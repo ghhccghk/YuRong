@@ -227,11 +227,13 @@ class TtpInfoParserTest {
     @Test
     fun parse_drivingMemory_and_cruiseControl() {
         val d = packet(0xB0, 0x00)
-        d[0x8E] = 0b0000_0010.toByte()
+        // drivingMemory 在 0x8E bit5-7，activateX 在 0x8E bit3-4。
+        d[0x8E] = 0b0100_0000.toByte()
         d[0x8F] = 0b0000_0001.toByte()
         val info = TtpInfoParser.parse(d)
         assertEquals(2, info.drivingMemory)
         assertEquals(1, info.cruiseControl)
+        assertEquals(0, info.activateX)
     }
 
     @Test
@@ -272,5 +274,267 @@ class TtpInfoParserTest {
         val info = TtpInfoParser.parseShort(packet(0x10))
         assertEquals(-1, info.batteryMutualRecognition)
         assertEquals(-1, info.speedLimitReleased)
+    }
+
+    // ==================== 0x6A 之后的状态位 ====================
+
+    @Test
+    fun parse_extendedKeysSensors_0x6B_to_0x6F() {
+        val d = packet(0xB0, 0x00)
+        d[0x6B] = 85
+        d[0x6C] = 0b0101_0011.toByte()
+        d[0x6D] = 0b0100_1010.toByte()
+        d[0x6E] = 0b0110_0110.toByte()
+        d[0x6F] = 0b0100_1001.toByte()
+
+        val e = TtpInfoParser.parse(d).extended
+        assertEquals(85, e.eBikeBatteryHealth)
+        assertEquals(3, e.smartKeysLongClickStatus)
+        assertEquals(5, e.smartKeysShortClickStatus)
+        assertEquals(3, e.customFunctionLong)
+        assertEquals(5, e.customFunctionShort)
+        assertEquals(2, e.simulatedSoundWaveStatus)
+        assertEquals(2, e.simulatedSoundWaveModeStatus)
+        assertEquals(1, e.absFunctionStatus)
+        assertEquals(2, e.batteryBindStatus)
+        assertEquals(1, e.batteryMutualRecognition)
+        assertEquals(1, e.blueLightSwitch)
+        assertEquals(2, e.reversingState)
+        assertEquals(1, e.helpCarState)
+        assertEquals(1, e.constSpeedState)
+        assertEquals(2, e.templeSettingStatus)
+        assertEquals(1, e.lightBeltStatus)
+    }
+
+    @Test
+    fun parse_chargingDriveAndNavi_0x70_to_0x7A() {
+        val d = packet(0xB0, 0x00)
+        d[0x70] = 0b1001_1010.toByte()
+        d[0x71] = 10
+        d[0x74] = 0b0010_0000.toByte()
+        d[0x75] = 0b0110_1000.toByte()
+        d[0x76] = 0b0110_0000.toByte()
+        d[0x77] = 50
+        d[0x79] = 0b0000_1101.toByte()
+        d[0x7A] = 2
+
+        val e = TtpInfoParser.parse(d).extended
+        assertEquals(2, e.lightBeltColor)
+        assertEquals(3, e.batteryChargingLimitValue)
+        assertEquals(2, e.batteryChargingPowerStatus)
+        assertEquals(20, e.batteryChargingPowerValue)
+        assertEquals(VehicleNaviType.AV, e.carNaviType)
+        assertEquals(2, e.seatHeatSwitchStatus)
+        assertEquals(1, e.seatHeatLevelStatus)
+        assertEquals(2, e.tPowerStatus)
+        assertEquals(1, e.customDriveSwitchStatus)
+        assertEquals(50, e.capacitySettingStatus)
+        assertEquals(5, e.customDriveLevelStatus)
+        assertEquals(1, e.frontCollisionWarning)
+        assertEquals(2, e.turnToSoundReminders)
+    }
+
+    @Test
+    fun parse_radarAndConfig_0x7F_to_0x87() {
+        val d = packet(0xB0, 0x00)
+        d[0x7F] = 0b0010_0100.toByte()
+        d[0x80] = 0b0110_1001.toByte()
+        d[0x81] = 0b0010_0110.toByte()
+        d[0x82] = 0b1000_1001.toByte()
+        d[0x83] = 0b0110_1001.toByte()
+        d[0x84] = 77
+        d[0x85] = 88
+        d[0x86] = 0x34
+        d[0x87] = 0x12
+
+        val e = TtpInfoParser.parse(d).extended
+        assertEquals(1, e.fcmRadarEnable)
+        assertEquals(0, e.fcmRadarSwitch)
+        assertEquals(2, e.rcwRadarEnable)
+        assertEquals(1, e.rcwRadarSwitch)
+        assertEquals(2, e.fcwRadarMode)
+        assertEquals(2, e.bsdRadar)
+        assertEquals(1, e.rcwRadarMode)
+        assertEquals(2, e.fcwRadarWorking)
+        assertEquals(1, e.rcwRadarWorking)
+        assertEquals(2, e.vehicleConfigFailureCause)
+        assertEquals(1, e.mcuConfigFailureCause)
+        assertEquals(1, e.icmConfigFailureCause)
+        assertEquals(2, e.vehicleConfigResult)
+        assertEquals(1, e.mcuConfigFailureResult)
+        assertEquals(2, e.icmConfigFailureResult)
+        assertEquals(2, e.almConfigFailureResult)
+        assertEquals(1, e.vehicleConfigStatus)
+        assertEquals(77, e.brightnessAdjustValue)
+        assertEquals(88, e.autoBleRangingBaseValue)
+        assertEquals(0x1234, e.autoBleRangingEnvironmentalFactor)
+    }
+
+    @Test
+    fun parse_cardsRangingAndDriveModes_0x89_to_0x92() {
+        val d = packet(0xB0, 0x00)
+        d[0x89] = 0b0100_1001.toByte()
+        d[0x8A] = 0b0001_0000.toByte()
+        d[0x8B] = 12
+        d[0x8C] = 3
+        d[0x8D] = 4
+        d[0x8E] = 0b0100_0001.toByte()
+        d[0x8F] = 0b0100_0100.toByte()
+        d[0x90] = 0b0110_0100.toByte()
+        d[0x91] = 0b0110_0100.toByte()
+        d[0x92] = 0b0111_0010.toByte()
+
+        val info = TtpInfoParser.parse(d)
+        val e = info.extended
+        assertEquals(1, e.customizeThrottleSensitivity)
+        assertEquals(1, e.customizeEnergyLevel)
+        assertEquals(1, e.customizeEnergyState)
+        assertEquals(1, e.customizeTcs)
+        assertEquals(12, e.bleRangingBaseValue)
+        assertEquals(7, e.bleRangingEnvironmentalFactor)
+        assertEquals(1, e.bleRangingState)
+        assertEquals(2, info.drivingMemory)
+        assertEquals(0, info.activateX)
+        assertEquals(0, info.cruiseControl)
+        assertEquals(1, e.primaryCardOneStatus)
+        assertEquals(2, e.primaryCardTwoStatus)
+        assertEquals(4, e.childCardOneStatus)
+        assertEquals(4, e.childCardTwoStatus)
+        assertEquals(4, e.childCardThreeStatus)
+        assertEquals(4, e.childCardFourStatus)
+        assertEquals(2, e.childCardFiveStatus)
+        assertEquals(14, e.simulatedSoundWaveVolumeStatus)
+    }
+
+    @Test
+    fun parse_supplierConfigTemperatureAndEnergy() {
+        val d = packet(0xC0, 0x00)
+        d[0x93] = 'A'.code.toByte()
+        d[0x94] = 'B'.code.toByte()
+        d[0x95] = 'C'.code.toByte()
+        d[0x96] = 'D'.code.toByte()
+        d[0x97] = 'E'.code.toByte()
+        d[0x98] = 7
+        d[0x99] = 0x34
+        d[0x9A] = 0x12
+        d[0x9B] = 0xE2.toByte()
+        d[0x9C] = 0x04
+        d[0x9D] = 0x34
+        d[0x9E] = 0x12
+        d[0x9F] = 0x64
+        d[0xA0] = 0x00
+        // 3 字节小端：1000 → 100.0；2000 → 200.0
+        d[0xA4] = 0xE8.toByte()
+        d[0xA5] = 0x03
+        d[0xA6] = 0x00
+        d[0xA7] = 0xD0.toByte()
+        d[0xA8] = 0x07
+        d[0xA9] = 0x00
+
+        val e = TtpInfoParser.parse(d).extended
+        assertEquals("EDCBA", e.supplierCode)
+        assertEquals(7, e.productModel)
+        assertEquals(0x1234, e.powerOnPwd)
+        assertEquals(25.0f, e.batteryTemperature, 0.0001f)
+        assertEquals(0x1234, e.otaCode)
+        assertEquals(100, e.calorie)
+        assertEquals(100.0f, e.cumulativeCalories, 0.0001f)
+        assertEquals(200.0f, e.cumulativeCarbonEmissions, 0.0001f)
+    }
+
+    @Test
+    fun parse_secondaryStatus_0xA3_to_0xAE() {
+        val d = packet(0xB0, 0x00)
+        d[0xA3] = 0b1010_1001.toByte()
+        d[0xAA] = 0b0000_1010.toByte()
+        d[0xAB] = 0b0110_1001.toByte()
+        d[0xAC] = 0b0001_1001.toByte()
+        d[0xAD] = 0b0110_1001.toByte()
+        d[0xAE] = 0b0110_1001.toByte()
+
+        val e = TtpInfoParser.parse(d).extended
+        assertEquals(1, e.simulatedSoundWaveOnlineStatus)
+        assertEquals(2, e.brakePowerDownFunctionStatus)
+        assertEquals(2, e.dvrFormatStatus)
+        assertEquals(2, e.wifiRestState)
+        assertEquals(2, e.tcsWorkMode)
+        assertEquals(1, e.motorAngleMarkerLearningState)
+        assertEquals(1, e.motorAngleMarkerLearningSupportState)
+        assertEquals(2, e.steepSlopeState)
+        assertEquals(2, e.rampSlopeState)
+        assertEquals(1, e.syncTimeResult)
+        assertEquals(1, e.syncTimeResultStatus)
+        assertEquals(6, e.voltageSettingStatus)
+        assertEquals(1, e.trackModeStatus)
+        assertEquals(2, e.eleHandleLock)
+        assertEquals(2, e.tricycleLockStat)
+        assertEquals(1, e.tricycleLeftDoorStat)
+        assertEquals(1, e.tricycleRightDoorStat)
+        assertEquals(2, e.customWallpaperFeedback)
+        assertEquals(2, e.customSkinFeedback)
+        assertEquals(1, e.gearMemorySettingFeedback)
+    }
+
+    @Test
+    fun parse_wifiMiscAndDuplicateAliases() {
+        val d = packet(0xB0, 0x00)
+        d[0x1D] = 0b0100_1000.toByte()
+        d[0x1E] = 2
+        d[0x20] = 0b1000_0000.toByte()
+        d[0x21] = 25
+        d[0x22] = 30
+        d[0x23] = 0b0110_1001.toByte()
+        d[0x24] = 1
+        d[0x2E] = 0b0101_0000.toByte()
+        d[0x2F] = 0b0101_0100.toByte()
+        d[0x32] = 0b0100_0000.toByte()
+        d[0x37] = 0b0100_0000.toByte()
+        d[0x88] = 0b0101_0100.toByte()
+
+        val info = TtpInfoParser.parse(d)
+        val e = info.extended
+        assertEquals(2, e.wifiStatus)
+        assertEquals(2, e.wifiStatusNew)
+        assertEquals(1, e.brightnessAdjustSwitch)
+        assertEquals(2, e.dvrWifiStatus)
+        assertEquals(2, e.wifiP2pStatus)
+        assertEquals(2, e.maxSpeedLimitMode)
+        assertEquals(25, info.maximumSpeedDefault)
+        assertEquals(25, e.customSoundClear)
+        assertEquals(30, info.maximumSpeedCurrent)
+        assertEquals(1, e.ambientStatus)
+        assertEquals(10, e.ambientColor)
+        assertEquals(1, e.capacitySwitchStatus)
+        assertEquals(1, e.workMode)
+        assertEquals(1, e.derivatives)
+        assertEquals(1, e.laterIotStatus)
+        assertEquals(1, e.iotRemoveAlarm)
+        assertEquals(1, e.removeAlarm)
+        assertEquals(1, e.otdSwitch)
+        assertEquals(1, e.customSoundSwitch)
+        assertEquals(1, e.seatPowerStatus)
+        assertEquals(1, e.readyP)
+        assertEquals(1, e.addBluetoothKey)
+        assertEquals(0, e.rangingStatus)
+        assertEquals(1, e.sleepModeSwitch)
+        assertEquals(1, e.clearBluetoothKey)
+        assertEquals(1, e.longEnduranceStatus)
+    }
+
+    @Test
+    fun parse_extended_allOnes_isInvalid() {
+        val e = TtpInfoParser.parse(packet(0xB0)).extended
+        assertEquals(-1, e.eBikeBatteryHealth)
+        assertEquals(-1, e.smartKeysLongClickStatus)
+        assertEquals(-1, e.simulatedSoundWaveStatus)
+        assertEquals(-1, e.batteryMutualRecognition)
+        assertEquals(-1, e.primaryCardOneStatus)
+        assertEquals(-1, e.tcsWorkMode)
+        assertEquals(-1, e.cumulativeCalories.toInt())
+        assertEquals(-1, e.batteryTemperature.toInt())
+        assertEquals(VehicleNaviType.TFT_IMG, e.carNaviType)
+        assertEquals(5, e.supplierCode.length)
+        assertTrue(e.supplierCode.all { it == '\uFFFF' })
+        assertEquals("FF", e.configCodePart0)
     }
 }

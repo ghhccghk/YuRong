@@ -29,10 +29,10 @@ internal object Ttp {
     /** 高位变宽提取，位宽为 `8 - shift`；全 1 → 无效。对应 `l76.a`。 */
     fun a(d: ByteArray, off: Int, shift: Int): Int {
         if (off < 0 || d.size <= off) return INVALID_I
-        if (shift <= 0 || shift >= 8) return INVALID_I
-        val mask = (0xFF ushr shift)
-        val v = ((d[off].toInt() and 0xFF) ushr shift) and mask
-        return if (v == mask) INVALID_I else v
+        if (shift < 0 || shift >= 8) return INVALID_I
+        val mask = (0xFF shl shift) and 0xFF
+        val v = ((d[off].toInt() and 0xFF) and mask) ushr shift
+        return if (v == 0xFF) INVALID_I else v
     }
 
     /** 3 bit；`0x07` → 无效。对应 `l76.C`。 */
@@ -49,6 +49,20 @@ internal object Ttp {
 
     /** 1 bit；`0x01` → 无效。对应 `l76.l`。 */
     fun l(d: ByteArray, off: Int, shift: Int) = bits(d, off, shift, 0x01)
+
+    /** 6 bit；`0x3F` → 无效。对应 `l76.B`。 */
+    fun B(d: ByteArray, off: Int, shift: Int) = bits(d, off, shift, 0x3F)
+
+    /**
+     * 有符号单字节，对应 `l76.q`。
+     *
+     * 原实现直接返回 `byte`（Java 的 byte 是有符号的），因此 `0xFF` 与
+     * “值 -1”无法区分，这里保持同样行为。
+     */
+    fun q(d: ByteArray, off: Int): Int {
+        if (off < 0 || d.size <= off) return INVALID_I
+        return d[off].toInt()
+    }
 
     /**
      * 位域提取。
@@ -104,6 +118,16 @@ internal object Ttp {
     fun J(d: ByteArray, o0: Int, o1: Int): Int {
         if (minOf(o0, o1) < 0 || d.size <= maxOf(o0, o1)) return INVALID_I
         return ((d[o0].toInt() and 0xFF) shl 8) or (d[o1].toInt() and 0xFF)
+    }
+
+    /** 3 字节**小端**；`0xFFFFFF` → 无效。对应 `l76.D`。 */
+    fun D(d: ByteArray, o0: Int, o1: Int, o2: Int): Int {
+        val max = maxOf(o0, o1, o2)
+        if (minOf(o0, o1, o2) < 0 || d.size <= max) return INVALID_I
+        val v = (d[o0].toInt() and 0xFF) or
+            ((d[o1].toInt() and 0xFF) shl 8) or
+            ((d[o2].toInt() and 0xFF) shl 16)
+        return if (v == 0xFFFFFF) INVALID_I else v
     }
 
     // ==================== 缩放 ====================
