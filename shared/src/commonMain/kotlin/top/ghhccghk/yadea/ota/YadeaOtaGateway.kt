@@ -111,7 +111,8 @@ class YadeaOtaGateway(
 
     private fun sortedJson(fields: Map<String, Any>): String = buildString {
         append('{')
-        fields.toSortedMap().entries.forEachIndexed { index, (key, value) ->
+        fields.keys.sorted().forEachIndexed { index, key ->
+            val value = fields.getValue(key)
             if (index > 0) append(',')
             append('"').append(key).append("\":")
             when (value) {

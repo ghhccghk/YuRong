@@ -138,7 +138,8 @@ class YadeaAuthGateway(
 
     private fun sortedJson(fields: Map<String, String>): String = buildString {
         append('{')
-        fields.toSortedMap().entries.forEachIndexed { index, (key, value) ->
+        fields.keys.sorted().forEachIndexed { index, key ->
+            val value = fields.getValue(key)
             if (index > 0) append(',')
             append('"').append(escape(key)).append("\":\"")
             append(escape(value)).append('"')
