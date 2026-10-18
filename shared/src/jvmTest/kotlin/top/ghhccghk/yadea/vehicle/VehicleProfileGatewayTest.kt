@@ -8,6 +8,7 @@ import org.junit.Test
 import top.ghhccghk.yadea.network.HttpRequest
 import top.ghhccghk.yadea.network.HttpResponse
 import top.ghhccghk.yadea.network.HttpTransport
+import top.ghhccghk.yadea.network.GatewayHeaders
 
 class VehicleProfileGatewayTest {
     @Test
@@ -30,6 +31,10 @@ class VehicleProfileGatewayTest {
             override suspend fun execute(request: HttpRequest): HttpResponse {
                 assertEquals("GET", request.method)
                 assertTrue(request.url.endsWith("userBike/queryBindingBike"))
+                assertEquals(
+                    GatewayHeaders.GATEWAY_APP_ID,
+                    request.headers[GatewayHeaders.KEY_GATEWAY_APP_ID],
+                )
                 assertEquals("Bearer token", request.headers["Authorization"])
                 return HttpResponse(200, body)
             }

@@ -7,6 +7,7 @@ import org.junit.Test
 import top.ghhccghk.yadea.network.HttpRequest
 import top.ghhccghk.yadea.network.HttpResponse
 import top.ghhccghk.yadea.network.HttpTransport
+import top.ghhccghk.yadea.network.GatewayHeaders
 
 class YadeaAuthGatewayTest {
     private fun encrypted(body: String): String =
@@ -24,6 +25,10 @@ class YadeaAuthGatewayTest {
             override suspend fun execute(request: HttpRequest): HttpResponse {
                 assertEquals("POST", request.method)
                 assertTrue(request.url.endsWith("user/loginByPassword"))
+                assertEquals(
+                    GatewayHeaders.GATEWAY_APP_ID,
+                    request.headers[GatewayHeaders.KEY_GATEWAY_APP_ID],
+                )
                 assertTrue(request.body!!.contains("gatewaySign="))
                 assertTrue(request.body.contains("gatewayTimestamp="))
                 return HttpResponse(200, encrypted(plain))

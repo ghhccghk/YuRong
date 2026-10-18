@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.network.HttpRequest
 import top.ghhccghk.yadea.network.HttpTransport
+import top.ghhccghk.yadea.network.GatewayHeaders
 
 interface VehicleProfileGateway {
     suspend fun load(): VehicleProfile?
@@ -30,6 +31,7 @@ class YadeaVehicleProfileGateway(
                 method = "GET",
                 url = baseUrl + "userBike/queryBindingBike",
                 headers = buildMap {
+                    put(GatewayHeaders.KEY_GATEWAY_APP_ID, GatewayHeaders.GATEWAY_APP_ID)
                     put("Authorization", if (token.startsWith("Bearer ")) token else "Bearer $token")
                     put("request-agent", "2")
                     put("deviceId", loginIdProvider())

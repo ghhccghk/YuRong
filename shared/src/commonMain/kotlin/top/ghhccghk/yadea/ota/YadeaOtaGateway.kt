@@ -5,6 +5,7 @@ import top.ghhccghk.yadea.auth.Crypto
 import top.ghhccghk.yadea.network.HttpRequest
 import top.ghhccghk.yadea.network.HttpTransport
 import top.ghhccghk.yadea.network.JsonSupport
+import top.ghhccghk.yadea.network.GatewayHeaders
 import top.ghhccghk.yadea.vehicle.VehicleProfile
 
 /**
@@ -86,6 +87,7 @@ class YadeaOtaGateway(
                 method = "POST",
                 url = baseUrl + path,
                 headers = buildMap {
+                    put(GatewayHeaders.KEY_GATEWAY_APP_ID, GatewayHeaders.GATEWAY_APP_ID)
                     put("Authorization", if (token.startsWith("Bearer ")) token else "Bearer $token")
                     put("req-id", timestampProvider().toString())
                     put("request-agent", "2")

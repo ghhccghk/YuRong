@@ -4,6 +4,7 @@ import top.ghhccghk.yadea.network.HttpRequest
 import top.ghhccghk.yadea.network.HttpResponse
 import top.ghhccghk.yadea.network.HttpTransport
 import top.ghhccghk.yadea.network.JsonSupport
+import top.ghhccghk.yadea.network.GatewayHeaders
 
 /**
  * Smali 确认的账号网络层。
@@ -114,6 +115,7 @@ class YadeaAuthGateway(
     }
 
     private fun commonHeaders(): Map<String, String> = buildMap {
+        put(GatewayHeaders.KEY_GATEWAY_APP_ID, GatewayHeaders.GATEWAY_APP_ID)
         put("req-id", randomRequestId())
         put("request-agent", "2")
         put("deviceId", deviceIdProvider())
