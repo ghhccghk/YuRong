@@ -22,13 +22,15 @@ import java.net.URL
 /**
  * 车辆图加载器。
  *
- * 原应用的车辆图来自 `VehicleInfoBean.getVehicleImage()` 的远程 URL；
- * 这里直接使用 Android 自带网络与 BitmapFactory，避免为一张图引入图片库。
+ * 原应用把 `skinPicUrl` 用作车辆页背景，把 `imgUrl` 用作车辆本体图。
+ * 这里直接使用 Android 自带网络与 BitmapFactory，避免为图片引入图片库。
  */
 @Composable
 fun AndroidVehicleImage(
     url: String,
     modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Fit,
+    contentDescription: String = "车辆图片",
 ) {
     var bitmap by remember(url) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(url) {
@@ -48,8 +50,36 @@ fun AndroidVehicleImage(
     val image = bitmap ?: return
     Image(
         bitmap = image,
-        contentDescription = "车辆图片",
+        contentDescription = contentDescription,
+        modifier = modifier,
+        contentScale = contentScale,
+    )
+}
+
+/** 车辆本体图，保持完整轮廓。 */
+@Composable
+fun AndroidVehicleBodyImage(
+    url: String,
+    modifier: Modifier = Modifier,
+) {
+    AndroidVehicleImage(
+        url = url,
         modifier = modifier.size(132.dp, 88.dp),
         contentScale = ContentScale.Fit,
+        contentDescription = "车辆图片",
+    )
+}
+
+/** 车辆页背景图，铺满卡片并裁剪。 */
+@Composable
+fun AndroidVehicleBackgroundImage(
+    url: String,
+    modifier: Modifier = Modifier,
+) {
+    AndroidVehicleImage(
+        url = url,
+        modifier = modifier,
+        contentScale = ContentScale.Crop,
+        contentDescription = "车辆背景图",
     )
 }

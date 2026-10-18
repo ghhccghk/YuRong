@@ -3,6 +3,7 @@ package top.ghhccghk.yadea.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
@@ -16,7 +17,6 @@ import androidx.compose.ui.Modifier
 import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.carsetting.CarSettingItem
 import top.ghhccghk.yadea.carsetting.CarSettingKind
-import top.ghhccghk.yadea.carsetting.CarSettingClassification
 import top.ghhccghk.yadea.carsetting.CarSettingsController
 
 /** 车辆设置页。业务状态由 [CarSettingsController] 提供，页面只负责语义渲染。 */
@@ -38,12 +38,33 @@ fun CarSettingsScreen(
         item {
             AppPageHeader(
                 title = "车辆设置",
-                subtitle = if (controller.available) {
-                    "修改后会同步到车辆；失败时自动回滚"
+                subtitle = if (controller.cloudAvailable) {
+                    "设置项、分组和可用权限来自云端车辆配置"
                 } else {
-                    "当前未接入车辆设置通道，以下为可写项预览"
+                    "云端设置服务未接入"
                 },
             )
+        }
+        item {
+            AppOutlinedButton(
+                onClick = { scope.launch { controller.refresh() } },
+                modifier = Modifier.fillMaxWidth().padding(
+                    horizontal = dimensions.pageHorizontalPadding,
+                ),
+                enabled = controller.cloudAvailable && !state.loading,
+            ) {
+                AppText(
+                    if (state.loading) "正在加载…" else "刷新云端设置",
+                    style = AppDesign.typography.button,
+                )
+            }
+        }
+        if (state.loading) {
+            item {
+                AppSection {
+                    AppEmptyState("正在从云端加载当前车辆的设置项…")
+                }
+            }
         }
         if (state.message != null) {
             item {
@@ -60,12 +81,15 @@ fun CarSettingsScreen(
                 }
             }
         }
-        for (classification in CarSettingClassification.entries) {
-            val items = state.items.filter { it.classification == classification }
+        val grouped = state.items
+            .groupBy { it.group }
+            .entries
+            .sortedWith(compareBy({ it.key.sort }, { it.key.title }))
+        for ((group, items) in grouped) {
             if (items.isEmpty()) continue
             item {
-                AppSection(title = classification.label) {
-                    items.forEach { item ->
+                AppSection(title = group.title) {
+                    items.sortedWith(compareBy({ it.sort }, { it.title })).forEach { item ->
                         CarSettingRow(
                             item = item,
                             enabled = controller.available &&
@@ -80,6 +104,19 @@ fun CarSettingsScreen(
                 }
             }
         }
+        if (!state.loading && state.items.isEmpty()) {
+            item {
+                AppSection {
+                    AppEmptyState(
+                        if (controller.cloudAvailable) {
+                            "暂无可用的云端设置项。请确认车辆已绑定且账号有权限。"
+                        } else {
+                            "登录并绑定车辆后，设置项会从云端加载。"
+                        },
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -90,6 +127,16 @@ private fun CarSettingRow(
     pending: Boolean,
     onUpdate: ((CarSettingKind) -> CarSettingKind) -> Unit,
 ) {
+    val summary = buildString {
+        if (pending) {
+            append("正在保存…")
+        } else {
+            append(item.summary)
+            append(" · ")
+            append(item.channel.label)
+            if (!item.writable) append(" · 只读")
+        }
+    }
     when (val kind = item.kind) {
         is CarSettingKind.Toggle -> AppSwitchPreference(
             checked = kind.checked,
@@ -97,12 +144,12 @@ private fun CarSettingRow(
                 onUpdate { (it as? CarSettingKind.Toggle)?.copy(checked = checked) ?: it }
             },
             title = item.title,
-            summary = if (pending) "正在保存…" else "${item.summary} · ${item.channel.label}",
+            summary = summary,
             enabled = enabled,
         )
         is CarSettingKind.Choice -> AppPopupPreference(
             title = item.title,
-            summary = if (pending) "正在保存…" else "${item.summary} · ${item.channel.label}",
+            summary = summary,
             options = kind.options,
             selectedIndex = kind.selectedIndex,
             onSelectedIndexChange = { index ->
@@ -114,7 +161,7 @@ private fun CarSettingRow(
             var draft by remember(item.id, kind.value) { mutableStateOf(kind.value) }
             AppSliderPreference(
                 title = item.title,
-                summary = if (pending) "正在保存…" else "${item.summary} · ${item.channel.label}",
+                summary = summary,
                 value = draft,
                 onValueChange = { draft = it },
                 onValueChangeFinished = {
@@ -130,6 +177,11 @@ private fun CarSettingRow(
             title = item.title,
             summary = item.summary,
             value = kind.value,
+        )
+        is CarSettingKind.Entrance -> AppListRow(
+            title = item.title,
+            summary = item.summary,
+            value = kind.hint,
         )
     }
 }

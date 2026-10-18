@@ -5,7 +5,8 @@ import top.ghhccghk.yadea.auth.Crypto
 import top.ghhccghk.yadea.network.HttpRequest
 import top.ghhccghk.yadea.network.HttpTransport
 import top.ghhccghk.yadea.network.JsonSupport
-import top.ghhccghk.yadea.network.GatewayHeaders
+import top.ghhccghk.yadea.network.GatewayClientInfo
+import top.ghhccghk.yadea.network.GatewayRequestHeaders
 import top.ghhccghk.yadea.network.NetworkLog
 import top.ghhccghk.yadea.vehicle.VehicleProfile
 
@@ -23,6 +24,7 @@ class YadeaOtaGateway(
     private val loginIdProvider: () -> String = { "" },
     private val timestampProvider: () -> Long,
     private val baseUrl: String = DEFAULT_BASE_URL,
+    private val clientInfoProvider: () -> GatewayClientInfo = { GatewayClientInfo() },
 ) : OtaGateway {
 
     override suspend fun checkForUpdate(currentVersion: String): OtaPackage? {
@@ -84,18 +86,10 @@ class YadeaOtaGateway(
         if (token.isBlank()) return null
         val body = GatewaySigner.formBody(businessJson, timestampProvider())
         val url = baseUrl + path
-        val headers = GatewayHeaders.ensureGatewayAppId(
-            url,
-            buildMap {
-                put("Authorization", if (token.startsWith("Bearer ")) token else "Bearer $token")
-                put("req-id", timestampProvider().toString())
-                put("request-agent", "2")
-                put("deviceId", loginIdProvider())
-                put("os", "android")
-                put("app-name", "YADEA")
-                put("language", "zh_CN")
-                put("push-operator", "2")
-            },
+        val headers = GatewayRequestHeaders.build(
+            clientInfo = clientInfoProvider(),
+            deviceId = loginIdProvider(),
+            token = token,
         )
         NetworkLog.write(
             "OTA -> POST $url headers=${NetworkLog.headers(headers)} " +

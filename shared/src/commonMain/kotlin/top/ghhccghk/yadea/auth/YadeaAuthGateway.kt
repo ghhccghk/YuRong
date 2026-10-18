@@ -5,6 +5,8 @@ import top.ghhccghk.yadea.network.HttpResponse
 import top.ghhccghk.yadea.network.HttpTransport
 import top.ghhccghk.yadea.network.JsonSupport
 import top.ghhccghk.yadea.network.GatewayHeaders
+import top.ghhccghk.yadea.network.GatewayClientInfo
+import top.ghhccghk.yadea.network.GatewayRequestHeaders
 import top.ghhccghk.yadea.network.NetworkLog
 
 /**
@@ -19,6 +21,8 @@ class YadeaAuthGateway(
     private val deviceIdProvider: () -> String = { "" },
     private val registrationIdProvider: () -> String = { "" },
     private val baseUrl: String = DEFAULT_BASE_URL,
+    private val clientInfoProvider: () -> GatewayClientInfo = { GatewayClientInfo() },
+    private val oppoPushIdProvider: () -> String = { "" },
 ) : AuthGateway {
 
     override suspend fun loginByPassword(request: PasswordLoginRequest): AuthResult<AuthUser> {
@@ -28,7 +32,7 @@ class YadeaAuthGateway(
                 "account" to request.account,
                 "accountType" to request.accountType.value.toString(),
                 "appType" to "1",
-                "oppoPushId" to "",
+                "oppoPushId" to oppoPushIdProvider(),
                 "password" to request.password,
                 "registrationId" to registrationIdProvider(),
             ),
@@ -58,8 +62,7 @@ class YadeaAuthGateway(
                 "code" to code,
                 "loginAppType" to "1",
                 "mobile" to mobile,
-                "oppoPushId" to "",
-                "password" to "",
+                "oppoPushId" to oppoPushIdProvider(),
                 "registrationId" to registrationIdProvider(),
             ),
         )
@@ -128,29 +131,17 @@ class YadeaAuthGateway(
         return AuthResult.Success(plain)
     }
 
-    private fun commonHeaders(): Map<String, String> = buildMap {
-        put(GatewayHeaders.KEY_GATEWAY_APP_ID, GatewayHeaders.GATEWAY_APP_ID)
-        put("req-id", randomRequestId())
-        put("request-agent", "2")
-        put("deviceId", deviceIdProvider())
-        put("os", "android")
-        put("app-name", "YADEA")
-        put("language", "zh_CN")
-        put("push-operator", "2")
-    }
+    private fun commonHeaders(): Map<String, String> =
+        GatewayRequestHeaders.build(
+            clientInfo = clientInfoProvider(),
+            deviceId = deviceIdProvider(),
+        )
 
     private fun decryptResponse(response: HttpResponse): String? {
         if (response.status !in 200..299) return null
         val decoded = Crypto.urlDecode(response.body.trim())
         NetworkLog.write("AUTH decoded ${NetworkLog.body(decoded)}")
         return Crypto.aesEcbPkcs5Decrypt(GatewaySigner.AES_KEY, decoded) ?: decoded
-    }
-
-    private fun randomRequestId(): String {
-        val bytes = ByteArray(16) { (timestampProvider() + it * 31).toByte() }
-        return bytes.joinToString("") {
-            (it.toInt() and 0xFF).toString(16).padStart(2, '0')
-        }
     }
 
     private fun sortedJson(fields: Map<String, String>): String = buildString {

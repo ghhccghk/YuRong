@@ -12,7 +12,7 @@ import top.ghhccghk.yadea.network.GatewayHeaders
 
 class VehicleProfileGatewayTest {
     @Test
-    fun gatewayParsesVehicleImageLinkTagAndIot() = runBlocking {
+    fun gatewayKeepsBackgroundAndBodyImagesSeparate() = runBlocking {
         val body = """
             {"success":true,"data":[{
               "vin":"YD001",
@@ -47,7 +47,8 @@ class VehicleProfileGatewayTest {
         val profile = gateway.load()
         assertNotNull(profile)
         assertEquals("YD001", profile!!.vin)
-        assertEquals("https://cdn/linked.png", profile.vehicleImageUrl)
+        assertEquals("https://cdn/linked.png", profile.backgroundImageUrl)
+        assertEquals("https://cdn/normal.png", profile.vehicleImageUrl)
         assertTrue(profile.isLinkedModel)
         assertEquals("小雅", profile.bikeNickName)
         assertTrue(profile.iotService!!.isPermanentlyExpired)
@@ -55,7 +56,7 @@ class VehicleProfileGatewayTest {
     }
 
     @Test
-    fun gatewayFallsBackToImgUrlWhenSkinIsBlank() = runBlocking {
+    fun gatewayDoesNotUseBodyImageAsBackground() = runBlocking {
         val body = """{"data":[{"vin":"V","imgUrl":"https://cdn/normal.png","skinPicUrl":""}]}"""
         val gateway = YadeaVehicleProfileGateway(
             transport = object : HttpTransport {
@@ -63,7 +64,9 @@ class VehicleProfileGatewayTest {
             },
             tokenProvider = { "t" },
         )
-        assertEquals("https://cdn/normal.png", gateway.load()!!.vehicleImageUrl)
+        val profile = gateway.load()!!
+        assertEquals("", profile.backgroundImageUrl)
+        assertEquals("https://cdn/normal.png", profile.vehicleImageUrl)
     }
 
     @Test

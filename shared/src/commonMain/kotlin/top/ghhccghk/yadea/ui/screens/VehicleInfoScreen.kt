@@ -33,6 +33,7 @@ fun VehicleInfoScreen(
     connected: Boolean,
     contentPadding: PaddingValues,
     profile: VehicleProfile? = null,
+    vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)? = null,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)? = null,
     onOpenIotRenewal: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -54,6 +55,7 @@ fun VehicleInfoScreen(
             VehicleHeroCard(
                 model = model,
                 profile = profile,
+                vehicleBackgroundContent = vehicleBackgroundContent,
                 vehicleImageContent = vehicleImageContent,
             )
         }
@@ -171,6 +173,7 @@ fun VehicleInfoScreen(
 private fun VehicleHeroCard(
     model: VehicleInfoUiModel,
     profile: VehicleProfile?,
+    vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)?,
 ) {
     val dimensions = AppDesign.dimensions
@@ -204,13 +207,24 @@ private fun VehicleHeroCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(AppDesign.shapes.section)
-            .background(background)
-            .padding(
+            .background(background),
+    ) {
+        val backgroundImageUrl = profile?.backgroundImageUrl.orEmpty()
+        if (backgroundImageUrl.isNotBlank() && vehicleBackgroundContent != null) {
+            vehicleBackgroundContent(backgroundImageUrl, Modifier.matchParentSize())
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(AppDesign.colors.surface.copy(alpha = 0.22f)),
+            )
+        }
+        Column(
+            modifier = Modifier.padding(
                 horizontal = dimensions.itemHorizontalPadding,
                 vertical = dimensions.itemVerticalPadding,
             ),
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(dimensions.compactSpacing)) {
+            verticalArrangement = Arrangement.spacedBy(dimensions.compactSpacing),
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

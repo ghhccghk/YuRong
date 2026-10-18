@@ -19,8 +19,10 @@ import org.lsposed.hiddenapibypass.LSPass
 import top.ghhccghk.yadea.ble.AndroidBleAdapter
 import top.ghhccghk.yadea.settings.AppPreferences
 import top.ghhccghk.yadea.settings.SharedPreferencesPreferenceStore
+import top.ghhccghk.yadea.network.GatewayClientInfo
 import top.ghhccghk.yadea.network.createHttpTransport
 import top.ghhccghk.yadea.auth.YadeaAuthGateway
+import top.ghhccghk.yadea.carsetting.YadeaCarSettingsGateway
 import top.ghhccghk.yadea.ota.YadeaOtaGateway
 import top.ghhccghk.yadea.ui.MainScreen
 import top.ghhccghk.yadea.ui.initAndroidFileLogger
@@ -90,6 +92,20 @@ class MainActivity : ComponentActivity() {
         val deviceIdProvider = {
             appPreferences.readAuth().loginId.ifBlank { bootstrapDeviceId }
         }
+        val packageInfo = packageManager.getPackageInfo(packageName, 0)
+        val clientInfo = GatewayClientInfo(
+            appVersion = packageInfo.versionName.orEmpty(),
+            appVersionNum = packageInfo.versionCode.toString(),
+            appMarket = applicationInfo.metaData
+                ?.getString("BUGLY_APP_CHANNEL")
+                .orEmpty()
+                .ifBlank { "Yadea" },
+            appVersionType = "1",
+            deviceBrand = Build.BRAND,
+            phoneModel = Build.MODEL,
+            // CarType.SERIES_4.key；没有云端车辆系列时原客户端也回退到该值。
+            bikeSeriesCode = "4",
+        )
         val httpTransport = createHttpTransport()
         val vehicleProfileSource = MutableVehicleProfileSource()
         val profileController = VehicleProfileController(
@@ -98,6 +114,7 @@ class MainActivity : ComponentActivity() {
                 transport = httpTransport,
                 tokenProvider = { appPreferences.readAuth().token },
                 loginIdProvider = deviceIdProvider,
+                clientInfoProvider = { clientInfo },
             ),
             scope = lifecycleScope,
         )
@@ -106,12 +123,21 @@ class MainActivity : ComponentActivity() {
             transport = httpTransport,
             timestampProvider = { System.currentTimeMillis() },
             deviceIdProvider = deviceIdProvider,
+            clientInfoProvider = { clientInfo },
         )
         val otaGateway = YadeaOtaGateway(
             transport = httpTransport,
             profileProvider = { vehicleProfileSource.profile.value },
             tokenProvider = { appPreferences.readAuth().token },
             loginIdProvider = deviceIdProvider,
+            timestampProvider = { System.currentTimeMillis() },
+            clientInfoProvider = { clientInfo },
+        )
+        val carSettingsGateway = YadeaCarSettingsGateway(
+            transport = httpTransport,
+            tokenProvider = { appPreferences.readAuth().token },
+            deviceIdProvider = deviceIdProvider,
+            clientInfoProvider = { clientInfo },
             timestampProvider = { System.currentTimeMillis() },
         )
         val frameSourceFactory = AndroidFrameSourceFactory(this, this)
@@ -127,6 +153,7 @@ class MainActivity : ComponentActivity() {
                 carSettingCommandSink = AndroidVehicleSettingCommandSink(vehicleBleAdapter),
                 authGateway = authGateway,
                 otaGateway = otaGateway,
+                carSettingsGateway = carSettingsGateway,
                 p2pManager = p2pManager,
                 frameSourceFactory = frameSourceFactory,
                 permissionChecker = permissionChecker,
@@ -139,8 +166,11 @@ class MainActivity : ComponentActivity() {
                     }
                 },
                 onRefreshVehicleProfile = profileController::refresh,
+                vehicleBackgroundContent = { url, modifier ->
+                    AndroidVehicleBackgroundImage(url, modifier)
+                },
                 vehicleImageContent = { url, modifier ->
-                    AndroidVehicleImage(url, modifier)
+                    AndroidVehicleBodyImage(url, modifier)
                 },
                 systemAccentColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     Color(ContextCompat.getColor(this@MainActivity, android.R.color.system_accent1_500))

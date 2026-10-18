@@ -19,6 +19,26 @@ internal object JsonSupport {
         return readBalanced(json, objectStart, '{', '}')
     }
 
+    fun arrayObjects(json: String, key: String): List<String> {
+        val index = findKey(json, key) ?: return emptyList()
+        val arrayStart = json.indexOf('[', index)
+        if (arrayStart < 0) return emptyList()
+        val result = mutableListOf<String>()
+        var i = arrayStart + 1
+        while (i < json.length) {
+            while (i < json.length && (json[i].isWhitespace() || json[i] == ',')) i++
+            if (i >= json.length || json[i] == ']') break
+            if (json[i] != '{') {
+                i++
+                continue
+            }
+            val item = readBalanced(json, i, '{', '}') ?: break
+            result += item
+            i += item.length
+        }
+        return result
+    }
+
     fun string(json: String, key: String): String? {
         val match = Regex("\"${Regex.escape(key)}\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"")
             .find(json) ?: return null

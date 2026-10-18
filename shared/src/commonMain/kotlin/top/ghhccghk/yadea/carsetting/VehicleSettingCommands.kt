@@ -29,7 +29,40 @@ class MappedCarSettingWriter(
 
 object VehicleSettingCommands {
 
-    fun forItem(item: CarSettingItem): VehicleSettingCommand? = when (item.id) {
+    fun supports(configId: String, kind: CarSettingKind): Boolean =
+        forConfigId(configId, kind) != null
+
+    /**
+     * 云端 `BikeConfig.confId` 对应的已确认命令。
+     *
+     * 只有能生成完整 `5944...4B4A` 帧的项才标为可写；其余云端项仍会展示，
+     * 但保持只读，避免向车辆发送猜测出来的命令。
+     */
+    fun forConfigId(configId: String, kind: CarSettingKind): VehicleSettingCommand? =
+        when (configId) {
+            "45" -> toggle(
+                kind = kind,
+                onType = "CONST_SPEED_OPEN",
+                offType = "CONST_SPEED_CLOSE",
+                onId = 0x92,
+                offId = 0x93,
+            )
+            "13" -> toggle(
+                kind = kind,
+                onType = "WARING_SOUND_OPEN",
+                offType = "WARING_SOUND_CLOSE",
+                onId = 0x62,
+                offId = 0x63,
+            )
+            else -> null
+        }
+
+    fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        forConfigId(item.configId, item.kind)?.let { return it }
+        return forLegacyItem(item)
+    }
+
+    private fun forLegacyItem(item: CarSettingItem): VehicleSettingCommand? = when (item.id) {
         "security.auto_lock" -> toggle(
             item = item,
             onType = "LEAVE_THE_CAR_AUTO_LOCK_ON",
@@ -77,6 +110,23 @@ object VehicleSettingCommands {
             offParameter = 0,
         )
         else -> null
+    }
+
+    private fun toggle(
+        kind: CarSettingKind,
+        onType: String,
+        offType: String,
+        onId: Int,
+        offId: Int,
+        onParameter: Int = -1,
+        offParameter: Int = -1,
+    ): VehicleSettingCommand? {
+        val toggle = kind as? CarSettingKind.Toggle ?: return null
+        return if (toggle.checked) {
+            VehicleSettingCommand(onType, onId, onParameter)
+        } else {
+            VehicleSettingCommand(offType, offId, offParameter)
+        }
     }
 
     private fun toggle(

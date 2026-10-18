@@ -7,12 +7,23 @@ import kotlinx.coroutines.flow.asStateFlow
 enum class CarSettingClassification(val label: String) {
     SECURITY("安全守护"),
     LIGHT("灯光音效"),
-    POWER("智慧充电"),
+    POWER("感应解锁"),
     RIDE_CONTROL("骑行控制"),
-    BATTERY("电池"),
+    BATTERY("智慧充电"),
     METER("智能仪表"),
     LABORATORY("实验室"),
+    OTHER("其他"),
 }
+
+/** 云端 `BikeConfig.parentId/parentName` 对应的分组。 */
+data class CarSettingGroup(
+    val id: String,
+    val title: String,
+    val sort: Int,
+)
+
+private fun CarSettingClassification.asGroup(): CarSettingGroup =
+    CarSettingGroup(name, label, ordinal)
 
 enum class CarSettingChannel(val label: String) {
     BLE("蓝牙"),
@@ -31,6 +42,8 @@ sealed interface CarSettingKind {
         val unit: String = "",
     ) : CarSettingKind
     data class Info(val value: String) : CarSettingKind
+    /** 云端下发、需要进入二级页面的入口；当前只展示云端提示。 */
+    data class Entrance(val hint: String = "进入设置") : CarSettingKind
 }
 
 data class CarSettingItem(
@@ -38,15 +51,21 @@ data class CarSettingItem(
     val title: String,
     val summary: String,
     val classification: CarSettingClassification,
+    val group: CarSettingGroup = classification.asGroup(),
     val channel: CarSettingChannel,
     val kind: CarSettingKind,
     val writable: Boolean = true,
+    val sort: Int = 0,
+    /** 云端 `BikeConfig.confId`；本地预览项可以留空。 */
+    val configId: String = id,
 )
 
 data class CarSettingsState(
-    val items: List<CarSettingItem>,
+    val items: List<CarSettingItem> = emptyList(),
     val pendingIds: Set<String> = emptySet(),
     val message: String? = null,
+    val loading: Boolean = false,
+    val loadedFromCloud: Boolean = false,
 )
 
 /** 平台侧把设置值翻译成 BLE `CommandTempBean` 或 IoT 请求。 */
@@ -61,12 +80,62 @@ interface CarSettingWriter {
  * 往返时卡住；失败信息保留到下一次操作或手动清除。
  */
 class CarSettingsController(
-    initialItems: List<CarSettingItem>,
+    initialItems: List<CarSettingItem> = emptyList(),
     private val writer: CarSettingWriter?,
-    val available: Boolean = writer != null,
+    private val gateway: CarSettingsGateway? = null,
+    private val vinProvider: () -> String = { "" },
 ) {
     private val _state = MutableStateFlow(CarSettingsState(initialItems))
     val state: StateFlow<CarSettingsState> = _state.asStateFlow()
+
+    val available: Boolean
+        get() = writer != null
+
+    val cloudAvailable: Boolean
+        get() = gateway != null
+
+    /**
+     * 从云端重新拉取当前 VIN 的可用设置项。
+     *
+     * 云端清单是唯一的项目/分组/权限来源；本地注册表只用于离线预览和单测。
+     */
+    suspend fun refresh(): Boolean {
+        if (_state.value.loading) return false
+        val activeGateway = gateway
+        if (activeGateway == null) {
+            _state.value = _state.value.copy(
+                loading = false,
+                message = "云端设置服务未接入",
+            )
+            return false
+        }
+        val vin = vinProvider().trim()
+        if (vin.isBlank()) {
+            _state.value = _state.value.copy(
+                loading = false,
+                message = "登录并绑定车辆后加载云端设置",
+            )
+            return false
+        }
+        _state.value = _state.value.copy(loading = true, message = null)
+        val cloud = runCatching { activeGateway.load(vin) }.getOrNull()
+        if (cloud == null) {
+            _state.value = _state.value.copy(
+                loading = false,
+                message = "云端设置加载失败，请稍后重试",
+            )
+            return false
+        }
+        val items = CloudCarSettingMapper.toItems(cloud)
+        _state.value = _state.value.copy(
+            items = items,
+            pendingIds = emptySet(),
+            loading = false,
+            loadedFromCloud = true,
+            message = if (items.isEmpty()) "云端未返回可用设置项" else null,
+        )
+        return true
+    }
 
     suspend fun update(id: String, transform: (CarSettingKind) -> CarSettingKind): Boolean {
         val current = _state.value

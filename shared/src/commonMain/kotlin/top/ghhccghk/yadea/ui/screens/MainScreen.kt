@@ -31,10 +31,10 @@ import top.ghhccghk.yadea.auth.AuthController
 import top.ghhccghk.yadea.auth.AuthGateway
 import top.ghhccghk.yadea.auth.AuthSession
 import top.ghhccghk.yadea.carsetting.CarSettingWriter
+import top.ghhccghk.yadea.carsetting.CarSettingsGateway
 import top.ghhccghk.yadea.carsetting.MappedCarSettingWriter
 import top.ghhccghk.yadea.carsetting.VehicleSettingCommandSink
 import top.ghhccghk.yadea.carsetting.CarSettingsController
-import top.ghhccghk.yadea.carsetting.CarSettingsRegistry
 import top.ghhccghk.yadea.mirror.FrameSourceFactory
 import top.ghhccghk.yadea.mirror.MediaSourcePicker
 import top.ghhccghk.yadea.mirror.ScreenCaptureAuthorizer
@@ -93,9 +93,11 @@ fun MainScreen(
     authGateway: AuthGateway? = null,
     carSettingWriter: CarSettingWriter? = null,
     carSettingCommandSink: VehicleSettingCommandSink? = null,
+    carSettingsGateway: CarSettingsGateway? = null,
     otaGateway: OtaGateway? = null,
     onOpenExternalUrl: ((String) -> Unit)? = null,
     onRefreshVehicleProfile: (() -> Unit)? = null,
+    vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)? = null,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)? = null,
     systemAccentColor: androidx.compose.ui.graphics.Color? = null,
 ) {
@@ -125,11 +127,18 @@ fun MainScreen(
     val authController = remember(resolvedPreferences, authGateway) {
         AuthController(AuthSession(resolvedPreferences), authGateway, featureScope)
     }
+    val authUiState by authController.state.collectAsState()
     val resolvedCarSettingWriter = carSettingWriter ?: carSettingCommandSink?.let(::MappedCarSettingWriter)
-    val carSettingsController = remember(resolvedCarSettingWriter) {
+    val carSettingsController = remember(
+        resolvedCarSettingWriter,
+        carSettingsGateway,
+        resolvedProfileSource,
+    ) {
         CarSettingsController(
-            initialItems = CarSettingsRegistry.defaultItems(),
+            initialItems = emptyList(),
             writer = resolvedCarSettingWriter,
+            gateway = carSettingsGateway,
+            vinProvider = { resolvedProfileSource.profile.value?.vin.orEmpty() },
         )
     }
     val otaController = remember(otaGateway) {
@@ -145,10 +154,14 @@ fun MainScreen(
             otaController.dispose()
         }
     }
-    val authUiState by authController.state.collectAsState()
     LaunchedEffect(authUiState.session.isLoggedIn) {
         if (authUiState.session.isLoggedIn) {
             onRefreshVehicleProfile?.invoke()
+        }
+    }
+    LaunchedEffect(vehicleProfile?.vin, authUiState.session.isLoggedIn, carSettingsGateway) {
+        if (authUiState.session.isLoggedIn && !vehicleProfile?.vin.isNullOrBlank()) {
+            carSettingsController.refresh()
         }
     }
 
@@ -168,6 +181,7 @@ fun MainScreen(
             vehicleStatus = vehicleStatus,
             vehicleConnected = vehicleConnected,
             vehicleProfile = vehicleProfile,
+            vehicleBackgroundContent = vehicleBackgroundContent,
             vehicleImageContent = vehicleImageContent,
             onOpenExternalUrl = onOpenExternalUrl,
             authController = authController,
@@ -188,6 +202,7 @@ private fun MainScreenContent(
     vehicleStatus: TtpInfo?,
     vehicleConnected: Boolean,
     vehicleProfile: VehicleProfile?,
+    vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)?,
     onOpenExternalUrl: ((String) -> Unit)?,
     authController: AuthController,
@@ -293,6 +308,7 @@ private fun MainScreenContent(
             vehicleStatus = vehicleStatus,
             vehicleConnected = vehicleConnected,
             vehicleProfile = vehicleProfile,
+            vehicleBackgroundContent = vehicleBackgroundContent,
             vehicleImageContent = vehicleImageContent,
             onOpenExternalUrl = onOpenExternalUrl,
             authController = authController,
@@ -384,6 +400,7 @@ private fun MainDestinationContent(
     vehicleStatus: TtpInfo?,
     vehicleConnected: Boolean,
     vehicleProfile: VehicleProfile?,
+    vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)?,
     onOpenExternalUrl: ((String) -> Unit)?,
     authController: AuthController,
@@ -411,6 +428,7 @@ private fun MainDestinationContent(
                 status = vehicleStatus,
                 connected = vehicleConnected,
                 profile = vehicleProfile,
+                vehicleBackgroundContent = vehicleBackgroundContent,
                 vehicleImageContent = vehicleImageContent,
                 onOpenIotRenewal = onOpenExternalUrl,
                 authController = authController,

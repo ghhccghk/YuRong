@@ -36,6 +36,7 @@ internal fun VehicleHubScreen(
     status: TtpInfo?,
     connected: Boolean,
     profile: VehicleProfile?,
+    vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)? = null,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)? = null,
     onOpenIotRenewal: ((String) -> Unit)? = null,
     authController: AuthController,
@@ -67,6 +68,7 @@ internal fun VehicleHubScreen(
                     connected = connected,
                     contentPadding = pagePadding,
                     profile = profile,
+                    vehicleBackgroundContent = vehicleBackgroundContent,
                     vehicleImageContent = vehicleImageContent,
                     onOpenIotRenewal = onOpenIotRenewal,
                 )

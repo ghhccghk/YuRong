@@ -4,7 +4,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.network.HttpRequest
 import top.ghhccghk.yadea.network.HttpTransport
-import top.ghhccghk.yadea.network.GatewayHeaders
+import top.ghhccghk.yadea.network.GatewayClientInfo
+import top.ghhccghk.yadea.network.GatewayRequestHeaders
 import top.ghhccghk.yadea.network.NetworkLog
 
 interface VehicleProfileGateway {
@@ -22,23 +23,17 @@ class YadeaVehicleProfileGateway(
     private val tokenProvider: () -> String,
     private val loginIdProvider: () -> String = { "" },
     private val baseUrl: String = DEFAULT_BASE_URL,
+    private val clientInfoProvider: () -> GatewayClientInfo = { GatewayClientInfo() },
 ) : VehicleProfileGateway {
 
     override suspend fun load(): VehicleProfile? {
         val token = tokenProvider().trim()
         if (token.isBlank()) return null
         val url = baseUrl + "userBike/queryBindingBike"
-        val headers = GatewayHeaders.ensureGatewayAppId(
-            url,
-            buildMap {
-                put("Authorization", if (token.startsWith("Bearer ")) token else "Bearer $token")
-                put("request-agent", "2")
-                put("deviceId", loginIdProvider())
-                put("os", "android")
-                put("app-name", "YADEA")
-                put("language", "zh_CN")
-                put("push-operator", "2")
-            },
+        val headers = GatewayRequestHeaders.build(
+            clientInfo = clientInfoProvider(),
+            deviceId = loginIdProvider(),
+            token = token,
         )
         NetworkLog.write("PROFILE -> GET $url headers=${NetworkLog.headers(headers)}")
         val response = transport.execute(
@@ -56,14 +51,13 @@ class YadeaVehicleProfileGateway(
         )
         if (response.status !in 200..299) return null
         val objectText = firstDataObject(response.body) ?: return null
-        val image = stringField(objectText, "skinPicUrl").orEmpty()
-            .ifBlank { stringField(objectText, "imgUrl").orEmpty() }
         return VehicleProfile(
             vin = stringField(objectText, "vin").orEmpty(),
             modelNo = stringField(objectText, "modelNo").orEmpty(),
             modelName = stringField(objectText, "modelName").orEmpty(),
             dLinkTag = stringField(objectText, "dLinkTag").orEmpty(),
-            vehicleImageUrl = image,
+            backgroundImageUrl = stringField(objectText, "skinPicUrl").orEmpty(),
+            vehicleImageUrl = stringField(objectText, "imgUrl").orEmpty(),
             bikeNickName = stringField(objectText, "bikeNickName").orEmpty(),
             iotService = intField(objectText, "iotExpireDays")?.let { days ->
                 VehicleIotServiceInfo(

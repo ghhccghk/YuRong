@@ -7,8 +7,9 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * 云端车辆资料（`VehicleInfoBean` 的 UI 子集）。
  *
- * 车图来自 `VehicleInfoBean.getVehicleImage()`：
- * `skinPicUrl` 非空时优先，否则回退 `imgUrl`。
+ * 两个图片字段语义不同：
+ * - `skinPicUrl` 是车辆页背景图；
+ * - `imgUrl` 是车辆本体图（`getVehicleImage()` 也只在车本体位置使用它）。
  */
 data class VehicleProfile(
     val vin: String = "",
@@ -16,6 +17,9 @@ data class VehicleProfile(
     val modelName: String = "",
     /** 联动款标记；原实现用 `dLinkTag`/车型号判断联动款。 */
     val dLinkTag: String = "",
+    /** `VehicleInfoBean.skinPicUrl`，车辆页背景图。 */
+    val backgroundImageUrl: String = "",
+    /** `VehicleInfoBean.imgUrl`，车辆本体图。 */
     val vehicleImageUrl: String = "",
     val bikeNickName: String = "",
     val iotService: VehicleIotServiceInfo? = null,

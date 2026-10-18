@@ -2,8 +2,10 @@ package top.ghhccghk.yadea.auth
 
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import top.ghhccghk.yadea.network.GatewayClientInfo
 import top.ghhccghk.yadea.network.HttpRequest
 import top.ghhccghk.yadea.network.HttpResponse
 import top.ghhccghk.yadea.network.HttpTransport
@@ -12,6 +14,14 @@ import top.ghhccghk.yadea.network.GatewayHeaders
 class YadeaAuthGatewayTest {
     private fun encrypted(body: String): String =
         Crypto.urlEncode(Crypto.aesEcbPkcs5Encrypt(GatewaySigner.AES_KEY, body))
+
+    private fun signedJson(body: String): String {
+        val sign = body.split('&')
+            .first { it.startsWith("gatewaySign=") }
+            .substringAfter('=')
+        val plain = Crypto.aesEcbPkcs5Decrypt(GatewaySigner.AES_KEY, Crypto.urlDecode(sign))!!
+        return plain.substringAfter("&json=")
+    }
 
     @Test
     fun passwordLogin_postsSignedFormAndParsesUser() = runBlocking {
@@ -29,8 +39,21 @@ class YadeaAuthGatewayTest {
                     GatewayHeaders.GATEWAY_APP_ID,
                     request.headers[GatewayHeaders.KEY_GATEWAY_APP_ID],
                 )
+                assertEquals("8.2.0", request.headers["app-version"])
+                assertEquals("80200", request.headers["app-version-num"])
+                assertEquals("Yadea", request.headers["app-market"])
+                assertEquals("1", request.headers["app-version-type"])
+                assertEquals("4", request.headers["bike-series-code"])
+                assertEquals("XIAOMI", request.headers["device-brand"])
+                assertEquals("2211133C", request.headers["phone-model"])
+                assertTrue(request.headers["req-id"]!!.matches(Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")))
                 assertTrue(request.body!!.contains("gatewaySign="))
                 assertTrue(request.body.contains("gatewayTimestamp="))
+                val payload = signedJson(request.body)
+                assertTrue(payload.contains("\"accountType\":\"1\""))
+                assertTrue(payload.contains("\"appType\":\"1\""))
+                assertTrue(payload.contains("\"oppoPushId\":\"oppo-1\""))
+                assertTrue(payload.contains("\"registrationId\":\"push-1\""))
                 return HttpResponse(200, encrypted(plain))
             }
         }
@@ -39,6 +62,17 @@ class YadeaAuthGatewayTest {
             timestampProvider = { 1_700_000_000_000L },
             deviceIdProvider = { "device-1" },
             registrationIdProvider = { "push-1" },
+            oppoPushIdProvider = { "oppo-1" },
+            clientInfoProvider = {
+                GatewayClientInfo(
+                    appVersion = "8.2.0",
+                    appVersionNum = "80200",
+                    appMarket = "Yadea",
+                    deviceBrand = "XIAOMI",
+                    phoneModel = "2211133C",
+                    bikeSeriesCode = "4",
+                )
+            },
         )
 
         val result = gateway.loginByPassword(
@@ -53,16 +87,22 @@ class YadeaAuthGatewayTest {
     @Test
     fun failedLogin_returnsServerMessage() = runBlocking {
         val plain = """{"success":false,"code":1001,"msg":"密码错误"}"""
+        var requestBody = ""
         val gateway = YadeaAuthGateway(
             transport = object : HttpTransport {
-                override suspend fun execute(request: HttpRequest) =
-                    HttpResponse(200, encrypted(plain))
+                override suspend fun execute(request: HttpRequest): HttpResponse {
+                    requestBody = request.body.orEmpty()
+                    return HttpResponse(200, encrypted(plain))
+                }
             },
             timestampProvider = { 1L },
         )
         val result = gateway.loginBySms("13800138000", "1234")
         assertTrue(result is AuthResult.Failure)
         assertEquals("密码错误", (result as AuthResult.Failure).message)
+        val payload = signedJson(requestBody)
+        assertFalse(payload.contains("\"password\""))
+        assertTrue(payload.contains("\"loginAppType\":\"1\""))
     }
 
     @Test
