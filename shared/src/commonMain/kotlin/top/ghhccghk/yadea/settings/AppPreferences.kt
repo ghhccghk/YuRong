@@ -200,6 +200,22 @@ class AppPreferences(
         return PreferenceWriteResult.Success
     }
 
+    /**
+     * 生成并保存首次启动的设备标识。
+     *
+     * 原客户端的 `deviceId` 与登录态分开维护：首次请求前就要存在，
+     * 不能等登录成功后才生成。已有值不会被覆盖。
+     */
+    suspend fun ensureDeviceId(candidate: String): String {
+        val current = store.read(AppPreferenceKeys.loginId)
+        if (current.isNotBlank()) return current
+        if (candidate.isBlank()) return ""
+        return when (val result = writeTyped(AppPreferenceKeys.loginId, candidate)) {
+            PreferenceWriteResult.Success -> candidate
+            is PreferenceWriteResult.Failure -> candidate
+        }
+    }
+
     private suspend fun writeTyped(key: PreferenceKey<*>, value: Any): PreferenceWriteResult =
         when (key.type) {
             PreferenceType.Boolean -> store.write(key as PreferenceKey<Boolean>, value as Boolean)

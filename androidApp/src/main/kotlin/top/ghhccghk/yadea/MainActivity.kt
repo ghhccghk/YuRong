@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.lsposed.hiddenapibypass.LSPass
 import top.ghhccghk.yadea.ble.AndroidBleAdapter
@@ -32,6 +33,7 @@ import top.ghhccghk.yadea.mirror.source.AndroidFrameSourceFactory
 import top.ghhccghk.yadea.mirror.MediaSourcePicker
 import top.ghhccghk.yadea.mirror.ScreenCaptureAuthorizer
 import top.ghhccghk.yadea.ui.AndroidPermissionChecker
+import java.util.UUID
 
 class MainActivity : ComponentActivity() {
 
@@ -79,6 +81,15 @@ class MainActivity : ComponentActivity() {
         val vehicleStatus = BleVehicleStatusSource(vehicleBleAdapter, lifecycleScope)
             .also { vehicleStatusSource = it }
         val appPreferences = AppPreferences(SharedPreferencesPreferenceStore(this))
+        val bootstrapDeviceId = appPreferences.readAuth().loginId.ifBlank {
+            UUID.randomUUID().toString()
+        }
+        lifecycleScope.launch {
+            appPreferences.ensureDeviceId(bootstrapDeviceId)
+        }
+        val deviceIdProvider = {
+            appPreferences.readAuth().loginId.ifBlank { bootstrapDeviceId }
+        }
         val httpTransport = createHttpTransport()
         val vehicleProfileSource = MutableVehicleProfileSource()
         val profileController = VehicleProfileController(
@@ -86,7 +97,7 @@ class MainActivity : ComponentActivity() {
             gateway = YadeaVehicleProfileGateway(
                 transport = httpTransport,
                 tokenProvider = { appPreferences.readAuth().token },
-                loginIdProvider = { appPreferences.readAuth().loginId },
+                loginIdProvider = deviceIdProvider,
             ),
             scope = lifecycleScope,
         )
@@ -94,13 +105,13 @@ class MainActivity : ComponentActivity() {
         val authGateway = YadeaAuthGateway(
             transport = httpTransport,
             timestampProvider = { System.currentTimeMillis() },
-            deviceIdProvider = { appPreferences.readAuth().loginId },
+            deviceIdProvider = deviceIdProvider,
         )
         val otaGateway = YadeaOtaGateway(
             transport = httpTransport,
             profileProvider = { vehicleProfileSource.profile.value },
             tokenProvider = { appPreferences.readAuth().token },
-            loginIdProvider = { appPreferences.readAuth().loginId },
+            loginIdProvider = deviceIdProvider,
             timestampProvider = { System.currentTimeMillis() },
         )
         val frameSourceFactory = AndroidFrameSourceFactory(this, this)
