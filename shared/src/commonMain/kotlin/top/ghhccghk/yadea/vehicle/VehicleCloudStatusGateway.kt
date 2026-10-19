@@ -46,6 +46,8 @@ data class VehicleCloudStatus(
     val totalMileage: String = "",
     val currentOdoValue: Float? = null,
     val soc: Int? = null,
+    val soc1: String = "",
+    val soc2: String = "",
 )
 
 interface VehicleCloudStatusGateway {
@@ -98,12 +100,73 @@ class YadeaVehicleCloudStatusGateway(
             currentOdoValue = text(data, "currentOdoValue").toFloatOrNull(),
             soc = JsonSupport.int(data, "totalSoc")
                 ?: JsonSupport.string(data, "soc1")?.toIntOrNull(),
+            soc1 = JsonSupport.string(data, "soc1").orEmpty(),
+            soc2 = JsonSupport.string(data, "soc2").orEmpty(),
         )
+        val estimated = loadEstimatedMileage(normalizedVin, status.soc1, status.soc2)
         NetworkLog.write(
             "CLOUD_STATUS values rem=${status.remainingMileage} " +
-                "total=${status.totalMileage} odo=${status.currentOdoValue} soc=${status.soc}",
+                "estimate=${estimated.orEmpty()} total=${status.totalMileage} " +
+                "odo=${status.currentOdoValue} soc=${status.soc} " +
+                "soc1=${status.soc1} soc2=${status.soc2}",
         )
-        return status
+        return status.copy(remainingMileage = estimated ?: status.remainingMileage)
+    }
+
+    /**
+     * 原 App 首页的剩余续航来自 `estimateMileage/cal2`：
+     * `RemainingMileageData.estimateMileage`，而不是 `remMileage`。
+     */
+    private suspend fun loadEstimatedMileage(
+        vin: String,
+        soc1: String,
+        soc2: String,
+    ): String? {
+        if (soc1.isBlank()) return null
+        val businessJson = sortedJson(
+            mapOf(
+                "_gateway" to "True",
+                "soc1" to soc1,
+                "soc2" to soc2.ifBlank { "0" },
+                "vin" to vin,
+            ),
+        )
+        val url = baseUrl + ESTIMATE_PATH + "?" +
+            GatewaySigner.formBody(businessJson, timestampProvider())
+        val headers = GatewayRequestHeaders.build(
+            clientInfo = clientInfoProvider(),
+            deviceId = loginIdProvider(),
+            token = tokenProvider().trim(),
+        )
+        val response = transport.execute(
+            HttpRequest(method = "GET", url = url, headers = headers),
+        ) ?: return null
+        if (response.status !in 200..299) return null
+        val decoded = Crypto.urlDecode(response.body.trim())
+        val plain = Crypto.aesEcbPkcs5Decrypt(GatewaySigner.AES_KEY, decoded) ?: decoded
+        if (JsonSupport.boolean(plain, "success") == false) return null
+        val data = JsonSupport.objectField(plain, "data") ?: plain
+        val estimate = JsonSupport.numberText(data, "estimateMileage")
+            ?.toDoubleOrNull()
+            ?: JsonSupport.string(data, "estimateMileage")?.toDoubleOrNull()
+            ?: return null
+        val rounded = round(estimate.toFloat() * 10f) / 10f
+        return if (rounded == rounded.toInt().toFloat()) {
+            rounded.toInt().toString()
+        } else {
+            rounded.toString()
+        }
+    }
+
+    private fun sortedJson(fields: Map<String, String>): String = buildString {
+        append('{')
+        fields.keys.sorted().forEachIndexed { index, key ->
+            if (index > 0) append(',')
+            append('"').append(key).append("\":\"")
+                .append(fields.getValue(key).replace("\\", "\\\\").replace("\"", "\\\""))
+                .append('"')
+        }
+        append('}')
     }
 
     private fun text(json: String, key: String): String =
@@ -116,6 +179,7 @@ class YadeaVehicleCloudStatusGateway(
 
     companion object {
         const val PATH = "bikeRealStatus/getVehRealStatus"
+        const val ESTIMATE_PATH = "vehiclebase/estimateMileage/cal2"
         const val DEFAULT_BASE_URL = "https://gw.yadeaiot.com.cn/api/app/"
     }
 }
