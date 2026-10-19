@@ -30,6 +30,7 @@ fun CarSettingsScreen(
     val scope = rememberCoroutineScope()
     val dimensions = AppDesign.dimensions
     var confirmDisable by remember { mutableStateOf<CarSettingItem?>(null) }
+    var detailItem by remember { mutableStateOf<CarSettingItem?>(null) }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -97,6 +98,7 @@ fun CarSettingsScreen(
                                 item.writable &&
                                 item.id !in state.pendingIds,
                             pending = item.id in state.pendingIds,
+                            onOpenDetail = { detailItem = item },
                             onUpdate = { transform ->
                                 val next = transform(item.kind)
                                 if (next is CarSettingKind.Toggle &&
@@ -145,6 +147,22 @@ fun CarSettingsScreen(
         },
         onDismissRequest = { confirmDisable = null },
     )
+
+    val detailTarget = detailItem
+    AppAlertDialog(
+        show = detailTarget != null,
+        title = detailTarget?.title.orEmpty(),
+        message = buildString {
+            append(detailTarget?.summary.orEmpty())
+            append("\n\n")
+            append(
+                "该功能在原 App 中通过独立子页面完成，当前版本尚未确认完整的云端写入或 BLE 参数，因此保持只读，避免向车辆发送不确定命令。",
+            )
+        },
+        onDismissRequest = { detailItem = null },
+        confirmText = "知道了",
+        onConfirm = { detailItem = null },
+    )
 }
 
 private val SAFETY_CONFIRM_IDS = setOf("37", "38")
@@ -154,6 +172,7 @@ private fun CarSettingRow(
     item: CarSettingItem,
     enabled: Boolean,
     pending: Boolean,
+    onOpenDetail: () -> Unit,
     onUpdate: ((CarSettingKind) -> CarSettingKind) -> Unit,
 ) {
     val summary = buildString {
@@ -217,11 +236,13 @@ private fun CarSettingRow(
             title = item.title,
             summary = item.summary,
             value = kind.value,
+            onClick = onOpenDetail,
         )
         is CarSettingKind.Entrance -> AppListRow(
             title = item.title,
             summary = item.summary,
             value = kind.hint,
+            onClick = onOpenDetail,
         )
     }
 }

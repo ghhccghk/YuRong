@@ -282,6 +282,33 @@ class CarSettingsController(
                 } else {
                     item
                 }
+                "62" -> when (val kind = item.kind) {
+                    is CarSettingKind.Toggle -> item.copy(
+                        kind = kind.copy(checked = status.extended.seatHeatSwitchStatus != 0),
+                    )
+                    is CarSettingKind.Choice -> item.copy(
+                        kind = kind.copy(
+                            selectedIndex = (status.extended.seatHeatLevelStatus - 1)
+                                .coerceIn(0, kind.options.lastIndex.coerceAtLeast(0)),
+                        ),
+                    )
+                    else -> item
+                }
+                "63" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.tPowerStatus != 0),
+                )
+                "72" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.longEnduranceStatus != 0),
+                )
+                "79" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.seatPowerStatus != 0),
+                )
+                "80" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.otdSwitch != 0),
+                )
+                "90" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.trackModeStatus != 0),
+                )
                 "17" -> item.copy(
                     kind = CarSettingKind.Toggle(
                         status.extended.brakeModePowerRecoverFunctionStatus != 0,

@@ -80,6 +80,11 @@ object CloudCarSettingUpdateBuilder {
                 val field = SLIDER_FIELDS[configId] ?: return null
                 field to kind.value.toInt().toString()
             }
+            is CarSettingKind.Choice -> {
+                val field = CHOICE_FIELDS[configId] ?: return null
+                val value = kind.selectedIndex + field.offset
+                field.field to value.toString()
+            }
             else -> return null
         }
         return CloudCarSettingUpdate(
@@ -95,6 +100,7 @@ object CloudCarSettingUpdateBuilder {
     /** smali `VehicleSettingViewModel.P4` 与设置返回字段能直接对应的开关。 */
     private val TOGGLE_FIELDS = mapOf(
         "9" to "alarmOn",
+        "10" to "distanceOn",
         "13" to "alarmSoundEnable",
         "16" to "dumpAlarm",
         "17" to "resistanceOn",
@@ -102,7 +108,9 @@ object CloudCarSettingUpdateBuilder {
         "25" to "passwordUnlockEnable",
         "40" to "colorEggSoundEffect",
         "41" to "userDefinedSoundEffect",
+        "52" to "bleUnlockOn",
         "53" to "bleApproachPowerOnEnable",
+        "62" to "seatHeating",
         "75" to "tamperProofIotEnable",
         "76" to "positioningFunc",
         "77" to "sleepMode",
@@ -112,7 +120,15 @@ object CloudCarSettingUpdateBuilder {
     )
 
     private val SLIDER_FIELDS = mapOf(
+        "10" to "distance",
+        "52" to "bleDistance",
         "61" to "highestSpeedLimit",
+    )
+
+    private data class ChoiceField(val field: String, val offset: Int)
+
+    private val CHOICE_FIELDS = mapOf(
+        "62" to ChoiceField("seatHeatingLevel", offset = 1),
     )
 }
 
@@ -311,6 +327,7 @@ class YadeaCarSettingsGateway(
             "shakeOn", "shutDownTime", "sleepMode", "sosEmergencyCall",
             "tamperProofIotEnable",
             "userDefinedSoundEffect", "vehiclePowerDownStatus", "voltage", "wxhlBind",
+            "bleUnlockOn", "seatHeating", "seatHeatingLevel",
         )
     }
 }
@@ -361,6 +378,64 @@ object CloudCarSettingMapper {
                 kind = CarSettingKind.Toggle(enabled),
                 writable = config.isAuth != false,
                 sort = (config.sort.toIntOrNull() ?: 0) - 1,
+            )
+        }
+        cloud.configs.firstOrNull { it.confId.trim() == "10" }?.let { config ->
+            val distance = cloud.intValue("distance")?.coerceIn(50, 1_000) ?: 200
+            items += CarSettingItem(
+                id = "cloud:10:distance",
+                configId = "10",
+                title = "电子围栏半径",
+                summary = "车辆设防后以定位点为圆心的安防距离",
+                classification = classificationOf("10", config),
+                group = groupOf(config, classificationOf("10", config)),
+                channel = CarSettingChannel.IOT,
+                kind = CarSettingKind.Slider(
+                    value = distance.toFloat(),
+                    range = 50f..1_000f,
+                    steps = 18,
+                    unit = " m",
+                ),
+                writable = config.isAuth != false,
+                sort = (config.sort.toIntOrNull() ?: 0) + 1,
+            )
+        }
+        cloud.configs.firstOrNull { it.confId.trim() == "52" }?.let { config ->
+            val distance = cloud.intValue("bleDistance")?.coerceIn(1, 12) ?: 3
+            items += CarSettingItem(
+                id = "cloud:52:distance",
+                configId = "52",
+                title = "感应解锁距离",
+                summary = "进入蓝牙感应范围后按一键开机键即可开关机",
+                classification = classificationOf("52", config),
+                group = groupOf(config, classificationOf("52", config)),
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Slider(
+                    value = distance.toFloat(),
+                    range = 1f..12f,
+                    steps = 10,
+                    unit = " m",
+                ),
+                writable = config.isAuth != false,
+                sort = (config.sort.toIntOrNull() ?: 0) + 1,
+            )
+        }
+        cloud.configs.firstOrNull { it.confId.trim() == "62" }?.let { config ->
+            val level = cloud.intValue("seatHeatingLevel")?.coerceIn(1, 3) ?: 1
+            items += CarSettingItem(
+                id = "cloud:62:level",
+                configId = "62",
+                title = "座椅加热档位",
+                summary = "选择座椅加热强度",
+                classification = classificationOf("62", config),
+                group = groupOf(config, classificationOf("62", config)),
+                channel = CarSettingChannel.IOT,
+                kind = CarSettingKind.Choice(
+                    selectedIndex = level - 1,
+                    options = listOf("1 档", "2 档", "3 档"),
+                ),
+                writable = config.isAuth != false,
+                sort = (config.sort.toIntOrNull() ?: 0) + 1,
             )
         }
         return items.sortedWith(compareBy({ it.group.sort }, { it.sort }, { it.title }))
@@ -497,6 +572,10 @@ object CloudCarSettingMapper {
         "41" -> CarSettingKind.Toggle(cloud.boolValue("userDefinedSoundEffect") == true)
         "25" -> CarSettingKind.Toggle(cloud.boolValue("passwordUnlockEnable") == true)
         "53" -> CarSettingKind.Toggle(cloud.boolValue("bleApproachPowerOnEnable") == true)
+        "10" -> CarSettingKind.Toggle(cloud.boolValue("distanceOn") == true)
+        "52" -> CarSettingKind.Toggle(cloud.boolValue("bleUnlockOn") == true)
+        "62" -> CarSettingKind.Toggle(cloud.boolValue("seatHeating") == true)
+        "63", "72", "79", "80", "90" -> CarSettingKind.Toggle(false)
         "77" -> CarSettingKind.Toggle(cloud.boolValue("sleepMode") == true)
         "91" -> CarSettingKind.Toggle(cloud.boolValue("sosEmergencyCall") == true)
         "95" -> CarSettingKind.Toggle(cloud.boolValue("wxhlBind") == true)
@@ -536,8 +615,8 @@ object CloudCarSettingMapper {
             range = 0f..7f,
             steps = 6,
         )
-        "32", "42", "43", "44",
-        "51", "63", "79", "80", "90", "2" ->
+        "2", "32" -> CarSettingKind.Toggle(false)
+        "42", "43", "44", "51" ->
             CarSettingKind.Info("状态由车辆回读")
         "47" -> {
             // ChargingPowerActivity：200..1000W，50W 步进；最大值按云端/车型上限 1000W。
@@ -564,15 +643,6 @@ object CloudCarSettingMapper {
                 unit = "%",
             )
         }
-        "10" -> CarSettingKind.Entrance(
-            if (cloud.boolValue("distanceOn") == true) "已开启" else "去设置",
-        )
-        "52" -> CarSettingKind.Entrance(
-            buildString {
-                append(if (cloud.boolValue("bleUnlockOn") == true) "已开启" else "去设置")
-                cloud.intValue("bleDistance")?.let { append(" · $it 米") }
-            },
-        )
         in ENTRANCE_IDS, in SPECIAL_IDS -> CarSettingKind.Entrance()
         else -> CarSettingKind.Info("云端设置项，暂未接入写入")
     }
@@ -596,7 +666,7 @@ object CloudCarSettingMapper {
         "75", "76", "77", "82", "85", "91",
     )
     private val IOT_IDS = setOf(
-        "9", "16", "24", "40", "47", "48", "60", "61", "62", "75", "76", "82", "91",
+        "9", "10", "16", "24", "40", "47", "48", "60", "61", "62", "75", "76", "82", "91",
     )
     private val ENTRANCE_IDS = setOf(
         "4", "5", "7", "8", "9", "10", "11", "14", "15", "17", "18", "20", "24",

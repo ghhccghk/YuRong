@@ -55,7 +55,7 @@ class CloudCarSettingWriter(
 object VehicleSettingCommands {
 
     fun supports(configId: String, kind: CarSettingKind): Boolean =
-        forConfigId(configId, kind) != null
+        forConfigId(configId, kind)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     /**
      * 云端 `BikeConfig.confId` 对应的已确认命令。
@@ -65,6 +65,52 @@ object VehicleSettingCommands {
      */
     fun forConfigId(configId: String, kind: CarSettingKind): VehicleSettingCommand? =
         when (configId) {
+            // 边撑感应、倾倒提醒、座垫上电都使用动态位域值 0/1。
+            "2" -> toggle(
+                kind = kind,
+                onType = "EDGE_BRACE_INDUCTION_OPEN",
+                offType = "EDGE_BRACE_INDUCTION_CLOSE",
+                onId = 0x131,
+                offId = 0x131,
+                onParameter = 1,
+                offParameter = 0,
+            )
+            "32" -> toggle(
+                kind = kind,
+                onType = "TILT_WARNING_OPEN",
+                offType = "TILT_WARNING_CLOSE",
+                onId = 0x12D,
+                offId = 0x12D,
+                onParameter = 1,
+                offParameter = 0,
+            )
+            "63" -> toggle(
+                kind = kind,
+                onType = "COMMAND_CONST_T_POWER_SETTING",
+                offType = "COMMAND_CONST_T_POWER_SETTING",
+                onId = 0x6A,
+                offId = 0x69,
+                onParameter = 1,
+                offParameter = 0,
+            )
+            "79" -> toggle(
+                kind = kind,
+                onType = "COMMAND_SEAT_POWER_UP",
+                offType = "COMMAND_SEAT_POWER_UP",
+                onId = 0x130,
+                offId = 0x130,
+                onParameter = 1,
+                offParameter = 0,
+            )
+            "90" -> toggle(
+                kind = kind,
+                onType = "TRACK_MODE",
+                offType = "TRACK_MODE",
+                onId = 0x90,
+                offId = 0x91,
+                onParameter = 1,
+                offParameter = 0,
+            )
             "45" -> toggle(
                 kind = kind,
                 onType = "CONST_SPEED_OPEN",

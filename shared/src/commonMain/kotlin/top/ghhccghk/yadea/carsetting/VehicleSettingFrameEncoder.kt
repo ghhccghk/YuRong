@@ -60,6 +60,17 @@ object VehicleSettingFrameEncoder {
         0xD9 -> bitfieldSuffix(0x39, command.parameter, 6, 7)
         0x144 -> bitfieldSuffix(0x39, command.parameter, 2, 3)
         0x136 -> bitfieldSuffix(0x37, command.parameter, 6, 7)
+        // CarSettingsPowerRegistry：边撑感应 0x131、座垫感应上电 0x130。
+        0x131 -> bitfieldSuffix(0x1F, command.parameter, 4, 7)
+        0x130 -> bitfieldSuffix(0x1F, command.parameter, 0, 3)
+        // CarSettingsSecurityRegistry：倾倒提醒 0x12D。
+        0x12D -> bitfieldSuffix(0x41, command.parameter, 2, 3)
+        // T_POWER：0x6A 开、0x69 关。
+        0x6A -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF3FFFFFFFFFFF"
+        0x69 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF1FFFFFFFFFFF"
+        // TRACK_MODE：0x90 开、0x91 关。
+        0x90 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDFF"
+        0x91 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFCFF"
         // VehicleVolumeActivity：0..7 档映射到 C7..FF。
         0x46 -> "FF".repeat(13) +
             hex2(0xC7 + (command.parameter.coerceIn(0, 7) shl 3)) +
