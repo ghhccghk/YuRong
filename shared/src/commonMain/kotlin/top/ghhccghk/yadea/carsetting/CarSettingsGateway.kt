@@ -46,6 +46,7 @@ data class CloudCarSettings(
 interface CarSettingsGateway {
     suspend fun load(vin: String): CloudCarSettings?
     suspend fun update(vin: String, update: CloudCarSettingUpdate): Boolean = false
+    suspend fun checkStatus(configId: String): Boolean? = null
 }
 
 /** 已确认的云端设置写入字段。 */
@@ -135,6 +136,38 @@ class YadeaCarSettingsGateway(
         if (JsonSupport.boolean(plain, "success") == false) return false
         return JsonSupport.boolean(plain, "data") != false
     }
+
+    override suspend fun checkStatus(configId: String): Boolean? {
+        val token = tokenProvider().trim()
+        if (token.isBlank() || configId.isBlank()) return null
+        val businessJson = sortedJson(mapOf("id" to configId))
+        val url = baseUrl + CHECK_STATUS_PATH + "?" +
+            GatewaySigner.formBody(businessJson, effectiveTimestamp())
+        val headers = GatewayRequestHeaders.build(
+            clientInfo = clientInfoProvider(),
+            deviceId = deviceIdProvider(),
+            token = token,
+        )
+        val response = transport.execute(
+            HttpRequest(
+                method = "GET",
+                url = url,
+                headers = headers,
+            ),
+        ) ?: return null
+        if (response.status !in 200..299) return null
+        val decoded = Crypto.urlDecode(response.body.trim())
+        val plain = Crypto.aesEcbPkcs5Decrypt(GatewaySigner.AES_KEY, decoded) ?: decoded
+        if (JsonSupport.boolean(plain, "success") == false) return false
+        val data = JsonSupport.objectField(plain, "data") ?: plain
+        val result = JsonSupport.int(data, "result")
+            ?: JsonSupport.string(data, "result")?.toIntOrNull()
+        return result == 0
+    }
+
+    private var timestampOffsetMs: Long = 0L
+
+    private fun effectiveTimestamp(): Long = timestampProvider() + timestampOffsetMs
 
     private suspend fun postFields(
         path: String,
@@ -231,6 +264,7 @@ class YadeaCarSettingsGateway(
     companion object {
         const val PATH = "vehiclebase/bike-setting/selectBikeSettingByVin"
         const val UPDATE_PATH = "vehiclebase/bike-setting/updateBikeSetting"
+        const val CHECK_STATUS_PATH = "common-cmd/low-freq/info/param"
         const val DEFAULT_BASE_URL = "https://gw.yadeaiot.com.cn/api/app/"
 
         private val VALUE_KEYS = listOf(

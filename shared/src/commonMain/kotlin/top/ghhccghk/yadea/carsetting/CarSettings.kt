@@ -3,6 +3,7 @@ package top.ghhccghk.yadea.carsetting
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.delay
 
 enum class CarSettingClassification(val label: String) {
     SECURITY("安全守护"),
@@ -84,6 +85,9 @@ class CarSettingsController(
     private val writer: CarSettingWriter?,
     private val gateway: CarSettingsGateway? = null,
     private val vinProvider: () -> String = { "" },
+    private val debounceMs: Long = 1_000L,
+    private val statusPollAttempts: Int = 30,
+    private val statusPollIntervalMs: Long = 1_000L,
 ) {
     private val _state = MutableStateFlow(CarSettingsState(initialItems))
     val state: StateFlow<CarSettingsState> = _state.asStateFlow()
@@ -158,22 +162,52 @@ class CarSettingsController(
             message = null,
         )
 
+        if (optimistic.kind is CarSettingKind.Toggle && debounceMs > 0) {
+            delay(debounceMs)
+        }
         val success = runCatching { activeWriter.write(optimistic) }.getOrDefault(false)
         val latest = _state.value
-        return if (success) {
-            _state.value = latest.copy(
-                pendingIds = latest.pendingIds - id,
-                message = null,
-            )
-            true
-        } else {
+        if (!success) {
             _state.value = latest.copy(
                 items = latest.items.replace(item),
                 pendingIds = latest.pendingIds - id,
                 message = "设置保存失败，已恢复原值",
             )
-            false
+            return false
         }
+
+        val cloudUpdate = CloudCarSettingUpdateBuilder.supports(
+            configId = optimistic.configId,
+            kind = optimistic.kind,
+        )
+        val statusGateway = gateway
+        if (statusGateway != null && cloudUpdate) {
+            var confirmed: Boolean? = null
+            for (attempt in 0 until statusPollAttempts) {
+                delay(statusPollIntervalMs)
+                confirmed = runCatching { statusGateway.checkStatus(optimistic.configId) }
+                    .getOrNull()
+                if (confirmed != null) break
+            }
+            if (confirmed != true) {
+                _state.value = latest.copy(
+                    items = latest.items.replace(item),
+                    pendingIds = latest.pendingIds - id,
+                    message = if (confirmed == false) {
+                        "车辆未确认设置，已恢复原值"
+                    } else {
+                        "设置状态确认超时，已恢复原值"
+                    },
+                )
+                return false
+            }
+        }
+
+        _state.value = latest.copy(
+            pendingIds = latest.pendingIds - id,
+            message = null,
+        )
+        return true
     }
 
     fun clearMessage() {
