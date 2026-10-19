@@ -14,6 +14,26 @@ import top.ghhccghk.yadea.network.HttpRequest
 import top.ghhccghk.yadea.network.HttpTransport
 import top.ghhccghk.yadea.network.JsonSupport
 import top.ghhccghk.yadea.network.NetworkLog
+import kotlin.math.round
+
+/**
+ * 部分车型的 `remainingMileage` 以 10 米为单位，原实现按 0.1 km 放大后
+ * 会出现 2867.4 km 这种明显不可能的值。按电动自行车合理上限做归一化。
+ */
+internal fun normalizeRangeKm(value: Float): Float =
+    if (value > 500f) value / 100f else value
+
+internal fun normalizeRangeText(raw: String): String {
+    val value = raw.trim().toFloatOrNull() ?: return raw
+    val normalized = normalizeRangeKm(value)
+    if (normalized == value) return raw
+    val rounded = round(normalized * 10f) / 10f
+    return if (rounded == rounded.toInt().toFloat()) {
+        rounded.toInt().toString()
+    } else {
+        rounded.toString()
+    }
+}
 
 /**
  * `bikeRealStatus/getVehRealStatus` 的界面子集。
@@ -73,7 +93,7 @@ class YadeaVehicleCloudStatusGateway(
         }
         val data = JsonSupport.objectField(plain, "data") ?: return null
         val status = VehicleCloudStatus(
-            remainingMileage = text(data, "remMileage"),
+            remainingMileage = normalizeRangeText(text(data, "remMileage")),
             totalMileage = text(data, "totalMileage"),
             currentOdoValue = text(data, "currentOdoValue").toFloatOrNull(),
             soc = JsonSupport.int(data, "totalSoc")

@@ -451,7 +451,7 @@ internal object TtpInfoParser {
         val raw = Ttp.H(d, 0x43, 0x44)
         if (raw == Ttp.INVALID_I) return Ttp.INVALID_F
         // 原实现是 raw × 0.1f 后再 setScale(1)；raw 本身即十分位。
-        return raw * 0.1f
+        return normalizeRangeKm(raw * 0.1f)
     }
 
     /** 经纬度：原始值 / 1_800_000 - offset；无效值保持 `-1.0`。 */
