@@ -100,6 +100,13 @@ interface BleAdapter {
     suspend fun requestMtu(mtu: Int): Int
 
     /**
+     * 清理 Android 系统缓存的 GATT 服务表。
+     *
+     * 这是 Android 133 错误的规避手段。没有对应能力的平台返回 `false`。
+     */
+    suspend fun refreshGattCache(): Boolean = false
+
+    /**
      * 释放所有资源
      */
     fun close()

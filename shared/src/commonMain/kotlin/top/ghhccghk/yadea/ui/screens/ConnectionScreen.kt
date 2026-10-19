@@ -54,6 +54,7 @@ fun ConnectionScreen(
     val bleDevices by viewModel.bleDevices.collectAsState()
     val isScanningBle by viewModel.isScanningBle.collectAsState()
     val bleConnectedName by viewModel.bleConnectedName.collectAsState()
+    val bleFailureMessage by viewModel.bleFailureMessage.collectAsState()
 
     val p2pDevices by viewModel.p2pDevices.collectAsState()
     val p2pConnected by viewModel.p2pConnected.collectAsState()
@@ -298,7 +299,8 @@ fun ConnectionScreen(
                     AppTip(
                         kind = AppTipKind.Error,
                         title = "BLE 连接失败",
-                        message = "请确认仪表已上电并处于扫描范围内，然后重新扫描。",
+                        message = bleFailureMessage
+                            ?: "请确认仪表已上电并处于扫描范围内，然后重新扫描。",
                     )
                 }
             }
@@ -307,10 +309,12 @@ fun ConnectionScreen(
                 AppSection(title = "BLE 仪表") {
                     AppListRow(
                         title = "连接状态",
-                        value = if (bleState == BleConnectionState.Connected) {
-                            "已连接 $bleConnectedName"
-                        } else {
-                            "未连接"
+                        value = when (bleState) {
+                            BleConnectionState.Connected -> "已连接 $bleConnectedName"
+                            BleConnectionState.Connecting -> "连接中…"
+                            BleConnectionState.DiscoveringServices -> "发现服务中…"
+                            BleConnectionState.Ready -> "初始化中…"
+                            else -> "未连接"
                         },
                     )
                     AppButton(

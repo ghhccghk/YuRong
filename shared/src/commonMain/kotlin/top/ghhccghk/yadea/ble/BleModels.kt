@@ -23,6 +23,38 @@ enum class BleConnectionState {
     Failed
 }
 
+/** GATT 操作阶段，用于把平台回调中的 status 原样带到连接编排层。 */
+enum class BleGattOperation {
+    Connect,
+    DiscoverServices,
+    ReadCharacteristic,
+    WriteCharacteristic,
+    WriteDescriptor,
+    RequestMtu,
+}
+
+/**
+ * GATT 操作失败。
+ *
+ * [status] 使用 Android `BluetoothGatt` 的原始状态码；`0x85`（133）不能在这里
+ * 被折叠成普通失败，否则连接层无法执行清缓存规避。
+ */
+class BleGattException(
+    val operation: BleGattOperation,
+    val status: Int,
+    message: String = "${operation.name} failed with GATT status $status",
+) : Exception(message)
+
+/** GATT 操作在约定时间内没有收到平台回调。 */
+class BleGattTimeoutException(
+    val operation: BleGattOperation,
+) : Exception("${operation.name} timed out")
+
+/** 连接已断开且尚未收到操作回调。 */
+class BleGattDisconnectedException(
+    val operation: BleGattOperation,
+) : Exception("${operation.name} aborted because the GATT connection was lost")
+
 /**
  * BLE GATT 特征值属性
  */

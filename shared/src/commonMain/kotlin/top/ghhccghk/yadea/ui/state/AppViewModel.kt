@@ -21,7 +21,10 @@ import top.ghhccghk.yadea.network.TcpTransport
 import top.ghhccghk.yadea.network.UdpTransport
 import top.ghhccghk.yadea.network.createTcpTransport
 import top.ghhccghk.yadea.network.createUdpTransport
+import top.ghhccghk.yadea.vehicle.Clock
+import top.ghhccghk.yadea.vehicle.PublicState
 import top.ghhccghk.yadea.vehicle.VehicleBleConstants
+import top.ghhccghk.yadea.vehicle.VehicleConnectionCoordinator
 import top.ghhccghk.yadea.wifi.*
 
 expect fun getCurrentTime(): DateTimeParts
@@ -65,6 +68,9 @@ class AppViewModel(
     val isScanningBle: StateFlow<Boolean> = _isScanningBle.asStateFlow()
     private val _bleConnectedName = MutableStateFlow("")
     val bleConnectedName: StateFlow<String> = _bleConnectedName.asStateFlow()
+    private val _bleFailureMessage = MutableStateFlow<String?>(null)
+    val bleFailureMessage: StateFlow<String?> = _bleFailureMessage.asStateFlow()
+    private var vehicleConnection: VehicleConnectionCoordinator? = null
 
     private val _p2pDevices = MutableStateFlow<List<P2pDevice>>(emptyList())
     val p2pDevices: StateFlow<List<P2pDevice>> = _p2pDevices.asStateFlow()
@@ -112,6 +118,46 @@ class AppViewModel(
 
     init {
         debug("AppViewModel 初始化, p2pManager=${if (p2pManager != null) "OK" else "NULL"}")
+        if (bleAdapter != null) {
+            vehicleConnection = VehicleConnectionCoordinator(
+                adapter = bleAdapter,
+                scope = scope,
+                clock = Clock { top.ghhccghk.yadea.currentMonotonicMillis() },
+                onDebug = ::debug,
+            )
+            scope.launch {
+                bleAdapter.discoveredDevices.collect { _bleDevices.value = it }
+            }
+            scope.launch {
+                bleAdapter.isScanning.collect { _isScanningBle.value = it }
+            }
+            scope.launch {
+                vehicleConnection?.failure?.collect { failure ->
+                    _bleFailureMessage.value = failure?.let {
+                        "断开类型=${it.disconnectType?.name ?: "-"}，" +
+                            "异常=${it.exception?.name ?: "-"}，${it.message}"
+                    }
+                    if (failure != null) {
+                        _bleState.value = BleConnectionState.Failed
+                    }
+                }
+            }
+            scope.launch {
+                vehicleConnection?.publicState?.collect { public ->
+                    _bleState.value = when (public) {
+                        PublicState.CONNECTING -> BleConnectionState.Connecting
+                        PublicState.CONNECTED -> BleConnectionState.Connected
+                        PublicState.DISCONNECTED,
+                        null,
+                        -> if (_bleFailureMessage.value != null) {
+                            BleConnectionState.Failed
+                        } else {
+                            BleConnectionState.Disconnected
+                        }
+                    }
+                }
+            }
+        }
         if (p2pManager != null) {
             scope.launch { p2pManager.discoveredPeers.collect { _p2pDevices.value = it } }
             scope.launch { p2pManager.connectionState.collect { _p2pConnected.value = (it == P2pStatus.Connected) } }
@@ -153,6 +199,10 @@ class AppViewModel(
     }
 
     fun scanBle() {
+        if (_isScanningBle.value) {
+            stopBleScan()
+            return
+        }
         scope.launch {
             _isScanningBle.value = true
             // 同时扫描投屏仪表与整车服务；车辆页依赖整车 b360/b362 通道。
@@ -160,37 +210,31 @@ class AppViewModel(
                 listOf(BleProtocol.SERVICE_UUID, VehicleBleConstants.SERVICE_MAIN),
                 10_000,
             )
-            _bleDevices.value = bleAdapter?.discoveredDevices?.value ?: emptyList()
-            _isScanningBle.value = false
         }
     }
 
     fun stopBleScan() { bleAdapter?.stopScan(); _isScanningBle.value = false }
 
     fun connectBle(address: String, name: String) {
-        scope.launch {
-            _bleState.value = BleConnectionState.Connecting
-            bleAdapter?.connect(address)
-            // 车辆设备在服务发现后订阅整车主特征；失败不影响已有的投屏仪表连接路径。
-            runCatching {
-                val services = bleAdapter?.discoverServices().orEmpty()
-                if (services.any { it.uuid.equals(VehicleBleConstants.SERVICE_MAIN, ignoreCase = true) }) {
-                    bleAdapter?.setNotification(
-                        VehicleBleConstants.SERVICE_MAIN,
-                        VehicleBleConstants.CHAR_MAIN,
-                        true,
-                    )
-                }
-            }
-            _bleState.value = BleConnectionState.Connected
-            _bleConnectedName.value = name
+        _bleConnectedName.value = name
+        _bleFailureMessage.value = null
+        val coordinator = vehicleConnection
+        if (coordinator == null) {
+            _bleFailureMessage.value = "当前平台未提供 BLE 适配器"
+            _bleState.value = BleConnectionState.Failed
+            return
         }
+        coordinator.connect(address, name)
     }
 
     fun disconnectBle() {
         scope.launch {
-            bleAdapter?.disconnect()
-            _bleState.value = BleConnectionState.Disconnected
+            vehicleConnection?.disconnect()
+            _bleFailureMessage.value = null
+            if (vehicleConnection == null) {
+                bleAdapter?.disconnect()
+                _bleState.value = BleConnectionState.Disconnected
+            }
             _bleConnectedName.value = ""
         }
     }
