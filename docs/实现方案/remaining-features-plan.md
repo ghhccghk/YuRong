@@ -21,6 +21,9 @@
 - 车辆信息、云端车辆资料、云端车辆状态、续航/里程回退。
 - 云端设置清单与大部分开关/滑杆：`9/13/14/17/18/19/20/24/25/26/33/36/37/38/41/46/47/48/49/53/61/68/75/76/77/82/84/86/91/94`。
 - BLE 本地 OTA 传输与高风险确认。
+- IoT OTA 云端任务确认。
+- Wi-Fi/Wi-Fi DVR OTA：P2P、TCP 鉴权、8080 文件服务、Range 分片。
+- OTA 升级记录与分部件选择。
 - 手动投屏：屏幕/摄像头/视频源、P2P、TCP/UDP 帧传输。
 
 暂未完成：
@@ -28,7 +31,6 @@
 - 云端绑定/解绑、车主码、多车辆管理。
 - 蓝牙车钥匙/NFC/手机厂车钥匙。
 - 投屏自动建链。
-- OTA Wi-Fi/IoT/DVR 通道。
 - 设置项第二批与联系人/二级页。
 - 故障检测、胎压、雷达、低电量、定位/报失。
 - 家人共享、骑行轨迹、周边设备、语音、DVR、推送、小组件等。
@@ -60,8 +62,13 @@
 - [x] Phase 3.1：已提取 OTA 任务、确认、日志、版本和分部件接口。
 - [x] Phase 3.2a：已补 IoT `userConfirm/V4`、任务字段
   （`taskId/behaviorId/firmwareModuleCode`）和“提交云端升级”入口。
-- [ ] Phase 3.2b：Wi-Fi OTA 文件服务、记录页和分部件升级；需要继续按
-  `wifi/server/FileServer` 的协议实现。
+- [x] Phase 3.2b：Wi-Fi/Wi-Fi DVR OTA 已完成协议实现：
+  BLE `0xFD`、P2P 目标匹配、TCP `8888` 鉴权、HTTP `8080`
+  文件服务、Range 分片、`finish=1` 完成信号和高风险确认。
+- [x] Phase 3.2c：OTA 记录页接入
+  `upgradeLog/queryUpgradeLogByVin/V3`；任务列表支持选择具体固件部件。
+- [ ] Phase 3.3：真车验证 Wi-Fi/Wi-Fi DVR 下载、记录分页和分部件升级；
+  需要实际车辆与仪表固件，失败时优先回退云端或原厂升级。
 
 ## Phase 1：云端车辆绑定与多车辆管理
 
@@ -205,6 +212,18 @@ IoT OTA：
 - `BleOTARecordActivity`：OTA 记录页。
 - `OTAPartsUpgradeActivity`：分部件升级。
 - `ota/upgradeLog/addUpgradeLog`：写入升级结果日志。
+
+已确认的记录查询：
+
+| 用途 | 接口 | 关键参数 |
+| --- | --- | --- |
+| 按 VIN 查询升级记录 | `upgradeLog/queryUpgradeLogByVin/V3` | `vin`、`current`、`size=50` |
+
+响应使用通用分页结构 `data.records` 与 `data.hasNext`。记录字段为
+`typeName`、`firmwareVersion`、`versionDesc`、`startTime`。
+
+分部件升级不是独立协议：主 OTA 任务返回 `firmwareInfoList`，每个元素是
+一个部件。当前 UI 允许点选具体部件后再发起升级，避免总是安装列表第一项。
 
 ### Phase 3.2 实施拆分
 
