@@ -23,6 +23,7 @@ class YadeaAuthGateway(
     private val baseUrl: String = DEFAULT_BASE_URL,
     private val clientInfoProvider: () -> GatewayClientInfo = { GatewayClientInfo() },
     private val oppoPushIdProvider: () -> String = { "" },
+    private val sessionTokenProvider: () -> String = { "" },
 ) : AuthGateway {
 
     override suspend fun loginByPassword(request: PasswordLoginRequest): AuthResult<AuthUser> {
@@ -41,15 +42,139 @@ class YadeaAuthGateway(
     }
 
     override suspend fun sendSmsCode(mobile: String): AuthResult<Unit> {
+        return sendSmsCode(mobile, sendCodeType = 1)
+    }
+
+    override suspend fun sendSmsCode(mobile: String, sendCodeType: Int): AuthResult<Unit> {
         val json = sortedJson(
             mapOf(
                 "_gateway" to "True",
+                "appType" to "1",
                 "mobile" to mobile,
                 "registrationId" to registrationIdProvider(),
-                "sendCode" to "1",
+                "sendCode" to sendCodeType.toString(),
             ),
         )
-        return when (val result = postRaw("user/sendCode", json)) {
+        return postUnit("user/sendCode", json)
+    }
+
+    override suspend fun sendEmailCode(email: String, sendCodeType: Int): AuthResult<Unit> {
+        val json = sortedJson(
+            mapOf(
+                "_gateway" to "True",
+                "appType" to "1",
+                "email" to email,
+                "registrationId" to registrationIdProvider(),
+                "sendCode" to sendCodeType.toString(),
+            ),
+        )
+        return postUnit("user/sendCodeByEmail", json)
+    }
+
+    override suspend fun registerBySms(
+        mobile: String,
+        code: String,
+        password: String,
+    ): AuthResult<AuthUser> {
+        val json = sortedJson(
+            mapOf(
+                "_gateway" to "True",
+                "code" to code,
+                "loginAppType" to "1",
+                "mobile" to mobile,
+                "oppoPushId" to oppoPushIdProvider(),
+                "password" to password,
+                "registrationId" to registrationIdProvider(),
+            ),
+        )
+        return post("user/loginBySms", json)
+    }
+
+    override suspend fun registerByEmail(
+        email: String,
+        code: String,
+        password: String,
+    ): AuthResult<AuthUser> {
+        val json = sortedJson(
+            mapOf(
+                "_gateway" to "True",
+                "appType" to "1",
+                "code" to code,
+                "email" to email,
+                "password" to password,
+                "registrationId" to registrationIdProvider(),
+            ),
+        )
+        return post("user/registerByEmail", json)
+    }
+
+    override suspend fun updatePasswordByCode(
+        account: String,
+        code: String,
+        password: String,
+        accountType: AuthAccountType,
+    ): AuthResult<Unit> {
+        val json = sortedJson(
+            mapOf(
+                "_gateway" to "True",
+                "account" to account,
+                "accountType" to accountType.value.toString(),
+                "appType" to "1",
+                "code" to code,
+                "password" to password,
+            ),
+        )
+        return postUnit("user/updatePasswordByCode", json)
+    }
+
+    override suspend fun bindOrChangeMobile(
+        mobile: String,
+        code: String,
+        type: Int,
+    ): AuthResult<Unit> {
+        val json = sortedJson(
+            mapOf(
+                "_gateway" to "True",
+                "appType" to "1",
+                "code" to code,
+                "mobile" to mobile,
+                "type" to type.toString(),
+            ),
+        )
+        return postUnit(
+            path = "user/bindOrChangeMobile",
+            businessJson = json,
+            authToken = sessionTokenProvider(),
+        )
+    }
+
+    override suspend fun bindOrChangeEmail(
+        email: String,
+        code: String,
+        type: Int,
+    ): AuthResult<Unit> {
+        val json = sortedJson(
+            mapOf(
+                "_gateway" to "True",
+                "appType" to "1",
+                "code" to code,
+                "email" to email,
+                "type" to type.toString(),
+            ),
+        )
+        return postUnit(
+            path = "user/bindOrChangeEmail",
+            businessJson = json,
+            authToken = sessionTokenProvider(),
+        )
+    }
+
+    private suspend fun postUnit(
+        path: String,
+        businessJson: String,
+        authToken: String = "",
+    ): AuthResult<Unit> {
+        return when (val result = postRaw(path, businessJson, authToken)) {
             is AuthResult.Success -> AuthResult.Success(Unit)
             is AuthResult.Failure -> result
         }

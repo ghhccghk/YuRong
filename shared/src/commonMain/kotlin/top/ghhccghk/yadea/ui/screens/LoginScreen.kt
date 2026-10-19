@@ -180,6 +180,16 @@ fun LoginScreen(
                     )
                 }
             }
+            loggedInUser?.let { user ->
+                item {
+                    AccountSecuritySection(
+                        controller = controller,
+                        user = user,
+                        busy = auth.busy,
+                        countdown = auth.smsCountdown,
+                    )
+                }
+            }
             item {
                 AppButton(
                     onClick = controller::logout,
@@ -192,6 +202,17 @@ fun LoginScreen(
                 }
             }
         } else {
+            item {
+                AccountRecoverySection(
+                    controller = controller,
+                    busy = auth.busy,
+                    countdown = auth.smsCountdown,
+                    agreed = agreed,
+                    onNeedAgreement = {
+                        localError = "请先阅读并同意用户协议与隐私政策"
+                    },
+                )
+            }
             item {
                 AppSection(title = "登录方式") {
                     Column(

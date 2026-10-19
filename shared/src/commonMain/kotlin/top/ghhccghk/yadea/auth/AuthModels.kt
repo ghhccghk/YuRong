@@ -84,7 +84,36 @@ sealed interface AuthResult<out T> {
 interface AuthGateway {
     suspend fun loginByPassword(request: PasswordLoginRequest): AuthResult<AuthUser>
     suspend fun sendSmsCode(mobile: String): AuthResult<Unit>
+    suspend fun sendSmsCode(mobile: String, sendCodeType: Int): AuthResult<Unit> =
+        sendSmsCode(mobile)
+    suspend fun sendEmailCode(email: String, sendCodeType: Int): AuthResult<Unit>
     suspend fun loginBySms(mobile: String, code: String): AuthResult<AuthUser>
+    suspend fun registerBySms(
+        mobile: String,
+        code: String,
+        password: String,
+    ): AuthResult<AuthUser>
+    suspend fun registerByEmail(
+        email: String,
+        code: String,
+        password: String,
+    ): AuthResult<AuthUser>
+    suspend fun updatePasswordByCode(
+        account: String,
+        code: String,
+        password: String,
+        accountType: AuthAccountType,
+    ): AuthResult<Unit>
+    suspend fun bindOrChangeMobile(
+        mobile: String,
+        code: String,
+        type: Int,
+    ): AuthResult<Unit>
+    suspend fun bindOrChangeEmail(
+        email: String,
+        code: String,
+        type: Int,
+    ): AuthResult<Unit>
     suspend fun loginByToken(request: TokenLoginRequest): AuthResult<AuthUser>
     /** 直接使用已有 Bearer token 校验并建立本地会话。 */
     suspend fun importBearerToken(token: String): AuthResult<AuthUser>

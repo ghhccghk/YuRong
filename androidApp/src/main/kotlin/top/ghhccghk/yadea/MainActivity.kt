@@ -149,6 +149,7 @@ class MainActivity : ComponentActivity() {
             timestampProvider = { System.currentTimeMillis() },
             deviceIdProvider = deviceIdProvider,
             clientInfoProvider = { clientInfo },
+            sessionTokenProvider = { appPreferences.readAuth().token },
         )
         val otaGateway = YadeaOtaGateway(
             transport = httpTransport,
