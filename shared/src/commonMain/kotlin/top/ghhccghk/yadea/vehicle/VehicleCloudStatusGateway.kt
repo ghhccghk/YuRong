@@ -48,6 +48,18 @@ data class VehicleCloudStatus(
     val soc: Int? = null,
     val soc1: String = "",
     val soc2: String = "",
+    val leftFrontPressure: String = "",
+    val leftRearPressure: String = "",
+    val leftFrontTireTemp: Int? = null,
+    val leftRearTireTemp: Int? = null,
+    val leftFrontPressureWarning: Int? = null,
+    val leftRearPressureWarning: Int? = null,
+    val lowBatTelWarning: Int? = null,
+    val lowBatWarningStartTime: String = "",
+    val lowBatWarningEndTime: String = "",
+    val positioningFunc: Int? = null,
+    val lossState: Int? = null,
+    val gpsLocationTime: Long? = null,
 )
 
 interface VehicleCloudStatusGateway {
@@ -109,6 +121,25 @@ class YadeaVehicleCloudStatusGateway(
                 ?: JsonSupport.string(data, "soc1")?.toIntOrNull(),
             soc1 = JsonSupport.string(data, "soc1").orEmpty(),
             soc2 = JsonSupport.string(data, "soc2").orEmpty(),
+            leftFrontPressure = text(data, "leftFrontPressure"),
+            leftRearPressure = text(data, "leftRearPressure"),
+            leftFrontTireTemp = JsonSupport.int(data, "leftFrontTireTemp")
+                ?: text(data, "leftFrontTireTemp").toIntOrNull(),
+            leftRearTireTemp = JsonSupport.int(data, "leftRearTireTemp")
+                ?: text(data, "leftRearTireTemp").toIntOrNull(),
+            leftFrontPressureWarning = JsonSupport.int(data, "leftFrontPressureWarning")
+                ?: text(data, "leftFrontPressureWarning").toIntOrNull(),
+            leftRearPressureWarning = JsonSupport.int(data, "leftRearPressureWarning")
+                ?: text(data, "leftRearPressureWarning").toIntOrNull(),
+            lowBatTelWarning = JsonSupport.int(data, "lowBatTelWarning")
+                ?: text(data, "lowBatTelWarning").toIntOrNull(),
+            lowBatWarningStartTime = text(data, "lowBatWarningStartTime"),
+            lowBatWarningEndTime = text(data, "lowBatWarningEndTime"),
+            positioningFunc = JsonSupport.int(data, "positioningFunc")
+                ?: text(data, "positioningFunc").toIntOrNull(),
+            lossState = JsonSupport.int(data, "lossState")
+                ?: text(data, "lossState").toIntOrNull(),
+            gpsLocationTime = JsonSupport.numberText(data, "gpsLocationTime")?.toLongOrNull(),
         )
         // 云端状态常常只给 totalSoc，soc1/soc2 为空；估算接口仍可用总 SOC 计算。
         val estimateSoc1 = status.soc1.ifBlank { status.soc?.toString().orEmpty() }
@@ -118,7 +149,10 @@ class YadeaVehicleCloudStatusGateway(
             "CLOUD_STATUS values rem=${status.remainingMileage} " +
                 "estimate=${estimated.orEmpty()} total=${status.totalMileage} " +
                 "odo=${status.currentOdoValue} soc=${status.soc} " +
-                "soc1=${estimateSoc1} soc2=${estimateSoc2}",
+                "soc1=${estimateSoc1} soc2=${estimateSoc2} " +
+                "front=${status.leftFrontPressure} rear=${status.leftRearPressure} " +
+                "frontWarn=${status.leftFrontPressureWarning} " +
+                "rearWarn=${status.leftRearPressureWarning}",
         )
         return status.copy(remainingMileage = estimated ?: status.remainingMileage)
     }

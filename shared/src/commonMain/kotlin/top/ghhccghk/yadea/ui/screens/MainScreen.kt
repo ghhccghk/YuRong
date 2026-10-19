@@ -49,6 +49,8 @@ import top.ghhccghk.yadea.vehicle.EmptyVehicleProfileSource
 import top.ghhccghk.yadea.vehicle.TtpInfo
 import top.ghhccghk.yadea.vehicle.VehicleProfile
 import top.ghhccghk.yadea.vehicle.VehicleCloudStatus
+import top.ghhccghk.yadea.vehicle.VehicleFaultController
+import top.ghhccghk.yadea.vehicle.VehicleFaultGateway
 import top.ghhccghk.yadea.vehicle.VehicleBindingController
 import top.ghhccghk.yadea.vehicle.VehicleProfileSource
 import top.ghhccghk.yadea.vehicle.VehicleBleTokenProvider
@@ -109,6 +111,7 @@ fun MainScreen(
     vehicleProfilesRefreshing: Boolean = false,
     vehicleProfilesError: String? = null,
     vehicleCloudStatus: VehicleCloudStatus? = null,
+    vehicleFaultGateway: VehicleFaultGateway? = null,
     onRefreshVehicleCloudStatus: ((String) -> Unit)? = null,
     vehicleBindingController: VehicleBindingController? = null,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)? = null,
@@ -195,6 +198,9 @@ fun MainScreen(
             scope = featureScope,
         )
     }
+    val vehicleFaultController = remember(vehicleFaultGateway) {
+        VehicleFaultController(vehicleFaultGateway, featureScope)
+    }
     val vehicleControlController = remember(vehicleControlSink, resolvedVehicleSource) {
         VehicleControlController(
             sink = vehicleControlSink,
@@ -202,11 +208,17 @@ fun MainScreen(
             scope = featureScope,
         )
     }
-    DisposableEffect(authController, otaController, vehicleControlController) {
+    DisposableEffect(
+        authController,
+        otaController,
+        vehicleControlController,
+        vehicleFaultController,
+    ) {
         onDispose {
             authController.dispose()
             otaController.dispose()
             vehicleControlController.dispose()
+            vehicleFaultController.dispose()
         }
     }
     // Token 登录不保证能在本地解析出 userInfo；车辆接口只依赖 Token，
@@ -294,6 +306,8 @@ fun MainScreen(
             vehicleProfilesRefreshing = vehicleProfilesRefreshing,
             vehicleProfilesError = vehicleProfilesError,
             vehicleCloudStatus = vehicleCloudStatus,
+            vehicleFaultController = vehicleFaultController,
+            onRefreshVehicleCloudStatus = onRefreshVehicleCloudStatus,
             vehicleBindingController = vehicleBindingController,
             currentUser = authUiState.session.user,
             vehicleBackgroundContent = vehicleBackgroundContent,
@@ -347,6 +361,8 @@ private fun MainScreenContent(
     vehicleProfilesRefreshing: Boolean,
     vehicleProfilesError: String?,
     vehicleCloudStatus: VehicleCloudStatus?,
+    vehicleFaultController: VehicleFaultController,
+    onRefreshVehicleCloudStatus: ((String) -> Unit)?,
     vehicleBindingController: VehicleBindingController?,
     currentUser: AuthUser?,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
@@ -466,6 +482,8 @@ private fun MainScreenContent(
             vehicleProfilesRefreshing = vehicleProfilesRefreshing,
             vehicleProfilesError = vehicleProfilesError,
             vehicleCloudStatus = vehicleCloudStatus,
+            vehicleFaultController = vehicleFaultController,
+            onRefreshVehicleCloudStatus = onRefreshVehicleCloudStatus,
             vehicleBindingController = vehicleBindingController,
             currentUser = currentUser,
             vehicleBackgroundContent = vehicleBackgroundContent,
@@ -570,6 +588,8 @@ private fun MainDestinationContent(
     vehicleProfilesRefreshing: Boolean,
     vehicleProfilesError: String?,
     vehicleCloudStatus: VehicleCloudStatus?,
+    vehicleFaultController: VehicleFaultController,
+    onRefreshVehicleCloudStatus: ((String) -> Unit)?,
     vehicleBindingController: VehicleBindingController?,
     currentUser: AuthUser?,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
@@ -610,6 +630,8 @@ private fun MainDestinationContent(
                 vehiclesRefreshing = vehicleProfilesRefreshing,
                 vehiclesErrorMessage = vehicleProfilesError,
                 vehicleCloudStatus = vehicleCloudStatus,
+                vehicleFaultController = vehicleFaultController,
+                onRefreshVehicleCloudStatus = onRefreshVehicleCloudStatus,
                 vehicleBindingController = vehicleBindingController,
                 currentUser = currentUser,
                 vehicleBackgroundContent = vehicleBackgroundContent,

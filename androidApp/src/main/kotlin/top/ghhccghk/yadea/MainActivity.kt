@@ -42,6 +42,7 @@ import top.ghhccghk.yadea.vehicle.YadeaVehicleProfileGateway
 import top.ghhccghk.yadea.vehicle.YadeaVehicleCloudStatusGateway
 import top.ghhccghk.yadea.vehicle.YadeaVehicleBindingGateway
 import top.ghhccghk.yadea.vehicle.YadeaVehicleBleTokenGateway
+import top.ghhccghk.yadea.vehicle.YadeaVehicleFaultGateway
 import top.ghhccghk.yadea.wifi.AndroidWifiP2pManager
 import top.ghhccghk.yadea.wifi.AndroidWifiConnectionManager
 import top.ghhccghk.yadea.mirror.source.AndroidFrameSourceFactory
@@ -171,6 +172,13 @@ class MainActivity : ComponentActivity() {
             ),
             scope = lifecycleScope,
         )
+        val vehicleFaultGateway = YadeaVehicleFaultGateway(
+            transport = httpTransport,
+            tokenProvider = { appPreferences.readAuth().token },
+            deviceIdProvider = deviceIdProvider,
+            clientInfoProvider = { clientInfo },
+            timestampProvider = { System.currentTimeMillis() },
+        )
         val vehicleBindingController = VehicleBindingController(
             gateway = YadeaVehicleBindingGateway(
                 transport = httpTransport,
@@ -274,6 +282,7 @@ class MainActivity : ComponentActivity() {
                 vehicleProfilesRefreshing = vehicleProfilesRefreshing,
                 vehicleProfilesError = vehicleProfilesError,
                 vehicleCloudStatus = vehicleCloudStatus,
+                vehicleFaultGateway = vehicleFaultGateway,
                 onRefreshVehicleCloudStatus = cloudStatusController::refresh,
                 vehicleBindingController = vehicleBindingController,
                 vehicleBackgroundContent = { url, modifier ->

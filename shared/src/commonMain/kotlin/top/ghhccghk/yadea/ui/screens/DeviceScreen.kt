@@ -19,11 +19,13 @@ import top.ghhccghk.yadea.vehicle.VehicleProfile
 import top.ghhccghk.yadea.vehicle.VehicleCloudStatus
 import top.ghhccghk.yadea.vehicle.VehicleBindingController
 import top.ghhccghk.yadea.vehicle.VehicleControlController
+import top.ghhccghk.yadea.vehicle.VehicleFaultController
 
 /** 车辆页的子功能。 */
 internal enum class VehicleSection(val label: String) {
     Info("信息"),
     Control("控制"),
+    Diagnostics("诊断"),
     Garage("车库"),
     Settings("设置"),
     Ota("OTA"),
@@ -51,6 +53,8 @@ internal fun VehicleHubScreen(
     vehiclesRefreshing: Boolean = false,
     vehiclesErrorMessage: String? = null,
     vehicleCloudStatus: VehicleCloudStatus? = null,
+    vehicleFaultController: VehicleFaultController,
+    onRefreshVehicleCloudStatus: ((String) -> Unit)? = null,
     vehicleBindingController: VehicleBindingController? = null,
     currentUser: AuthUser? = null,
     authController: AuthController,
@@ -95,6 +99,18 @@ internal fun VehicleHubScreen(
                     controller = vehicleControlController,
                     connected = connected,
                     contentPadding = pagePadding,
+                )
+                VehicleSection.Diagnostics -> VehicleDiagnosticsScreen(
+                    status = status,
+                    cloudStatus = vehicleCloudStatus,
+                    connected = connected,
+                    profile = profile,
+                    faultController = vehicleFaultController,
+                    contentPadding = pagePadding,
+                    onRefreshCloudStatus = {
+                        profile?.vin?.takeIf { it.isNotBlank() }
+                            ?.let { onRefreshVehicleCloudStatus?.invoke(it) }
+                    },
                 )
                 VehicleSection.Garage -> GarageScreen(
                     profiles = profiles,
