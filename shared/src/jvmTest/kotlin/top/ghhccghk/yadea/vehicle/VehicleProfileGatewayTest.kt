@@ -30,7 +30,7 @@ class VehicleProfileGatewayTest {
         val transport = object : HttpTransport {
             override suspend fun execute(request: HttpRequest): HttpResponse {
                 assertEquals("GET", request.method)
-                assertTrue(request.url.endsWith("userBike/queryBindingBike"))
+                assertTrue(request.url.contains("userBike/queryBindingBike?"))
                 assertEquals(
                     GatewayHeaders.GATEWAY_APP_ID,
                     request.headers[GatewayHeaders.KEY_GATEWAY_APP_ID],

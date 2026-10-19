@@ -144,6 +144,7 @@ class MainActivity : ComponentActivity() {
                 tokenProvider = { appPreferences.readAuth().token },
                 loginIdProvider = deviceIdProvider,
                 clientInfoProvider = { clientInfo },
+                timestampProvider = { System.currentTimeMillis() },
             ),
             scope = lifecycleScope,
         )

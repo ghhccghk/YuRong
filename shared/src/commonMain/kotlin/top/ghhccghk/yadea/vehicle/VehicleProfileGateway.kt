@@ -4,6 +4,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.network.HttpRequest
 import top.ghhccghk.yadea.network.HttpTransport
+import top.ghhccghk.yadea.auth.Crypto
+import top.ghhccghk.yadea.auth.GatewaySigner
 import top.ghhccghk.yadea.network.GatewayClientInfo
 import top.ghhccghk.yadea.network.GatewayRequestHeaders
 import top.ghhccghk.yadea.network.JsonSupport
@@ -26,6 +28,7 @@ class YadeaVehicleProfileGateway(
     private val loginIdProvider: () -> String = { "" },
     private val baseUrl: String = DEFAULT_BASE_URL,
     private val clientInfoProvider: () -> GatewayClientInfo = { GatewayClientInfo() },
+    private val timestampProvider: () -> Long = { 0L },
 ) : VehicleProfileGateway {
 
     override suspend fun load(): VehicleProfile? = loadAll().firstOrNull()
@@ -33,7 +36,11 @@ class YadeaVehicleProfileGateway(
     override suspend fun loadAll(): List<VehicleProfile> {
         val token = tokenProvider().trim()
         if (token.isBlank()) return emptyList()
-        val url = baseUrl + "userBike/queryBindingBike"
+        val signedQuery = GatewaySigner.formBody(
+            """{"_gateway":"True"}""",
+            timestampProvider(),
+        )
+        val url = baseUrl + "userBike/queryBindingBike?" + signedQuery
         val headers = GatewayRequestHeaders.build(
             clientInfo = clientInfoProvider(),
             deviceId = loginIdProvider(),
@@ -54,9 +61,18 @@ class YadeaVehicleProfileGateway(
             "PROFILE <- ${response.status} raw=${NetworkLog.body(response.body)}",
         )
         if (response.status !in 200..299) return emptyList()
-        val objectTexts = JsonSupport.arrayObjects(response.body, "data")
-            .ifEmpty { listOfNotNull(JsonSupport.objectField(response.body, "data")) }
-        return objectTexts.mapNotNull(::parseProfile)
+        val decoded = Crypto.urlDecode(response.body.trim())
+        val plain = Crypto.aesEcbPkcs5Decrypt(GatewaySigner.AES_KEY, decoded) ?: decoded
+        NetworkLog.write("PROFILE plain ${NetworkLog.maskSensitive(plain)}")
+        if (JsonSupport.boolean(plain, "success") == false) {
+            NetworkLog.write("PROFILE !! business failure")
+            return emptyList()
+        }
+        val objectTexts = JsonSupport.arrayObjects(plain, "data")
+            .ifEmpty { listOfNotNull(JsonSupport.objectField(plain, "data")) }
+        val profiles = objectTexts.mapNotNull(::parseProfile)
+        NetworkLog.write("PROFILE vehicles=${profiles.size} vins=${profiles.map { it.vin }}")
+        return profiles
     }
 
     private fun parseProfile(objectText: String): VehicleProfile? {

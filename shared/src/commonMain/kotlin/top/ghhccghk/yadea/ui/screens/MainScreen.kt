@@ -199,13 +199,17 @@ fun MainScreen(
             vehicleControlController.dispose()
         }
     }
-    LaunchedEffect(authUiState.session.isLoggedIn) {
-        if (authUiState.session.isLoggedIn) {
+    LaunchedEffect(authUiState.session.token, authUiState.session.user?.userId) {
+        if (authUiState.session.token.isNotBlank() && authUiState.session.user != null) {
             onRefreshVehicleProfile?.invoke()
         }
     }
-    LaunchedEffect(vehicleProfile?.vin, authUiState.session.isLoggedIn, carSettingsGateway) {
-        if (authUiState.session.isLoggedIn && !vehicleProfile?.vin.isNullOrBlank()) {
+    LaunchedEffect(
+        vehicleProfile?.vin,
+        authUiState.session.token,
+        carSettingsGateway,
+    ) {
+        if (authUiState.session.token.isNotBlank() && !vehicleProfile?.vin.isNullOrBlank()) {
             carSettingsController.refresh()
         }
     }
