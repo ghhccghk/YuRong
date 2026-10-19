@@ -3,6 +3,7 @@ package top.ghhccghk.yadea.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -15,6 +16,9 @@ fun GarageScreen(
     selectedVin: String,
     contentPadding: PaddingValues,
     onSelectVehicle: (String) -> Unit,
+    onRefresh: (() -> Unit)? = null,
+    refreshing: Boolean = false,
+    errorMessage: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val dimensions = AppDesign.dimensions
@@ -29,10 +33,41 @@ fun GarageScreen(
                 subtitle = "来自账号绑定车辆的云端资料；切换后车辆信息与云端设置会按 VIN 更新",
             )
         }
+        item {
+            AppSection(title = "云端同步") {
+                AppListRow(
+                    title = "绑定车辆",
+                    summary = errorMessage,
+                    value = when {
+                        refreshing -> "刷新中…"
+                        profiles.isEmpty() -> "暂无"
+                        else -> "${profiles.size} 辆"
+                    },
+                )
+                if (onRefresh != null) {
+                    AppButton(
+                        onClick = onRefresh,
+                        enabled = !refreshing,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        AppText(
+                            if (refreshing) "正在刷新车辆列表…" else "刷新绑定车辆",
+                            style = AppDesign.typography.button,
+                        )
+                    }
+                }
+            }
+        }
         if (profiles.isEmpty()) {
             item {
                 AppSection {
-                    AppEmptyState("登录并绑定车辆后，车库会显示云端返回的车辆列表。")
+                    AppEmptyState(
+                        if (refreshing) {
+                            "正在向云端查询当前账号绑定的车辆。"
+                        } else {
+                            "用 Token 登录后点“刷新绑定车辆”；仍为空时请检查 Token 是否完整、是否已过期。"
+                        },
+                    )
                 }
             }
         } else {

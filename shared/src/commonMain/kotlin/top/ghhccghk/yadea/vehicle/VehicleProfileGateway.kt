@@ -1,7 +1,11 @@
 package top.ghhccghk.yadea.vehicle
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import top.ghhccghk.yadea.network.HttpRequest
 import top.ghhccghk.yadea.network.HttpTransport
 import top.ghhccghk.yadea.auth.Crypto
@@ -105,11 +109,43 @@ class VehicleProfileController(
     private val gateway: VehicleProfileGateway,
     private val scope: CoroutineScope,
 ) {
+    private val _refreshing = MutableStateFlow(false)
+
+    /** 是否正在进行云端车辆列表刷新；界面可据此禁用重复点击。 */
+    val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
+
+    private val _lastError = MutableStateFlow<String?>(null)
+
+    /** 最近一次刷新失败的原因；成功刷新后清空。 */
+    val lastError: StateFlow<String?> = _lastError.asStateFlow()
+
+    private var refreshJob: Job? = null
+
+    /**
+     * 主动刷新已登录账号的绑定车辆。
+     *
+     * 已有刷新请求进行时直接返回，避免重复点击或登录状态变化触发并发请求。
+     * 接口返回空列表时保留上一次成功结果，避免一次网络抖动把车库清空。
+     */
     fun refresh() {
-        scope.launch {
+        if (refreshJob?.isActive == true) return
+        refreshJob = scope.launch {
+            _refreshing.value = true
+            _lastError.value = null
             runCatching { gateway.loadAll() }
-                .getOrNull()
-                ?.let(source::updateAll)
+                .onSuccess { profiles ->
+                    if (profiles.isNotEmpty()) {
+                        source.updateAll(profiles)
+                    } else if (source.profiles.value.isEmpty()) {
+                        _lastError.value = "未获取到绑定车辆，请确认 Token 有效后重试。"
+                    } else {
+                        _lastError.value = "本次刷新未返回车辆，已保留上次列表。"
+                    }
+                }
+                .onFailure { error ->
+                    _lastError.value = "刷新失败：${error.message ?: error::class.simpleName}"
+                }
+            _refreshing.value = false
         }
     }
 }

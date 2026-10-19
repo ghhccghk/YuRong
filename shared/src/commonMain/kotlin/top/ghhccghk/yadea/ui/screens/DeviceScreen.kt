@@ -44,6 +44,9 @@ internal fun VehicleHubScreen(
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)? = null,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)? = null,
     onOpenIotRenewal: ((String) -> Unit)? = null,
+    onRefreshVehicles: (() -> Unit)? = null,
+    vehiclesRefreshing: Boolean = false,
+    vehiclesErrorMessage: String? = null,
     authController: AuthController,
     carSettingsController: CarSettingsController,
     otaController: OtaController,
@@ -77,6 +80,9 @@ internal fun VehicleHubScreen(
                     vehicleBackgroundContent = vehicleBackgroundContent,
                     vehicleImageContent = vehicleImageContent,
                     onOpenIotRenewal = onOpenIotRenewal,
+                    onRefresh = onRefreshVehicles,
+                    refreshing = vehiclesRefreshing,
+                    profileErrorMessage = vehiclesErrorMessage,
                 )
                 VehicleSection.Control -> VehicleControlScreen(
                     controller = vehicleControlController,
@@ -88,6 +94,9 @@ internal fun VehicleHubScreen(
                     selectedVin = profile?.vin.orEmpty(),
                     contentPadding = pagePadding,
                     onSelectVehicle = onSelectVehicle,
+                    onRefresh = onRefreshVehicles,
+                    refreshing = vehiclesRefreshing,
+                    errorMessage = vehiclesErrorMessage,
                 )
                 VehicleSection.Settings -> CarSettingsScreen(
                     controller = carSettingsController,

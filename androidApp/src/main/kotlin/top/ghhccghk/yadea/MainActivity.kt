@@ -10,6 +10,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -148,7 +150,6 @@ class MainActivity : ComponentActivity() {
             ),
             scope = lifecycleScope,
         )
-        profileController.refresh()
         val authGateway = YadeaAuthGateway(
             transport = httpTransport,
             timestampProvider = { System.currentTimeMillis() },
@@ -178,6 +179,8 @@ class MainActivity : ComponentActivity() {
         val mediaSourcePicker: MediaSourcePicker = AndroidMediaSourcePicker(this)
 
         setContent {
+            val vehicleProfilesRefreshing by profileController.refreshing.collectAsState()
+            val vehicleProfilesError by profileController.lastError.collectAsState()
             MainScreen(
                 bleAdapter = vehicleBleAdapter,
                 bleTokenProvider = vehicleBleTokenGateway,
@@ -200,6 +203,8 @@ class MainActivity : ComponentActivity() {
                     }
                 },
                 onRefreshVehicleProfile = profileController::refresh,
+                vehicleProfilesRefreshing = vehicleProfilesRefreshing,
+                vehicleProfilesError = vehicleProfilesError,
                 vehicleBackgroundContent = { url, modifier ->
                     AndroidVehicleBackgroundImage(url, modifier)
                 },

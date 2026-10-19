@@ -36,6 +36,9 @@ fun VehicleInfoScreen(
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)? = null,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)? = null,
     onOpenIotRenewal: ((String) -> Unit)? = null,
+    onRefresh: (() -> Unit)? = null,
+    refreshing: Boolean = false,
+    profileErrorMessage: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val model = VehicleInfoFormatter.format(status, connected)
@@ -58,6 +61,31 @@ fun VehicleInfoScreen(
                 vehicleBackgroundContent = vehicleBackgroundContent,
                 vehicleImageContent = vehicleImageContent,
             )
+        }
+        if (profile == null && (onRefresh != null || profileErrorMessage != null)) {
+            item {
+                AppSection(title = "云端车辆资料") {
+                    AppEmptyState(
+                        when {
+                            refreshing -> "正在向云端查询当前账号绑定的车辆。"
+                            profileErrorMessage != null -> profileErrorMessage
+                            else -> "尚未获取到云端车辆资料，可以手动刷新。"
+                        },
+                    )
+                    if (onRefresh != null) {
+                        AppButton(
+                            onClick = onRefresh,
+                            enabled = !refreshing,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            AppText(
+                                if (refreshing) "正在刷新车辆列表…" else "刷新绑定车辆",
+                                style = AppDesign.typography.button,
+                            )
+                        }
+                    }
+                }
+            }
         }
         if (profile?.iotService != null) {
             item {

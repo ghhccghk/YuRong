@@ -103,6 +103,8 @@ fun MainScreen(
     otaGateway: OtaGateway? = null,
     onOpenExternalUrl: ((String) -> Unit)? = null,
     onRefreshVehicleProfile: (() -> Unit)? = null,
+    vehicleProfilesRefreshing: Boolean = false,
+    vehicleProfilesError: String? = null,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)? = null,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)? = null,
     systemAccentColor: androidx.compose.ui.graphics.Color? = null,
@@ -199,8 +201,10 @@ fun MainScreen(
             vehicleControlController.dispose()
         }
     }
-    LaunchedEffect(authUiState.session.token, authUiState.session.user?.userId) {
-        if (authUiState.session.token.isNotBlank() && authUiState.session.user != null) {
+    // Token 登录不保证能在本地解析出 userInfo；车辆接口只依赖 Token，
+    // 因此 Token 一旦变化就刷新，避免被 userId 为空挡住。
+    LaunchedEffect(authUiState.session.token) {
+        if (authUiState.session.token.isNotBlank()) {
             onRefreshVehicleProfile?.invoke()
         }
     }
@@ -251,6 +255,9 @@ fun MainScreen(
             vehicleProfile = vehicleProfile,
             vehicleProfiles = vehicleProfiles,
             onSelectVehicle = resolvedProfileSource::select,
+            onRefreshVehicleProfile = onRefreshVehicleProfile,
+            vehicleProfilesRefreshing = vehicleProfilesRefreshing,
+            vehicleProfilesError = vehicleProfilesError,
             vehicleBackgroundContent = vehicleBackgroundContent,
             vehicleImageContent = vehicleImageContent,
             onOpenExternalUrl = onOpenExternalUrl,
@@ -298,6 +305,9 @@ private fun MainScreenContent(
     vehicleProfile: VehicleProfile?,
     vehicleProfiles: List<VehicleProfile>,
     onSelectVehicle: (String) -> Unit,
+    onRefreshVehicleProfile: (() -> Unit)?,
+    vehicleProfilesRefreshing: Boolean,
+    vehicleProfilesError: String?,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)?,
     onOpenExternalUrl: ((String) -> Unit)?,
@@ -411,6 +421,9 @@ private fun MainScreenContent(
             vehicleProfile = vehicleProfile,
             vehicleProfiles = vehicleProfiles,
             onSelectVehicle = onSelectVehicle,
+            onRefreshVehicleProfile = onRefreshVehicleProfile,
+            vehicleProfilesRefreshing = vehicleProfilesRefreshing,
+            vehicleProfilesError = vehicleProfilesError,
             vehicleBackgroundContent = vehicleBackgroundContent,
             vehicleImageContent = vehicleImageContent,
             onOpenExternalUrl = onOpenExternalUrl,
@@ -509,6 +522,9 @@ private fun MainDestinationContent(
     vehicleProfile: VehicleProfile?,
     vehicleProfiles: List<VehicleProfile>,
     onSelectVehicle: (String) -> Unit,
+    onRefreshVehicleProfile: (() -> Unit)?,
+    vehicleProfilesRefreshing: Boolean,
+    vehicleProfilesError: String?,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)?,
     onOpenExternalUrl: ((String) -> Unit)?,
@@ -543,6 +559,9 @@ private fun MainDestinationContent(
                 profile = vehicleProfile,
                 profiles = vehicleProfiles,
                 onSelectVehicle = onSelectVehicle,
+                onRefreshVehicles = onRefreshVehicleProfile,
+                vehiclesRefreshing = vehicleProfilesRefreshing,
+                vehiclesErrorMessage = vehicleProfilesError,
                 vehicleBackgroundContent = vehicleBackgroundContent,
                 vehicleImageContent = vehicleImageContent,
                 onOpenIotRenewal = onOpenExternalUrl,
