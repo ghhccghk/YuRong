@@ -466,6 +466,11 @@ object CloudCarSettingMapper {
         "77" -> CarSettingKind.Toggle(cloud.boolValue("sleepMode") == true)
         "91" -> CarSettingKind.Toggle(cloud.boolValue("sosEmergencyCall") == true)
         "95" -> CarSettingKind.Toggle(cloud.boolValue("wxhlBind") == true)
+        // TCS/ABS 的当前值来自车辆 BLE 状态，云端清单只负责下发项目本身；
+        // 初值由 CarSettingsController.updateVehicleStatus 回填。
+        "37", "38" -> CarSettingKind.Toggle(false)
+        // 模拟声浪、仪表亮度调节同样由子 Activity 读取车辆状态。
+        "33", "86" -> CarSettingKind.Toggle(false)
         "76" -> CarSettingKind.Toggle(cloud.boolValue("positioningFunc") == true)
         "45" -> CarSettingKind.Toggle(false)
         "9" -> CarSettingKind.Toggle(cloud.boolValue("alarmOn") == true)
@@ -488,7 +493,7 @@ object CloudCarSettingMapper {
         "14" -> CarSettingKind.Info(
             cloud.intValue("alarmPower")?.let { "灵敏度 $it" } ?: "状态由车辆回读",
         )
-        "19", "26", "32", "36", "37", "38", "42", "43", "44", "46", "49",
+        "19", "26", "32", "36", "42", "43", "44", "46", "49",
         "51", "63", "68", "79", "80", "84", "90", "94", "2" ->
             CarSettingKind.Info("状态由车辆回读")
         "47" -> CarSettingKind.Entrance(

@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.delay
+import top.ghhccghk.yadea.vehicle.TtpInfo
 
 enum class CarSettingClassification(val label: String) {
     SECURITY("安全守护"),
@@ -212,6 +213,34 @@ class CarSettingsController(
 
     fun clearMessage() {
         _state.value = _state.value.copy(message = null)
+    }
+
+    /**
+     * TCS / ABS 这类子页面设置没有云端值，原 App 从车辆 BLE 状态读取。
+     * 车辆状态更新后回填开关，避免设置页一直显示为关闭。
+     */
+    fun updateVehicleStatus(status: TtpInfo?) {
+        val current = _state.value
+        if (status == null || current.items.isEmpty()) return
+        val updated = current.items.map { item ->
+            if (item.id in current.pendingIds) return@map item
+            when (item.configId) {
+                "37" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.tcsWorkMode != 0),
+                )
+                "38" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.absFunctionStatus != 0),
+                )
+                "33" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.simulatedSoundWaveStatus != 0),
+                )
+                "86" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.brightnessAdjustSwitch != 0),
+                )
+                else -> item
+            }
+        }
+        _state.value = current.copy(items = updated)
     }
 
     private fun List<CarSettingItem>.replace(item: CarSettingItem): List<CarSettingItem> =

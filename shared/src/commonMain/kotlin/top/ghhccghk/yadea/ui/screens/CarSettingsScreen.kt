@@ -29,6 +29,7 @@ fun CarSettingsScreen(
     val state by controller.state.collectAsState()
     val scope = rememberCoroutineScope()
     val dimensions = AppDesign.dimensions
+    var confirmDisable by remember { mutableStateOf<CarSettingItem?>(null) }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -97,7 +98,15 @@ fun CarSettingsScreen(
                                 item.id !in state.pendingIds,
                             pending = item.id in state.pendingIds,
                             onUpdate = { transform ->
-                                scope.launch { controller.update(item.id, transform) }
+                                val next = transform(item.kind)
+                                if (next is CarSettingKind.Toggle &&
+                                    !next.checked &&
+                                    item.configId in SAFETY_CONFIRM_IDS
+                                ) {
+                                    confirmDisable = item
+                                } else {
+                                    scope.launch { controller.update(item.id, transform) }
+                                }
                             },
                         )
                     }
@@ -118,7 +127,27 @@ fun CarSettingsScreen(
             }
         }
     }
+
+    val safetyTarget = confirmDisable
+    AppAlertDialog(
+        show = safetyTarget != null,
+        title = "关闭${safetyTarget?.title.orEmpty()}",
+        message = "该功能属于安全辅助，关闭后可能影响车辆稳定性。确定要关闭吗？",
+        onConfirm = {
+            confirmDisable = null
+            safetyTarget?.let { item ->
+                scope.launch {
+                    controller.update(item.id) { current ->
+                        (current as? CarSettingKind.Toggle)?.copy(checked = false) ?: current
+                    }
+                }
+            }
+        },
+        onDismissRequest = { confirmDisable = null },
+    )
 }
+
+private val SAFETY_CONFIRM_IDS = setOf("37", "38")
 
 @Composable
 private fun CarSettingRow(

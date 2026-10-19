@@ -33,6 +33,14 @@ object VehicleSettingFrameEncoder {
         0x63 -> "FFFFFFFFFFFFFFFF3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
         0x92 -> "FFFFFFFFFFFFFFFFFFFFFFF7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
         0x93 -> "FFFFFFFFFFFFFFFFFFFFFFF3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        // BodyStabilityActivity -> TCS_BODY_STABILITY，参数 0..7 映射到 F8..FF。
+        0x9D -> "FF".repeat(35) + hex2(0xF8 + command.parameter.coerceIn(0, 7))
+        // AntiLockActivity -> ABS_ANTI_LOCK_OPEN / CLOSE。
+        0x99 -> "FF".repeat(27) + "7F"
+        0x9A -> "FF".repeat(27) + "3F"
+        // SimulatedSoundActivity -> SIMULATED_SOUND_WAVE_OPEN / CLOSE。
+        0x95 -> "FF".repeat(27) + "FD"
+        0x96 -> "FF".repeat(27) + "FC"
         0x3D -> "FFFFFFFFFFFFFF" +
             hex2((command.parameter.coerceIn(1, 3) + 0x38)) +
             "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"

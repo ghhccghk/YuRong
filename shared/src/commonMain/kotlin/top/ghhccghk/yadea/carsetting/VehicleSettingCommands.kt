@@ -79,6 +79,42 @@ object VehicleSettingCommands {
                 onId = 0x62,
                 offId = 0x63,
             )
+            // BodyStabilityActivity：value 0=开启，1=关闭。
+            "37" -> toggle(
+                kind = kind,
+                onType = "TCS_BODY_STABILITY",
+                offType = "TCS_BODY_STABILITY",
+                onId = 0x9D,
+                offId = 0x9D,
+                onParameter = 0,
+                offParameter = 1,
+            )
+            // AntiLockActivity：0x99 开启，0x9A 关闭。
+            "38" -> toggle(
+                kind = kind,
+                onType = "ABS_ANTI_LOCK_OPEN",
+                offType = "ABS_ANTI_LOCK_CLOSE",
+                onId = 0x99,
+                offId = 0x9A,
+            )
+            // SimulatedSoundActivity：0x95 开启，0x96 关闭。
+            "33" -> toggle(
+                kind = kind,
+                onType = "SIMULATED_SOUND_WAVE_OPEN",
+                offType = "SIMULATED_SOUND_WAVE_CLOSE",
+                onId = 0x95,
+                offId = 0x96,
+            )
+            // BrightnessAdjustmentActivity：同一个命令 ID，用参数区分开关。
+            "86" -> toggle(
+                kind = kind,
+                onType = "BRIGHTNESS_ADJUST_SWITCH",
+                offType = "BRIGHTNESS_ADJUST_SWITCH",
+                onId = 0x135,
+                offId = 0x135,
+                onParameter = 1,
+                offParameter = 0,
+            )
             else -> null
         }
 

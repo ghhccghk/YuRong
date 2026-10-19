@@ -217,6 +217,14 @@ fun MainScreen(
             carSettingsController.refresh()
         }
     }
+    LaunchedEffect(
+        vehicleStatus?.extended?.tcsWorkMode,
+        vehicleStatus?.extended?.absFunctionStatus,
+        vehicleStatus?.extended?.simulatedSoundWaveStatus,
+        vehicleStatus?.extended?.brightnessAdjustSwitch,
+    ) {
+        carSettingsController.updateVehicleStatus(vehicleStatus)
+    }
     var autoConnectAttempted by remember { mutableStateOf(false) }
     LaunchedEffect(authUiState.session.isLoggedIn, vehicleProfile?.vin) {
         if (!autoConnectAttempted && authUiState.session.isLoggedIn) {
