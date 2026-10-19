@@ -164,6 +164,51 @@
 - IoT 通道能触发并轮询任务状态。
 - 原有 BLE 通道不回归。
 
+### Phase 3.1 已提取的 smali 事实
+
+任务与升级接口（`nn.smali`）：
+
+| 用途 | 接口 | 关键参数 |
+| --- | --- | --- |
+| 查询任务列表 | `upgradeTask/queryTaskList/V4` | 现有 `modelNo`、`vin`、`izSkip`、`experimental` |
+| 查询进行中任务 | `upgradeTask/queryUpgradingTask` | `vin`、`experimental` |
+| 用户确认升级 | `upgradeTask/userConfirm/V4` | `vin`、`os=1`、`modelNo`、`modelName`、`experimental`、`confirmUpgradeType`、`firmwareModuleCode` |
+| 查询/清除任务标记 | `upgradeTask/userCheckFlag` | `behaviorId`、`experimental` |
+| 固件版本 | `ota/upgrade/version` | `vinList` |
+| 固件信息上报 | `vehicle/bikeFirmwareUpload` | 固件/部件 map |
+| 升级日志 | `ota/upgradeLog/addUpgradeLog` | 升级结果记录 |
+| 车型配置 | `vehiclebase/bike-model/selectConfigListByModelNo` | `modelNo`、`vin` |
+
+`confirmUpgradeType`：`IOT_UPGRADE` 传 `"1"`，其他通道传 `"2"`。
+
+Wi-Fi OTA（`OTAUpgradeActivity` / `wifi/server/a`）：
+
+1. P2P 建链（复用 Phase 2 的 BLE/P2P 链路）。
+2. 连接仪表 TCP，开启文件服务。
+3. 鉴权成功后主动关闭 TCP。
+4. 通过文件服务下载/传输固件，监听下载开始、进度、完成事件。
+5. 失败分支包括 Socket 超时、连接失败、非目标 P2P 设备、无效 GroupOwner。
+
+IoT OTA：
+
+- 云平台通过推送/任务接口反馈升级信息。
+- 使用 `queryUpgradingTask` 轮询状态，`userConfirm/V4` 提交确认。
+- 结果通过 `j_push_iot_ota_upgrade_message`、`j_push_iot_ota_upgrade_result_message` 回流。
+
+记录与分部件：
+
+- `BleOTARecordActivity`：OTA 记录页。
+- `OTAPartsUpgradeActivity`：分部件升级。
+- `ota/upgradeLog/addUpgradeLog`：写入升级结果日志。
+
+### Phase 3.2 实施拆分
+
+1. 网关层：补齐 `userConfirm/V4`、`queryUpgradingTask`、`userCheckFlag`、`upgrade/version`、`bikeFirmwareUpload`、`addUpgradeLog`。
+2. Wi-Fi 通道：在现有 P2P/TCP 基础上接入文件服务，补齐下载/传输/断线重连。
+3. IoT 通道：确认任务、轮询状态、推送结果。
+4. 记录/分部件：OTA 记录页与部件升级入口。
+5. 验收：BLE 通道不回归；Wi-Fi/IoT 通道有明确状态与失败原因。
+
 ## Phase 4：设置项第二批
 
 目标：把剩余云端设置项按“开关 → 选项/滑杆 → 联系人”三批接完。
