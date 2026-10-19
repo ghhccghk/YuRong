@@ -7,7 +7,12 @@ data class BleDevice(
     val address: String,
     val name: String? = null,
     val rssi: Int = -100,
-    val serviceUuids: List<String> = emptyList()
+    val serviceUuids: List<String> = emptyList(),
+    val isScooter: Boolean = false,
+    val isBox: Boolean = false,
+    val supportsToken: Boolean = false,
+    val bleProtocolVersion: Int = 0,
+    val parkingStatus: Int = -1,
 )
 
 /**

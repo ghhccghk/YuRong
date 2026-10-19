@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.ble.BleConnectionState
+import top.ghhccghk.yadea.vehicle.isBindableForVehicle
 import top.ghhccghk.yadea.wifi.P2pStatus
 import top.ghhccghk.yadea.wifi.WifiConnectionState
 
@@ -44,6 +45,7 @@ fun ConnectionScreen(
     var wifiQuery by remember { mutableStateOf("") }
     var p2pQuery by remember { mutableStateOf("") }
     var bleQuery by remember { mutableStateOf("") }
+    var bindableOnly by remember { mutableStateOf(false) }
 
     val wifiState by viewModel.wifiState.collectAsState()
     val wifiIp by viewModel.wifiIp.collectAsState()
@@ -317,6 +319,12 @@ fun ConnectionScreen(
                             else -> "未连接"
                         },
                     )
+                    AppSwitchPreference(
+                        checked = bindableOnly,
+                        onCheckedChange = { bindableOnly = it },
+                        title = "仅显示可绑定车辆",
+                        summary = "名称以 YD 开头、踏板车或 Box；仍可通过关闭开关查看全部 BLE 设备",
+                    )
                     AppButton(
                         onClick = { viewModel.scanBle() },
                         modifier = Modifier.fillMaxWidth().padding(
@@ -342,6 +350,8 @@ fun ConnectionScreen(
                         // BLE 设备可能没有广播名称，因此名称与地址都参与匹配；过滤不影响扫描与连接逻辑。
                         val visibleBleDevices = bleDevices.filter {
                             matchesSearchQuery(bleQuery, it.name, it.address)
+                        }.filter {
+                            !bindableOnly || it.isBindableForVehicle(isAll = true, type = 0)
                         }
                         if (visibleBleDevices.isEmpty()) {
                             AppEmptyState("没有匹配“$bleQuery”的 BLE 设备")

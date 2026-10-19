@@ -113,6 +113,10 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
 
         val callback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
+                val advertised = BleAdvertisementParser.parse(
+                    mac = result.device.address,
+                    data = result.scanRecord?.bytes,
+                )
                 val device = BleDevice(
                     address = result.device.address,
                     name = result.device.name ?: result.scanRecord?.deviceName,
@@ -120,6 +124,11 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
                     serviceUuids = result.scanRecord?.serviceUuids
                         ?.map { it.uuid.toString() }
                         .orEmpty(),
+                    isScooter = advertised.isScooter,
+                    isBox = advertised.isBox,
+                    supportsToken = advertised.supportsToken,
+                    bleProtocolVersion = advertised.bleProtocolVersion,
+                    parkingStatus = advertised.parkingStatus,
                 )
                 _discoveredDevices.update { list ->
                     if (list.any { it.address == device.address }) list else list + device
