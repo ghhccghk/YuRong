@@ -204,7 +204,9 @@ internal fun AccountSecuritySection(
                         if (useEmail) {
                             controller.sendEmailCode(contact, if (changing) 11 else 3)
                         } else {
-                            controller.sendSmsCode(contact, 11)
+                            // smali: BindTypeActivity.getSmsCode
+                            // 换绑发送 11，首次绑定发送 3。
+                            controller.sendSmsCode(contact, if (changing) 11 else 3)
                         }
                     },
                     enabled = !busy && countdown <= 0,

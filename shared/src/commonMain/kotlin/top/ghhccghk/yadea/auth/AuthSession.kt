@@ -329,7 +329,9 @@ class AuthController(
         scope.launch {
             _state.value = _state.value.copy(busy = true, error = null, notice = null)
             when (val result = runCatching {
-                gateway.bindOrChangeMobile(trimmed, code.trim(), if (change) 2 else 1)
+                // smali: BindTypeActivity.updatePhoneBySmsCode
+                // 换绑 -> type=1；首次绑定 -> type=2。
+                gateway.bindOrChangeMobile(trimmed, code.trim(), if (change) 1 else 2)
             }.getOrElse { AuthResult.Failure(it.message ?: "手机号更新失败") }) {
                 is AuthResult.Success -> applyContactChange(
                     mobile = trimmed,
@@ -359,7 +361,9 @@ class AuthController(
         scope.launch {
             _state.value = _state.value.copy(busy = true, error = null, notice = null)
             when (val result = runCatching {
-                gateway.bindOrChangeEmail(trimmed, code.trim(), if (change) 2 else 1)
+                // smali: BindTypeActivity.getUpdateEmail
+                // 换绑 -> type=1；首次绑定 -> type=2。
+                gateway.bindOrChangeEmail(trimmed, code.trim(), if (change) 1 else 2)
             }.getOrElse { AuthResult.Failure(it.message ?: "邮箱更新失败") }) {
                 is AuthResult.Success -> applyContactChange(
                     email = trimmed,
