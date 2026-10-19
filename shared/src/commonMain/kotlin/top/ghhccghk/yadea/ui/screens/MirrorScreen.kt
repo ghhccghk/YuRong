@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.mirror.FrameCropConfig
 import top.ghhccghk.yadea.mirror.MirrorPreviewPanel
 import top.ghhccghk.yadea.mirror.MirrorState
+import top.ghhccghk.yadea.mirror.MirrorConnectStage
 
 @Composable
 fun MirrorScreen(
@@ -43,6 +44,14 @@ fun MirrorScreen(
     val cropConfig by viewModel.cropConfig.collectAsState()
     val p2pGroupOwnerIp by viewModel.p2pGroupOwnerIp.collectAsState()
     val wifiIp by viewModel.wifiIp.collectAsState()
+    val autoConnectState by viewModel.mirrorConnectState.collectAsState()
+    val autoConnecting = autoConnectState.stage in setOf(
+        MirrorConnectStage.SendingBle,
+        MirrorConnectStage.WaitingWifi,
+        MirrorConnectStage.DiscoveringP2p,
+        MirrorConnectStage.ConnectingP2p,
+        MirrorConnectStage.ConnectingTcp,
+    )
 
     var targetHost by remember { mutableStateOf("") }
     var tcpPort by remember { mutableStateOf("8888") }
@@ -87,6 +96,41 @@ fun MirrorScreen(
                     title = "投屏失败",
                     message = mirrorStatus,
                 )
+            }
+        }
+
+        item {
+            AppSection(title = "一键投屏") {
+                AppListRow(
+                    title = "链路状态",
+                    value = autoConnectState.stage.label,
+                    summary = autoConnectState.message.ifBlank {
+                        "通过 BLE 打开车端 Wi-Fi/P2P，再自动连接仪表"
+                    },
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(
+                        horizontal = dimensions.itemHorizontalPadding,
+                        vertical = dimensions.itemVerticalPadding,
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+                ) {
+                    AppButton(
+                        onClick = { viewModel.startAutoMirror() },
+                        enabled = !autoConnecting,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        AppText(if (autoConnecting) "建链中…" else "一键投屏")
+                    }
+                    if (autoConnecting) {
+                        AppOutlinedButton(
+                            onClick = { viewModel.cancelAutoMirror() },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            AppText("取消")
+                        }
+                    }
+                }
             }
         }
 

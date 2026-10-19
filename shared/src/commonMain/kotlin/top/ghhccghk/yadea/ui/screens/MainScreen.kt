@@ -132,6 +132,8 @@ fun MainScreen(
             mediaSourcePicker = mediaSourcePicker,
             bleTokenProvider = bleTokenProvider,
             vehicleVinProvider = { vehicleProfileSource?.profile?.value?.vin.orEmpty() },
+            settingCommandSink = carSettingCommandSink,
+            vehicleStatusProvider = { vehicleStatusSource?.status?.value },
             onVehicleConnectionEstablished = { mac, name, binding ->
                 if (mac.isNotBlank()) {
                     featureScope.launch {

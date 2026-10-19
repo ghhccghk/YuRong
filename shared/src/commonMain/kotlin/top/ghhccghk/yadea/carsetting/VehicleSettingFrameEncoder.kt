@@ -84,6 +84,8 @@ object VehicleSettingFrameEncoder {
         0x3C -> "FFFFFFFFFFFF" +
             hex2(0x8F + (command.parameter.coerceIn(0, 7) shl 4)) +
             "FF".repeat(18)
+        // COMMAND_OPEN_WIFI_P2P_NEW：固定位域值 2，帧尾 FB。
+        0xFD -> "FF".repeat(22) + "FB" + "FF".repeat(3)
         0x3D -> "FFFFFFFFFFFFFF" +
             hex2((command.parameter.coerceIn(1, 3) + 0x38)) +
             "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"

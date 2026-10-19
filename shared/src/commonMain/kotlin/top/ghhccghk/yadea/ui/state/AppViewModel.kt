@@ -7,7 +7,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
@@ -16,6 +19,8 @@ import top.ghhccghk.yadea.ble.BleConnectionState
 import top.ghhccghk.yadea.ble.BleDevice
 import top.ghhccghk.yadea.ble.BleProtocol
 import top.ghhccghk.yadea.mirror.*
+import top.ghhccghk.yadea.carsetting.VehicleSettingCommand
+import top.ghhccghk.yadea.carsetting.VehicleSettingCommandSink
 import top.ghhccghk.yadea.model.NavDisplayConfig
 import top.ghhccghk.yadea.network.FrameSender
 import top.ghhccghk.yadea.network.TcpTransport
@@ -32,6 +37,7 @@ import top.ghhccghk.yadea.vehicle.VehicleBleConstants
 import top.ghhccghk.yadea.vehicle.VehicleConnectionCoordinator
 import top.ghhccghk.yadea.vehicle.VehicleLocalTimeProvider
 import top.ghhccghk.yadea.vehicle.VehicleTokenPairingStep
+import top.ghhccghk.yadea.vehicle.TtpInfo
 import top.ghhccghk.yadea.wifi.*
 
 expect fun getCurrentTime(): DateTimeParts
@@ -46,6 +52,8 @@ class AppViewModel(
     private val mediaSourcePicker: MediaSourcePicker? = null,
     private val bleTokenProvider: VehicleBleTokenProvider? = null,
     private val vehicleVinProvider: () -> String = { "" },
+    private val settingCommandSink: VehicleSettingCommandSink? = null,
+    private val vehicleStatusProvider: () -> TtpInfo? = { null },
     private val onVehicleConnectionEstablished: (mac: String, name: String, binding: Boolean) -> Unit =
         { _, _, _ -> },
 ) {
@@ -105,6 +113,9 @@ class AppViewModel(
     val mirrorState: StateFlow<MirrorState> = _mirrorState.asStateFlow()
     private val _mirrorStatus = MutableStateFlow("待命")
     val mirrorStatus: StateFlow<String> = _mirrorStatus.asStateFlow()
+    private val _mirrorConnectState = MutableStateFlow(MirrorConnectState())
+    val mirrorConnectState: StateFlow<MirrorConnectState> = _mirrorConnectState.asStateFlow()
+    private var autoMirrorJob: Job? = null
     private val _frameCount = MutableStateFlow(0)
     val frameCount: StateFlow<Int> = _frameCount.asStateFlow()
     private val _bytesSent = MutableStateFlow(0L)
@@ -389,6 +400,113 @@ class AppViewModel(
         screenCaptureAuthorizer?.releaseScreenCapture()
     }
 
+    /**
+     * 原 App 的一键投屏链路：
+     * BLE 0xFD -> TTP wifiStatusNew=2 -> P2P -> TCP -> MirrorEngine。
+     */
+    fun startAutoMirror() {
+        if (autoMirrorJob?.isActive == true) return
+        val sink = settingCommandSink
+        val p2p = p2pManager
+        if (sink == null) {
+            publishMirrorConnect(MirrorConnectEvent.Failed("车辆设置通道未接入"))
+            return
+        }
+        if (p2p == null || !p2p.isAvailable) {
+            publishMirrorConnect(MirrorConnectEvent.Failed("当前设备不支持 Wi-Fi P2P"))
+            return
+        }
+        if (bleState.value != BleConnectionState.Connected &&
+            bleState.value != BleConnectionState.Ready
+        ) {
+            publishMirrorConnect(MirrorConnectEvent.Failed("请先连接车辆 BLE"))
+            return
+        }
+        autoMirrorJob = scope.launch {
+            publishMirrorConnect(MirrorConnectEvent.Start)
+            val sent = runCatching {
+                sink.send(
+                    VehicleSettingCommand(
+                        commandType = "COMMAND_OPEN_WIFI_P2P_NEW",
+                        commandId = 0xFD,
+                    ),
+                )
+            }.getOrDefault(false)
+            if (!sent) {
+                publishMirrorConnect(MirrorConnectEvent.Failed("发送 Wi-Fi/P2P 指令失败"))
+                return@launch
+            }
+            publishMirrorConnect(MirrorConnectEvent.BleCommandSent)
+
+            val ready = withTimeoutOrNull(WIFI_READY_TIMEOUT_MS) {
+                while (vehicleStatusProvider()?.extended?.wifiStatusNew != 2) {
+                    delay(STATUS_POLL_INTERVAL_MS)
+                }
+                true
+            } ?: false
+            if (!ready) {
+                publishMirrorConnect(MirrorConnectEvent.WifiTimeout)
+                return@launch
+            }
+            publishMirrorConnect(MirrorConnectEvent.WifiReady)
+
+            val expectedMac = toP2pMacAddress(bleConnectedAddress.value).orEmpty()
+            publishMirrorConnect(MirrorConnectEvent.P2pFindStarted(expectedMac))
+            runCatching { p2p.discoverPeers(P2P_DISCOVER_TIMEOUT_MS) }
+            val peers = p2p.discoveredPeers.value
+            val peer = peers.firstOrNull {
+                expectedMac.isNotBlank() && it.address.equals(expectedMac, ignoreCase = true)
+            } ?: peers.firstOrNull()
+            if (peer == null) {
+                publishMirrorConnect(MirrorConnectEvent.P2pTimeout)
+                return@launch
+            }
+            publishMirrorConnect(MirrorConnectEvent.P2pSelected(peer.name, peer.address))
+            val connected = runCatching { p2p.connect(peer) }.getOrDefault(false)
+            if (!connected) {
+                publishMirrorConnect(MirrorConnectEvent.P2pTimeout)
+                return@launch
+            }
+            val host = withTimeoutOrNull(P2P_CONNECT_TIMEOUT_MS) {
+                while (p2p.groupOwnerIp.value.isBlank()) {
+                    delay(STATUS_POLL_INTERVAL_MS)
+                }
+                p2p.groupOwnerIp.value
+            }
+            if (host.isNullOrBlank()) {
+                publishMirrorConnect(MirrorConnectEvent.P2pTimeout)
+                return@launch
+            }
+
+            publishMirrorConnect(MirrorConnectEvent.TcpConnecting(host))
+            startMirror(host)
+            val result = withTimeoutOrNull(TCP_CONNECT_TIMEOUT_MS) {
+                mirrorState.first {
+                    it == MirrorState.Running || it == MirrorState.Failed
+                }
+            }
+            if (result == MirrorState.Running) {
+                publishMirrorConnect(MirrorConnectEvent.TcpConnected)
+            } else {
+                publishMirrorConnect(
+                    MirrorConnectEvent.Failed(
+                        mirrorStatus.value.ifBlank { "TCP 连接失败" },
+                    ),
+                )
+            }
+        }
+    }
+
+    fun cancelAutoMirror() {
+        autoMirrorJob?.cancel()
+        autoMirrorJob = null
+        publishMirrorConnect(MirrorConnectEvent.Cancel)
+    }
+
+    private fun publishMirrorConnect(event: MirrorConnectEvent) {
+        _mirrorConnectState.value = MirrorConnectFlow.reduce(_mirrorConnectState.value, event)
+    }
+
     fun startMirror(targetHost: String, tcpControlPort: Int = 8888, udpImagePort: Int = 8889) {
         debug("startMirror: TCP=$targetHost:$tcpControlPort, UDP=$targetHost:$udpImagePort")
 
@@ -565,7 +683,20 @@ class AppViewModel(
     }
 
     fun submitFrame(bitmap: PlatformBitmap) { frameBus.submit(bitmap) }
-    fun cleanup() { stopMirror(); frameBus.clear() }
+    fun cleanup() {
+        autoMirrorJob?.cancel()
+        autoMirrorJob = null
+        stopMirror()
+        frameBus.clear()
+    }
+
+    private companion object {
+        const val WIFI_READY_TIMEOUT_MS = 15_000L
+        const val P2P_DISCOVER_TIMEOUT_MS = 15_000L
+        const val P2P_CONNECT_TIMEOUT_MS = 15_000L
+        const val TCP_CONNECT_TIMEOUT_MS = 15_000L
+        const val STATUS_POLL_INTERVAL_MS = 500L
+    }
 }
 
 
