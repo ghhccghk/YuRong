@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.lsposed.hiddenapibypass.LSPass
 import top.ghhccghk.yadea.ble.AndroidBleAdapter
+import top.ghhccghk.yadea.ble.BleConnectionState
 import top.ghhccghk.yadea.settings.AppPreferences
 import top.ghhccghk.yadea.settings.SharedPreferencesPreferenceStore
 import top.ghhccghk.yadea.network.GatewayClientInfo
@@ -82,6 +83,22 @@ class MainActivity : ComponentActivity() {
         val vehicleBleAdapter = AndroidBleAdapter(this).also { bleAdapter = it }
         val vehicleStatus = BleVehicleStatusSource(vehicleBleAdapter, lifecycleScope)
             .also { vehicleStatusSource = it }
+        lifecycleScope.launch {
+            vehicleBleAdapter.connectionState.collect { state ->
+                when (state) {
+                    BleConnectionState.Connected,
+                    BleConnectionState.DiscoveringServices,
+                    BleConnectionState.Ready,
+                    -> VehicleConnectionService.start(this@MainActivity)
+
+                    BleConnectionState.Disconnected,
+                    BleConnectionState.Failed,
+                    -> VehicleConnectionService.stop(this@MainActivity)
+
+                    else -> Unit
+                }
+            }
+        }
         val appPreferences = AppPreferences(SharedPreferencesPreferenceStore(this))
         val bootstrapDeviceId = appPreferences.readAuth().loginId.ifBlank {
             UUID.randomUUID().toString()
@@ -182,6 +199,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        VehicleConnectionService.stop(this)
         vehicleStatusSource?.dispose()
         bleAdapter?.close()
         super.onDestroy()
