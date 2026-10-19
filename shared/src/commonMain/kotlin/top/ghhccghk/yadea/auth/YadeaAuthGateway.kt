@@ -26,6 +26,8 @@ class YadeaAuthGateway(
     private val sessionTokenProvider: () -> String = { "" },
 ) : AuthGateway {
 
+    private var timestampOffsetMs: Long = 0L
+
     override suspend fun loginByPassword(request: PasswordLoginRequest): AuthResult<AuthUser> {
         val json = sortedJson(
             mapOf(
@@ -288,7 +290,7 @@ class YadeaAuthGateway(
         authToken: String = "",
         headerOverrides: Map<String, String> = emptyMap(),
     ): AuthResult<String> {
-        val timestamp = timestampProvider()
+        val timestamp = effectiveTimestamp()
         val body = GatewaySigner.formBody(businessJson, timestamp)
         val headers = GatewayHeaders.ensureGatewayAppId(
             baseUrl + path,
@@ -318,6 +320,21 @@ class YadeaAuthGateway(
             return AuthResult.Failure("响应解密失败")
         }
         NetworkLog.write("AUTH plain path=$path ${NetworkLog.maskSensitive(plain)}")
+        val businessCode = JsonSupport.int(plain, "code")
+            ?: JsonSupport.string(plain, "code")?.toIntOrNull()
+        when (businessCode) {
+            CODE_TIME_INVALID -> {
+                val serverTimestamp = JsonSupport.long(plain, "timestamp")
+                    ?: JsonSupport.string(plain, "timestamp")?.toLongOrNull()
+                if (serverTimestamp != null && serverTimestamp > 0L) {
+                    timestampOffsetMs = serverTimestamp - timestampProvider()
+                }
+                return AuthResult.Failure("服务器时间已校正，请重试", businessCode)
+            }
+            CODE_TOKEN_INVALID,
+            CODE_TOKEN_EXPIRED,
+            -> return AuthResult.Failure("登录已失效，请重新登录", businessCode)
+        }
         val success = JsonSupport.boolean(plain, "success") ?: false
         if (!success) {
             val message = JsonSupport.string(plain, "msg")
@@ -373,6 +390,8 @@ class YadeaAuthGateway(
             token = authToken,
         )
 
+    private fun effectiveTimestamp(): Long = timestampProvider() + timestampOffsetMs
+
     private fun decryptResponse(response: HttpResponse): String? {
         if (response.status !in 200..299) return null
         val decoded = Crypto.urlDecode(response.body.trim())
@@ -405,6 +424,9 @@ class YadeaAuthGateway(
     }
 
     companion object {
+        const val CODE_TIME_INVALID = 405
+        const val CODE_TOKEN_INVALID = 101000
+        const val CODE_TOKEN_EXPIRED = 100995
         const val DEFAULT_BASE_URL = "https://gw.yadeaiot.com.cn/api/app/"
     }
 }
