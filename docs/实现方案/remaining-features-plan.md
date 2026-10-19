@@ -76,6 +76,27 @@
 - 错误码有明确中文提示，不出现“网络不可用”一类模糊文案。
 - 编译 `shared` 三平台与 `androidApp:assembleDebug` 通过。
 
+### Phase 1.1 已提取的 smali 事实
+
+绑定入口（`CarOwnerCodeInputModel.bindBike` / `BikeBindCheckModel` /
+`QRCodeScanModel.bindVehicle`）：
+
+| 用途 | 接口 | 关键参数 |
+| --- | --- | --- |
+| 手动/扫码绑定车辆 | `userBike/manualOrQrBindVehicle` | `userId`、`vin`、`vinPwd`、`smsCode`、`primaryUserMobile`、`primaryUserEmail` |
+| 绑定下一步 | `userBike/manualOrQrBindVehicleNext` | `vin`、`vinPwd` |
+| 给原车主发验证码 | `userBike/sendMsgToCarOwner` | `vin`、`vinPwd` |
+
+解绑入口（`UserCarManageNewViewModel`）：
+
+| 用途 | 接口 | 关键参数 |
+| --- | --- | --- |
+| 子账号解绑 | `userBike/childUnbundlingchild` | `bikeId` |
+| 主账号解绑 | `userBike/mainUnbundlingMain` | `bikeId` |
+
+后续实现时先做“VIN + 车主码 + 短信验证码”的 `manualOrQrBindVehicle`
+分支，再补 `manualOrQrBindVehicleNext` 的二次确认流程。
+
 ## Phase 2：投屏自动建链
 
 目标：把当前“手动填写仪表 IP”改为原 App 的一键投屏流程。
