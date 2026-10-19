@@ -23,7 +23,8 @@ object AppPreferenceKeys {
     // 4 -> 5：新增 ui_scale_percent（界面缩放百分比）。
     // 5 -> 6：新增 blur_enabled（Miuix 是否启用官方 miuix-blur 背景模糊）。
     // 6 -> 7：新增 usr_token / usr_info / login_id（登录态）。
-    const val SCHEMA_VERSION = 7
+    // 7 -> 8：新增车辆上次连接、自动连接、前台服务与绑定 VIN。
+    const val SCHEMA_VERSION = 8
 
     val schemaVersion = PreferenceKey.int("app_settings_schema_version", SCHEMA_VERSION)
     val uiStyle = PreferenceKey.string("ui_style", UiThemeStyle.Miuix.storageName)
@@ -56,6 +57,20 @@ object AppPreferenceKeys {
 
     val authKeys: List<PreferenceKey<*>> = listOf(usrToken, usrInfo, loginId)
 
+    val vehicleLastMac = PreferenceKey.string("vehicle_last_mac", "")
+    val vehicleLastName = PreferenceKey.string("vehicle_last_name", "")
+    val vehicleAutoConnect = PreferenceKey.boolean("vehicle_auto_connect", false)
+    val vehicleForegroundService = PreferenceKey.boolean("vehicle_foreground_service", true)
+    val vehicleBoundVin = PreferenceKey.string("vehicle_bound_vin", "")
+
+    val vehicleKeys: List<PreferenceKey<*>> = listOf(
+        vehicleLastMac,
+        vehicleLastName,
+        vehicleAutoConnect,
+        vehicleForegroundService,
+        vehicleBoundVin,
+    )
+
     val all: List<PreferenceKey<*>> = listOf(
         schemaVersion,
         uiStyle,
@@ -73,6 +88,14 @@ object AppPreferenceKeys {
         blurEnabled,
     )
 }
+
+data class VehicleConnectionPreferences(
+    val lastMac: String = "",
+    val lastName: String = "",
+    val autoConnect: Boolean = false,
+    val foregroundService: Boolean = true,
+    val boundVin: String = "",
+)
 
 class AppPreferences(
     private val store: PreferenceStore,
@@ -194,6 +217,59 @@ class AppPreferences(
     /** 只清理登录相关 key，不动外观设置。 */
     suspend fun clearAuth(): PreferenceWriteResult {
         for (key in AppPreferenceKeys.authKeys) {
+            val result = store.delete(key)
+            if (result != PreferenceWriteResult.Success) return result
+        }
+        return PreferenceWriteResult.Success
+    }
+
+    fun readVehicleConnection(): VehicleConnectionPreferences =
+        VehicleConnectionPreferences(
+            lastMac = store.read(AppPreferenceKeys.vehicleLastMac),
+            lastName = store.read(AppPreferenceKeys.vehicleLastName),
+            autoConnect = store.read(AppPreferenceKeys.vehicleAutoConnect),
+            foregroundService = store.read(AppPreferenceKeys.vehicleForegroundService),
+            boundVin = store.read(AppPreferenceKeys.vehicleBoundVin),
+        )
+
+    suspend fun writeLastVehicle(
+        mac: String,
+        name: String,
+        boundVin: String? = null,
+    ): PreferenceWriteResult {
+        val writes = buildList {
+            add(AppPreferenceKeys.schemaVersion to AppPreferenceKeys.SCHEMA_VERSION)
+            add(AppPreferenceKeys.vehicleLastMac to mac)
+            add(AppPreferenceKeys.vehicleLastName to name)
+            if (boundVin != null) {
+                add(AppPreferenceKeys.vehicleBoundVin to boundVin)
+            }
+        }
+        for ((key, value) in writes) {
+            val result = writeTyped(key, value)
+            if (result != PreferenceWriteResult.Success) return result
+        }
+        return PreferenceWriteResult.Success
+    }
+
+    suspend fun writeVehiclePreferences(
+        autoConnect: Boolean = readVehicleConnection().autoConnect,
+        foregroundService: Boolean = readVehicleConnection().foregroundService,
+    ): PreferenceWriteResult {
+        val writes = listOf(
+            AppPreferenceKeys.schemaVersion to AppPreferenceKeys.SCHEMA_VERSION,
+            AppPreferenceKeys.vehicleAutoConnect to autoConnect,
+            AppPreferenceKeys.vehicleForegroundService to foregroundService,
+        )
+        for ((key, value) in writes) {
+            val result = writeTyped(key, value)
+            if (result != PreferenceWriteResult.Success) return result
+        }
+        return PreferenceWriteResult.Success
+    }
+
+    suspend fun clearVehicleSession(): PreferenceWriteResult {
+        for (key in AppPreferenceKeys.vehicleKeys) {
             val result = store.delete(key)
             if (result != PreferenceWriteResult.Success) return result
         }

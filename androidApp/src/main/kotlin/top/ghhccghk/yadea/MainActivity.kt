@@ -81,16 +81,21 @@ class MainActivity : ComponentActivity() {
         requestPermissionsIfNeeded()
 
         val p2pManager = AndroidWifiP2pManager(this)
-        val vehicleBleAdapter = AndroidBleAdapter(this).also { bleAdapter = it }
+        val vehicleBleAdapter = AndroidVehicleBleSession.get(this).also { bleAdapter = it }
         val vehicleStatus = BleVehicleStatusSource(vehicleBleAdapter, lifecycleScope)
             .also { vehicleStatusSource = it }
+        val appPreferences = AppPreferences(SharedPreferencesPreferenceStore(this))
         lifecycleScope.launch {
             vehicleBleAdapter.connectionState.collect { state ->
                 when (state) {
                     BleConnectionState.Connected,
                     BleConnectionState.DiscoveringServices,
                     BleConnectionState.Ready,
-                    -> VehicleConnectionService.start(this@MainActivity)
+                    -> if (appPreferences.readVehicleConnection().foregroundService) {
+                        VehicleConnectionService.start(this@MainActivity)
+                    } else {
+                        VehicleConnectionService.stop(this@MainActivity)
+                    }
 
                     BleConnectionState.Disconnected,
                     BleConnectionState.Failed,
@@ -100,7 +105,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        val appPreferences = AppPreferences(SharedPreferencesPreferenceStore(this))
         val bootstrapDeviceId = appPreferences.readAuth().loginId.ifBlank {
             UUID.randomUUID().toString()
         }
@@ -210,9 +214,13 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        VehicleConnectionService.stop(this)
         vehicleStatusSource?.dispose()
-        bleAdapter?.close()
+        vehicleStatusSource = null
+        if (isFinishing) {
+            VehicleConnectionService.stop(this)
+            AndroidVehicleBleSession.close()
+            bleAdapter = null
+        }
         super.onDestroy()
     }
 

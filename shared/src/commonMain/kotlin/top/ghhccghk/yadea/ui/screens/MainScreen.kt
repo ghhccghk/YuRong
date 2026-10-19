@@ -109,6 +109,10 @@ fun MainScreen(
 ) {
     val resolvedPreferences = preferences ?: remember { AppPreferences(InMemoryPreferenceStore()) }
     val appearanceState = rememberAppAppearance(resolvedPreferences)
+    val featureScope = rememberCoroutineScope()
+    var vehicleConnectionPreferences by remember {
+        mutableStateOf(resolvedPreferences.readVehicleConnection())
+    }
     val viewModel = remember(bleTokenProvider, vehicleProfileSource) {
         AppViewModel(
             wifiManager = wifiManager,
@@ -120,9 +124,23 @@ fun MainScreen(
             mediaSourcePicker = mediaSourcePicker,
             bleTokenProvider = bleTokenProvider,
             vehicleVinProvider = { vehicleProfileSource?.profile?.value?.vin.orEmpty() },
+            onVehicleConnectionEstablished = { mac, name, binding ->
+                if (mac.isNotBlank()) {
+                    featureScope.launch {
+                        resolvedPreferences.writeLastVehicle(
+                            mac = mac,
+                            name = name,
+                            boundVin = if (binding) {
+                                vehicleProfileSource?.profile?.value?.vin.orEmpty()
+                            } else {
+                                null
+                            },
+                        )
+                    }
+                }
+            },
         )
     }
-    val featureScope = rememberCoroutineScope()
     val resolvedVehicleSource = remember(vehicleStatusSource) {
         vehicleStatusSource ?: EmptyVehicleStatusSource()
     }
@@ -191,6 +209,25 @@ fun MainScreen(
             carSettingsController.refresh()
         }
     }
+    var autoConnectAttempted by remember { mutableStateOf(false) }
+    LaunchedEffect(authUiState.session.isLoggedIn, vehicleProfile?.vin) {
+        if (!autoConnectAttempted && authUiState.session.isLoggedIn) {
+            autoConnectAttempted = true
+            val vehiclePreferences = resolvedPreferences.readVehicleConnection()
+            val currentVin = vehicleProfile?.vin.orEmpty()
+            if (vehiclePreferences.autoConnect &&
+                vehiclePreferences.lastMac.isNotBlank() &&
+                (vehiclePreferences.boundVin.isBlank() ||
+                    currentVin.isBlank() ||
+                    vehiclePreferences.boundVin == currentVin)
+            ) {
+                viewModel.connectBle(
+                    address = vehiclePreferences.lastMac,
+                    name = vehiclePreferences.lastName.ifBlank { "上次连接的车辆" },
+                )
+            }
+        }
+    }
 
     var selectedDestination by remember { mutableStateOf(MainDestination.Connection) }
 
@@ -217,6 +254,29 @@ fun MainScreen(
             carSettingsController = carSettingsController,
             otaController = otaController,
             vehicleControlController = vehicleControlController,
+            vehicleConnectionPreferences = vehicleConnectionPreferences,
+            onVehicleAutoConnectChange = { enabled ->
+                val updated = vehicleConnectionPreferences.copy(autoConnect = enabled)
+                vehicleConnectionPreferences = updated
+                featureScope.launch {
+                    resolvedPreferences.writeVehiclePreferences(
+                        autoConnect = updated.autoConnect,
+                        foregroundService = updated.foregroundService,
+                    )
+                }
+            },
+            onVehicleForegroundServiceChange = { enabled ->
+                val updated = vehicleConnectionPreferences.copy(
+                    foregroundService = enabled,
+                )
+                vehicleConnectionPreferences = updated
+                featureScope.launch {
+                    resolvedPreferences.writeVehiclePreferences(
+                        autoConnect = updated.autoConnect,
+                        foregroundService = updated.foregroundService,
+                    )
+                }
+            },
         )
     }
 }
@@ -241,6 +301,9 @@ private fun MainScreenContent(
     carSettingsController: CarSettingsController,
     otaController: OtaController,
     vehicleControlController: VehicleControlController,
+    vehicleConnectionPreferences: top.ghhccghk.yadea.settings.VehicleConnectionPreferences,
+    onVehicleAutoConnectChange: (Boolean) -> Unit,
+    onVehicleForegroundServiceChange: (Boolean) -> Unit,
 ) {
     val navigationItems = MainDestination.entries.map {
         AppNavigationItem(
@@ -351,6 +414,9 @@ private fun MainScreenContent(
             carSettingsController = carSettingsController,
             otaController = otaController,
             vehicleControlController = vehicleControlController,
+            vehicleConnectionPreferences = vehicleConnectionPreferences,
+            onVehicleAutoConnectChange = onVehicleAutoConnectChange,
+            onVehicleForegroundServiceChange = onVehicleForegroundServiceChange,
             modifier = Modifier.fillMaxSize(),
             contentPadding = padding,
             // 连接页的下拉刷新需要与顶栏滚动行为协同，这里把同一个对象继续传下去。
@@ -446,6 +512,9 @@ private fun MainDestinationContent(
     carSettingsController: CarSettingsController,
     otaController: OtaController,
     vehicleControlController: VehicleControlController,
+    vehicleConnectionPreferences: top.ghhccghk.yadea.settings.VehicleConnectionPreferences,
+    onVehicleAutoConnectChange: (Boolean) -> Unit,
+    onVehicleForegroundServiceChange: (Boolean) -> Unit,
     contentPadding: PaddingValues = PaddingValues(),
     modifier: Modifier = Modifier,
     scrollBehavior: AppScrollBehavior? = null,
@@ -483,6 +552,10 @@ private fun MainDestinationContent(
                 appearance = appearance,
                 contentPadding = appPagePadding(contentPadding),       // 新增
                 onAppearanceChange = onAppearanceChange,
+                vehicleAutoConnect = vehicleConnectionPreferences.autoConnect,
+                vehicleForegroundService = vehicleConnectionPreferences.foregroundService,
+                onVehicleAutoConnectChange = onVehicleAutoConnectChange,
+                onVehicleForegroundServiceChange = onVehicleForegroundServiceChange,
                 systemAccentColor = systemAccentColor,
             )
         }

@@ -35,6 +35,10 @@ import top.yukonga.miuix.kmp.icon.extended.ZoomOut
 fun SettingsScreen(
     appearance: AppAppearance,
     onAppearanceChange: (AppAppearance) -> Unit,
+    vehicleAutoConnect: Boolean = false,
+    vehicleForegroundService: Boolean = true,
+    onVehicleAutoConnectChange: (Boolean) -> Unit = {},
+    onVehicleForegroundServiceChange: (Boolean) -> Unit = {},
     systemAccentColor: Color? = null,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues,
@@ -123,6 +127,22 @@ fun SettingsScreen(
                     onSelectedIndexChange = { index ->
                         onAppearanceChange(appearance.copy(uiStyle = UiThemeStyle.entries[index]))
                     },
+                )
+            }
+        }
+        item {
+            AppSection(title = "车辆连接", modifier = sectionModifier) {
+                AppSwitchPreference(
+                    checked = vehicleAutoConnect,
+                    onCheckedChange = onVehicleAutoConnectChange,
+                    title = "启动后自动连接",
+                    summary = "仅在同一账号和绑定 VIN 匹配时连接上次车辆",
+                )
+                AppSwitchPreference(
+                    checked = vehicleForegroundService,
+                    onCheckedChange = onVehicleForegroundServiceChange,
+                    title = "前台服务保持连接",
+                    summary = "车辆连接期间显示常驻通知，降低后台被系统回收的概率",
                 )
             }
         }

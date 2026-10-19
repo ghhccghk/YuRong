@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.ble.BleConnectionState
 import top.ghhccghk.yadea.vehicle.isBindableForVehicle
+import top.ghhccghk.yadea.vehicle.BindingStage
 import top.ghhccghk.yadea.wifi.P2pStatus
 import top.ghhccghk.yadea.wifi.WifiConnectionState
 
@@ -57,6 +58,7 @@ fun ConnectionScreen(
     val isScanningBle by viewModel.isScanningBle.collectAsState()
     val bleConnectedName by viewModel.bleConnectedName.collectAsState()
     val bleFailureMessage by viewModel.bleFailureMessage.collectAsState()
+    val bindingState by viewModel.bindingState.collectAsState()
 
     val p2pDevices by viewModel.p2pDevices.collectAsState()
     val p2pConnected by viewModel.p2pConnected.collectAsState()
@@ -325,6 +327,37 @@ fun ConnectionScreen(
                         title = "仅显示可绑定车辆",
                         summary = "名称以 YD 开头、踏板车或 Box；仍可通过关闭开关查看全部 BLE 设备",
                     )
+                    AppListRow(
+                        title = "绑定扫描",
+                        value = bindingState.stage.name,
+                        summary = bindingState.message,
+                    )
+                    AppOutlinedButton(
+                        onClick = { viewModel.startBindingScan() },
+                        enabled = bindingState.stage != BindingStage.SCANNING,
+                        modifier = Modifier.fillMaxWidth().padding(
+                            horizontal = dimensions.itemHorizontalPadding,
+                            vertical = dimensions.compactSpacing,
+                        ),
+                    ) {
+                        AppText(
+                            if (bindingState.stage == BindingStage.SCANNING) {
+                                "正在扫描可绑定车辆…"
+                            } else {
+                                "扫描可绑定车辆 (15秒)"
+                            },
+                        )
+                    }
+                    if (bindingState.candidates.isNotEmpty()) {
+                        bindingState.candidates.forEach { device ->
+                            AppListRow(
+                                title = device.name ?: "可绑定车辆",
+                                summary = device.address,
+                                value = "绑定",
+                                onClick = { viewModel.bindBle(device) },
+                            )
+                        }
+                    }
                     AppButton(
                         onClick = { viewModel.scanBle() },
                         modifier = Modifier.fillMaxWidth().padding(
@@ -362,7 +395,16 @@ fun ConnectionScreen(
                                     summary = device.address,
                                     value = "${device.rssi} dBm",
                                     showDivider = index < visibleBleDevices.lastIndex,
-                                    onClick = { viewModel.connectBle(device.address, device.name ?: "未知") },
+                                    onClick = {
+                                        if (bindableOnly) {
+                                            viewModel.bindBle(device)
+                                        } else {
+                                            viewModel.connectBle(
+                                                device.address,
+                                                device.name ?: "未知",
+                                            )
+                                        }
+                                    },
                                 )
                             }
                         }

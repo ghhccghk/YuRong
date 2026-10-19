@@ -2,6 +2,7 @@ package top.ghhccghk.yadea.ui
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +23,9 @@ import top.ghhccghk.yadea.network.UdpTransport
 import top.ghhccghk.yadea.network.createTcpTransport
 import top.ghhccghk.yadea.network.createUdpTransport
 import top.ghhccghk.yadea.vehicle.Clock
+import top.ghhccghk.yadea.vehicle.BindingEvent
+import top.ghhccghk.yadea.vehicle.BindingFlow
+import top.ghhccghk.yadea.vehicle.BindingState
 import top.ghhccghk.yadea.vehicle.PublicState
 import top.ghhccghk.yadea.vehicle.VehicleBleTokenProvider
 import top.ghhccghk.yadea.vehicle.VehicleBleConstants
@@ -42,6 +46,8 @@ class AppViewModel(
     private val mediaSourcePicker: MediaSourcePicker? = null,
     private val bleTokenProvider: VehicleBleTokenProvider? = null,
     private val vehicleVinProvider: () -> String = { "" },
+    private val onVehicleConnectionEstablished: (mac: String, name: String, binding: Boolean) -> Unit =
+        { _, _, _ -> },
 ) {
     val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -73,6 +79,12 @@ class AppViewModel(
     val isScanningBle: StateFlow<Boolean> = _isScanningBle.asStateFlow()
     private val _bleConnectedName = MutableStateFlow("")
     val bleConnectedName: StateFlow<String> = _bleConnectedName.asStateFlow()
+    private val _bleConnectedAddress = MutableStateFlow("")
+    val bleConnectedAddress: StateFlow<String> = _bleConnectedAddress.asStateFlow()
+    private val _bindingState = MutableStateFlow(BindingState())
+    val bindingState: StateFlow<BindingState> = _bindingState.asStateFlow()
+    private var pendingBinding = false
+    private var bindingScanJob: Job? = null
     private val _bleFailureMessage = MutableStateFlow<String?>(null)
     val bleFailureMessage: StateFlow<String?> = _bleFailureMessage.asStateFlow()
     private var vehicleConnection: VehicleConnectionCoordinator? = null
@@ -137,7 +149,15 @@ class AppViewModel(
                 onDebug = ::debug,
             )
             scope.launch {
-                bleAdapter.discoveredDevices.collect { _bleDevices.value = it }
+                bleAdapter.discoveredDevices.collect { devices ->
+                    _bleDevices.value = devices
+                    for (device in devices) {
+                        _bindingState.value = BindingFlow.reduce(
+                            _bindingState.value,
+                            BindingEvent.DeviceFound(device),
+                        )
+                    }
+                }
             }
             scope.launch {
                 bleAdapter.isScanning.collect { _isScanningBle.value = it }
@@ -150,6 +170,15 @@ class AppViewModel(
                     }
                     if (failure != null) {
                         _bleState.value = BleConnectionState.Failed
+                        if (pendingBinding) {
+                            _bindingState.value = BindingFlow.reduce(
+                                _bindingState.value,
+                                BindingEvent.Failed(
+                                    failure.message.ifBlank { "车辆绑定失败" },
+                                ),
+                            )
+                            pendingBinding = false
+                        }
                     }
                 }
             }
@@ -165,6 +194,19 @@ class AppViewModel(
                         } else {
                             BleConnectionState.Disconnected
                         }
+                    }
+                    if (public == PublicState.CONNECTED) {
+                        val mac = _bleConnectedAddress.value
+                        val name = _bleConnectedName.value
+                        val binding = pendingBinding
+                        if (binding) {
+                            _bindingState.value = BindingFlow.reduce(
+                                _bindingState.value,
+                                BindingEvent.PairingSucceeded,
+                            )
+                        }
+                        pendingBinding = false
+                        onVehicleConnectionEstablished(mac, name, binding)
                     }
                 }
             }
@@ -226,9 +268,17 @@ class AppViewModel(
 
     fun stopBleScan() { bleAdapter?.stopScan(); _isScanningBle.value = false }
 
-    fun connectBle(address: String, name: String) {
+    fun connectBle(address: String, name: String, binding: Boolean = false) {
         _bleConnectedName.value = name
+        _bleConnectedAddress.value = address
         _bleFailureMessage.value = null
+        pendingBinding = binding
+        if (binding) {
+            _bindingState.value = BindingFlow.reduce(
+                _bindingState.value,
+                BindingEvent.ConnectionStarted,
+            )
+        }
         val coordinator = vehicleConnection
         if (coordinator == null) {
             _bleFailureMessage.value = "当前平台未提供 BLE 适配器"
@@ -240,6 +290,8 @@ class AppViewModel(
 
     fun disconnectBle() {
         scope.launch {
+            bindingScanJob?.cancel()
+            bindingScanJob = null
             vehicleConnection?.disconnect()
             _bleFailureMessage.value = null
             if (vehicleConnection == null) {
@@ -247,7 +299,42 @@ class AppViewModel(
                 _bleState.value = BleConnectionState.Disconnected
             }
             _bleConnectedName.value = ""
+            _bleConnectedAddress.value = ""
+            pendingBinding = false
+            _bindingState.value = BindingFlow.reduce(
+                _bindingState.value,
+                BindingEvent.Cancelled,
+            )
         }
+    }
+
+    fun startBindingScan(
+        isAll: Boolean = true,
+        type: Int = 0,
+        timeoutMs: Long = 15_000L,
+    ) {
+        bindingScanJob?.cancel()
+        _bindingState.value = BindingFlow.reduce(
+            _bindingState.value,
+            BindingEvent.StartScan(isAll = isAll, type = type),
+        )
+        bleAdapter?.startScan(emptyList(), timeoutMs)
+        bindingScanJob = scope.launch {
+            kotlinx.coroutines.delay(timeoutMs)
+            bleAdapter?.stopScan()
+            _bindingState.value = BindingFlow.reduce(
+                _bindingState.value,
+                BindingEvent.ScanFinished,
+            )
+        }
+    }
+
+    fun bindBle(device: BleDevice) {
+        _bindingState.value = BindingFlow.reduce(
+            _bindingState.value,
+            BindingEvent.ConnectionStarted,
+        )
+        connectBle(device.address, device.name ?: "未知", binding = true)
     }
 
     fun scanP2p() {
