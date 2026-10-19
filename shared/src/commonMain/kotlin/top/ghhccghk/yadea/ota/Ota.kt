@@ -18,6 +18,9 @@ data class OtaPackage(
     val channelLabel: String = "",
     val status: String = "",
     val forceUpgrade: Boolean = false,
+    val taskId: String = "",
+    val firmwareModuleCode: String = "",
+    val behaviorId: String = "",
 )
 
 enum class OtaMethod(
@@ -40,6 +43,7 @@ enum class OtaStage {
     Downloading,
     Verifying,
     Installing,
+    Submitted,
     Completed,
     Failed,
     Cancelled,
@@ -160,6 +164,10 @@ interface OtaGateway {
         packageInfo: OtaPackage,
         onProgress: suspend (progress: Float, stage: OtaStage) -> Unit,
     ): Boolean
+    /** IoT 升级只做云端任务确认，实际安装由云平台/车辆完成。 */
+    suspend fun confirmIotUpgrade(packageInfo: OtaPackage): Boolean = false
+    /** 查询进行中的云端升级任务，返回解密后的原始 JSON。 */
+    suspend fun queryUpgradingTask(): String? = null
 }
 
 class OtaController(
@@ -219,6 +227,39 @@ class OtaController(
         val pkg = _state.value.packageInfo ?: return
         if (job?.isActive == true) return
         job = scope.launch {
+            when (pkg.method) {
+                OtaMethod.Iot -> {
+                    _state.value = _state.value.copy(
+                        stage = OtaStage.Installing,
+                        message = "正在向云端确认升级任务…",
+                    )
+                    val confirmed = runCatching { gateway.confirmIotUpgrade(pkg) }
+                        .getOrDefault(false)
+                    _state.value = if (confirmed) {
+                        _state.value.copy(
+                            stage = OtaStage.Submitted,
+                            progress = 0f,
+                            message = "云端升级已提交，请在车辆或原 App 查看升级进度",
+                        )
+                    } else {
+                        OtaFlow.reduce(
+                            _state.value,
+                            OtaEvent.Failed("云端升级确认失败，请检查网络或任务状态"),
+                        )
+                    }
+                    return@launch
+                }
+                OtaMethod.Wifi, OtaMethod.WifiDvr -> {
+                    _state.value = OtaFlow.reduce(
+                        _state.value,
+                        OtaEvent.Failed(
+                            "Wi-Fi OTA 文件服务尚未接入，请优先使用云端或原 App 升级",
+                        ),
+                    )
+                    return@launch
+                }
+                OtaMethod.Ble -> Unit
+            }
             _state.value = OtaFlow.reduce(_state.value, OtaEvent.InstallStarted)
             val success = runCatching {
                 gateway.install(pkg) { progress, stage ->

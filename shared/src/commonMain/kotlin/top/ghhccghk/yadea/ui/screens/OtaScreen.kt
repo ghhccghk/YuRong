@@ -195,7 +195,11 @@ fun OtaScreen(
                         enabled = state.canInstall && state.selectedMethod == OtaMethod.Ble,
                     ) {
                         AppText(
-                            if (state.stage == OtaStage.Failed) "重试升级" else "开始升级",
+                            when {
+                                state.stage == OtaStage.Failed -> "重试升级"
+                                state.packageInfo?.method == OtaMethod.Iot -> "提交云端升级"
+                                else -> "开始升级"
+                            },
                             style = AppDesign.typography.button,
                         )
                     }
@@ -238,6 +242,7 @@ private fun OtaStage.label(): String = when (this) {
     OtaStage.Downloading -> "下载中"
     OtaStage.Verifying -> "校验中"
     OtaStage.Installing -> "写入中"
+    OtaStage.Submitted -> "已提交云端"
     OtaStage.Completed -> "升级完成"
     OtaStage.Failed -> "升级失败"
     OtaStage.Cancelled -> "已取消"

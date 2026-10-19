@@ -105,6 +105,8 @@ class YadeaOtaGateway(
             val taskName = stringField(task, "taskName").orEmpty()
             val taskStatus = stringField(task, "status").orEmpty().ifBlank { dataStatus }
             val taskNotes = stringField(task, "upgradeContent").orEmpty()
+            val taskId = textOrNumber(task, "taskId").orEmpty()
+            val behaviorId = textOrNumber(task, "behaviorId").orEmpty()
             val firmwareObjects = JsonSupport.arrayObjects(task, "firmwareInfoList")
             firmwareObjects.mapNotNull { firmware ->
                 val version = textOrNumber(firmware, "firmwareVersion") ?: return@mapNotNull null
@@ -125,6 +127,11 @@ class YadeaOtaGateway(
                     status = stringField(firmware, "firmwareUpgrdeStatus")
                         .orEmpty()
                         .ifBlank { taskStatus },
+                    taskId = taskId,
+                    firmwareModuleCode = textOrNumber(firmware, "firmwareModuleCode")
+                        .orEmpty()
+                        .ifBlank { textOrNumber(firmware, "firmwareCode").orEmpty() },
+                    behaviorId = behaviorId,
                 )
             }
         }
@@ -147,6 +154,37 @@ class YadeaOtaGateway(
             ),
         )
         return post("upgradeTask/queryTaskList/V4", json)
+    }
+
+    override suspend fun confirmIotUpgrade(packageInfo: OtaPackage): Boolean {
+        val profile = profileProvider() ?: return false
+        if (packageInfo.firmwareModuleCode.isBlank()) return false
+        val json = sortedJson(
+            mapOf(
+                "_gateway" to "True",
+                "vin" to profile.vin,
+                "os" to "1",
+                "modelNo" to profile.modelNo,
+                "modelName" to profile.modelName,
+                "experimental" to "",
+                "confirmUpgradeType" to "1",
+                "firmwareModuleCode" to packageInfo.firmwareModuleCode,
+            ),
+        )
+        val plain = post("upgradeTask/userConfirm/V4", json) ?: return false
+        return JsonSupport.boolean(plain, "success") != false
+    }
+
+    override suspend fun queryUpgradingTask(): String? {
+        val profile = profileProvider() ?: return null
+        val json = sortedJson(
+            mapOf(
+                "_gateway" to "True",
+                "experimental" to "",
+                "vin" to profile.vin,
+            ),
+        )
+        return post("upgradeTask/queryUpgradingTask", json)
     }
 
     override suspend fun install(
