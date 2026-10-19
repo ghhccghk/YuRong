@@ -237,6 +237,27 @@ class CarSettingsController(
                 "86" -> item.copy(
                     kind = CarSettingKind.Toggle(status.extended.brightnessAdjustSwitch != 0),
                 )
+                "19" -> item.copy(
+                    kind = CarSettingKind.Toggle(
+                        status.extended.automaticHeadlightFunctionStatus != 0,
+                    ),
+                )
+                "26" -> item.copy(
+                    kind = CarSettingKind.Toggle(
+                        status.extended.turnSignalReturnsAutomaticallyStatus != 0,
+                    ),
+                )
+                "36" -> item.copy(
+                    kind = CarSettingKind.Toggle(
+                        status.extended.brakePowerDownFunctionStatus != 0,
+                    ),
+                )
+                "46" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.steepSlopeState != 0),
+                )
+                "49" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.rampSlopeState != 0),
+                )
                 else -> item
             }
         }

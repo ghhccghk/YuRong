@@ -471,6 +471,8 @@ object CloudCarSettingMapper {
         "37", "38" -> CarSettingKind.Toggle(false)
         // 模拟声浪、仪表亮度调节同样由子 Activity 读取车辆状态。
         "33", "86" -> CarSettingKind.Toggle(false)
+        // 自动大灯、转向灯回位、刹车断电、陡坡缓降、坡道驻停。
+        "19", "26", "36", "46", "49" -> CarSettingKind.Toggle(false)
         "76" -> CarSettingKind.Toggle(cloud.boolValue("positioningFunc") == true)
         "45" -> CarSettingKind.Toggle(false)
         "9" -> CarSettingKind.Toggle(cloud.boolValue("alarmOn") == true)
@@ -493,7 +495,7 @@ object CloudCarSettingMapper {
         "14" -> CarSettingKind.Info(
             cloud.intValue("alarmPower")?.let { "灵敏度 $it" } ?: "状态由车辆回读",
         )
-        "19", "26", "32", "36", "42", "43", "44", "46", "49",
+        "32", "42", "43", "44",
         "51", "63", "68", "79", "80", "84", "90", "94", "2" ->
             CarSettingKind.Info("状态由车辆回读")
         "47" -> CarSettingKind.Entrance(

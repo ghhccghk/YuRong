@@ -115,6 +115,41 @@ object VehicleSettingCommands {
                 onParameter = 1,
                 offParameter = 0,
             )
+            "19" -> toggle(
+                kind = kind,
+                onType = "AUTOMATIC_HEADLIGHT_OPEN",
+                offType = "AUTOMATIC_HEADLIGHT_CLOSE",
+                onId = 0x25,
+                offId = 0x26,
+            )
+            "26" -> toggle(
+                kind = kind,
+                onType = "COMMAND_DIRECTION_LIGHT_RESET_ON",
+                offType = "COMMAND_DIRECTION_LIGHT_RESET_OFF",
+                onId = 0x23,
+                offId = 0x24,
+            )
+            "36" -> toggle(
+                kind = kind,
+                onType = "BRAKE_OUTAGE_OPEN",
+                offType = "BRAKE_OUTAGE_CLOSE",
+                onId = 0x9B,
+                offId = 0x9C,
+            )
+            "46" -> toggle(
+                kind = kind,
+                onType = "BLE_SLOP_DESCENT_OPEN",
+                offType = "BLE_SLOP_DESCENT_CLOSE",
+                onId = 0xAE,
+                offId = 0xAF,
+            )
+            "49" -> toggle(
+                kind = kind,
+                onType = "BLE_RAMP_SLOP_OPEN",
+                offType = "BLE_RAMP_SLOP_CLOSE",
+                onId = 0xB0,
+                offId = 0xB1,
+            )
             else -> null
         }
 

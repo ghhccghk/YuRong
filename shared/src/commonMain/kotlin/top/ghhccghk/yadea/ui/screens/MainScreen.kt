@@ -222,6 +222,11 @@ fun MainScreen(
         vehicleStatus?.extended?.absFunctionStatus,
         vehicleStatus?.extended?.simulatedSoundWaveStatus,
         vehicleStatus?.extended?.brightnessAdjustSwitch,
+        vehicleStatus?.extended?.automaticHeadlightFunctionStatus,
+        vehicleStatus?.extended?.turnSignalReturnsAutomaticallyStatus,
+        vehicleStatus?.extended?.brakePowerDownFunctionStatus,
+        vehicleStatus?.extended?.steepSlopeState,
+        vehicleStatus?.extended?.rampSlopeState,
     ) {
         carSettingsController.updateVehicleStatus(vehicleStatus)
     }
