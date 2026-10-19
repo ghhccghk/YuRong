@@ -162,6 +162,7 @@ class MainActivity : ComponentActivity() {
             loginIdProvider = deviceIdProvider,
             timestampProvider = { System.currentTimeMillis() },
             clientInfoProvider = { clientInfo },
+            bleAdapter = vehicleBleAdapter,
         )
         val carSettingsGateway = YadeaCarSettingsGateway(
             transport = httpTransport,

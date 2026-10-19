@@ -9,6 +9,7 @@ import top.ghhccghk.yadea.network.GatewayClientInfo
 import top.ghhccghk.yadea.network.GatewayRequestHeaders
 import top.ghhccghk.yadea.network.NetworkLog
 import top.ghhccghk.yadea.vehicle.VehicleProfile
+import top.ghhccghk.yadea.ble.BleAdapter
 
 /**
  * OTA 网络层。
@@ -25,6 +26,8 @@ class YadeaOtaGateway(
     private val timestampProvider: () -> Long,
     private val baseUrl: String = DEFAULT_BASE_URL,
     private val clientInfoProvider: () -> GatewayClientInfo = { GatewayClientInfo() },
+    private val bleAdapter: BleAdapter? = null,
+    private val downloader: FirmwareDownloader = createFirmwareDownloader(),
 ) : OtaGateway {
 
     override suspend fun checkForUpdate(currentVersion: String): OtaPackage? =
@@ -146,15 +149,18 @@ class YadeaOtaGateway(
         return post("upgradeTask/queryTaskList/V4", json)
     }
 
-    /**
-     * 固件写入交给平台 OTA 传输层；网络层只确认包存在。
-     *
-     * 当前返回 `false`，避免在未接入 BLE/Wi-Fi OTA 通道时误报升级成功。
-     */
     override suspend fun install(
         packageInfo: OtaPackage,
         onProgress: suspend (Float, OtaStage) -> Unit,
-    ): Boolean = false
+    ): Boolean {
+        if (packageInfo.method != OtaMethod.Ble) return false
+        if (packageInfo.downloadUrl.isBlank()) return false
+        val adapter = bleAdapter ?: return false
+        onProgress(0.02f, OtaStage.Downloading)
+        val firmware = downloader.download(packageInfo.downloadUrl) ?: return false
+        onProgress(0.12f, OtaStage.Verifying)
+        return BleOtaInstaller(adapter).install(firmware, onProgress)
+    }
 
     private suspend fun post(path: String, businessJson: String): String? {
         val token = tokenProvider().trim()

@@ -11,6 +11,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import top.ghhccghk.yadea.ota.OtaController
 import top.ghhccghk.yadea.ota.OtaMethod
@@ -25,6 +28,7 @@ fun OtaScreen(
 ) {
     val state by controller.state.collectAsState()
     val dimensions = AppDesign.dimensions
+    var showRiskConfirm by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -36,6 +40,21 @@ fun OtaScreen(
                 title = "OTA 升级",
                 subtitle = "按蓝牙、车联网、Wi-Fi 与记录仪通道分别查看云端升级任务",
             )
+        }
+        item {
+            if (state.selectedMethod == OtaMethod.Ble) {
+                AppTip(
+                    kind = AppTipKind.Warning,
+                    title = "BLE 本地升级存在高风险",
+                    message = "该功能按反编译协议直译，未经过完整真车回归。升级中断或固件不匹配可能导致车辆停在 bootloader。强烈建议优先使用云端 OTA 或原厂软件升级。",
+                )
+            } else {
+                AppTip(
+                    kind = AppTipKind.Info,
+                    title = "建议使用云端升级",
+                    message = "当前 App 仅实现了 BLE 固件传输；车联网、Wi-Fi 和记录仪通道请使用云端或原厂软件升级。",
+                )
+            }
         }
         item {
             AppSection(title = "升级方式") {
@@ -102,7 +121,7 @@ fun OtaScreen(
                         )
                     }
                     AppText(
-                        text = "当前展示云端任务；固件下载与写入通道需按所选升级方式接入，未接入时不会伪报升级成功。",
+                        text = "BLE 通道已按 smali 直译固件下载、分包和 ACK 流程；车联网、Wi-Fi 与记录仪请使用云端或原厂软件升级。",
                         style = AppDesign.typography.summary,
                         color = AppDesign.colors.onSurfaceVariant,
                         modifier = Modifier.padding(
@@ -165,9 +184,15 @@ fun OtaScreen(
                         AppText("检查更新", style = AppDesign.typography.button)
                     }
                     AppButton(
-                        onClick = controller::install,
+                        onClick = {
+                            if (state.selectedMethod == OtaMethod.Ble) {
+                                showRiskConfirm = true
+                            } else {
+                                controller.install()
+                            }
+                        },
                         modifier = Modifier.weight(1f),
-                        enabled = state.canInstall,
+                        enabled = state.canInstall && state.selectedMethod == OtaMethod.Ble,
                     ) {
                         AppText(
                             if (state.stage == OtaStage.Failed) "重试升级" else "开始升级",
@@ -190,6 +215,18 @@ fun OtaScreen(
             }
         }
     }
+
+    AppAlertDialog(
+        show = showRiskConfirm,
+        title = "确认 BLE 本地升级",
+        message = "此操作会直接向车辆写入固件。若电量不足、连接中断或文件不匹配，车辆可能无法正常启动。请确认车辆电量充足并保持前台连接；更推荐使用云端或原厂软件升级。",
+        onDismissRequest = { showRiskConfirm = false },
+        confirmText = "仍要升级",
+        onConfirm = {
+            showRiskConfirm = false
+            controller.install()
+        },
+    )
 }
 
 private fun OtaStage.label(): String = when (this) {
