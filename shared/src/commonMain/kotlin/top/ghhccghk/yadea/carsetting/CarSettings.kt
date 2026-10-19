@@ -29,6 +29,7 @@ private fun CarSettingClassification.asGroup(): CarSettingGroup =
 
 enum class CarSettingChannel(val label: String) {
     BLE("蓝牙"),
+    BLE_KEY("蓝牙车钥匙"),
     IOT("车联网"),
     BOTH("蓝牙 + 车联网"),
     LOCAL("本机"),

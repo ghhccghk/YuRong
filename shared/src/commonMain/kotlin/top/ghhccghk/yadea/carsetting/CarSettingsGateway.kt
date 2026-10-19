@@ -337,7 +337,8 @@ object CloudCarSettingMapper {
                 channel = channelOf(confId),
                 kind = kind,
                 // 云端没有下发 isAuth 时按“未禁止”处理；只有明确 false 才只读。
-                writable = config.isAuth != false && (
+                writable = config.isAuth != false &&
+                    confId !in BLUETOOTH_KEY_IDS && (
                     VehicleSettingCommands.supports(confId, kind) ||
                         CloudCarSettingUpdateBuilder.supports(confId, kind)
                     ),
@@ -371,6 +372,9 @@ object CloudCarSettingMapper {
             .ifBlank { "设置 ${config.confId}" }
 
     private fun summaryOf(config: CloudBikeConfig, title: String): String {
+        if (config.confId.trim() in BLUETOOTH_KEY_IDS) {
+            return "蓝牙车钥匙功能，请在原 App 的车钥匙模块中设置。"
+        }
         val raw = listOf(config.briefCopy, config.newCopy, config.copy)
             .firstOrNull { it.isNotBlank() }
             ?: return "云端车辆设置项"
@@ -470,6 +474,7 @@ object CloudCarSettingMapper {
     }
 
     private fun channelOf(confId: String): CarSettingChannel = when {
+        confId in BLUETOOTH_KEY_IDS -> CarSettingChannel.BLE_KEY
         confId in IOT_IDS -> CarSettingChannel.IOT
         confId.startsWith("special:") -> CarSettingChannel.LOCAL
         confId in ENTRANCE_IDS -> CarSettingChannel.LOCAL
@@ -477,6 +482,7 @@ object CloudCarSettingMapper {
     }
 
     private fun kindOf(confId: String, cloud: CloudCarSettings): CarSettingKind = when (confId) {
+        in BLUETOOTH_KEY_IDS -> CarSettingKind.Info("请在原 App 的车钥匙模块中设置")
         "13" -> CarSettingKind.Toggle(cloud.boolValue("alarmSoundEnable") == true)
         "16" -> CarSettingKind.Toggle(cloud.boolValue("dumpAlarm") == true)
         "3" -> CarSettingKind.Toggle(cloud.boolValue("resistanceOn") == true)
@@ -566,6 +572,8 @@ object CloudCarSettingMapper {
     }
 
     private val BATTERY_IDS = setOf("9", "47", "48")
+    /** 一键开机/蓝牙校准属于蓝牙车钥匙，不能走普通车辆设置命令。 */
+    private val BLUETOOTH_KEY_IDS = setOf("1", "66")
     private val LIGHT_IDS = setOf(
         "5", "19", "20", "26", "33", "40", "41", "68", "73", "81", "84", "88", "93",
     )
