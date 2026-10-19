@@ -212,8 +212,16 @@ class YadeaAuthGateway(
     }
 
     override suspend fun importBearerToken(token: String): AuthResult<AuthUser> {
-        val normalized = token.trim()
+        val normalized = normalizeCapturedToken(token)
         if (normalized.isBlank()) return AuthResult.Failure("请输入 Token")
+
+        // 抓包导出的 usr_token/Authorization 是 JWT，用户资料已在 payload.userInfo 内。
+        // 优先本地恢复会话，避免依赖额外 ping 接口或再次联网登录。
+        JwtUserInfoDecoder.decode(normalized)?.let { return AuthResult.Success(it) }
+        if (normalized.count { it == '.' } >= 2 && JwtUserInfoDecoder.payload(normalized) == null) {
+            return AuthResult.Failure("JWT 不完整或格式错误，请粘贴完整的 usr_token / Authorization")
+        }
+
         val result = postRaw(
             path = "app-common/ping",
             businessJson = sortedJson(mapOf("_gateway" to "True")),
@@ -228,6 +236,19 @@ class YadeaAuthGateway(
                 ),
             )
         }
+    }
+
+    private fun normalizeCapturedToken(raw: String): String {
+        var value = raw.trim()
+        listOf("authorization:", "authorization=", "usr_token=", "token=").forEach { prefix ->
+            if (value.startsWith(prefix, ignoreCase = true)) {
+                value = value.substring(prefix.length).trim()
+            }
+        }
+        if (value.startsWith("Bearer ", ignoreCase = true)) {
+            value = value.substring(7).trim()
+        }
+        return value
     }
 
     override suspend fun loginWithParameters(request: RawLoginRequest): AuthResult<AuthUser> {

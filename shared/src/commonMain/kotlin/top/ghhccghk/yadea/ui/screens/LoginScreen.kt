@@ -307,7 +307,7 @@ fun LoginScreen(
                                 AppTextField(
                                     value = token,
                                     onValueChange = { token = it },
-                                    label = "登录 Token（loginToken）",
+                                    label = "usr_token / Authorization / loginToken",
                                     modifier = Modifier.fillMaxWidth(),
                                     enabled = !auth.busy,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
@@ -321,7 +321,7 @@ fun LoginScreen(
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                                 )
                                 AppText(
-                                    text = "一键认证 loginToken 直接粘贴；已有 Bearer Token 请以“Bearer ”开头。gyuid 没有可留空。",
+                                    text = "抓包中的 usr_token 或完整 Authorization JWT 可直接粘贴，用户资料会从 JWT 本地恢复。loginToken 一键认证也可用；gyuid 没有可留空。",
                                     style = AppDesign.typography.summary,
                                     color = AppDesign.colors.onSurfaceVariant,
                                 )
@@ -366,7 +366,7 @@ fun LoginScreen(
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                                 )
                                 AppText(
-                                    text = "填写从原 App 抓到的 f84.b 业务 JSON；不要填 gatewaySign 表单。请求头可只写需要覆盖的字段。",
+                                    text = "这里只用于重放真正的登录 POST 接口。若抓包来自车辆状态、设置等已登录接口，请改用 Token 登录粘贴 Authorization；gatewaySign 只对当次请求有效。",
                                     style = AppDesign.typography.summary,
                                     color = AppDesign.colors.onSurfaceVariant,
                                 )
