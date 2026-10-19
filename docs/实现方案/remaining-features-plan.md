@@ -69,6 +69,12 @@
   `upgradeLog/queryUpgradeLogByVin/V3`；任务列表支持选择具体固件部件。
 - [ ] Phase 3.3：真车验证 Wi-Fi/Wi-Fi DVR 下载、记录分页和分部件升级；
   需要实际车辆与仪表固件，失败时优先回退云端或原厂升级。
+- [x] Phase 4.1：边撑感应、倾倒提醒、T 动力、座垫上电、赛道模式已接入
+  `5944...4B4A` BLE 设置帧；座椅加热开关和档位接入云端字段。
+- [x] Phase 4.2：电子围栏开关/半径、感应解锁开关/距离改为可交互控件，
+  并由云端 `distanceOn/distance/bleUnlockOn/bleDistance` 回填和写入。
+- [x] Phase 4.3：未找到完整读写协议的云端项改为可点开的只读说明，
+  不再静默无响应；不会发送猜测命令。
 
 ## Phase 1：云端车辆绑定与多车辆管理
 
@@ -310,6 +316,51 @@ HTTP 文件服务（`rl1`）：
 ### 4.3 联系人/安全
 
 `24` 紧急联系人、`85` SOS 联系人、`91` 紧急呼叫。
+
+### Phase 4 已确认的命令与字段
+
+BLE 开关命令来自 `CarSettingsPowerRegistry`、
+`CarSettingsSecurityRegistry`、`CarSettingsRideControlRegistry` 和
+`BleBicycleCommandManager`：
+
+| confId | 命令 | 帧参数 |
+| --- | --- | --- |
+| `2` 边撑感应 | `0x131` | `0x1F` bit4..7，开 `1`、关 `0` |
+| `32` 倾倒提醒 | `0x12D` | `0x41` bit2..3，开 `1`、关 `0` |
+| `63` T 动力 | 开 `0x6A`、关 `0x69` | 固定位域 |
+| `79` 座垫上电 | `0x130` | `0x1F` bit0..3，开 `1`、关 `0` |
+| `90` 赛道模式 | 开 `0x90`、关 `0x91` | 固定位域 |
+
+云端直接字段：
+
+| confId | 控件 | 字段 |
+| --- | --- | --- |
+| `10` | 电子围栏开关 | `distanceOn` |
+| `10` | 电子围栏半径 | `distance` |
+| `52` | 感应解锁开关 | `bleUnlockOn` |
+| `52` | 感应解锁距离 | `bleDistance` |
+| `62` | 座椅加热开关 | `seatHeating` |
+| `62` | 座椅加热档位 | `seatHeatingLevel` |
+
+TTP 回填：
+
+| confId | TTP 字段 |
+| --- | --- |
+| `62` | `seatHeatSwitchStatus`、`seatHeatLevelStatus` |
+| `63` | `tPowerStatus` |
+| `72` | `longEnduranceStatus` |
+| `79` | `seatPowerStatus` |
+| `80` | `otdSwitch` |
+| `90` | `trackModeStatus` |
+
+仍保持只读的项：
+
+- `15/59` 离车定时关机/报警锁：原 App 使用独立子页面和额外参数。
+- `27` 设防模式、`31` 速度单位、`50` 仪表风格、`54` 电压平台、
+  `58` 档位设置、`60` 电池设置、`73` 氛围灯、`81` 大灯延时、
+  `1005` 自定义按键：尚未提取完整的二级页写入协议。
+- `42` 剩余里程显示、`43` 倒车模式、`44/64/89` 辅助推行、
+  `51` 仪表时间同步：云端状态字段或开关帧参数尚不完整，继续只读。
 
 验收：
 
