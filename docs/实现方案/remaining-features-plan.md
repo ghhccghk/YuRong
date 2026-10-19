@@ -51,7 +51,12 @@
 - [x] Phase 1.2：已实现 `VehicleBindingGateway`、`VehicleBindingController`，
   并在车库页加入“添加车辆”表单、“获取车主验证码”、绑定和解绑入口。
 - [ ] Phase 1.3：真机验证绑定/解绑错误码与多车辆切换；需要实际账号数据。
-- [ ] Phase 2：投屏自动建链。
+- [x] Phase 2.1：已确认 `COMMAND_OPEN_WIFI_P2P_NEW`（0xFD）→
+  `wifiStatusNew == 2` → P2P → TCP 的原流程。
+- [x] Phase 2.2：已实现 `MirrorConnectFlow` 状态机、BLE 0xFD 帧和
+  `AppViewModel.startAutoMirror()`，投屏页加入“一键投屏”入口。
+- [ ] Phase 2.3：真机验证 P2P 设备 MAC 转换、GroupOwner IP 和 TCP 建链；
+  失败时保留手动 IP 兜底。
 
 ## Phase 1：云端车辆绑定与多车辆管理
 
