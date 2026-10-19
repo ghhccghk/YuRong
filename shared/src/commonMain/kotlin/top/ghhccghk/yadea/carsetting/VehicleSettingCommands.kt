@@ -27,6 +27,31 @@ class MappedCarSettingWriter(
     }
 }
 
+/**
+ * 云端设置写入优先，未确认云端字段的设置再回退到 BLE 映射。
+ *
+ * 云端清单决定项目是否存在与是否授权；写入通道仍按各 configId 的原实现分流。
+ */
+class CloudCarSettingWriter(
+    private val gateway: CarSettingsGateway,
+    private val vinProvider: () -> String,
+    private val bleFallback: CarSettingWriter? = null,
+) : CarSettingWriter {
+    override suspend fun write(item: CarSettingItem): Boolean {
+        val vin = vinProvider().trim()
+        if (vin.isBlank()) return false
+        val update = CloudCarSettingUpdateBuilder.build(
+            configId = item.configId,
+            kind = item.kind,
+            vin = vin,
+        )
+        if (update != null) {
+            return gateway.update(vin, update)
+        }
+        return bleFallback?.write(item) ?: false
+    }
+}
+
 object VehicleSettingCommands {
 
     fun supports(configId: String, kind: CarSettingKind): Boolean =

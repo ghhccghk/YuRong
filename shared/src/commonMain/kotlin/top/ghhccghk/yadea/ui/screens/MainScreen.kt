@@ -33,6 +33,7 @@ import top.ghhccghk.yadea.auth.AuthSession
 import top.ghhccghk.yadea.carsetting.CarSettingWriter
 import top.ghhccghk.yadea.carsetting.CarSettingsGateway
 import top.ghhccghk.yadea.carsetting.MappedCarSettingWriter
+import top.ghhccghk.yadea.carsetting.CloudCarSettingWriter
 import top.ghhccghk.yadea.carsetting.VehicleSettingCommandSink
 import top.ghhccghk.yadea.carsetting.CarSettingsController
 import top.ghhccghk.yadea.mirror.FrameSourceFactory
@@ -133,7 +134,17 @@ fun MainScreen(
         AuthController(AuthSession(resolvedPreferences), authGateway, featureScope)
     }
     val authUiState by authController.state.collectAsState()
-    val resolvedCarSettingWriter = carSettingWriter ?: carSettingCommandSink?.let(::MappedCarSettingWriter)
+    val vehicleVinProvider = { resolvedProfileSource.profile.value?.vin.orEmpty() }
+    val resolvedCarSettingWriter = carSettingWriter ?: run {
+        val bleWriter = carSettingCommandSink?.let(::MappedCarSettingWriter)
+        carSettingsGateway?.let { gateway ->
+            CloudCarSettingWriter(
+                gateway = gateway,
+                vinProvider = vehicleVinProvider,
+                bleFallback = bleWriter,
+            )
+        } ?: bleWriter
+    }
     val carSettingsController = remember(
         resolvedCarSettingWriter,
         carSettingsGateway,

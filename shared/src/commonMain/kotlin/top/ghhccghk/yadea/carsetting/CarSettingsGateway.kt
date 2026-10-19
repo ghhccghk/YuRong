@@ -45,6 +45,50 @@ data class CloudCarSettings(
 
 interface CarSettingsGateway {
     suspend fun load(vin: String): CloudCarSettings?
+    suspend fun update(vin: String, update: CloudCarSettingUpdate): Boolean = false
+}
+
+/** 已确认的云端设置写入字段。 */
+data class CloudCarSettingUpdate(
+    val configId: String,
+    val fields: Map<String, String>,
+)
+
+/**
+ * `updateBikeSetting` 的直接字段写入。
+ *
+ * 只收纳 smali 中能确认字段名的布尔设置；需要 `valueJson` 的定位/充电命令
+ * 暂不猜测，继续保留为入口或只读项。
+ */
+object CloudCarSettingUpdateBuilder {
+    fun supports(configId: String, kind: CarSettingKind): Boolean =
+        build(configId, kind, vin = "vin") != null
+
+    fun build(
+        configId: String,
+        kind: CarSettingKind,
+        vin: String,
+    ): CloudCarSettingUpdate? {
+        val toggle = kind as? CarSettingKind.Toggle ?: return null
+        val value = if (toggle.checked) "1" else "0"
+        val field = when (configId) {
+            "9" -> "alarmOn"
+            "16" -> "dumpAlarm"
+            "24" -> "emergencyContact"
+            "40" -> "colorEggSoundEffect"
+            "75" -> "tamperProofIotEnable"
+            "82" -> "lowBatTelWarning"
+            else -> return null
+        }
+        return CloudCarSettingUpdate(
+            configId = configId,
+            fields = mapOf(
+                "_gateway" to "True",
+                field to value,
+                "vin" to vin,
+            ),
+        )
+    }
 }
 
 /**
@@ -64,11 +108,41 @@ class YadeaCarSettingsGateway(
     override suspend fun load(vin: String): CloudCarSettings? {
         val token = tokenProvider().trim()
         if (token.isBlank() || vin.isBlank()) return null
-        val url = baseUrl + PATH
-        val body = GatewaySigner.formBody(
-            sortedJson(mapOf("_gateway" to "True", "vin" to vin)),
-            timestampProvider(),
-        )
+        val plain = postFields(
+            path = PATH,
+            fields = mapOf("_gateway" to "True", "vin" to vin),
+            token = token,
+        ) ?: return null
+        NetworkLog.write("SETTINGS plain ${NetworkLog.maskSensitive(plain)}")
+        if (JsonSupport.boolean(plain, "success") == false) return null
+        val data = JsonSupport.objectField(plain, "data") ?: return null
+        val configs = JsonSupport.arrayObjects(data, "bikeConfigVos")
+            .mapNotNull(::parseBikeConfig)
+        val values = VALUE_KEYS.mapNotNull { key ->
+            readValue(data, key)?.let { key to it }
+        }.toMap()
+        return CloudCarSettings(configs = configs, values = values)
+    }
+
+    override suspend fun update(vin: String, update: CloudCarSettingUpdate): Boolean {
+        val token = tokenProvider().trim()
+        if (token.isBlank() || vin.isBlank()) return false
+        val plain = postFields(
+            path = UPDATE_PATH,
+            fields = update.fields + ("vin" to vin),
+            token = token,
+        ) ?: return false
+        if (JsonSupport.boolean(plain, "success") == false) return false
+        return JsonSupport.boolean(plain, "data") != false
+    }
+
+    private suspend fun postFields(
+        path: String,
+        fields: Map<String, String>,
+        token: String,
+    ): String? {
+        val url = baseUrl + path
+        val body = GatewaySigner.formBody(sortedJson(fields), timestampProvider())
         val headers = GatewayRequestHeaders.build(
             clientInfo = clientInfoProvider(),
             deviceId = deviceIdProvider(),
@@ -95,16 +169,7 @@ class YadeaCarSettingsGateway(
         )
         if (response.status !in 200..299) return null
         val decoded = Crypto.urlDecode(response.body.trim())
-        val plain = Crypto.aesEcbPkcs5Decrypt(GatewaySigner.AES_KEY, decoded) ?: decoded
-        NetworkLog.write("SETTINGS plain ${NetworkLog.maskSensitive(plain)}")
-        if (JsonSupport.boolean(plain, "success") == false) return null
-        val data = JsonSupport.objectField(plain, "data") ?: return null
-        val configs = JsonSupport.arrayObjects(data, "bikeConfigVos")
-            .mapNotNull(::parseBikeConfig)
-        val values = VALUE_KEYS.mapNotNull { key ->
-            readValue(data, key)?.let { key to it }
-        }.toMap()
-        return CloudCarSettings(configs = configs, values = values)
+        return Crypto.aesEcbPkcs5Decrypt(GatewaySigner.AES_KEY, decoded) ?: decoded
     }
 
     private fun parseBikeConfig(json: String): CloudBikeConfig? {
@@ -165,6 +230,7 @@ class YadeaCarSettingsGateway(
 
     companion object {
         const val PATH = "vehiclebase/bike-setting/selectBikeSettingByVin"
+        const val UPDATE_PATH = "vehiclebase/bike-setting/updateBikeSetting"
         const val DEFAULT_BASE_URL = "https://gw.yadeaiot.com.cn/api/app/"
 
         private val VALUE_KEYS = listOf(
@@ -180,6 +246,7 @@ class YadeaCarSettingsGateway(
             "rechargeAppointment", "rechargeAppointmentBeginTime",
             "rechargeAppointmentEndTime", "resistanceOn", "sendBikeRecDynaOn",
             "shakeOn", "shutDownTime", "sleepMode", "sosEmergencyCall",
+            "tamperProofIotEnable",
             "userDefinedSoundEffect", "vehiclePowerDownStatus", "voltage", "wxhlBind",
         )
     }
@@ -204,7 +271,10 @@ object CloudCarSettingMapper {
                 group = groupOf(config, classification),
                 channel = channelOf(confId),
                 kind = kind,
-                writable = config.isAuth && VehicleSettingCommands.supports(confId, kind),
+                writable = config.isAuth && (
+                    VehicleSettingCommands.supports(confId, kind) ||
+                        CloudCarSettingUpdateBuilder.supports(confId, kind)
+                    ),
                 sort = config.sort.toIntOrNull() ?: 0,
             )
         }.sortedWith(compareBy({ it.group.sort }, { it.sort }, { it.title }))
@@ -266,8 +336,12 @@ object CloudCarSettingMapper {
         "41" -> CarSettingKind.Toggle(cloud.boolValue("userDefinedSoundEffect") == true)
         "76" -> CarSettingKind.Toggle(cloud.boolValue("positioningFunc") == true)
         "45" -> CarSettingKind.Toggle(false)
+        "9" -> CarSettingKind.Toggle(cloud.boolValue("alarmOn") == true)
+        "24" -> CarSettingKind.Toggle(cloud.boolValue("emergencyContact") == true)
+        "75" -> CarSettingKind.Toggle(cloud.boolValue("tamperProofIotEnable") == true)
+        "82" -> CarSettingKind.Toggle(cloud.boolValue("lowBatTelWarning") == true)
         "19", "26", "32", "36", "37", "38", "42", "43", "44", "46", "49",
-        "51", "53", "63", "68", "75", "79", "80", "84", "90", "94", "2" ->
+        "51", "53", "63", "68", "79", "80", "84", "90", "94", "2" ->
             CarSettingKind.Info("状态由车辆回读")
         "47" -> CarSettingKind.Entrance(
             if (cloud.boolValue("chargeWattSwitch") == true) "已开启" else "已关闭",
@@ -276,9 +350,6 @@ object CloudCarSettingMapper {
             val cap = cloud.intValue("chargeUlVal")?.takeIf { it in 75..100 } ?: 90
             CarSettingKind.Entrance("$cap%")
         }
-        "9" -> CarSettingKind.Entrance(
-            if (cloud.boolValue("alarmOn") == true) "已开启" else "去设置",
-        )
         "10" -> CarSettingKind.Entrance(
             if (cloud.boolValue("distanceOn") == true) "已开启" else "去设置",
         )
@@ -306,7 +377,7 @@ object CloudCarSettingMapper {
     private val METER_IDS = setOf("31", "42", "50", "51", "71", "86")
     private val SECURITY_IDS = setOf(
         "8", "10", "13", "14", "16", "24", "27", "32", "36", "37", "38", "69",
-        "75", "76", "77", "85", "91",
+        "75", "76", "77", "82", "85", "91",
     )
     private val IOT_IDS = setOf(
         "9", "16", "24", "40", "47", "48", "60", "61", "62", "75", "76", "82", "91",
@@ -378,6 +449,7 @@ object CloudCarSettingMapper {
         "64" to "辅助骑行",
         "68" to "急刹灯",
         "69" to "雷达",
+        "82" to "低电量提醒",
         "71" to "仪表设置",
         "72" to "长续航模式",
         "73" to "氛围灯设置",
