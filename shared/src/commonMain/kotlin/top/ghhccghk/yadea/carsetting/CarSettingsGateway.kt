@@ -505,12 +505,19 @@ object CloudCarSettingMapper {
         "32", "42", "43", "44",
         "51", "63", "79", "80", "90", "2" ->
             CarSettingKind.Info("状态由车辆回读")
-        "47" -> CarSettingKind.Entrance(
-            buildString {
-                append(if (cloud.boolValue("chargeWattSwitch") == true) "已开启" else "已关闭")
-                cloud.intValue("chargeWattVal")?.let { append(" · $it W") }
-            },
-        )
+        "47" -> {
+            // ChargingPowerActivity：100..1000W，50W 步进；最大值按云端/车型上限 1000W。
+            val maxWatt = 1000
+            val watt = (cloud.intValue("chargeWattVal")?.coerceIn(100, maxWatt) ?: 350)
+                .let { it / 50 * 50 }
+                .coerceIn(100, maxWatt)
+            CarSettingKind.Slider(
+                value = watt.toFloat(),
+                range = 100f..maxWatt.toFloat(),
+                steps = (maxWatt - 100) / 50 - 1,
+                unit = " W",
+            )
+        }
         "48" -> {
             // ChargeCapActivity：70..100%，步进 5%。
             val cap = cloud.intValue("chargeUlVal")?.coerceIn(70, 100) ?: 100

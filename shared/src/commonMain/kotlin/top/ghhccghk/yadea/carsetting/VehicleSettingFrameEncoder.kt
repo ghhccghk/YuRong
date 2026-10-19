@@ -73,6 +73,11 @@ object VehicleSettingFrameEncoder {
             val percent = (command.parameter.coerceIn(70, 100) / 5 * 5)
             "FF".repeat(43) + hex2(0xF8 + ((percent - 70) / 5))
         }
+        // ChargingPowerActivity：瓦数除以 50 写入最后一字节。
+        0xCA -> {
+            val watt = (command.parameter.coerceIn(100, 1000) / 50 * 50)
+            "FF".repeat(46) + hex2(watt / 50)
+        }
         0x3D -> "FFFFFFFFFFFFFF" +
             hex2((command.parameter.coerceIn(1, 3) + 0x38)) +
             "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"

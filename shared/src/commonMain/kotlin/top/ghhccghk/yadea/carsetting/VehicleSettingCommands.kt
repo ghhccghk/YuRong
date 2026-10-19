@@ -208,6 +208,16 @@ object VehicleSettingCommands {
                     parameter = percent,
                 )
             }
+            // ChargingPowerActivity：100..1000W，50W 步进。
+            "47" -> {
+                val slider = kind as? CarSettingKind.Slider ?: return null
+                val watt = (slider.value.toInt() / 50 * 50).coerceIn(100, 1000)
+                VehicleSettingCommand(
+                    commandType = "COMMAND_CONST_CHARGING_POWER_VALUE",
+                    commandId = 0xCA,
+                    parameter = watt,
+                )
+            }
             else -> null
         }
 
