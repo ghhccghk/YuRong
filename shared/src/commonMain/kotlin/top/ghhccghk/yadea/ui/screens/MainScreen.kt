@@ -206,8 +206,7 @@ fun MainScreen(
             selectedDestination = selectedDestination,
             onDestinationChange = { selectedDestination = it },
             vehicleStatus = vehicleStatus,
-            vehicleConnected = vehicleConnected &&
-                bleState == BleConnectionState.Connected,
+            vehicleConnected = vehicleConnected,
             vehicleProfile = vehicleProfile,
             vehicleProfiles = vehicleProfiles,
             onSelectVehicle = resolvedProfileSource::select,
@@ -340,7 +339,8 @@ private fun MainScreenContent(
             vehicleSection = vehicleSection,
             onVehicleSectionChange = { vehicleSection = it },
             vehicleStatus = vehicleStatus,
-            vehicleConnected = vehicleConnected,
+            vehicleConnected = vehicleConnected &&
+                bleState == BleConnectionState.Connected,
             vehicleProfile = vehicleProfile,
             vehicleProfiles = vehicleProfiles,
             onSelectVehicle = onSelectVehicle,
