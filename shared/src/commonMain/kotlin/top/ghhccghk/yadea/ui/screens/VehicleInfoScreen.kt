@@ -20,6 +20,7 @@ import top.ghhccghk.yadea.vehicle.VehicleInfoFormatter
 import top.ghhccghk.yadea.vehicle.VehicleInfoUiModel
 import top.ghhccghk.yadea.vehicle.IotRenewalLinks
 import top.ghhccghk.yadea.vehicle.VehicleProfile
+import top.ghhccghk.yadea.vehicle.VehicleCloudStatus
 
 /**
  * 车辆信息页。
@@ -39,6 +40,7 @@ fun VehicleInfoScreen(
     onRefresh: (() -> Unit)? = null,
     refreshing: Boolean = false,
     profileErrorMessage: String? = null,
+    cloudStatus: VehicleCloudStatus? = null,
     modifier: Modifier = Modifier,
 ) {
     val model = VehicleInfoFormatter.format(status, connected)
@@ -60,6 +62,9 @@ fun VehicleInfoScreen(
                 profile = profile,
                 vehicleBackgroundContent = vehicleBackgroundContent,
                 vehicleImageContent = vehicleImageContent,
+                cloudRangeFallback = cloudStatus?.remainingMileage
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { if (it.endsWith("km", ignoreCase = true)) it else "$it km" },
             )
         }
         if (profile == null && (onRefresh != null || profileErrorMessage != null)) {
@@ -123,13 +128,44 @@ fun VehicleInfoScreen(
             }
         }
         if (status == null) {
+            if (cloudStatus != null) {
+                item {
+                    AppSection(title = "云端最近状态") {
+                        AppListRow(
+                            title = "剩余续航",
+                            value = cloudStatus.remainingMileage
+                                .takeIf { it.isNotBlank() }
+                                ?.let { if (it.endsWith("km", true)) it else "$it km" }
+                                ?: "—",
+                            showDivider = true,
+                        )
+                        AppListRow(
+                            title = "总行程",
+                            value = cloudStatus.totalMileage
+                                .takeIf { it.isNotBlank() }
+                                ?.let { if (it.endsWith("km", true)) it else "$it km" }
+                                ?: "—",
+                            showDivider = cloudStatus.currentOdoValue != null,
+                        )
+                        cloudStatus.currentOdoValue?.let { odo ->
+                            AppListRow(
+                                title = "当前里程",
+                                value = "${formatOneDecimal(odo)} km",
+                            )
+                        }
+                        cloudStatus.soc?.let { soc ->
+                            AppListRow("云端电量", value = "$soc%")
+                        }
+                    }
+                }
+            }
             item {
                 AppSection(title = "等待车辆状态") {
                     AppEmptyState(
                         message = if (connected) {
                             "车辆已连接，正在等待首个状态报文。"
                         } else {
-                            "尚未连接车辆。请先在“连接”页完成 BLE 连接。"
+                            "尚未连接车辆。上面的云端数据为最近一次上报；连接 BLE 后会显示实时里程。"
                         },
                     )
                 }
@@ -203,6 +239,7 @@ private fun VehicleHeroCard(
     profile: VehicleProfile?,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)?,
+    cloudRangeFallback: String?,
 ) {
     val dimensions = AppDesign.dimensions
     val linked = profile?.isLinkedModel == true
@@ -281,7 +318,12 @@ private fun VehicleHeroCard(
             ) {
                 MetricBlock("车速", model.speedLabel, foreground, Modifier.weight(1f))
                 MetricBlock("电量", model.batteryLabel, foreground, Modifier.weight(1f))
-                MetricBlock("续航", model.rangeLabel, foreground, Modifier.weight(1f))
+                MetricBlock(
+                    "续航",
+                    model.rangeLabel.takeUnless { it == "—" } ?: cloudRangeFallback ?: "—",
+                    foreground,
+                    Modifier.weight(1f),
+                )
             }
         }
     }
@@ -316,3 +358,9 @@ private fun Double.formatCoordinate(): String {
 }
 
 private fun Int.versionPart(): String = if (this < 0) "—" else toString()
+
+private fun formatOneDecimal(value: Float): String {
+    val scaled = kotlin.math.round(value * 10f).toLong()
+    val fraction = kotlin.math.abs(scaled % 10)
+    return "${scaled / 10}.$fraction"
+}

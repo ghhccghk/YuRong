@@ -32,7 +32,9 @@ import top.ghhccghk.yadea.ui.initAndroidFileLogger
 import top.ghhccghk.yadea.vehicle.BleVehicleStatusSource
 import top.ghhccghk.yadea.vehicle.MutableVehicleProfileSource
 import top.ghhccghk.yadea.vehicle.VehicleProfileController
+import top.ghhccghk.yadea.vehicle.VehicleCloudStatusController
 import top.ghhccghk.yadea.vehicle.YadeaVehicleProfileGateway
+import top.ghhccghk.yadea.vehicle.YadeaVehicleCloudStatusGateway
 import top.ghhccghk.yadea.vehicle.YadeaVehicleBleTokenGateway
 import top.ghhccghk.yadea.wifi.AndroidWifiP2pManager
 import top.ghhccghk.yadea.mirror.source.AndroidFrameSourceFactory
@@ -150,6 +152,16 @@ class MainActivity : ComponentActivity() {
             ),
             scope = lifecycleScope,
         )
+        val cloudStatusController = VehicleCloudStatusController(
+            gateway = YadeaVehicleCloudStatusGateway(
+                transport = httpTransport,
+                tokenProvider = { appPreferences.readAuth().token },
+                loginIdProvider = deviceIdProvider,
+                clientInfoProvider = { clientInfo },
+                timestampProvider = { System.currentTimeMillis() },
+            ),
+            scope = lifecycleScope,
+        )
         val authGateway = YadeaAuthGateway(
             transport = httpTransport,
             timestampProvider = { System.currentTimeMillis() },
@@ -181,6 +193,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val vehicleProfilesRefreshing by profileController.refreshing.collectAsState()
             val vehicleProfilesError by profileController.lastError.collectAsState()
+            val vehicleCloudStatus by cloudStatusController.state.collectAsState()
             MainScreen(
                 bleAdapter = vehicleBleAdapter,
                 bleTokenProvider = vehicleBleTokenGateway,
@@ -205,6 +218,8 @@ class MainActivity : ComponentActivity() {
                 onRefreshVehicleProfile = profileController::refresh,
                 vehicleProfilesRefreshing = vehicleProfilesRefreshing,
                 vehicleProfilesError = vehicleProfilesError,
+                vehicleCloudStatus = vehicleCloudStatus,
+                onRefreshVehicleCloudStatus = cloudStatusController::refresh,
                 vehicleBackgroundContent = { url, modifier ->
                     AndroidVehicleBackgroundImage(url, modifier)
                 },

@@ -47,6 +47,7 @@ import top.ghhccghk.yadea.vehicle.EmptyVehicleStatusSource
 import top.ghhccghk.yadea.vehicle.EmptyVehicleProfileSource
 import top.ghhccghk.yadea.vehicle.TtpInfo
 import top.ghhccghk.yadea.vehicle.VehicleProfile
+import top.ghhccghk.yadea.vehicle.VehicleCloudStatus
 import top.ghhccghk.yadea.vehicle.VehicleProfileSource
 import top.ghhccghk.yadea.vehicle.VehicleBleTokenProvider
 import top.ghhccghk.yadea.vehicle.VehicleControlController
@@ -105,6 +106,8 @@ fun MainScreen(
     onRefreshVehicleProfile: (() -> Unit)? = null,
     vehicleProfilesRefreshing: Boolean = false,
     vehicleProfilesError: String? = null,
+    vehicleCloudStatus: VehicleCloudStatus? = null,
+    onRefreshVehicleCloudStatus: ((String) -> Unit)? = null,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)? = null,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)? = null,
     systemAccentColor: androidx.compose.ui.graphics.Color? = null,
@@ -208,6 +211,12 @@ fun MainScreen(
             onRefreshVehicleProfile?.invoke()
         }
     }
+    LaunchedEffect(vehicleProfile?.vin, authUiState.session.token) {
+        val vin = vehicleProfile?.vin.orEmpty()
+        if (authUiState.session.token.isNotBlank() && vin.isNotBlank()) {
+            onRefreshVehicleCloudStatus?.invoke(vin)
+        }
+    }
     LaunchedEffect(
         vehicleProfile?.vin,
         authUiState.session.token,
@@ -279,6 +288,7 @@ fun MainScreen(
             onRefreshVehicleProfile = onRefreshVehicleProfile,
             vehicleProfilesRefreshing = vehicleProfilesRefreshing,
             vehicleProfilesError = vehicleProfilesError,
+            vehicleCloudStatus = vehicleCloudStatus,
             vehicleBackgroundContent = vehicleBackgroundContent,
             vehicleImageContent = vehicleImageContent,
             onOpenExternalUrl = onOpenExternalUrl,
@@ -329,6 +339,7 @@ private fun MainScreenContent(
     onRefreshVehicleProfile: (() -> Unit)?,
     vehicleProfilesRefreshing: Boolean,
     vehicleProfilesError: String?,
+    vehicleCloudStatus: VehicleCloudStatus?,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)?,
     onOpenExternalUrl: ((String) -> Unit)?,
@@ -445,6 +456,7 @@ private fun MainScreenContent(
             onRefreshVehicleProfile = onRefreshVehicleProfile,
             vehicleProfilesRefreshing = vehicleProfilesRefreshing,
             vehicleProfilesError = vehicleProfilesError,
+            vehicleCloudStatus = vehicleCloudStatus,
             vehicleBackgroundContent = vehicleBackgroundContent,
             vehicleImageContent = vehicleImageContent,
             onOpenExternalUrl = onOpenExternalUrl,
@@ -546,6 +558,7 @@ private fun MainDestinationContent(
     onRefreshVehicleProfile: (() -> Unit)?,
     vehicleProfilesRefreshing: Boolean,
     vehicleProfilesError: String?,
+    vehicleCloudStatus: VehicleCloudStatus?,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)?,
     onOpenExternalUrl: ((String) -> Unit)?,
@@ -583,6 +596,7 @@ private fun MainDestinationContent(
                 onRefreshVehicles = onRefreshVehicleProfile,
                 vehiclesRefreshing = vehicleProfilesRefreshing,
                 vehiclesErrorMessage = vehicleProfilesError,
+                vehicleCloudStatus = vehicleCloudStatus,
                 vehicleBackgroundContent = vehicleBackgroundContent,
                 vehicleImageContent = vehicleImageContent,
                 onOpenIotRenewal = onOpenExternalUrl,

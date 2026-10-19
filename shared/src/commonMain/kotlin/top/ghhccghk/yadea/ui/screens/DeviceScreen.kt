@@ -15,6 +15,7 @@ import top.ghhccghk.yadea.ota.OtaController
 import top.ghhccghk.yadea.vehicle.TtpInfo
 import top.ghhccghk.yadea.vehicle.VehicleInfoFormatter
 import top.ghhccghk.yadea.vehicle.VehicleProfile
+import top.ghhccghk.yadea.vehicle.VehicleCloudStatus
 import top.ghhccghk.yadea.vehicle.VehicleControlController
 
 /** 车辆页的子功能。 */
@@ -47,6 +48,7 @@ internal fun VehicleHubScreen(
     onRefreshVehicles: (() -> Unit)? = null,
     vehiclesRefreshing: Boolean = false,
     vehiclesErrorMessage: String? = null,
+    vehicleCloudStatus: VehicleCloudStatus? = null,
     authController: AuthController,
     carSettingsController: CarSettingsController,
     otaController: OtaController,
@@ -83,6 +85,7 @@ internal fun VehicleHubScreen(
                     onRefresh = onRefreshVehicles,
                     refreshing = vehiclesRefreshing,
                     profileErrorMessage = vehiclesErrorMessage,
+                    cloudStatus = vehicleCloudStatus,
                 )
                 VehicleSection.Control -> VehicleControlScreen(
                     controller = vehicleControlController,

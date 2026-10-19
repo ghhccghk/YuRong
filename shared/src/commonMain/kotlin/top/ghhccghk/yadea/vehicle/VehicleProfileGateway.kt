@@ -88,6 +88,7 @@ class YadeaVehicleProfileGateway(
             backgroundImageUrl = stringField(objectText, "skinPicUrl").orEmpty(),
             vehicleImageUrl = stringField(objectText, "imgUrl").orEmpty(),
             bikeNickName = stringField(objectText, "bikeNickName").orEmpty(),
+            remainingMileage = stringField(objectText, "remMileage").orEmpty(),
             iotService = intField(objectText, "iotExpireDays")?.let { days ->
                 VehicleIotServiceInfo(
                     expireDays = days,

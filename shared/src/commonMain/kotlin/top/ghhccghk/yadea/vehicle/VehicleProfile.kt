@@ -23,6 +23,8 @@ data class VehicleProfile(
     val vehicleImageUrl: String = "",
     val bikeNickName: String = "",
     val iotService: VehicleIotServiceInfo? = null,
+    /** `VehicleInfoBean.remMileage`，云端最近一次剩余续航。 */
+    val remainingMileage: String = "",
 ) {
     val isLinkedModel: Boolean
         get() = dLinkTag.isNotBlank()
