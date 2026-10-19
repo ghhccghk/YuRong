@@ -317,8 +317,8 @@ class YadeaCarSettingsGateway(
 
 /** 将云端清单转换为现有设置控件模型。 */
 object CloudCarSettingMapper {
-    fun toItems(cloud: CloudCarSettings): List<CarSettingItem> =
-        cloud.configs.mapNotNull { config ->
+    fun toItems(cloud: CloudCarSettings): List<CarSettingItem> {
+        val items = cloud.configs.mapNotNull { config ->
             val confId = config.confId.trim()
             if (confId.isBlank()) return@mapNotNull null
             val classification = classificationOf(confId, config)
@@ -341,7 +341,27 @@ object CloudCarSettingMapper {
                     ),
                 sort = config.sort.toIntOrNull() ?: 0,
             )
-        }.sortedWith(compareBy({ it.group.sort }, { it.sort }, { it.title }))
+        }.toMutableList()
+        // ChargingPowerActivity 是“开关 + 瓦数滑杆”的二级页；云端只给一个
+        // confId 47，这里拆成两个语义项，开关走 0xC9，滑杆走 0xCA。
+        cloud.configs.firstOrNull { it.confId.trim() == "47" }?.let { config ->
+            val classification = CarSettingClassification.BATTERY
+            val enabled = cloud.boolValue("chargeWattSwitch") == true
+            items += CarSettingItem(
+                id = "cloud:47:enable",
+                configId = "47",
+                title = "充电功率自定义",
+                summary = "开启后可设置充电功率上限",
+                classification = classification,
+                group = groupOf(config, classification),
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Toggle(enabled),
+                writable = config.isAuth != false,
+                sort = (config.sort.toIntOrNull() ?: 0) - 1,
+            )
+        }
+        return items.sortedWith(compareBy({ it.group.sort }, { it.sort }, { it.title }))
+    }
 
     private fun titleOf(config: CloudBikeConfig): String =
         config.confName.trim()

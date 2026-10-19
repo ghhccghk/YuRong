@@ -78,6 +78,8 @@ object VehicleSettingFrameEncoder {
             val watt = (command.parameter.coerceIn(100, 1000) / 50 * 50)
             "FF".repeat(46) + hex2(watt / 50)
         }
+        // ChargingPowerActivity 开关：0=开 -> E7，1=关 -> EF。
+        0xC9 -> "FF".repeat(43) + if (command.parameter == 0) "E7" else "EF"
         0x3D -> "FFFFFFFFFFFFFF" +
             hex2((command.parameter.coerceIn(1, 3) + 0x38)) +
             "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
