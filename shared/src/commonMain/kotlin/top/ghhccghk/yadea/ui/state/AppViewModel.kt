@@ -23,8 +23,11 @@ import top.ghhccghk.yadea.network.createTcpTransport
 import top.ghhccghk.yadea.network.createUdpTransport
 import top.ghhccghk.yadea.vehicle.Clock
 import top.ghhccghk.yadea.vehicle.PublicState
+import top.ghhccghk.yadea.vehicle.VehicleBleTokenProvider
 import top.ghhccghk.yadea.vehicle.VehicleBleConstants
 import top.ghhccghk.yadea.vehicle.VehicleConnectionCoordinator
+import top.ghhccghk.yadea.vehicle.VehicleLocalTimeProvider
+import top.ghhccghk.yadea.vehicle.VehicleTokenPairingStep
 import top.ghhccghk.yadea.wifi.*
 
 expect fun getCurrentTime(): DateTimeParts
@@ -37,6 +40,8 @@ class AppViewModel(
     private val permissionChecker: PermissionChecker? = null,
     private val screenCaptureAuthorizer: ScreenCaptureAuthorizer? = null,
     private val mediaSourcePicker: MediaSourcePicker? = null,
+    private val bleTokenProvider: VehicleBleTokenProvider? = null,
+    private val vehicleVinProvider: () -> String = { "" },
 ) {
     val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -123,6 +128,12 @@ class AppViewModel(
                 adapter = bleAdapter,
                 scope = scope,
                 clock = Clock { top.ghhccghk.yadea.currentMonotonicMillis() },
+                pairingStep = VehicleTokenPairingStep(
+                    tokenProvider = bleTokenProvider,
+                    vinProvider = vehicleVinProvider,
+                    timeProvider = VehicleLocalTimeProvider { getCurrentTime() },
+                    onDebug = ::debug,
+                ),
                 onDebug = ::debug,
             )
             scope.launch {

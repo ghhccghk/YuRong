@@ -220,7 +220,7 @@ class VehicleConnectionCoordinator(
     private suspend fun beginPairing() {
         val mac = state.targetMac
         val success = try {
-            pairingStep.pair(adapter, discoveredServices)
+            pairingStep.pair(adapter, discoveredServices, mac.orEmpty())
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
@@ -261,10 +261,14 @@ class VehicleConnectionCoordinator(
  * 后续替换为真实实现时不需要改动连接状态机。
  */
 fun interface VehiclePairingStep {
-    suspend fun pair(adapter: BleAdapter, services: List<BleService>): Boolean
+    suspend fun pair(adapter: BleAdapter, services: List<BleService>, mac: String): Boolean
 }
 
 object GattLinkPairingStep : VehiclePairingStep {
-    override suspend fun pair(adapter: BleAdapter, services: List<BleService>): Boolean =
+    override suspend fun pair(
+        adapter: BleAdapter,
+        services: List<BleService>,
+        mac: String,
+    ): Boolean =
         services.isNotEmpty()
 }

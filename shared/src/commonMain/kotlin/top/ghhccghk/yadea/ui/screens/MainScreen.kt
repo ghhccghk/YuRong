@@ -47,6 +47,7 @@ import top.ghhccghk.yadea.vehicle.EmptyVehicleProfileSource
 import top.ghhccghk.yadea.vehicle.TtpInfo
 import top.ghhccghk.yadea.vehicle.VehicleProfile
 import top.ghhccghk.yadea.vehicle.VehicleProfileSource
+import top.ghhccghk.yadea.vehicle.VehicleBleTokenProvider
 import top.ghhccghk.yadea.vehicle.VehicleStatusSource
 import top.ghhccghk.yadea.wifi.WifiConnectionManager
 import top.ghhccghk.yadea.wifi.WifiP2pManager
@@ -82,6 +83,7 @@ private enum class ConnectionSection(val label: String) {
 fun MainScreen(
     wifiManager: WifiConnectionManager? = null,
     bleAdapter: BleAdapter? = null,
+    bleTokenProvider: VehicleBleTokenProvider? = null,
     p2pManager: WifiP2pManager? = null,
     frameSourceFactory: FrameSourceFactory? = null,
     permissionChecker: PermissionChecker? = null,
@@ -103,15 +105,17 @@ fun MainScreen(
 ) {
     val resolvedPreferences = preferences ?: remember { AppPreferences(InMemoryPreferenceStore()) }
     val appearanceState = rememberAppAppearance(resolvedPreferences)
-    val viewModel = remember {
+    val viewModel = remember(bleTokenProvider, vehicleProfileSource) {
         AppViewModel(
-            wifiManager,
-            bleAdapter,
-            p2pManager,
-            frameSourceFactory,
-            permissionChecker,
-            screenCaptureAuthorizer,
-            mediaSourcePicker,
+            wifiManager = wifiManager,
+            bleAdapter = bleAdapter,
+            p2pManager = p2pManager,
+            frameSourceFactory = frameSourceFactory,
+            permissionChecker = permissionChecker,
+            screenCaptureAuthorizer = screenCaptureAuthorizer,
+            mediaSourcePicker = mediaSourcePicker,
+            bleTokenProvider = bleTokenProvider,
+            vehicleVinProvider = { vehicleProfileSource?.profile?.value?.vin.orEmpty() },
         )
     }
     val featureScope = rememberCoroutineScope()

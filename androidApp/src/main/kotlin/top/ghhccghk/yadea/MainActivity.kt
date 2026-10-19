@@ -31,6 +31,7 @@ import top.ghhccghk.yadea.vehicle.BleVehicleStatusSource
 import top.ghhccghk.yadea.vehicle.MutableVehicleProfileSource
 import top.ghhccghk.yadea.vehicle.VehicleProfileController
 import top.ghhccghk.yadea.vehicle.YadeaVehicleProfileGateway
+import top.ghhccghk.yadea.vehicle.YadeaVehicleBleTokenGateway
 import top.ghhccghk.yadea.wifi.AndroidWifiP2pManager
 import top.ghhccghk.yadea.mirror.source.AndroidFrameSourceFactory
 import top.ghhccghk.yadea.mirror.MediaSourcePicker
@@ -124,6 +125,13 @@ class MainActivity : ComponentActivity() {
             bikeSeriesCode = "4",
         )
         val httpTransport = createHttpTransport()
+        val vehicleBleTokenGateway = YadeaVehicleBleTokenGateway(
+            transport = httpTransport,
+            tokenProvider = { appPreferences.readAuth().token },
+            deviceIdProvider = deviceIdProvider,
+            clientInfoProvider = { clientInfo },
+            timestampProvider = { System.currentTimeMillis() },
+        )
         val vehicleProfileSource = MutableVehicleProfileSource()
         val profileController = VehicleProfileController(
             source = vehicleProfileSource,
@@ -165,6 +173,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MainScreen(
                 bleAdapter = vehicleBleAdapter,
+                bleTokenProvider = vehicleBleTokenGateway,
                 vehicleStatusSource = vehicleStatus,
                 vehicleProfileSource = vehicleProfileSource,
                 carSettingCommandSink = AndroidVehicleSettingCommandSink(vehicleBleAdapter),
