@@ -282,6 +282,18 @@ class CarSettingsController(
                 } else {
                     item
                 }
+                "17" -> item.copy(
+                    kind = CarSettingKind.Toggle(
+                        status.extended.brakeModePowerRecoverFunctionStatus != 0,
+                    ),
+                )
+                "18" -> item.copy(
+                    kind = (item.kind as? CarSettingKind.Slider)?.copy(
+                        value = status.extended.brakeModePowerRecoverGearStatus
+                            .coerceIn(1, 3)
+                            .toFloat(),
+                    ) ?: item.kind,
+                )
                 "20" -> item.copy(
                     kind = (item.kind as? CarSettingKind.Slider)?.copy(
                         value = status.extended.alarmWarningVolumeLevel.coerceIn(0, 7).toFloat(),

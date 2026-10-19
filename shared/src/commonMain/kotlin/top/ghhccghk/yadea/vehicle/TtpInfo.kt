@@ -169,6 +169,10 @@ data class TtpExtendedInfo(
     val alarmWarningMode: Int,
     /** 车辆音量。`0x33` bit3-5。 */
     val alarmWarningVolumeLevel: Int,
+    /** 能量回收开关。`0x26` bit5-6。 */
+    val brakeModePowerRecoverFunctionStatus: Int,
+    /** 能量回收档位。`0x27` bit3-5。 */
+    val brakeModePowerRecoverGearStatus: Int,
 
     // ---- 电量 / 能耗 ----
     /** 累计卡路里；原始值乘 0.1，超出 `0..1_000_000` 时为 `-1.0`。 */
@@ -526,6 +530,8 @@ internal object TtpInfoParser {
             turnSignalReturnsAutomaticallyStatus = Ttp.G(d, 0x33, 6),
             alarmWarningMode = Ttp.C(d, 0x33, 0),
             alarmWarningVolumeLevel = Ttp.C(d, 0x33, 3),
+            brakeModePowerRecoverFunctionStatus = Ttp.G(d, 0x26, 5),
+            brakeModePowerRecoverGearStatus = Ttp.C(d, 0x27, 3),
 
             cumulativeCalories = rangedTenths(Ttp.D(d, 0xA4, 0xA5, 0xA6)),
             cumulativeCarbonEmissions = rangedTenths(Ttp.D(d, 0xA7, 0xA8, 0xA9)),

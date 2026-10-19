@@ -487,6 +487,12 @@ object CloudCarSettingMapper {
         "16" -> CarSettingKind.Toggle(cloud.boolValue("dumpAlarm") == true)
         "3" -> CarSettingKind.Toggle(cloud.boolValue("resistanceOn") == true)
         "17" -> CarSettingKind.Toggle(cloud.boolValue("resistanceOn") == true)
+        "18" -> CarSettingKind.Slider(
+            value = 1f,
+            range = 1f..3f,
+            steps = 1,
+            unit = " 档",
+        )
         "40" -> CarSettingKind.Toggle(cloud.boolValue("colorEggSoundEffect") == true)
         "41" -> CarSettingKind.Toggle(cloud.boolValue("userDefinedSoundEffect") == true)
         "25" -> CarSettingKind.Toggle(cloud.boolValue("passwordUnlockEnable") == true)

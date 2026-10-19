@@ -198,6 +198,15 @@ object VehicleSettingCommands {
                     parameter = slider.value.toInt().coerceIn(0, 7),
                 )
             }
+            // EnergyRecoveryActivity：1..3 档，命令值直接是档位。
+            "18" -> {
+                val slider = kind as? CarSettingKind.Slider ?: return null
+                VehicleSettingCommand(
+                    commandType = "ENERGY_RECOVER_LEVEL",
+                    commandId = 0x3C,
+                    parameter = slider.value.toInt().coerceIn(1, 3),
+                )
+            }
             // ChargeCapActivity：70..100%，5% 步进。
             "48" -> {
                 val slider = kind as? CarSettingKind.Slider ?: return null

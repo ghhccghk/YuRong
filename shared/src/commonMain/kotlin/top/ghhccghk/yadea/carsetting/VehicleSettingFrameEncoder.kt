@@ -80,6 +80,10 @@ object VehicleSettingFrameEncoder {
         }
         // ChargingPowerActivity 开关：0=开 -> E7，1=关 -> EF。
         0xC9 -> "FF".repeat(43) + if (command.parameter == 0) "E7" else "EF"
+        // EnergyRecoveryActivity：档位 1..3，帧内映射到 9F/AF/BF。
+        0x3C -> "FFFFFFFFFFFF" +
+            hex2(0x8F + (command.parameter.coerceIn(0, 7) shl 4)) +
+            "FF".repeat(18)
         0x3D -> "FFFFFFFFFFFFFF" +
             hex2((command.parameter.coerceIn(1, 3) + 0x38)) +
             "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
