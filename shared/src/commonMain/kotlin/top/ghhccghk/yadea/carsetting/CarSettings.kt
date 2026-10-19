@@ -258,6 +258,15 @@ class CarSettingsController(
                 "49" -> item.copy(
                     kind = CarSettingKind.Toggle(status.extended.rampSlopeState != 0),
                 )
+                "68" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.quickBrakeLightStatus != 0),
+                )
+                "94" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.gearMemorySettingFeedback != 0),
+                )
+                "84" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.blueLightSwitch != 0),
+                )
                 else -> item
             }
         }

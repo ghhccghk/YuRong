@@ -137,6 +137,8 @@ data class TtpExtendedInfo(
     val dvrFormatStatus: Int,
     /** 刹车断电功能。`0xA3` bit2-3。 */
     val brakePowerDownFunctionStatus: Int,
+    /** 急刹爆闪。`0x88` bit2-3。 */
+    val quickBrakeLightStatus: Int,
     /** T 动力状态。`0x76` bit2-3。 */
     val tPowerStatus: Int,
     /** 自定义驾驶开关。`0x76` bit4-5。 */
@@ -504,6 +506,7 @@ internal object TtpInfoParser {
 
             dvrFormatStatus = Ttp.G(d, 0xA3, 6),
             brakePowerDownFunctionStatus = Ttp.G(d, 0xA3, 4),
+            quickBrakeLightStatus = Ttp.G(d, 0x88, 2),
             tPowerStatus = Ttp.G(d, 0x76, 4),
             customDriveSwitchStatus = Ttp.G(d, 0x76, 6),
             customDriveLevelStatus = Ttp.C(d, 0x79, 0),

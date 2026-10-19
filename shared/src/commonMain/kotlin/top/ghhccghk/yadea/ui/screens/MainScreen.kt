@@ -227,6 +227,9 @@ fun MainScreen(
         vehicleStatus?.extended?.brakePowerDownFunctionStatus,
         vehicleStatus?.extended?.steepSlopeState,
         vehicleStatus?.extended?.rampSlopeState,
+        vehicleStatus?.extended?.quickBrakeLightStatus,
+        vehicleStatus?.extended?.gearMemorySettingFeedback,
+        vehicleStatus?.extended?.blueLightSwitch,
     ) {
         carSettingsController.updateVehicleStatus(vehicleStatus)
     }

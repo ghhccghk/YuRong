@@ -473,6 +473,8 @@ object CloudCarSettingMapper {
         "33", "86" -> CarSettingKind.Toggle(false)
         // 自动大灯、转向灯回位、刹车断电、陡坡缓降、坡道驻停。
         "19", "26", "36", "46", "49" -> CarSettingKind.Toggle(false)
+        // 急刹爆闪、档位记忆、辅助驾驶小蓝灯使用动态位域命令。
+        "68", "94", "84" -> CarSettingKind.Toggle(false)
         "76" -> CarSettingKind.Toggle(cloud.boolValue("positioningFunc") == true)
         "45" -> CarSettingKind.Toggle(false)
         "9" -> CarSettingKind.Toggle(cloud.boolValue("alarmOn") == true)
@@ -496,7 +498,7 @@ object CloudCarSettingMapper {
             cloud.intValue("alarmPower")?.let { "灵敏度 $it" } ?: "状态由车辆回读",
         )
         "32", "42", "43", "44",
-        "51", "63", "68", "79", "80", "84", "90", "94", "2" ->
+        "51", "63", "79", "80", "90", "2" ->
             CarSettingKind.Info("状态由车辆回读")
         "47" -> CarSettingKind.Entrance(
             buildString {

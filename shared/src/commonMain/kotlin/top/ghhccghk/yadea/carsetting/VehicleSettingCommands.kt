@@ -150,6 +150,36 @@ object VehicleSettingCommands {
                 onId = 0xB0,
                 offId = 0xB1,
             )
+            // SuddenBrakingActivity：同一个命令 ID，value 0=开、1=关。
+            "68" -> toggle(
+                kind = kind,
+                onType = "COMMAND_QUICK_BRAKE_LIGHT_SWITCH",
+                offType = "COMMAND_QUICK_BRAKE_LIGHT_SWITCH",
+                onId = 0xD9,
+                offId = 0xD9,
+                onParameter = 0,
+                offParameter = 1,
+            )
+            // GearMemoryActivity：value 0=开、1=关。
+            "94" -> toggle(
+                kind = kind,
+                onType = "COMMAND_GEAR_MEMORY",
+                offType = "COMMAND_GEAR_MEMORY",
+                onId = 0x144,
+                offId = 0x144,
+                onParameter = 0,
+                offParameter = 1,
+            )
+            // AssistDriveLightActivity：value 0=开、1=关。
+            "84" -> toggle(
+                kind = kind,
+                onType = "BLE_CONFIG_ASSIST_DRIVE_LIGHT",
+                offType = "BLE_CONFIG_ASSIST_DRIVE_LIGHT",
+                onId = 0x136,
+                offId = 0x136,
+                onParameter = 0,
+                offParameter = 1,
+            )
             else -> null
         }
 

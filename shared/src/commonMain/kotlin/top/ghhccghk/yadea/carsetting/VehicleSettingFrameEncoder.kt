@@ -56,6 +56,10 @@ object VehicleSettingFrameEncoder {
         // RampStopsActivity。
         0xB0 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDF"
         0xB1 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFCF"
+        // 动态位域命令（原实现 uj.c）。
+        0xD9 -> bitfieldSuffix(0x39, command.parameter, 6, 7)
+        0x144 -> bitfieldSuffix(0x39, command.parameter, 2, 3)
+        0x136 -> bitfieldSuffix(0x37, command.parameter, 6, 7)
         0x3D -> "FFFFFFFFFFFFFF" +
             hex2((command.parameter.coerceIn(1, 3) + 0x38)) +
             "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
@@ -69,4 +73,33 @@ object VehicleSettingFrameEncoder {
 
     private fun hex2(value: Int): String =
         (value and 0xFF).toString(16).padStart(2, '0').uppercase()
+
+    /**
+     * 移植自 `uj.c(start, value, fromBit, toBit)`。
+     *
+     * 帧前缀补 `F`，把指定位域替换成 value 的二进制，再整体反序后
+     * 作为 1 字节十六进制拼回；短帧末尾继续补 `F` 到 0x1E。
+     */
+    private fun bitfieldSuffix(start: Int, value: Int, fromBit: Int, toBit: Int): String {
+        require(fromBit in 0..7 && toBit in fromBit..7) {
+            "invalid bit range $fromBit..$toBit"
+        }
+        val width = toBit - fromBit + 1
+        val bits = (value and ((1 shl width) - 1))
+            .toString(2)
+            .padStart(width, '0')
+            .reversed()
+        val byteBits = StringBuilder("11111111")
+        for (i in 0 until width) {
+            byteBits[fromBit + i] = bits[i]
+        }
+        val byteHex = byteBits.reverse().toString()
+            .toInt(2)
+            .toString(16)
+            .padStart(2, '0')
+            .uppercase()
+        val prefix = "FF".repeat(start - 5)
+        val padding = if (start < 0x1E) "FF".repeat(0x1E - start) else ""
+        return prefix + byteHex + padding
+    }
 }
