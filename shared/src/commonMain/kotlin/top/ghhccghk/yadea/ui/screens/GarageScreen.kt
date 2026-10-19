@@ -2,11 +2,21 @@ package top.ghhccghk.yadea.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import top.ghhccghk.yadea.auth.AuthUser
+import top.ghhccghk.yadea.vehicle.VehicleBindRequest
+import top.ghhccghk.yadea.vehicle.VehicleBindingController
 import top.ghhccghk.yadea.vehicle.VehicleProfile
 
 /** 云端绑定车辆列表；点击即可切换当前车辆。 */
@@ -19,9 +29,24 @@ fun GarageScreen(
     onRefresh: (() -> Unit)? = null,
     refreshing: Boolean = false,
     errorMessage: String? = null,
+    bindingController: VehicleBindingController? = null,
+    currentUser: AuthUser? = null,
     modifier: Modifier = Modifier,
 ) {
     val dimensions = AppDesign.dimensions
+    val bindingState = bindingController?.state?.collectAsState()?.value
+    var vin by remember { mutableStateOf("") }
+    var vinPwd by remember { mutableStateOf("") }
+    var smsCode by remember { mutableStateOf("") }
+    var contactMobile by remember(currentUser?.mobile) {
+        mutableStateOf(currentUser?.mobile.orEmpty())
+    }
+    var contactEmail by remember(currentUser?.email) {
+        mutableStateOf(currentUser?.email.orEmpty())
+    }
+    var mainAccountUnbind by remember { mutableStateOf(true) }
+    var confirmUnbind by remember { mutableStateOf(false) }
+    val selectedProfile = profiles.firstOrNull { it.vin == selectedVin } ?: profiles.firstOrNull()
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = contentPadding,
@@ -53,6 +78,119 @@ fun GarageScreen(
                         AppText(
                             if (refreshing) "正在刷新车辆列表…" else "刷新绑定车辆",
                             style = AppDesign.typography.button,
+                        )
+                    }
+                }
+            }
+        }
+        if (bindingController != null) {
+            item {
+                AppSection(title = "添加车辆") {
+                    AppTextField(
+                        value = vin,
+                        onValueChange = { vin = it.trim() },
+                        label = "VIN",
+                        modifier = Modifier.fillMaxWidth().padding(
+                            horizontal = dimensions.itemHorizontalPadding,
+                            vertical = dimensions.compactSpacing,
+                        ),
+                        enabled = bindingState?.busy != true,
+                        singleLine = true,
+                    )
+                    AppTextField(
+                        value = vinPwd,
+                        onValueChange = { vinPwd = it.trim() },
+                        label = "车主码 / vinPwd",
+                        modifier = Modifier.fillMaxWidth().padding(
+                            horizontal = dimensions.itemHorizontalPadding,
+                            vertical = dimensions.compactSpacing,
+                        ),
+                        enabled = bindingState?.busy != true,
+                        singleLine = true,
+                    )
+                    AppTextField(
+                        value = smsCode,
+                        onValueChange = { smsCode = it.trim() },
+                        label = "原车主验证码",
+                        modifier = Modifier.fillMaxWidth().padding(
+                            horizontal = dimensions.itemHorizontalPadding,
+                            vertical = dimensions.compactSpacing,
+                        ),
+                        enabled = bindingState?.busy != true,
+                        singleLine = true,
+                    )
+                    AppTextField(
+                        value = contactMobile,
+                        onValueChange = { contactMobile = it.trim() },
+                        label = "联系手机号",
+                        modifier = Modifier.fillMaxWidth().padding(
+                            horizontal = dimensions.itemHorizontalPadding,
+                            vertical = dimensions.compactSpacing,
+                        ),
+                        enabled = bindingState?.busy != true,
+                        singleLine = true,
+                    )
+                    AppTextField(
+                        value = contactEmail,
+                        onValueChange = { contactEmail = it.trim() },
+                        label = "联系邮箱",
+                        modifier = Modifier.fillMaxWidth().padding(
+                            horizontal = dimensions.itemHorizontalPadding,
+                            vertical = dimensions.compactSpacing,
+                        ),
+                        enabled = bindingState?.busy != true,
+                        singleLine = true,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(
+                            horizontal = dimensions.itemHorizontalPadding,
+                            vertical = dimensions.itemVerticalPadding,
+                        ),
+                        horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+                    ) {
+                        AppOutlinedButton(
+                            onClick = {
+                                bindingController.sendOwnerCode(vin, vinPwd)
+                            },
+                            enabled = bindingState?.busy != true &&
+                                vin.isNotBlank() && vinPwd.isNotBlank(),
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            AppText("获取车主验证码")
+                        }
+                        AppButton(
+                            onClick = {
+                                bindingController.bind(
+                                    VehicleBindRequest(
+                                        userId = currentUser?.id ?: 0L,
+                                        vin = vin,
+                                        vinPwd = vinPwd,
+                                        smsCode = smsCode,
+                                        primaryUserMobile = contactMobile,
+                                        primaryUserEmail = contactEmail,
+                                    ),
+                                )
+                            },
+                            enabled = bindingState?.busy != true &&
+                                vin.isNotBlank() && vinPwd.isNotBlank(),
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            AppText(if (bindingState?.busy == true) "处理中…" else "绑定车辆")
+                        }
+                    }
+                    bindingState?.message?.let { message ->
+                        AppText(
+                            text = message,
+                            style = AppDesign.typography.summary,
+                            color = if (bindingState.success) {
+                                AppDesign.colors.primary
+                            } else {
+                                AppDesign.colors.error
+                            },
+                            modifier = Modifier.padding(
+                                horizontal = dimensions.itemHorizontalPadding,
+                                vertical = dimensions.compactSpacing,
+                            ),
                         )
                     }
                 }
@@ -114,8 +252,38 @@ fun GarageScreen(
                             ?.takeIf { it.isNotBlank() }
                             ?.let { "到期时间 $it" },
                     )
+                    AppSwitchPreference(
+                        checked = mainAccountUnbind,
+                        onCheckedChange = { mainAccountUnbind = it },
+                        title = "按主账号解绑",
+                        summary = "子账号解绑请关闭；解绑后车辆会从当前账号车库移除",
+                        enabled = bindingState?.busy != true,
+                    )
+                    if (bindingController != null && selected.bikeId > 0L) {
+                        AppButton(
+                            onClick = { confirmUnbind = true },
+                            enabled = bindingState?.busy != true,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            AppText("解绑当前车辆")
+                        }
+                    }
                 }
             }
         }
     }
+
+    AppAlertDialog(
+        show = confirmUnbind,
+        title = "解绑车辆",
+        message = "解绑后该车辆会从当前账号的车库移除；重新绑定需要 VIN、车主码和原车主验证码。",
+        confirmText = "确认解绑",
+        onConfirm = {
+            confirmUnbind = false
+            selectedProfile?.let { profile ->
+                bindingController?.unbind(profile.bikeId, mainAccountUnbind)
+            }
+        },
+        onDismissRequest = { confirmUnbind = false },
+    )
 }

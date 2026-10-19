@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 data class VehicleProfile(
     val vin: String = "",
+    /** 云端车辆主键，解绑接口需要 `bikeId`。 */
+    val bikeId: Long = 0L,
     val modelNo: String = "",
     val modelName: String = "",
     /** 联动款标记；原实现用 `dLinkTag`/车型号判断联动款。 */

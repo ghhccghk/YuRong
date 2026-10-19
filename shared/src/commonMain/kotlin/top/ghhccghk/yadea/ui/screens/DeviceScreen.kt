@@ -10,12 +10,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import top.ghhccghk.yadea.auth.AuthController
+import top.ghhccghk.yadea.auth.AuthUser
 import top.ghhccghk.yadea.carsetting.CarSettingsController
 import top.ghhccghk.yadea.ota.OtaController
 import top.ghhccghk.yadea.vehicle.TtpInfo
 import top.ghhccghk.yadea.vehicle.VehicleInfoFormatter
 import top.ghhccghk.yadea.vehicle.VehicleProfile
 import top.ghhccghk.yadea.vehicle.VehicleCloudStatus
+import top.ghhccghk.yadea.vehicle.VehicleBindingController
 import top.ghhccghk.yadea.vehicle.VehicleControlController
 
 /** 车辆页的子功能。 */
@@ -49,6 +51,8 @@ internal fun VehicleHubScreen(
     vehiclesRefreshing: Boolean = false,
     vehiclesErrorMessage: String? = null,
     vehicleCloudStatus: VehicleCloudStatus? = null,
+    vehicleBindingController: VehicleBindingController? = null,
+    currentUser: AuthUser? = null,
     authController: AuthController,
     carSettingsController: CarSettingsController,
     otaController: OtaController,
@@ -100,6 +104,8 @@ internal fun VehicleHubScreen(
                     onRefresh = onRefreshVehicles,
                     refreshing = vehiclesRefreshing,
                     errorMessage = vehiclesErrorMessage,
+                    bindingController = vehicleBindingController,
+                    currentUser = currentUser,
                 )
                 VehicleSection.Settings -> CarSettingsScreen(
                     controller = carSettingsController,

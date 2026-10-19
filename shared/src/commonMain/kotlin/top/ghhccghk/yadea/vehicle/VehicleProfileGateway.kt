@@ -82,6 +82,7 @@ class YadeaVehicleProfileGateway(
     private fun parseProfile(objectText: String): VehicleProfile? {
         return VehicleProfile(
             vin = stringField(objectText, "vin").orEmpty(),
+            bikeId = longField(objectText, "bikeId") ?: 0L,
             modelNo = stringField(objectText, "modelNo").orEmpty(),
             modelName = stringField(objectText, "modelName").orEmpty(),
             dLinkTag = stringField(objectText, "dLinkTag").orEmpty(),
@@ -196,6 +197,12 @@ private fun intField(json: String, key: String): Int? {
     val match = Regex("\"${Regex.escape(key)}\"\\s*:\\s*(-?\\d+)").find(json)
         ?: return null
     return match.groupValues[1].toIntOrNull()
+}
+
+private fun longField(json: String, key: String): Long? {
+    val match = Regex("\"${Regex.escape(key)}\"\\s*:\\s*(-?\\d+)").find(json)
+        ?: return null
+    return match.groupValues[1].toLongOrNull()
 }
 
 private fun unescapeJson(value: String): String {

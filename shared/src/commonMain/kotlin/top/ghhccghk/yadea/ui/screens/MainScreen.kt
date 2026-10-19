@@ -30,6 +30,7 @@ import top.ghhccghk.yadea.ble.BleConnectionState
 import top.ghhccghk.yadea.auth.AuthController
 import top.ghhccghk.yadea.auth.AuthGateway
 import top.ghhccghk.yadea.auth.AuthSession
+import top.ghhccghk.yadea.auth.AuthUser
 import top.ghhccghk.yadea.carsetting.CarSettingWriter
 import top.ghhccghk.yadea.carsetting.CarSettingsGateway
 import top.ghhccghk.yadea.carsetting.MappedCarSettingWriter
@@ -48,6 +49,7 @@ import top.ghhccghk.yadea.vehicle.EmptyVehicleProfileSource
 import top.ghhccghk.yadea.vehicle.TtpInfo
 import top.ghhccghk.yadea.vehicle.VehicleProfile
 import top.ghhccghk.yadea.vehicle.VehicleCloudStatus
+import top.ghhccghk.yadea.vehicle.VehicleBindingController
 import top.ghhccghk.yadea.vehicle.VehicleProfileSource
 import top.ghhccghk.yadea.vehicle.VehicleBleTokenProvider
 import top.ghhccghk.yadea.vehicle.VehicleControlController
@@ -108,6 +110,7 @@ fun MainScreen(
     vehicleProfilesError: String? = null,
     vehicleCloudStatus: VehicleCloudStatus? = null,
     onRefreshVehicleCloudStatus: ((String) -> Unit)? = null,
+    vehicleBindingController: VehicleBindingController? = null,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)? = null,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)? = null,
     systemAccentColor: androidx.compose.ui.graphics.Color? = null,
@@ -289,6 +292,8 @@ fun MainScreen(
             vehicleProfilesRefreshing = vehicleProfilesRefreshing,
             vehicleProfilesError = vehicleProfilesError,
             vehicleCloudStatus = vehicleCloudStatus,
+            vehicleBindingController = vehicleBindingController,
+            currentUser = authUiState.session.user,
             vehicleBackgroundContent = vehicleBackgroundContent,
             vehicleImageContent = vehicleImageContent,
             onOpenExternalUrl = onOpenExternalUrl,
@@ -340,6 +345,8 @@ private fun MainScreenContent(
     vehicleProfilesRefreshing: Boolean,
     vehicleProfilesError: String?,
     vehicleCloudStatus: VehicleCloudStatus?,
+    vehicleBindingController: VehicleBindingController?,
+    currentUser: AuthUser?,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)?,
     onOpenExternalUrl: ((String) -> Unit)?,
@@ -457,6 +464,8 @@ private fun MainScreenContent(
             vehicleProfilesRefreshing = vehicleProfilesRefreshing,
             vehicleProfilesError = vehicleProfilesError,
             vehicleCloudStatus = vehicleCloudStatus,
+            vehicleBindingController = vehicleBindingController,
+            currentUser = currentUser,
             vehicleBackgroundContent = vehicleBackgroundContent,
             vehicleImageContent = vehicleImageContent,
             onOpenExternalUrl = onOpenExternalUrl,
@@ -559,6 +568,8 @@ private fun MainDestinationContent(
     vehicleProfilesRefreshing: Boolean,
     vehicleProfilesError: String?,
     vehicleCloudStatus: VehicleCloudStatus?,
+    vehicleBindingController: VehicleBindingController?,
+    currentUser: AuthUser?,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)?,
     onOpenExternalUrl: ((String) -> Unit)?,
@@ -597,6 +608,8 @@ private fun MainDestinationContent(
                 vehiclesRefreshing = vehicleProfilesRefreshing,
                 vehiclesErrorMessage = vehicleProfilesError,
                 vehicleCloudStatus = vehicleCloudStatus,
+                vehicleBindingController = vehicleBindingController,
+                currentUser = currentUser,
                 vehicleBackgroundContent = vehicleBackgroundContent,
                 vehicleImageContent = vehicleImageContent,
                 onOpenIotRenewal = onOpenExternalUrl,
