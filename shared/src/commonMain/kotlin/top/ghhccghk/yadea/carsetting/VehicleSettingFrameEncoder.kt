@@ -68,6 +68,11 @@ object VehicleSettingFrameEncoder {
         0x5F -> "FFFFFF" +
             hex2(0x1F + (command.parameter.coerceIn(0, 7) shl 5)) +
             "FF".repeat(21)
+        // ChargeCapActivity：70/75/80/85/90/95/100 -> F8..FE。
+        0xCB -> {
+            val percent = (command.parameter.coerceIn(70, 100) / 5 * 5)
+            "FF".repeat(43) + hex2(0xF8 + ((percent - 70) / 5))
+        }
         0x3D -> "FFFFFFFFFFFFFF" +
             hex2((command.parameter.coerceIn(1, 3) + 0x38)) +
             "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"

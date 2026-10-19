@@ -510,8 +510,15 @@ object CloudCarSettingMapper {
             },
         )
         "48" -> {
-            val cap = cloud.intValue("chargeUlVal")?.takeIf { it in 75..100 } ?: 90
-            CarSettingKind.Entrance("$cap%")
+            // ChargeCapActivity：70..100%，步进 5%。
+            val cap = cloud.intValue("chargeUlVal")?.coerceIn(70, 100) ?: 100
+            val snapped = (cap / 5 * 5).coerceIn(70, 100)
+            CarSettingKind.Slider(
+                value = snapped.toFloat(),
+                range = 70f..100f,
+                steps = 5,
+                unit = "%",
+            )
         }
         "10" -> CarSettingKind.Entrance(
             if (cloud.boolValue("distanceOn") == true) "已开启" else "去设置",

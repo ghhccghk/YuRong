@@ -198,6 +198,16 @@ object VehicleSettingCommands {
                     parameter = slider.value.toInt().coerceIn(0, 7),
                 )
             }
+            // ChargeCapActivity：70..100%，5% 步进。
+            "48" -> {
+                val slider = kind as? CarSettingKind.Slider ?: return null
+                val percent = (slider.value.toInt() / 5 * 5).coerceIn(70, 100)
+                VehicleSettingCommand(
+                    commandType = "COMMAND_CONST_CHARGING_LIMIT_VALUE",
+                    commandId = 0xCB,
+                    parameter = percent,
+                )
+            }
             else -> null
         }
 
