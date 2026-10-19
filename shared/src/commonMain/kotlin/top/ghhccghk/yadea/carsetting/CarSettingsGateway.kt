@@ -321,6 +321,8 @@ object CloudCarSettingMapper {
         val items = cloud.configs.mapNotNull { config ->
             val confId = config.confId.trim()
             if (confId.isBlank()) return@mapNotNull null
+            // 微信互联当前无法可靠控制，先临时隐藏，保留映射以便后续恢复。
+            if (confId == "95") return@mapNotNull null
             val classification = classificationOf(confId, config)
             val kind = kindOf(confId, cloud)
             val title = titleOf(config)
