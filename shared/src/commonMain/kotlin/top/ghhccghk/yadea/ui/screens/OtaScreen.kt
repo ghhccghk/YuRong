@@ -42,17 +42,17 @@ fun OtaScreen(
             )
         }
         item {
-            if (state.selectedMethod == OtaMethod.Ble) {
+            if (state.selectedMethod == OtaMethod.Iot) {
                 AppTip(
-                    kind = AppTipKind.Warning,
-                    title = "BLE 本地升级存在高风险",
-                    message = "该功能按反编译协议直译，未经过完整真车回归。升级中断或固件不匹配可能导致车辆停在 bootloader。强烈建议优先使用云端 OTA 或原厂软件升级。",
+                    kind = AppTipKind.Info,
+                    title = "云端任务确认",
+                    message = "车联网升级由云平台向车辆下发。提交后可在车辆或原 App 查看进度，请勿同时发起其他升级。",
                 )
             } else {
                 AppTip(
-                    kind = AppTipKind.Info,
-                    title = "建议使用云端升级",
-                    message = "当前 App 仅实现了 BLE 固件传输；车联网、Wi-Fi 和记录仪通道请使用云端或原厂软件升级。",
+                    kind = AppTipKind.Warning,
+                    title = "${state.selectedMethod.label}存在高风险",
+                    message = "该通道按反编译协议直译，未经过完整真车回归。升级中断、固件不匹配或手机休眠都可能让车辆停在 bootloader。强烈建议优先使用云端 OTA 或原厂软件升级。",
                 )
             }
         }
@@ -121,7 +121,14 @@ fun OtaScreen(
                         )
                     }
                     AppText(
-                        text = "BLE 通道已按 smali 直译固件下载、分包和 ACK 流程；车联网、Wi-Fi 与记录仪请使用云端或原厂软件升级。",
+                        text = when (state.selectedMethod) {
+                            OtaMethod.Ble ->
+                                "BLE 通道按 smali 直译固件下载、分包和 ACK 流程。"
+                            OtaMethod.Iot ->
+                                "车联网通道只提交云端确认，实际安装由云平台和车辆完成。"
+                            OtaMethod.Wifi, OtaMethod.WifiDvr ->
+                                "Wi-Fi 通道会先连接仪表 8888 完成鉴权，再在本机 8080 提供固件文件。传输期间请保持本页在前台、屏幕常亮并避免切换网络。"
+                        },
                         style = AppDesign.typography.summary,
                         color = AppDesign.colors.onSurfaceVariant,
                         modifier = Modifier.padding(
@@ -185,19 +192,15 @@ fun OtaScreen(
                     }
                     AppButton(
                         onClick = {
-                            if (state.selectedMethod == OtaMethod.Ble) {
-                                showRiskConfirm = true
-                            } else {
-                                controller.install()
-                            }
+                            showRiskConfirm = true
                         },
                         modifier = Modifier.weight(1f),
-                        enabled = state.canInstall && state.selectedMethod == OtaMethod.Ble,
+                        enabled = state.canInstall,
                     ) {
                         AppText(
                             when {
                                 state.stage == OtaStage.Failed -> "重试升级"
-                                state.packageInfo?.method == OtaMethod.Iot -> "提交云端升级"
+                                state.selectedMethod == OtaMethod.Iot -> "提交云端升级"
                                 else -> "开始升级"
                             },
                             style = AppDesign.typography.button,
@@ -222,8 +225,18 @@ fun OtaScreen(
 
     AppAlertDialog(
         show = showRiskConfirm,
-        title = "确认 BLE 本地升级",
-        message = "此操作会直接向车辆写入固件。若电量不足、连接中断或文件不匹配，车辆可能无法正常启动。请确认车辆电量充足并保持前台连接；更推荐使用云端或原厂软件升级。",
+        title = when (state.selectedMethod) {
+            OtaMethod.Iot -> "确认提交云端升级"
+            else -> "确认${state.selectedMethod.label}"
+        },
+        message = when (state.selectedMethod) {
+            OtaMethod.Iot ->
+                "提交后云平台会向车辆下发升级任务。请确认车辆电量充足、网络稳定，并在升级完成前不要骑行或断电。"
+            OtaMethod.Ble ->
+                "此操作会直接向车辆写入固件。若电量不足、连接中断或文件不匹配，车辆可能无法正常启动。请确认车辆电量充足并保持前台连接；更推荐使用云端或原厂软件升级。"
+            OtaMethod.Wifi, OtaMethod.WifiDvr ->
+                "此操作会通过 P2P/TCP 直接向仪表提供固件并由车辆写入。传输中断、手机休眠、P2P 掉线或固件不匹配都可能使车辆无法启动。请保持本页在前台、屏幕常亮并连接车辆；更推荐使用云端或原厂软件升级。"
+        },
         onDismissRequest = { showRiskConfirm = false },
         confirmText = "仍要升级",
         onConfirm = {

@@ -249,30 +249,28 @@ class OtaController(
                     }
                     return@launch
                 }
-                OtaMethod.Wifi, OtaMethod.WifiDvr -> {
-                    _state.value = OtaFlow.reduce(
-                        _state.value,
-                        OtaEvent.Failed(
-                            "Wi-Fi OTA 文件服务尚未接入，请优先使用云端或原 App 升级",
-                        ),
-                    )
-                    return@launch
-                }
-                OtaMethod.Ble -> Unit
+                OtaMethod.Wifi, OtaMethod.WifiDvr, OtaMethod.Ble -> Unit
             }
             _state.value = OtaFlow.reduce(_state.value, OtaEvent.InstallStarted)
-            val success = runCatching {
+            val result = runCatching {
                 gateway.install(pkg) { progress, stage ->
                     _state.value = OtaFlow.reduce(
                         _state.value,
                         OtaEvent.Progress(progress, stage),
                     )
                 }
-            }.getOrDefault(false)
+            }
+            val success = result.getOrDefault(false)
             _state.value = if (success) {
                 OtaFlow.reduce(_state.value, OtaEvent.Completed)
             } else {
-                OtaFlow.reduce(_state.value, OtaEvent.Failed("升级失败，请检查车辆连接后重试"))
+                OtaFlow.reduce(
+                    _state.value,
+                    OtaEvent.Failed(
+                        result.exceptionOrNull()?.message
+                            ?: "升级失败，请检查车辆连接后重试",
+                    ),
+                )
             }
         }
     }

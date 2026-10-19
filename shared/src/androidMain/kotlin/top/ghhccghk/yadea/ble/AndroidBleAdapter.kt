@@ -84,6 +84,10 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
     private val _isScanning = MutableStateFlow(false)
     override val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
 
+    /** 当前 GATT 对应设备地址；Wi-Fi OTA 用它换算目标 P2P MAC。 */
+    var connectedAddress: String = ""
+        private set
+
     private val _notifications = MutableSharedFlow<BleNotification>(
         extraBufferCapacity = 64,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
@@ -216,6 +220,7 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
         if (status != BluetoothGatt.GATT_SUCCESS) {
             throw BleGattException(BleGattOperation.Connect, status)
         }
+        connectedAddress = address
         _connectionState.value = BleConnectionState.Connected
     }
 
@@ -523,6 +528,7 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     if (status == BluetoothGatt.GATT_SUCCESS) {
+                        connectedAddress = callbackGatt.device.address
                         _connectionState.value = BleConnectionState.Connected
                         takePendingConnect()?.complete(status)
                     } else {
@@ -532,6 +538,9 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
                 }
 
                 BluetoothProfile.STATE_DISCONNECTED -> {
+                    if (gatt === callbackGatt) {
+                        connectedAddress = ""
+                    }
                     _connectionState.value = BleConnectionState.Disconnected
                     if (status == 0x85) {
                         invokeRefresh(callbackGatt)

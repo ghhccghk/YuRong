@@ -28,6 +28,7 @@ class YadeaOtaGateway(
     private val clientInfoProvider: () -> GatewayClientInfo = { GatewayClientInfo() },
     private val bleAdapter: BleAdapter? = null,
     private val downloader: FirmwareDownloader = createFirmwareDownloader(),
+    private val wifiOtaInstaller: WifiOtaInstaller? = null,
 ) : OtaGateway {
 
     override suspend fun checkForUpdate(currentVersion: String): OtaPackage? =
@@ -191,13 +192,36 @@ class YadeaOtaGateway(
         packageInfo: OtaPackage,
         onProgress: suspend (Float, OtaStage) -> Unit,
     ): Boolean {
-        if (packageInfo.method != OtaMethod.Ble) return false
         if (packageInfo.downloadUrl.isBlank()) return false
-        val adapter = bleAdapter ?: return false
-        onProgress(0.02f, OtaStage.Downloading)
-        val firmware = downloader.download(packageInfo.downloadUrl) ?: return false
-        onProgress(0.12f, OtaStage.Verifying)
-        return BleOtaInstaller(adapter).install(firmware, onProgress)
+        return when (packageInfo.method) {
+            OtaMethod.Ble -> {
+                val adapter = bleAdapter ?: return false
+                onProgress(0.02f, OtaStage.Downloading)
+                val firmware = downloader.download(packageInfo.downloadUrl) ?: return false
+                onProgress(0.12f, OtaStage.Verifying)
+                BleOtaInstaller(adapter).install(firmware, onProgress)
+            }
+            OtaMethod.Wifi, OtaMethod.WifiDvr -> {
+                val installer = wifiOtaInstaller ?: return false
+                onProgress(0.02f, OtaStage.Downloading)
+                val firmware = downloader.download(packageInfo.downloadUrl) ?: return false
+                onProgress(0.14f, OtaStage.Verifying)
+                installer.install(
+                    firmware = firmware,
+                    fileName = downloadFileName(packageInfo),
+                    isDvr = packageInfo.method == OtaMethod.WifiDvr,
+                    onProgress = onProgress,
+                )
+            }
+            OtaMethod.Iot -> false
+        }
+    }
+
+    private fun downloadFileName(packageInfo: OtaPackage): String {
+        val path = packageInfo.downloadUrl.substringBefore('?').substringAfterLast('/')
+        return path.ifBlank {
+            "yadea-${packageInfo.firmwareModuleCode.ifBlank { packageInfo.version }}.bin"
+        }
     }
 
     private suspend fun post(path: String, businessJson: String): String? {

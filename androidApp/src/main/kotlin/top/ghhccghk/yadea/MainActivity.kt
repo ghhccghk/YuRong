@@ -15,11 +15,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.lsposed.hiddenapibypass.LSPass
 import top.ghhccghk.yadea.ble.AndroidBleAdapter
 import top.ghhccghk.yadea.ble.BleConnectionState
+import top.ghhccghk.yadea.carsetting.VehicleSettingCommand
 import top.ghhccghk.yadea.settings.AppPreferences
 import top.ghhccghk.yadea.settings.SharedPreferencesPreferenceStore
 import top.ghhccghk.yadea.network.GatewayClientInfo
@@ -27,6 +30,7 @@ import top.ghhccghk.yadea.network.createHttpTransport
 import top.ghhccghk.yadea.auth.YadeaAuthGateway
 import top.ghhccghk.yadea.carsetting.YadeaCarSettingsGateway
 import top.ghhccghk.yadea.ota.YadeaOtaGateway
+import top.ghhccghk.yadea.ota.WifiOtaInstaller
 import top.ghhccghk.yadea.ui.MainScreen
 import top.ghhccghk.yadea.ui.initAndroidFileLogger
 import top.ghhccghk.yadea.vehicle.BleVehicleStatusSource
@@ -39,9 +43,11 @@ import top.ghhccghk.yadea.vehicle.YadeaVehicleCloudStatusGateway
 import top.ghhccghk.yadea.vehicle.YadeaVehicleBindingGateway
 import top.ghhccghk.yadea.vehicle.YadeaVehicleBleTokenGateway
 import top.ghhccghk.yadea.wifi.AndroidWifiP2pManager
+import top.ghhccghk.yadea.wifi.AndroidWifiConnectionManager
 import top.ghhccghk.yadea.mirror.source.AndroidFrameSourceFactory
 import top.ghhccghk.yadea.mirror.MediaSourcePicker
 import top.ghhccghk.yadea.mirror.ScreenCaptureAuthorizer
+import top.ghhccghk.yadea.mirror.toP2pMacAddress
 import top.ghhccghk.yadea.ui.AndroidPermissionChecker
 import java.util.UUID
 
@@ -87,6 +93,7 @@ class MainActivity : ComponentActivity() {
         requestPermissionsIfNeeded()
 
         val p2pManager = AndroidWifiP2pManager(this)
+        val wifiConnectionManager = AndroidWifiConnectionManager(this)
         val vehicleBleAdapter = AndroidVehicleBleSession.get(this).also { bleAdapter = it }
         val vehicleStatus = BleVehicleStatusSource(vehicleBleAdapter, lifecycleScope)
             .also { vehicleStatusSource = it }
@@ -190,6 +197,41 @@ class MainActivity : ComponentActivity() {
             timestampProvider = { System.currentTimeMillis() },
             clientInfoProvider = { clientInfo },
             bleAdapter = vehicleBleAdapter,
+            wifiOtaInstaller = WifiOtaInstaller(
+                p2pManager = p2pManager,
+                localIpAddressProvider = { wifiConnectionManager.getLocalIpAddress() },
+                prepareWifi = {
+                    val bleReady = vehicleBleAdapter.connectionState.value ==
+                        BleConnectionState.Connected ||
+                        vehicleBleAdapter.connectionState.value ==
+                        BleConnectionState.Ready
+                    if (!bleReady) {
+                        false
+                    } else {
+                        val sent = AndroidVehicleSettingCommandSink(vehicleBleAdapter).send(
+                            VehicleSettingCommand(
+                                commandType = "COMMAND_OPEN_WIFI_P2P_NEW",
+                                commandId = 0xFD,
+                            ),
+                        )
+                        sent && (withTimeoutOrNull(20_000L) {
+                            while (vehicleStatus.status.value?.extended?.wifiStatusNew != 2) {
+                                delay(250L)
+                            }
+                            true
+                        } ?: false)
+                    }
+                },
+                expectedP2pAddressProvider = {
+                    toP2pMacAddress(vehicleBleAdapter.connectedAddress).orEmpty()
+                },
+                expectedDvrNameProvider = {
+                    top.ghhccghk.yadea.ota.WifiOtaProtocol
+                        .dvrP2pName(vehicleBleAdapter.connectedAddress)
+                        .orEmpty()
+                },
+                scope = lifecycleScope,
+            ),
         )
         val carSettingsGateway = YadeaCarSettingsGateway(
             transport = httpTransport,
