@@ -57,6 +57,11 @@
   `AppViewModel.startAutoMirror()`，投屏页加入“一键投屏”入口。
 - [ ] Phase 2.3：真机验证 P2P 设备 MAC 转换、GroupOwner IP 和 TCP 建链；
   失败时保留手动 IP 兜底。
+- [x] Phase 3.1：已提取 OTA 任务、确认、日志、版本和分部件接口。
+- [x] Phase 3.2a：已补 IoT `userConfirm/V4`、任务字段
+  （`taskId/behaviorId/firmwareModuleCode`）和“提交云端升级”入口。
+- [ ] Phase 3.2b：Wi-Fi OTA 文件服务、记录页和分部件升级；需要继续按
+  `wifi/server/FileServer` 的协议实现。
 
 ## Phase 1：云端车辆绑定与多车辆管理
 
