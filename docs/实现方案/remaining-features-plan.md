@@ -75,6 +75,10 @@
   并由云端 `distanceOn/distance/bleUnlockOn/bleDistance` 回填和写入。
 - [x] Phase 4.3：未找到完整读写协议的云端项改为可点开的只读说明，
   不再静默无响应；不会发送猜测命令。
+- [x] Phase 5.1：新增“车辆诊断”页，展示 TTP 故障码、云端故障等级、
+  云端胎压、FCM/FCW/RCW/BSD 雷达、低电量提醒和定位/报失状态。
+- [ ] Phase 5.2：外部胎压 BLE 外设链路未接入；报失模式需要短信验证，
+  当前只读并展示风险说明。
 
 ## Phase 1：云端车辆绑定与多车辆管理
 
@@ -379,6 +383,44 @@ TTP 回填：
 3. 雷达：BSD/FCW/RCW。
 4. 低电量/亏电模式。
 5. 定位开关与报失模式。
+
+### Phase 5 已确认的数据来源
+
+故障等级：
+
+- 接口：`bikeFault/queryBikeFaultStatus`
+- 参数：`modelNo`
+- 响应：`data.faultLevelMap[]`
+- 字段：`faultLevel`、`faultLevelDesc`、`faultName`、`fualtShowName`
+- `faultLevel == 1` 表示检测正常；`-1` 表示部件故障，`-2` 表示网络异常。
+- 车辆 TTP 故障码位于 `0x5B..0x6A`，两字节大端，协议版本 `0x5A == 0xF2`。
+
+云端 `bikeRealStatus/getVehRealStatus` 的 `VehicleStatusBean` 字段：
+
+| 用途 | 字段 |
+| --- | --- |
+| 前/后轮胎压 | `leftFrontPressure`、`leftRearPressure` |
+| 前/后轮温度 | `leftFrontTireTemp`、`leftRearTireTemp` |
+| 胎压告警 | `leftFrontPressureWarning`、`leftRearPressureWarning` |
+| 低电量电话提醒 | `lowBatTelWarning` |
+| 低电量提醒时段 | `lowBatWarningStartTime`、`lowBatWarningEndTime` |
+| 定位开关 | `positioningFunc` |
+| 报失状态 | `lossState` |
+
+雷达来自 TTP：
+
+| 用途 | 偏移/位域 |
+| --- | --- |
+| FCM 使能/开关 | `0x7F` bit2 / bit6 |
+| FCW 模式/工作 | `0x80` bit4 / `0x81` bit0 |
+| RCW 使能/开关/模式/工作 | `0x7F` bit4 / `0x80` bit0 / `0x80` bit6 / `0x81` bit2 |
+| BSD | `0x80` bit2 |
+
+未接入项：
+
+- 外部胎压设备使用独立 BLE 外设 TTP，当前 App 尚未建立外设连接，不能伪造读数。
+- 报失模式在原 App 中需要短信验证码、次数限制和车辆 BLE 回执；
+  当前版本只展示云端状态，不直接下发报失命令。
 
 验收：
 
