@@ -63,8 +63,7 @@ fun VehicleInfoScreen(
                 vehicleBackgroundContent = vehicleBackgroundContent,
                 vehicleImageContent = vehicleImageContent,
                 cloudRangeFallback = cloudStatus?.remainingMileage
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let { if (it.endsWith("km", ignoreCase = true)) it else "$it km" },
+                    ?.takeIf { it.isNotBlank() },
             )
         }
         if (profile == null && (onRefresh != null || profileErrorMessage != null)) {
@@ -135,7 +134,6 @@ fun VehicleInfoScreen(
                             title = "剩余续航",
                             value = cloudStatus.remainingMileage
                                 .takeIf { it.isNotBlank() }
-                                ?.let { if (it.endsWith("km", true)) it else "$it km" }
                                 ?: "—",
                             showDivider = true,
                         )
@@ -143,7 +141,6 @@ fun VehicleInfoScreen(
                             title = "总行程",
                             value = cloudStatus.totalMileage
                                 .takeIf { it.isNotBlank() }
-                                ?.let { if (it.endsWith("km", true)) it else "$it km" }
                                 ?: "—",
                             showDivider = cloudStatus.currentOdoValue != null,
                         )

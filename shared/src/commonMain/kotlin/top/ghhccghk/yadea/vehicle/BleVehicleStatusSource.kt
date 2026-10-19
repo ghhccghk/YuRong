@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.ble.BleAdapter
 import top.ghhccghk.yadea.ble.BleConnectionState
+import top.ghhccghk.yadea.network.NetworkLog
 
 /**
  * 把实车 BLE 通知解析成 UI 可消费的状态流。
@@ -41,6 +42,12 @@ class BleVehicleStatusSource(
             when (val parsed = VehicleNotifyDispatcher.dispatch(notification.data)) {
                 is VehicleNotify.Ttp -> if (!parsed.isShort) {
                     _status.value = parsed.info
+                    NetworkLog.write(
+                        "TTP mileage rem=${parsed.info.remainingMileage} " +
+                            "odo=${parsed.info.currentOdoValue} " +
+                            "trip=${parsed.info.currentTripValue} " +
+                            "bytes=${parsed.info.raw.size}",
+                    )
                 }
                 else -> Unit
             }

@@ -66,18 +66,24 @@ class YadeaVehicleCloudStatusGateway(
         }
         val decoded = Crypto.urlDecode(response.body.trim())
         val plain = Crypto.aesEcbPkcs5Decrypt(GatewaySigner.AES_KEY, decoded) ?: decoded
+        NetworkLog.write("CLOUD_STATUS plain ${NetworkLog.maskSensitive(plain)}")
         if (JsonSupport.boolean(plain, "success") == false) {
             NetworkLog.write("CLOUD_STATUS !! business failure")
             return null
         }
         val data = JsonSupport.objectField(plain, "data") ?: return null
-        return VehicleCloudStatus(
+        val status = VehicleCloudStatus(
             remainingMileage = text(data, "remMileage"),
             totalMileage = text(data, "totalMileage"),
             currentOdoValue = text(data, "currentOdoValue").toFloatOrNull(),
             soc = JsonSupport.int(data, "totalSoc")
                 ?: JsonSupport.string(data, "soc1")?.toIntOrNull(),
         )
+        NetworkLog.write(
+            "CLOUD_STATUS values rem=${status.remainingMileage} " +
+                "total=${status.totalMileage} odo=${status.currentOdoValue} soc=${status.soc}",
+        )
+        return status
     }
 
     private fun text(json: String, key: String): String =
