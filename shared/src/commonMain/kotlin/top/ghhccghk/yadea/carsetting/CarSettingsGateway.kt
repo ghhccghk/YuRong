@@ -20,7 +20,8 @@ data class CloudBikeConfig(
     val parentId: String = "",
     val parentName: String = "",
     val sort: String = "",
-    val isAuth: Boolean = false,
+    /** 云端未下发时保持 `null`；只有明确为 `false` 才视为无写权限。 */
+    val isAuth: Boolean? = null,
     val isIntelligence: Boolean = false,
     val isUserLabFun: Boolean = false,
     val izLab: Int = 1,
@@ -70,15 +71,15 @@ object CloudCarSettingUpdateBuilder {
         kind: CarSettingKind,
         vin: String,
     ): CloudCarSettingUpdate? {
-        val toggle = kind as? CarSettingKind.Toggle ?: return null
-        val value = if (toggle.checked) "1" else "0"
-        val field = when (configId) {
-            "9" -> "alarmOn"
-            "16" -> "dumpAlarm"
-            "24" -> "emergencyContact"
-            "40" -> "colorEggSoundEffect"
-            "75" -> "tamperProofIotEnable"
-            "82" -> "lowBatTelWarning"
+        val (field, value) = when (kind) {
+            is CarSettingKind.Toggle -> {
+                val field = TOGGLE_FIELDS[configId] ?: return null
+                field to if (kind.checked) "1" else "0"
+            }
+            is CarSettingKind.Slider -> {
+                val field = SLIDER_FIELDS[configId] ?: return null
+                field to kind.value.toInt().toString()
+            }
             else -> return null
         }
         return CloudCarSettingUpdate(
@@ -90,6 +91,29 @@ object CloudCarSettingUpdateBuilder {
             ),
         )
     }
+
+    /** smali `VehicleSettingViewModel.P4` 与设置返回字段能直接对应的开关。 */
+    private val TOGGLE_FIELDS = mapOf(
+        "9" to "alarmOn",
+        "13" to "alarmSoundEnable",
+        "16" to "dumpAlarm",
+        "17" to "resistanceOn",
+        "24" to "emergencyContact",
+        "25" to "passwordUnlockEnable",
+        "40" to "colorEggSoundEffect",
+        "41" to "userDefinedSoundEffect",
+        "53" to "bleApproachPowerOnEnable",
+        "75" to "tamperProofIotEnable",
+        "76" to "positioningFunc",
+        "77" to "sleepMode",
+        "82" to "lowBatTelWarning",
+        "91" to "sosEmergencyCall",
+        "95" to "wxhlBind",
+    )
+
+    private val SLIDER_FIELDS = mapOf(
+        "61" to "highestSpeedLimit",
+    )
 }
 
 /**
@@ -217,7 +241,7 @@ class YadeaCarSettingsGateway(
             parentId = textOrNumber(json, "parentId").orEmpty(),
             parentName = JsonSupport.string(json, "parentName").orEmpty(),
             sort = textOrNumber(json, "sort").orEmpty(),
-            isAuth = boolField(json, "isAuth"),
+            isAuth = boolFieldOrNull(json, "isAuth"),
             isIntelligence = boolField(json, "isIntelligence"),
             isUserLabFun = boolField(json, "isUserLabFun"),
             izLab = intField(json, "izLab") ?: 1,
@@ -249,6 +273,11 @@ class YadeaCarSettingsGateway(
                     else -> false
                 }
             }
+
+    private fun boolFieldOrNull(json: String, key: String): Boolean? {
+        if (!json.contains("\"$key\"")) return null
+        return boolField(json, key)
+    }
 
     private fun sortedJson(fields: Map<String, String>): String = buildString {
         append('{')
@@ -305,7 +334,8 @@ object CloudCarSettingMapper {
                 group = groupOf(config, classification),
                 channel = channelOf(confId),
                 kind = kind,
-                writable = config.isAuth && (
+                // 云端没有下发 isAuth 时按“未禁止”处理；只有明确 false 才只读。
+                writable = config.isAuth != false && (
                     VehicleSettingCommands.supports(confId, kind) ||
                         CloudCarSettingUpdateBuilder.supports(confId, kind)
                     ),
@@ -318,12 +348,74 @@ object CloudCarSettingMapper {
             .ifBlank { TITLES[config.confId].orEmpty() }
             .ifBlank { "设置 ${config.confId}" }
 
-    private fun summaryOf(config: CloudBikeConfig, title: String): String =
-        listOf(config.briefCopy, config.copy, config.newCopy)
-            .firstOrNull { it.isNotBlank() && it.trim() != title }
-            ?.trim()
-            .orEmpty()
-            .ifBlank { "云端车辆设置项" }
+    private fun summaryOf(config: CloudBikeConfig, title: String): String {
+        val raw = listOf(config.briefCopy, config.newCopy, config.copy)
+            .firstOrNull { it.isNotBlank() }
+            ?: return "云端车辆设置项"
+        val text = readableCloudCopy(raw)
+        return if (text.isBlank() || text == title.trim()) "云端车辆设置项" else text
+    }
+
+    /**
+     * 云端 `newCopy` 是 `[{"type":"text","content":"..."}]` 形式的富文本 JSON，
+     * `copy` 则可能是 HTML。这里只抽取可读文字，避免把原始标记直接显示在设置行里。
+     */
+    private fun readableCloudCopy(raw: String): String {
+        val trimmed = raw.trim()
+        if (trimmed.startsWith("[")) {
+            val texts = Regex("\"content\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"")
+                .findAll(trimmed)
+                .map { unescapeJson(it.groupValues[1]) }
+                .filter {
+                    it.isNotBlank() &&
+                        !it.startsWith("http://") &&
+                        !it.startsWith("https://")
+                }
+                .toList()
+            if (texts.isNotEmpty()) return texts.joinToString("\n")
+        }
+        return stripHtml(trimmed)
+    }
+
+    private fun stripHtml(value: String): String = value
+        .replace(Regex("<[^>]+>"), " ")
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+
+    private fun unescapeJson(value: String): String {
+        val out = StringBuilder(value.length)
+        var i = 0
+        while (i < value.length) {
+            val c = value[i++]
+            if (c != '\\' || i >= value.length) {
+                out.append(c)
+                continue
+            }
+            when (val escaped = value[i++]) {
+                '"' -> out.append('"')
+                '\\' -> out.append('\\')
+                '/' -> out.append('/')
+                'b' -> out.append('\b')
+                'f' -> out.append('\u000C')
+                'n' -> out.append('\n')
+                'r' -> out.append('\r')
+                't' -> out.append('\t')
+                'u' -> {
+                    if (i + 4 <= value.length) {
+                        value.substring(i, i + 4).toIntOrNull(16)?.let { out.append(it.toChar()) }
+                        i += 4
+                    }
+                }
+                else -> out.append(escaped)
+            }
+        }
+        return out.toString()
+    }
 
     private fun groupOf(
         config: CloudBikeConfig,
@@ -363,22 +455,47 @@ object CloudCarSettingMapper {
     }
 
     private fun kindOf(confId: String, cloud: CloudCarSettings): CarSettingKind = when (confId) {
-        "13" -> CarSettingKind.Toggle(cloud.boolValue("alarmOn") == true)
+        "13" -> CarSettingKind.Toggle(cloud.boolValue("alarmSoundEnable") == true)
         "16" -> CarSettingKind.Toggle(cloud.boolValue("dumpAlarm") == true)
         "3" -> CarSettingKind.Toggle(cloud.boolValue("resistanceOn") == true)
+        "17" -> CarSettingKind.Toggle(cloud.boolValue("resistanceOn") == true)
         "40" -> CarSettingKind.Toggle(cloud.boolValue("colorEggSoundEffect") == true)
         "41" -> CarSettingKind.Toggle(cloud.boolValue("userDefinedSoundEffect") == true)
+        "25" -> CarSettingKind.Toggle(cloud.boolValue("passwordUnlockEnable") == true)
+        "53" -> CarSettingKind.Toggle(cloud.boolValue("bleApproachPowerOnEnable") == true)
+        "77" -> CarSettingKind.Toggle(cloud.boolValue("sleepMode") == true)
+        "91" -> CarSettingKind.Toggle(cloud.boolValue("sosEmergencyCall") == true)
+        "95" -> CarSettingKind.Toggle(cloud.boolValue("wxhlBind") == true)
         "76" -> CarSettingKind.Toggle(cloud.boolValue("positioningFunc") == true)
         "45" -> CarSettingKind.Toggle(false)
         "9" -> CarSettingKind.Toggle(cloud.boolValue("alarmOn") == true)
         "24" -> CarSettingKind.Toggle(cloud.boolValue("emergencyContact") == true)
         "75" -> CarSettingKind.Toggle(cloud.boolValue("tamperProofIotEnable") == true)
         "82" -> CarSettingKind.Toggle(cloud.boolValue("lowBatTelWarning") == true)
+        "61" -> {
+            val max = cloud.intValue("bikeSpeedMax")
+                ?.takeIf { it in 15..120 }
+                ?: cloud.intValue("bikeModelTopSpeedMax")?.takeIf { it in 15..120 }
+                ?: 60
+            val current = cloud.intValue("highestSpeedLimit")?.coerceIn(0, max) ?: 0
+            CarSettingKind.Slider(
+                value = current.toFloat(),
+                range = 0f..max.toFloat(),
+                steps = (max - 1).coerceAtLeast(0),
+                unit = " km/h",
+            )
+        }
+        "14" -> CarSettingKind.Info(
+            cloud.intValue("alarmPower")?.let { "灵敏度 $it" } ?: "状态由车辆回读",
+        )
         "19", "26", "32", "36", "37", "38", "42", "43", "44", "46", "49",
-        "51", "53", "63", "68", "79", "80", "84", "90", "94", "2" ->
+        "51", "63", "68", "79", "80", "84", "90", "94", "2" ->
             CarSettingKind.Info("状态由车辆回读")
         "47" -> CarSettingKind.Entrance(
-            if (cloud.boolValue("chargeWattSwitch") == true) "已开启" else "已关闭",
+            buildString {
+                append(if (cloud.boolValue("chargeWattSwitch") == true) "已开启" else "已关闭")
+                cloud.intValue("chargeWattVal")?.let { append(" · $it W") }
+            },
         )
         "48" -> {
             val cap = cloud.intValue("chargeUlVal")?.takeIf { it in 75..100 } ?: 90
@@ -387,11 +504,11 @@ object CloudCarSettingMapper {
         "10" -> CarSettingKind.Entrance(
             if (cloud.boolValue("distanceOn") == true) "已开启" else "去设置",
         )
-        "61" -> CarSettingKind.Entrance(
-            cloud.intValue("highestSpeedLimit")
-                ?.takeIf { it > 0 }
-                ?.let { "$it km/h" }
-                ?: "去设置",
+        "52" -> CarSettingKind.Entrance(
+            buildString {
+                append(if (cloud.boolValue("bleUnlockOn") == true) "已开启" else "去设置")
+                cloud.intValue("bleDistance")?.let { append(" · $it 米") }
+            },
         )
         in ENTRANCE_IDS, in SPECIAL_IDS -> CarSettingKind.Entrance()
         else -> CarSettingKind.Info("云端设置项，暂未接入写入")
