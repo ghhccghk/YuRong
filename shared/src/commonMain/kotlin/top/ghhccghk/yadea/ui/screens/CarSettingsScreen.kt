@@ -188,17 +188,28 @@ private fun CarSettingRow(
         )
         is CarSettingKind.Slider -> {
             var draft by remember(item.id, kind.value) { mutableStateOf(kind.value) }
+            val minNonZero = kind.minimumNonZero
             AppSliderPreference(
                 title = item.title,
                 summary = summary,
                 value = draft,
-                onValueChange = { draft = it },
+                onValueChange = { raw ->
+                    draft = if (minNonZero != null && raw > 0f && raw < minNonZero) {
+                        if (raw < minNonZero / 2f) 0f else minNonZero
+                    } else {
+                        raw
+                    }
+                },
                 onValueChangeFinished = {
                     onUpdate { (it as? CarSettingKind.Slider)?.copy(value = draft) ?: it }
                 },
                 valueRange = kind.range,
                 steps = kind.steps,
-                valueText = formatSettingValue(draft, kind.unit),
+                valueText = if (minNonZero != null && draft == 0f) {
+                    "不限速"
+                } else {
+                    formatSettingValue(draft, kind.unit)
+                },
                 enabled = enabled,
             )
         }

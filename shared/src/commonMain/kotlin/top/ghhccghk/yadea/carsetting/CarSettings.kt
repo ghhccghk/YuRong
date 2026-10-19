@@ -42,6 +42,11 @@ sealed interface CarSettingKind {
         val range: ClosedFloatingPointRange<Float>,
         val steps: Int = 0,
         val unit: String = "",
+        /**
+         * 非零最小值；例如安全限速只允许 `0`（不限速）或 `15..max`。
+         * 滑杆经过 `1..minimumNonZero-1` 时会自动吸附到 0 或该最小值。
+         */
+        val minimumNonZero: Float? = null,
     ) : CarSettingKind
     data class Info(val value: String) : CarSettingKind
     /** 云端下发、需要进入二级页面的入口；当前只展示云端提示。 */

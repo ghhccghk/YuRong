@@ -492,6 +492,8 @@ object CloudCarSettingMapper {
                 range = 0f..max.toFloat(),
                 steps = (max - 1).coerceAtLeast(0),
                 unit = " km/h",
+                // 0 表示不限速；非零最低 15 km/h。
+                minimumNonZero = 15f,
             )
         }
         // 车辆音量和报警灵敏度都是 0..7 的档位，原 App 使用滑杆。
