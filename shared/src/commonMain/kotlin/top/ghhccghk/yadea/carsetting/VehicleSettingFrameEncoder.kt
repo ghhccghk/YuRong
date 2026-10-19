@@ -75,7 +75,7 @@ object VehicleSettingFrameEncoder {
         }
         // ChargingPowerActivity：瓦数除以 50 写入最后一字节。
         0xCA -> {
-            val watt = (command.parameter.coerceIn(100, 1000) / 50 * 50)
+            val watt = (command.parameter.coerceIn(200, 1000) / 50 * 50)
             "FF".repeat(46) + hex2(watt / 50)
         }
         // ChargingPowerActivity 开关：0=开 -> E7，1=关 -> EF。

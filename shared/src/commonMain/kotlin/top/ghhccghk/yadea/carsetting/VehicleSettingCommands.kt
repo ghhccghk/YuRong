@@ -220,7 +220,7 @@ object VehicleSettingCommands {
                     offParameter = 1,
                 )
                 is CarSettingKind.Slider -> {
-                    val watt = (kind.value.toInt() / 50 * 50).coerceIn(100, 1000)
+                    val watt = (kind.value.toInt() / 50 * 50).coerceIn(200, 1000)
                     VehicleSettingCommand(
                         commandType = "COMMAND_CONST_CHARGING_POWER_VALUE",
                         commandId = 0xCA,
