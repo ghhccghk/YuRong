@@ -188,6 +188,34 @@ class YadeaOtaGateway(
         return post("upgradeTask/queryUpgradingTask", json)
     }
 
+    override suspend fun queryUpgradeRecords(current: Int, size: Int): OtaRecordPage {
+        val profile = profileProvider() ?: return OtaRecordPage()
+        if (profile.vin.isBlank()) return OtaRecordPage()
+        val json = sortedJson(
+            mapOf(
+                "_gateway" to "True",
+                "vin" to profile.vin,
+                "current" to current.coerceAtLeast(1),
+                "size" to size.coerceIn(1, 100),
+            ),
+        )
+        val plain = post("upgradeLog/queryUpgradeLogByVin/V3", json)
+            ?: return OtaRecordPage()
+        val data = JsonSupport.objectField(plain, "data") ?: return OtaRecordPage()
+        val records = JsonSupport.arrayObjects(data, "records").map { record ->
+            OtaRecord(
+                typeName = stringField(record, "typeName").orEmpty(),
+                firmwareVersion = textOrNumber(record, "firmwareVersion").orEmpty(),
+                versionDesc = stringField(record, "versionDesc").orEmpty(),
+                startTime = textOrNumber(record, "startTime").orEmpty(),
+            )
+        }
+        return OtaRecordPage(
+            records = records,
+            hasNext = JsonSupport.boolean(data, "hasNext") == true,
+        )
+    }
+
     override suspend fun install(
         packageInfo: OtaPackage,
         onProgress: suspend (Float, OtaStage) -> Unit,

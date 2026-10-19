@@ -23,6 +23,18 @@ data class OtaPackage(
     val behaviorId: String = "",
 )
 
+data class OtaRecord(
+    val typeName: String = "",
+    val firmwareVersion: String = "",
+    val versionDesc: String = "",
+    val startTime: String = "",
+)
+
+data class OtaRecordPage(
+    val records: List<OtaRecord> = emptyList(),
+    val hasNext: Boolean = false,
+)
+
 enum class OtaMethod(
     val label: String,
     val shortLabel: String,
@@ -57,6 +69,11 @@ data class OtaState(
     val selectedMethod: OtaMethod = OtaMethod.Ble,
     val progress: Float = 0f,
     val message: String? = null,
+    val records: List<OtaRecord> = emptyList(),
+    val recordsLoading: Boolean = false,
+    val recordsError: String? = null,
+    val recordsPage: Int = 0,
+    val recordsHasNext: Boolean = false,
 ) {
     val busy: Boolean
         get() = stage == OtaStage.Checking ||
@@ -168,6 +185,8 @@ interface OtaGateway {
     suspend fun confirmIotUpgrade(packageInfo: OtaPackage): Boolean = false
     /** 查询进行中的云端升级任务，返回解密后的原始 JSON。 */
     suspend fun queryUpgradingTask(): String? = null
+    /** OTA 升级记录，原接口为 `upgradeLog/queryUpgradeLogByVin/V3`。 */
+    suspend fun queryUpgradeRecords(current: Int, size: Int): OtaRecordPage = OtaRecordPage()
 }
 
 class OtaController(
@@ -185,6 +204,7 @@ class OtaController(
     val state: StateFlow<OtaState> = _state.asStateFlow()
 
     private var job: Job? = null
+    private var recordsJob: Job? = null
 
     fun updateCurrentVersion(version: String) {
         _state.value = OtaFlow.reduce(_state.value, OtaEvent.CurrentVersionChanged(version))
@@ -220,6 +240,48 @@ class OtaController(
             progress = 0f,
             message = if (selected == null) "当前通道没有可用升级任务" else null,
         )
+    }
+
+    fun selectPackage(packageInfo: OtaPackage) {
+        if (_state.value.busy) return
+        _state.value = _state.value.copy(
+            packageInfo = packageInfo,
+            selectedMethod = packageInfo.method,
+            stage = OtaStage.Available,
+            progress = 0f,
+            message = null,
+        )
+    }
+
+    fun loadRecords(reset: Boolean = true) {
+        val gateway = gateway ?: return
+        if (recordsJob?.isActive == true) return
+        val page = if (reset) 1 else _state.value.recordsPage + 1
+        recordsJob = scope.launch {
+            _state.value = _state.value.copy(recordsLoading = true, recordsError = null)
+            val result = runCatching { gateway.queryUpgradeRecords(page, RECORD_PAGE_SIZE) }
+            _state.value = result.fold(
+                onSuccess = { recordPage ->
+                    _state.value.copy(
+                        records = if (reset) {
+                            recordPage.records
+                        } else {
+                            _state.value.records + recordPage.records
+                        },
+                        recordsLoading = false,
+                        recordsError = null,
+                        recordsPage = page,
+                        recordsHasNext = recordPage.hasNext,
+                    )
+                },
+                onFailure = { error ->
+                    _state.value.copy(
+                        recordsLoading = false,
+                        recordsError = error.message ?: "读取 OTA 升级记录失败",
+                    )
+                },
+            )
+        }
     }
 
     fun install() {
@@ -286,5 +348,11 @@ class OtaController(
     fun dispose() {
         job?.cancel()
         job = null
+        recordsJob?.cancel()
+        recordsJob = null
+    }
+
+    private companion object {
+        const val RECORD_PAGE_SIZE = 50
     }
 }

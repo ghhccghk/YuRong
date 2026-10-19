@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +30,9 @@ fun OtaScreen(
     val state by controller.state.collectAsState()
     val dimensions = AppDesign.dimensions
     var showRiskConfirm by remember { mutableStateOf(false) }
+    LaunchedEffect(controller) {
+        controller.loadRecords()
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -116,7 +120,9 @@ fun OtaScreen(
                             value = buildString {
                                 append(pkg.version)
                                 if (pkg.forceUpgrade) append(" · 强制")
+                                if (pkg == state.packageInfo) append(" · 已选")
                             },
+                            onClick = { controller.selectPackage(pkg) },
                             showDivider = index != state.selectedPackages.lastIndex,
                         )
                     }
@@ -136,6 +142,55 @@ fun OtaScreen(
                             vertical = dimensions.itemVerticalPadding,
                         ),
                     )
+                }
+            }
+        }
+        item {
+            AppSection(title = "升级记录") {
+                when {
+                    state.recordsLoading && state.records.isEmpty() ->
+                        AppEmptyState("正在读取升级记录…")
+                    !state.recordsError.isNullOrBlank() && state.records.isEmpty() ->
+                        AppEmptyState(state.recordsError.orEmpty())
+                    state.records.isEmpty() ->
+                        AppEmptyState("当前车辆还没有 OTA 升级记录")
+                    else -> {
+                        state.records.forEachIndexed { index, record ->
+                            AppListRow(
+                                title = record.typeName.ifBlank { "车辆固件" },
+                                summary = listOfNotNull(
+                                    record.startTime.takeIf { it.isNotBlank() },
+                                    record.versionDesc.takeIf { it.isNotBlank() },
+                                ).joinToString(" · "),
+                                value = record.firmwareVersion.ifBlank { "—" },
+                                showDivider = index != state.records.lastIndex,
+                            )
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(
+                        horizontal = dimensions.itemHorizontalPadding,
+                        vertical = dimensions.itemVerticalPadding,
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+                ) {
+                    AppOutlinedButton(
+                        onClick = { controller.loadRecords(reset = true) },
+                        modifier = Modifier.weight(1f),
+                        enabled = !state.recordsLoading,
+                    ) {
+                        AppText("刷新记录", style = AppDesign.typography.button)
+                    }
+                    if (state.recordsHasNext) {
+                        AppOutlinedButton(
+                            onClick = { controller.loadRecords(reset = false) },
+                            modifier = Modifier.weight(1f),
+                            enabled = !state.recordsLoading,
+                        ) {
+                            AppText("加载更多", style = AppDesign.typography.button)
+                        }
+                    }
                 }
             }
         }
