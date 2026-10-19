@@ -48,6 +48,15 @@ fun VehicleInfoScreen(
         ?.takeIf { it.isNotBlank() }
         ?.let { if (it.toFloatOrNull() != null) "$it km" else it }
     val rangeLabel = cloudRangeLabel ?: model.rangeLabel
+    val cloudSocLabel = cloudStatus?.soc?.let { "$it%" }
+    val batteryLabel = if (model.batteryLabel == "—") {
+        cloudSocLabel ?: model.batteryLabel
+    } else {
+        model.batteryLabel
+    }
+    val cloudTotalLabel = cloudStatus?.totalMileage
+        ?.takeIf { it.isNotBlank() }
+        ?.let { if (it.endsWith("km", ignoreCase = true)) it else "$it km" }
     val dimensions = AppDesign.dimensions
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -67,6 +76,7 @@ fun VehicleInfoScreen(
                 vehicleBackgroundContent = vehicleBackgroundContent,
                 vehicleImageContent = vehicleImageContent,
                 rangeLabel = rangeLabel,
+                batteryLabel = batteryLabel,
             )
         }
         if (profile == null && (onRefresh != null || profileErrorMessage != null)) {
@@ -140,9 +150,7 @@ fun VehicleInfoScreen(
                         )
                         AppListRow(
                             title = "总行程",
-                            value = cloudStatus.totalMileage
-                                .takeIf { it.isNotBlank() }
-                                ?: "—",
+                            value = cloudTotalLabel ?: "—",
                             showDivider = cloudStatus.currentOdoValue != null,
                         )
                         cloudStatus.currentOdoValue?.let { odo ->
@@ -180,7 +188,7 @@ fun VehicleInfoScreen(
                     )
                     AppListRow("总里程", value = model.odoLabel, showDivider = true)
                     AppListRow("单次里程", value = model.tripLabel, showDivider = true)
-                    AppListRow("电池电量", value = model.batteryLabel, showDivider = true)
+                    AppListRow("电池电量", value = batteryLabel, showDivider = true)
                     AppListRow("总电压", value = model.voltageLabel, showDivider = true)
                     AppListRow("总电流", value = model.currentLabel, showDivider = true)
                     AppListRow("电池温度", value = model.temperatureLabel)
@@ -243,6 +251,7 @@ private fun VehicleHeroCard(
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)?,
     rangeLabel: String,
+    batteryLabel: String,
 ) {
     val dimensions = AppDesign.dimensions
     val linked = profile?.isLinkedModel == true
@@ -320,7 +329,7 @@ private fun VehicleHeroCard(
                 verticalAlignment = Alignment.Bottom,
             ) {
                 MetricBlock("车速", model.speedLabel, foreground, Modifier.weight(1f))
-                MetricBlock("电量", model.batteryLabel, foreground, Modifier.weight(1f))
+                MetricBlock("电量", batteryLabel, foreground, Modifier.weight(1f))
                 MetricBlock(
                     "续航",
                     rangeLabel,
