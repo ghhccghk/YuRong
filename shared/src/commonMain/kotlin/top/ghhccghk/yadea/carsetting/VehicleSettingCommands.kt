@@ -180,6 +180,24 @@ object VehicleSettingCommands {
                 onParameter = 0,
                 offParameter = 1,
             )
+            // VehicleVolumeActivity：0..7 档。
+            "20" -> {
+                val slider = kind as? CarSettingKind.Slider ?: return null
+                VehicleSettingCommand(
+                    commandType = "VOLUME",
+                    commandId = 0x46,
+                    parameter = slider.value.toInt().coerceIn(0, 7),
+                )
+            }
+            // VehicleAlarmSensitivityActivity：0..7 档。
+            "14" -> {
+                val slider = kind as? CarSettingKind.Slider ?: return null
+                VehicleSettingCommand(
+                    commandType = "ALARM_SENSITIVITY_GEAR",
+                    commandId = 0x5F,
+                    parameter = slider.value.toInt().coerceIn(0, 7),
+                )
+            }
             else -> null
         }
 

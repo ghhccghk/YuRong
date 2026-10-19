@@ -60,6 +60,14 @@ object VehicleSettingFrameEncoder {
         0xD9 -> bitfieldSuffix(0x39, command.parameter, 6, 7)
         0x144 -> bitfieldSuffix(0x39, command.parameter, 2, 3)
         0x136 -> bitfieldSuffix(0x37, command.parameter, 6, 7)
+        // VehicleVolumeActivity：0..7 档映射到 C7..FF。
+        0x46 -> "FF".repeat(13) +
+            hex2(0xC7 + (command.parameter.coerceIn(0, 7) shl 3)) +
+            "FF".repeat(12)
+        // VehicleAlarmSensitivityActivity：0..7 档映射到 1F..FF。
+        0x5F -> "FFFFFF" +
+            hex2(0x1F + (command.parameter.coerceIn(0, 7) shl 5)) +
+            "FF".repeat(21)
         0x3D -> "FFFFFFFFFFFFFF" +
             hex2((command.parameter.coerceIn(1, 3) + 0x38)) +
             "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"

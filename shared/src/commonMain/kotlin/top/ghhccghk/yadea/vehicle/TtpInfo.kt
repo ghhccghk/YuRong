@@ -165,6 +165,10 @@ data class TtpExtendedInfo(
     val automaticHeadlightFunctionStatus: Int,
     /** 转向灯自动回位。`0x33` bit6-7。 */
     val turnSignalReturnsAutomaticallyStatus: Int,
+    /** 报警提示模式。`0x33` bit0-2。 */
+    val alarmWarningMode: Int,
+    /** 车辆音量。`0x33` bit3-5。 */
+    val alarmWarningVolumeLevel: Int,
 
     // ---- 电量 / 能耗 ----
     /** 累计卡路里；原始值乘 0.1，超出 `0..1_000_000` 时为 `-1.0`。 */
@@ -520,6 +524,8 @@ internal object TtpInfoParser {
             ambientColor = Ttp.d(d, 0x23, 2),
             automaticHeadlightFunctionStatus = Ttp.G(d, 0x34, 0),
             turnSignalReturnsAutomaticallyStatus = Ttp.G(d, 0x33, 6),
+            alarmWarningMode = Ttp.C(d, 0x33, 0),
+            alarmWarningVolumeLevel = Ttp.C(d, 0x33, 3),
 
             cumulativeCalories = rangedTenths(Ttp.D(d, 0xA4, 0xA5, 0xA6)),
             cumulativeCarbonEmissions = rangedTenths(Ttp.D(d, 0xA7, 0xA8, 0xA9)),

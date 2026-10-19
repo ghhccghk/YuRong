@@ -267,6 +267,16 @@ class CarSettingsController(
                 "84" -> item.copy(
                     kind = CarSettingKind.Toggle(status.extended.blueLightSwitch != 0),
                 )
+                "20" -> item.copy(
+                    kind = (item.kind as? CarSettingKind.Slider)?.copy(
+                        value = status.extended.alarmWarningVolumeLevel.coerceIn(0, 7).toFloat(),
+                    ) ?: item.kind,
+                )
+                "14" -> item.copy(
+                    kind = (item.kind as? CarSettingKind.Slider)?.copy(
+                        value = status.extended.alarmWarningMode.coerceIn(0, 7).toFloat(),
+                    ) ?: item.kind,
+                )
                 else -> item
             }
         }

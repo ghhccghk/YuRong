@@ -230,6 +230,8 @@ fun MainScreen(
         vehicleStatus?.extended?.quickBrakeLightStatus,
         vehicleStatus?.extended?.gearMemorySettingFeedback,
         vehicleStatus?.extended?.blueLightSwitch,
+        vehicleStatus?.extended?.alarmWarningVolumeLevel,
+        vehicleStatus?.extended?.alarmWarningMode,
     ) {
         carSettingsController.updateVehicleStatus(vehicleStatus)
     }

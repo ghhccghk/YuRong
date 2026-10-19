@@ -494,8 +494,11 @@ object CloudCarSettingMapper {
                 unit = " km/h",
             )
         }
-        "14" -> CarSettingKind.Info(
-            cloud.intValue("alarmPower")?.let { "灵敏度 $it" } ?: "状态由车辆回读",
+        // 车辆音量和报警灵敏度都是 0..7 的档位，原 App 使用滑杆。
+        "20", "14" -> CarSettingKind.Slider(
+            value = 0f,
+            range = 0f..7f,
+            steps = 6,
         )
         "32", "42", "43", "44",
         "51", "63", "79", "80", "90", "2" ->
