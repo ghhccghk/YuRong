@@ -49,6 +49,8 @@ import top.ghhccghk.yadea.vehicle.TtpInfo
 import top.ghhccghk.yadea.vehicle.VehicleProfile
 import top.ghhccghk.yadea.vehicle.VehicleProfileSource
 import top.ghhccghk.yadea.vehicle.VehicleBleTokenProvider
+import top.ghhccghk.yadea.vehicle.VehicleControlController
+import top.ghhccghk.yadea.vehicle.VehicleControlSink
 import top.ghhccghk.yadea.vehicle.VehicleStatusSource
 import top.ghhccghk.yadea.wifi.WifiConnectionManager
 import top.ghhccghk.yadea.wifi.WifiP2pManager
@@ -85,6 +87,7 @@ fun MainScreen(
     wifiManager: WifiConnectionManager? = null,
     bleAdapter: BleAdapter? = null,
     bleTokenProvider: VehicleBleTokenProvider? = null,
+    vehicleControlSink: VehicleControlSink? = null,
     p2pManager: WifiP2pManager? = null,
     frameSourceFactory: FrameSourceFactory? = null,
     permissionChecker: PermissionChecker? = null,
@@ -164,10 +167,18 @@ fun MainScreen(
             scope = featureScope,
         )
     }
-    DisposableEffect(authController, otaController) {
+    val vehicleControlController = remember(vehicleControlSink, resolvedVehicleSource) {
+        VehicleControlController(
+            sink = vehicleControlSink,
+            connectedProvider = { resolvedVehicleSource.connected.value },
+            scope = featureScope,
+        )
+    }
+    DisposableEffect(authController, otaController, vehicleControlController) {
         onDispose {
             authController.dispose()
             otaController.dispose()
+            vehicleControlController.dispose()
         }
     }
     LaunchedEffect(authUiState.session.isLoggedIn) {
@@ -195,7 +206,8 @@ fun MainScreen(
             selectedDestination = selectedDestination,
             onDestinationChange = { selectedDestination = it },
             vehicleStatus = vehicleStatus,
-            vehicleConnected = vehicleConnected,
+            vehicleConnected = vehicleConnected &&
+                bleState == BleConnectionState.Connected,
             vehicleProfile = vehicleProfile,
             vehicleProfiles = vehicleProfiles,
             onSelectVehicle = resolvedProfileSource::select,
@@ -205,6 +217,7 @@ fun MainScreen(
             authController = authController,
             carSettingsController = carSettingsController,
             otaController = otaController,
+            vehicleControlController = vehicleControlController,
         )
     }
 }
@@ -228,6 +241,7 @@ private fun MainScreenContent(
     authController: AuthController,
     carSettingsController: CarSettingsController,
     otaController: OtaController,
+    vehicleControlController: VehicleControlController,
 ) {
     val navigationItems = MainDestination.entries.map {
         AppNavigationItem(
@@ -336,6 +350,7 @@ private fun MainScreenContent(
             authController = authController,
             carSettingsController = carSettingsController,
             otaController = otaController,
+            vehicleControlController = vehicleControlController,
             modifier = Modifier.fillMaxSize(),
             contentPadding = padding,
             // 连接页的下拉刷新需要与顶栏滚动行为协同，这里把同一个对象继续传下去。
@@ -430,6 +445,7 @@ private fun MainDestinationContent(
     authController: AuthController,
     carSettingsController: CarSettingsController,
     otaController: OtaController,
+    vehicleControlController: VehicleControlController,
     contentPadding: PaddingValues = PaddingValues(),
     modifier: Modifier = Modifier,
     scrollBehavior: AppScrollBehavior? = null,
@@ -460,6 +476,7 @@ private fun MainDestinationContent(
                 authController = authController,
                 carSettingsController = carSettingsController,
                 otaController = otaController,
+                vehicleControlController = vehicleControlController,
                 contentPadding = contentPadding,
             )
             MainDestination.Settings -> SettingsScreen(

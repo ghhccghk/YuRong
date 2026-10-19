@@ -15,10 +15,12 @@ import top.ghhccghk.yadea.ota.OtaController
 import top.ghhccghk.yadea.vehicle.TtpInfo
 import top.ghhccghk.yadea.vehicle.VehicleInfoFormatter
 import top.ghhccghk.yadea.vehicle.VehicleProfile
+import top.ghhccghk.yadea.vehicle.VehicleControlController
 
 /** 车辆页的子功能。 */
 internal enum class VehicleSection(val label: String) {
     Info("信息"),
+    Control("控制"),
     Garage("车库"),
     Settings("设置"),
     Ota("OTA"),
@@ -45,6 +47,7 @@ internal fun VehicleHubScreen(
     authController: AuthController,
     carSettingsController: CarSettingsController,
     otaController: OtaController,
+    vehicleControlController: VehicleControlController,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
@@ -74,6 +77,11 @@ internal fun VehicleHubScreen(
                     vehicleBackgroundContent = vehicleBackgroundContent,
                     vehicleImageContent = vehicleImageContent,
                     onOpenIotRenewal = onOpenIotRenewal,
+                )
+                VehicleSection.Control -> VehicleControlScreen(
+                    controller = vehicleControlController,
+                    connected = connected,
+                    contentPadding = pagePadding,
                 )
                 VehicleSection.Garage -> GarageScreen(
                     profiles = profiles,

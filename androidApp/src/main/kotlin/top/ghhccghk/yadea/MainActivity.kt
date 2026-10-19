@@ -174,6 +174,7 @@ class MainActivity : ComponentActivity() {
             MainScreen(
                 bleAdapter = vehicleBleAdapter,
                 bleTokenProvider = vehicleBleTokenGateway,
+                vehicleControlSink = AndroidVehicleControlSink(vehicleBleAdapter),
                 vehicleStatusSource = vehicleStatus,
                 vehicleProfileSource = vehicleProfileSource,
                 carSettingCommandSink = AndroidVehicleSettingCommandSink(vehicleBleAdapter),
