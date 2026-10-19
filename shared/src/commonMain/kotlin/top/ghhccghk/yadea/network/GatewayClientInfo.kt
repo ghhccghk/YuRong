@@ -13,8 +13,8 @@ import kotlin.random.Random
  * - 其余固定值来自 `CommonHeadInterceptor`。
  */
 data class GatewayClientInfo(
-    val appVersion: String = "",
-    val appVersionNum: String = "",
+    val appVersion: String = "8.8.9",
+    val appVersionNum: String = "8890",
     val appMarket: String = "Yadea",
     val appVersionType: String = "1",
     val deviceBrand: String = "",
