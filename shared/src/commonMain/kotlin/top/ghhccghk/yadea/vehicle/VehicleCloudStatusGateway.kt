@@ -94,8 +94,15 @@ class YadeaVehicleCloudStatusGateway(
             return null
         }
         val data = JsonSupport.objectField(plain, "data") ?: return null
+        val rawRange = text(data, "remMileage")
+        val rawRangeValue = rawRange.toFloatOrNull()
         val status = VehicleCloudStatus(
-            remainingMileage = normalizeRangeText(text(data, "remMileage")),
+            // 超大的 remMileage 不能当公里数展示；估算接口失败时宁可显示空。
+            remainingMileage = if (rawRangeValue != null && rawRangeValue > 500f) {
+                ""
+            } else {
+                normalizeRangeText(rawRange)
+            },
             totalMileage = text(data, "totalMileage"),
             currentOdoValue = text(data, "currentOdoValue").toFloatOrNull(),
             soc = JsonSupport.int(data, "totalSoc")
@@ -103,12 +110,15 @@ class YadeaVehicleCloudStatusGateway(
             soc1 = JsonSupport.string(data, "soc1").orEmpty(),
             soc2 = JsonSupport.string(data, "soc2").orEmpty(),
         )
-        val estimated = loadEstimatedMileage(normalizedVin, status.soc1, status.soc2)
+        // 云端状态常常只给 totalSoc，soc1/soc2 为空；估算接口仍可用总 SOC 计算。
+        val estimateSoc1 = status.soc1.ifBlank { status.soc?.toString().orEmpty() }
+        val estimateSoc2 = status.soc2.ifBlank { "0" }
+        val estimated = loadEstimatedMileage(normalizedVin, estimateSoc1, estimateSoc2)
         NetworkLog.write(
             "CLOUD_STATUS values rem=${status.remainingMileage} " +
                 "estimate=${estimated.orEmpty()} total=${status.totalMileage} " +
                 "odo=${status.currentOdoValue} soc=${status.soc} " +
-                "soc1=${status.soc1} soc2=${status.soc2}",
+                "soc1=${estimateSoc1} soc2=${estimateSoc2}",
         )
         return status.copy(remainingMileage = estimated ?: status.remainingMileage)
     }
