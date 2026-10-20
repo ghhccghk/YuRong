@@ -93,7 +93,6 @@ class YadeaOtaGateway(
                 "experimental" to profile.experimental,
                 "izSkip" to true,
                 "modelNo" to profile.modelNo,
-                "testBike" to 0,
                 "vin" to profile.vin,
             ),
         )
@@ -175,7 +174,6 @@ class YadeaOtaGateway(
                 "experimental" to profile.experimental,
                 "izSkip" to true,
                 "modelNo" to profile.modelNo,
-                "testBike" to 0,
                 "vin" to profile.vin,
             ),
         )
@@ -220,7 +218,6 @@ class YadeaOtaGateway(
             mapOf(
                 "_gateway" to "True",
                 "experimental" to profile.experimental,
-                "testBike" to 0,
                 "vin" to profile.vin,
             ),
         )
@@ -273,7 +270,6 @@ class YadeaOtaGateway(
                 "experimental" to profile.experimental,
                 "izSkip" to true,
                 "modelNo" to profile.modelNo,
-                "testBike" to 0,
                 "vin" to profile.vin,
             ),
         )
@@ -304,7 +300,6 @@ class YadeaOtaGateway(
             mapOf(
                 "_gateway" to "True",
                 "experimental" to profile.experimental,
-                "testBike" to 0,
                 "vin" to profile.vin,
             ),
         )
