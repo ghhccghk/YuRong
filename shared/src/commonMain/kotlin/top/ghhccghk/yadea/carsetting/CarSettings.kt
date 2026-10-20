@@ -322,6 +322,21 @@ class CarSettingsController(
                             .coerceIn(0, 2),
                     ) ?: item.kind,
                 )
+                "15" -> when (val kind = item.kind) {
+                    is CarSettingKind.Toggle -> item.copy(
+                        kind = kind.copy(
+                            checked = status.extended.vehiclePowerDownStatus != 0,
+                        ),
+                    )
+                    is CarSettingKind.Slider -> item.copy(
+                        kind = kind.copy(
+                            value = status.extended.vehiclePowerDownTimeStatus
+                                .coerceIn(0, 60)
+                                .toFloat(),
+                        ),
+                    )
+                    else -> item
+                }
                 "72" -> item.copy(
                     kind = CarSettingKind.Toggle(status.extended.longEnduranceStatus != 0),
                 )

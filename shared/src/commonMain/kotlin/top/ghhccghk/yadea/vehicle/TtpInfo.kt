@@ -124,6 +124,10 @@ data class TtpExtendedInfo(
     val offModeStatus: Int,
     /** 速度单位。`0x41` bit3-4：0 km/h，1 mph。 */
     val metricSystemStatus: Int,
+    /** 离车定时关机开关。`0x1F` bit0-1。 */
+    val vehiclePowerDownStatus: Int,
+    /** 离车定时关机时间，`0x1F` bit2-7，单位为分钟。 */
+    val vehiclePowerDownTimeStatus: Int,
     /** 模拟声浪音量。`0x92` bit3-7。 */
     val simulatedSoundWaveVolumeStatus: Int,
     /** 模拟声浪在线状态。`0xA3` bit0-1。 */
@@ -619,6 +623,8 @@ internal object TtpInfoParser {
             tiltWarningStatus = Ttp.G(d, 0x1A, 4),
             offModeStatus = Ttp.G(d, 0x1D, 0),
             metricSystemStatus = Ttp.G(d, 0x41, 3),
+            vehiclePowerDownStatus = Ttp.G(d, 0x1F, 0),
+            vehiclePowerDownTimeStatus = Ttp.B(d, 0x1F, 2),
             otdSwitch = Ttp.G(d, 0x2F, 2),
             sleepModeSwitch = Ttp.G(d, 0x88, 4),
             seatPowerStatus = Ttp.G(d, 0x2F, 6),

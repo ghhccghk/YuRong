@@ -438,6 +438,26 @@ object CloudCarSettingMapper {
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,
             )
         }
+        cloud.configs.firstOrNull { it.confId.trim() == "15" }?.let { config ->
+            val minutes = cloud.intValue("shutDownTime")?.coerceIn(0, 60) ?: 2
+            items += CarSettingItem(
+                id = "cloud:15:time",
+                configId = "15",
+                title = "离车定时关机时间",
+                summary = "车辆静止超过设定时间后自动关机；建议不少于 2 分钟",
+                classification = classificationOf("15", config),
+                group = groupOf(config, classificationOf("15", config)),
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Slider(
+                    value = minutes.toFloat(),
+                    range = 0f..60f,
+                    steps = 59,
+                    unit = " 分钟",
+                ),
+                writable = config.isAuth != false,
+                sort = (config.sort.toIntOrNull() ?: 0) + 1,
+            )
+        }
         return items.sortedWith(compareBy({ it.group.sort }, { it.sort }, { it.title }))
     }
 
@@ -601,6 +621,9 @@ object CloudCarSettingMapper {
         "54" -> CarSettingKind.Choice(
             selectedIndex = 0,
             options = listOf("48V", "60V", "70V"),
+        )
+        "15" -> CarSettingKind.Toggle(
+            cloud.boolValue("vehiclePowerDownStatus") == true,
         )
         "9" -> CarSettingKind.Toggle(cloud.boolValue("alarmOn") == true)
         "24" -> CarSettingKind.Toggle(cloud.boolValue("emergencyContact") == true)

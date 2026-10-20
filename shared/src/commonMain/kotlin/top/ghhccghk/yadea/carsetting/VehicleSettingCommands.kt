@@ -142,6 +142,21 @@ object VehicleSettingCommands {
                     parameter = (choice.selectedIndex + 1).coerceIn(1, 3),
                 )
             }
+            "15" -> when (kind) {
+                is CarSettingKind.Toggle -> toggle(
+                    kind = kind,
+                    onType = "VEHICLE_MANDATORY_POWER_DOWN_OPEN",
+                    offType = "VEHICLE_MANDATORY_POWER_DOWN_CLOSE",
+                    onId = 0x7B,
+                    offId = 0x7C,
+                )
+                is CarSettingKind.Slider -> VehicleSettingCommand(
+                    commandType = "VEHICLE_MANDATORY_POWER_DOWN_TIME",
+                    commandId = 0x7D,
+                    parameter = kind.value.toInt().coerceIn(0, 60),
+                )
+                else -> null
+            }
             "13" -> toggle(
                 kind = kind,
                 onType = "WARING_SOUND_OPEN",
