@@ -102,7 +102,18 @@ class YadeaOtaGateway(
             .ifEmpty { listOfNotNull(JsonSupport.objectField(plain, "data")) }
         if (dataObjects.isEmpty()) return emptyList()
         val taskObjects = dataObjects.flatMap { JsonSupport.arrayObjects(it, "taskList") }
-        val dataStatus = stringField(dataObjects.first(), "status").orEmpty()
+        val taskContainer = dataObjects.first()
+        val dataStatus = stringField(taskContainer, "status").orEmpty()
+        val confirmUpgradeType = intField(taskContainer, "confirmUpgradeType")
+        val rootFirmwareTypeCodes = JsonSupport.arrayObjects(taskContainer, "firmwareList")
+            .mapNotNull { stringField(it, "typeCode") }
+            .toSet()
+        val fallbackMethod = when {
+            confirmUpgradeType == 1 -> OtaMethod.Iot
+            "15" in rootFirmwareTypeCodes -> OtaMethod.WifiDvr
+            confirmUpgradeType == 2 -> OtaMethod.Wifi
+            else -> OtaMethod.Ble
+        }
         return taskObjects.flatMap { task ->
             val taskName = stringField(task, "taskName").orEmpty()
             val taskStatus = stringField(task, "status").orEmpty().ifBlank { dataStatus }
@@ -119,7 +130,11 @@ class YadeaOtaGateway(
                         .orEmpty()
                         .ifBlank { taskNotes },
                     downloadUrl = stringField(firmware, "downloadUrl").orEmpty(),
-                    method = methodOfChannel(channel),
+                    method = if (channel.isBlank()) {
+                        fallbackMethod
+                    } else {
+                        methodOfChannel(channel)
+                    },
                     typeName = stringField(firmware, "firmwareName")
                         .orEmpty()
                         .ifBlank { stringField(firmware, "typeName").orEmpty() }
