@@ -427,7 +427,8 @@ TTP 回填：
   `user/sendCode(sendCode=10)` →
   `user/verifySmsCode(smsScene=10)` →
   `common-cmd/low-freq/set-param/loss`；
-  `value=00` 开启、`value=01` 关闭。
+  `value=00` 开启、`value=01` 关闭。云端回读 `lossState == 0`
+  才表示已开启，`1` 表示关闭（对应 `VehicleDataBean.isLoss()`）。
 
 验收：
 
