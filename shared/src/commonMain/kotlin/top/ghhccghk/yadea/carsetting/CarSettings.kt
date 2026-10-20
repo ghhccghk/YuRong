@@ -342,6 +342,18 @@ class CarSettingsController(
                         status.extended.remainingMileageDebugStatus != 0,
                     ),
                 )
+                "81" -> when (val kind = item.kind) {
+                    is CarSettingKind.Toggle -> item.copy(
+                        kind = kind.copy(checked = status.extended.withGoHomeStatus != 0),
+                    )
+                    is CarSettingKind.Choice -> item.copy(
+                        kind = kind.copy(
+                            selectedIndex = status.extended.withGoHomeTimeStatus
+                                .coerceIn(0, kind.options.lastIndex.coerceAtLeast(0)),
+                        ),
+                    )
+                    else -> item
+                }
                 "72" -> item.copy(
                     kind = CarSettingKind.Toggle(status.extended.longEnduranceStatus != 0),
                 )

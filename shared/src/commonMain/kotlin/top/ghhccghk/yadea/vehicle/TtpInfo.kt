@@ -130,6 +130,10 @@ data class TtpExtendedInfo(
     val vehiclePowerDownTimeStatus: Int,
     /** 仪表显示剩余续航。`0x35` bit0-1。 */
     val remainingMileageDebugStatus: Int,
+    /** 延时大灯开关。`0x1B` bit3-4。 */
+    val withGoHomeStatus: Int,
+    /** 延时大灯时间档位。`0x1B` bit5-6。 */
+    val withGoHomeTimeStatus: Int,
     /** 模拟声浪音量。`0x92` bit3-7。 */
     val simulatedSoundWaveVolumeStatus: Int,
     /** 模拟声浪在线状态。`0xA3` bit0-1。 */
@@ -628,6 +632,8 @@ internal object TtpInfoParser {
             vehiclePowerDownStatus = Ttp.G(d, 0x1F, 0),
             vehiclePowerDownTimeStatus = Ttp.B(d, 0x1F, 2),
             remainingMileageDebugStatus = Ttp.G(d, 0x35, 0),
+            withGoHomeStatus = Ttp.G(d, 0x1B, 3),
+            withGoHomeTimeStatus = Ttp.C(d, 0x1B, 5),
             otdSwitch = Ttp.G(d, 0x2F, 2),
             sleepModeSwitch = Ttp.G(d, 0x88, 4),
             seatPowerStatus = Ttp.G(d, 0x2F, 6),

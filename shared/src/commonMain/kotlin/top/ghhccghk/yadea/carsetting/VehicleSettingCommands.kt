@@ -164,6 +164,21 @@ object VehicleSettingCommands {
                 onId = 0xA4,
                 offId = 0xA5,
             )
+            "81" -> when (kind) {
+                is CarSettingKind.Toggle -> toggle(
+                    kind = kind,
+                    onType = "COMMAND_WITH_GO_HOME_OPEN",
+                    offType = "COMMAND_WITH_GO_HOME_CLOSE",
+                    onId = 0x83,
+                    offId = 0x84,
+                )
+                is CarSettingKind.Choice -> VehicleSettingCommand(
+                    commandType = "COMMAND_WITH_GO_HOME_TIME_SETTING",
+                    commandId = 0x85,
+                    parameter = kind.selectedIndex.coerceIn(0, 3),
+                )
+                else -> null
+            }
             "13" -> toggle(
                 kind = kind,
                 onType = "WARING_SOUND_OPEN",

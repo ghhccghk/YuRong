@@ -458,6 +458,23 @@ object CloudCarSettingMapper {
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,
             )
         }
+        cloud.configs.firstOrNull { it.confId.trim() == "81" }?.let { config ->
+            items += CarSettingItem(
+                id = "cloud:81:time",
+                configId = "81",
+                title = "延时大灯时间",
+                summary = "车辆关机后大灯继续照明的时间档位",
+                classification = classificationOf("81", config),
+                group = groupOf(config, classificationOf("81", config)),
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Choice(
+                    selectedIndex = 0,
+                    options = listOf("5", "10", "15", "30"),
+                ),
+                writable = config.isAuth != false,
+                sort = (config.sort.toIntOrNull() ?: 0) + 1,
+            )
+        }
         return items.sortedWith(compareBy({ it.group.sort }, { it.sort }, { it.title }))
     }
 
@@ -625,6 +642,7 @@ object CloudCarSettingMapper {
         "15" -> CarSettingKind.Toggle(
             cloud.boolValue("vehiclePowerDownStatus") == true,
         )
+        "81" -> CarSettingKind.Toggle(false)
         "9" -> CarSettingKind.Toggle(cloud.boolValue("alarmOn") == true)
         "24" -> CarSettingKind.Toggle(cloud.boolValue("emergencyContact") == true)
         "75" -> CarSettingKind.Toggle(cloud.boolValue("tamperProofIotEnable") == true)
