@@ -179,6 +179,24 @@ object VehicleSettingCommands {
                 )
                 else -> null
             }
+            "73" -> toggle(
+                kind = kind,
+                onType = "COMMAND_FEEL_LIGHT_SETTING_STATE",
+                offType = "COMMAND_FEEL_LIGHT_SETTING_STATE",
+                onId = 0xC3,
+                offId = 0xC3,
+                onParameter = 1,
+                offParameter = 0,
+            )
+            "51" -> toggle(
+                kind = kind,
+                onType = "COMMAND_CONST_TIME_SYNC_OPEN",
+                offType = "COMMAND_CONST_TIME_SYNC_CLOSE",
+                onId = 0xC1,
+                offId = 0xC1,
+                onParameter = 1,
+                offParameter = 0,
+            )
             "13" -> toggle(
                 kind = kind,
                 onType = "WARING_SOUND_OPEN",

@@ -643,6 +643,7 @@ object CloudCarSettingMapper {
             cloud.boolValue("vehiclePowerDownStatus") == true,
         )
         "81" -> CarSettingKind.Toggle(false)
+        "73" -> CarSettingKind.Toggle(false)
         "9" -> CarSettingKind.Toggle(cloud.boolValue("alarmOn") == true)
         "24" -> CarSettingKind.Toggle(cloud.boolValue("emergencyContact") == true)
         "75" -> CarSettingKind.Toggle(cloud.boolValue("tamperProofIotEnable") == true)
@@ -669,9 +670,10 @@ object CloudCarSettingMapper {
             steps = 6,
         )
         "2", "32" -> CarSettingKind.Toggle(false)
-        "43", "44", "51" ->
+        "43", "44" ->
             CarSettingKind.Info("状态由车辆回读")
         "42" -> CarSettingKind.Toggle(false)
+        "51" -> CarSettingKind.Toggle(false)
         "47" -> {
             // ChargingPowerActivity：200..1000W，50W 步进；最大值按云端/车型上限 1000W。
             val maxWatt = 1000
