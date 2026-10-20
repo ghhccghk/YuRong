@@ -199,6 +199,7 @@ fun MainScreen(
             gateway = otaGateway,
             currentVersion = "—",
             scope = featureScope,
+            timestampTextProvider = ::currentTimestampText,
         )
     }
     val vehicleFaultController = remember(vehicleFaultGateway) {

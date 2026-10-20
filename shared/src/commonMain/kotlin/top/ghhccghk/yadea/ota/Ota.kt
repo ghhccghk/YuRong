@@ -20,6 +20,8 @@ data class OtaPackage(
     val forceUpgrade: Boolean = false,
     val taskId: String = "",
     val firmwareModuleCode: String = "",
+    val firmwareCode: String = "",
+    val strategyId: String = "",
     val behaviorId: String = "",
 )
 
@@ -33,6 +35,87 @@ data class OtaRecord(
 data class OtaRecordPage(
     val records: List<OtaRecord> = emptyList(),
     val hasNext: Boolean = false,
+)
+
+/** `ota/upgrade/version` 返回的一个固件模块版本。 */
+data class OtaFirmwareVersion(
+    val firmwareType: Int = 0,
+    val typeName: String = "",
+    val firmwareName: String = "",
+    val currentVersion: String = "",
+    val latestVersion: String = "",
+    val statusCode: Int? = null,
+) {
+    val label: String
+        get() = firmwareName.ifBlank { typeName }.ifBlank {
+            when (firmwareType) {
+                1 -> "控制器"
+                2 -> "电池"
+                3 -> "仪表"
+                else -> "固件模块"
+            }
+        }
+}
+
+enum class OtaCloudUpgradeState {
+    Idle,
+    Upgrading,
+    Succeeded,
+    Failed,
+    Unknown,
+}
+
+/**
+ * `upgradeTask/queryUpgradingTask` 的界面子集。
+ *
+ * 原 App 使用字符串状态：`2` 升级中，`3` 成功，`4` 失败。
+ * `behaviorId` 是任务结果确认和清除标记所需的主键。
+ */
+data class OtaCloudUpgradeStatus(
+    val status: String = "",
+    val behaviorId: String = "",
+    val taskId: String = "",
+    val taskName: String = "",
+    val firmwareName: String = "",
+    val firmwareVersion: String = "",
+    val alertCode: Int? = null,
+    val message: String = "",
+) {
+    val state: OtaCloudUpgradeState
+        get() = when (status.trim()) {
+            "2" -> OtaCloudUpgradeState.Upgrading
+            "3" -> OtaCloudUpgradeState.Succeeded
+            "4" -> OtaCloudUpgradeState.Failed
+            "", "0", "1" -> OtaCloudUpgradeState.Idle
+            else -> OtaCloudUpgradeState.Unknown
+        }
+
+    val stateLabel: String
+        get() = when (state) {
+            OtaCloudUpgradeState.Idle -> "等待车辆"
+            OtaCloudUpgradeState.Upgrading -> "车辆升级中"
+            OtaCloudUpgradeState.Succeeded -> "升级成功"
+            OtaCloudUpgradeState.Failed -> "升级失败"
+            OtaCloudUpgradeState.Unknown -> "状态 $status"
+        }
+
+    val isTerminal: Boolean
+        get() = state == OtaCloudUpgradeState.Succeeded ||
+            state == OtaCloudUpgradeState.Failed
+}
+
+/** `ota/upgradeLog/addUpgradeLog` 的请求字段。 */
+data class OtaUpgradeLogEntry(
+    val taskId: String = "",
+    val strategyId: String = "",
+    val firmwareName: String = "",
+    val firmwareCode: String = "",
+    val beforeVersion: String = "",
+    val afterVersion: String = "",
+    val startTime: String = "",
+    val endTime: String = "",
+    val upgradeResult: Int = 1,
+    val failureReason: String = "",
 )
 
 enum class OtaMethod(
@@ -74,6 +157,10 @@ data class OtaState(
     val recordsError: String? = null,
     val recordsPage: Int = 0,
     val recordsHasNext: Boolean = false,
+    val firmwareVersions: List<OtaFirmwareVersion> = emptyList(),
+    val cloudUpgradeStatus: OtaCloudUpgradeStatus? = null,
+    val cloudStatusLoading: Boolean = false,
+    val cloudStatusError: String? = null,
 ) {
     val busy: Boolean
         get() = stage == OtaStage.Checking ||
@@ -103,6 +190,9 @@ sealed interface OtaEvent {
     data class CheckFailed(val message: String) : OtaEvent
     data object InstallStarted : OtaEvent
     data class Progress(val value: Float, val stage: OtaStage) : OtaEvent
+    data class FirmwareVersionsLoaded(val versions: List<OtaFirmwareVersion>) : OtaEvent
+    data class CloudStatusLoaded(val status: OtaCloudUpgradeStatus?) : OtaEvent
+    data class CloudStatusFailed(val message: String) : OtaEvent
     data object Completed : OtaEvent
     data class Failed(val message: String) : OtaEvent
     data object Cancelled : OtaEvent
@@ -163,6 +253,42 @@ object OtaFlow {
                 stage = event.stage,
                 progress = event.value.coerceIn(0f, 1f),
             )
+        is OtaEvent.FirmwareVersionsLoaded -> {
+            val summary = firmwareVersionSummary(event.versions)
+            state.copy(
+                firmwareVersions = event.versions,
+                currentVersion = summary.ifBlank { state.currentVersion },
+            )
+        }
+        is OtaEvent.CloudStatusLoaded -> {
+            val cloud = event.status
+            state.copy(
+                cloudUpgradeStatus = cloud,
+                cloudStatusLoading = false,
+                cloudStatusError = null,
+                stage = when {
+                    cloud?.state == OtaCloudUpgradeState.Succeeded &&
+                        state.selectedMethod == OtaMethod.Iot -> OtaStage.Completed
+                    cloud?.state == OtaCloudUpgradeState.Failed &&
+                        state.selectedMethod == OtaMethod.Iot -> OtaStage.Failed
+                    else -> state.stage
+                },
+                message = when {
+                    cloud?.state == OtaCloudUpgradeState.Succeeded ->
+                        "云端升级任务已完成"
+                    cloud?.state == OtaCloudUpgradeState.Failed ->
+                        cloud.message.ifBlank { "云端升级任务失败" }
+                    cloud?.state == OtaCloudUpgradeState.Upgrading ->
+                        "车辆正在执行云端升级，请勿断电或骑行"
+                    else -> state.message
+                },
+            )
+        }
+        is OtaEvent.CloudStatusFailed ->
+            state.copy(
+                cloudStatusLoading = false,
+                cloudStatusError = event.message,
+            )
         OtaEvent.Completed ->
             state.copy(stage = OtaStage.Completed, progress = 1f, message = "升级完成，请重启车辆")
         is OtaEvent.Failed ->
@@ -185,6 +311,16 @@ interface OtaGateway {
     suspend fun confirmIotUpgrade(packageInfo: OtaPackage): Boolean = false
     /** 查询进行中的云端升级任务，返回解密后的原始 JSON。 */
     suspend fun queryUpgradingTask(): String? = null
+    /** 云端固件模块版本，原接口为 `ota/upgrade/version`。 */
+    suspend fun queryFirmwareVersions(): List<OtaFirmwareVersion> = emptyList()
+    /** 查询并结构化进行中的云端升级任务。 */
+    suspend fun queryCloudUpgradeStatus(): OtaCloudUpgradeStatus? = null
+    /** 升级结束后清除 `behaviorId` 对应的任务标记。 */
+    suspend fun acknowledgeCloudUpgrade(behaviorId: String): Boolean = false
+    /** 升级结束后上报固件信息，失败不影响本地升级结果。 */
+    suspend fun uploadFirmwareInfo(packageInfo: OtaPackage, success: Boolean): Boolean = false
+    /** 写入升级记录，失败不影响本地升级结果。 */
+    suspend fun addUpgradeLog(entry: OtaUpgradeLogEntry): Boolean = false
     /** OTA 升级记录，原接口为 `upgradeLog/queryUpgradeLogByVin/V3`。 */
     suspend fun queryUpgradeRecords(current: Int, size: Int): OtaRecordPage = OtaRecordPage()
 }
@@ -193,6 +329,7 @@ class OtaController(
     private val gateway: OtaGateway?,
     currentVersion: String,
     private val scope: CoroutineScope,
+    private val timestampTextProvider: () -> String = { "" },
 ) {
     private val _state = MutableStateFlow(
         OtaState(
@@ -205,8 +342,11 @@ class OtaController(
 
     private var job: Job? = null
     private var recordsJob: Job? = null
+    private var cloudJob: Job? = null
+    private var cloudPollJob: Job? = null
 
     fun updateCurrentVersion(version: String) {
+        if (_state.value.firmwareVersions.any { it.currentVersion.isNotBlank() }) return
         _state.value = OtaFlow.reduce(_state.value, OtaEvent.CurrentVersionChanged(version))
     }
 
@@ -251,6 +391,99 @@ class OtaController(
             progress = 0f,
             message = null,
         )
+    }
+
+    /**
+     * 刷新云端固件版本和进行中任务。
+     *
+     * 如果云端任务仍在升级中，会继续短轮询，直到成功/失败或达到轮询上限。
+     */
+    fun refreshCloudState() {
+        val gateway = gateway ?: return
+        if (cloudJob?.isActive == true) return
+        cloudJob = scope.launch {
+            _state.value = _state.value.copy(
+                cloudStatusLoading = true,
+                cloudStatusError = null,
+            )
+            val versions = runCatching { gateway.queryFirmwareVersions() }
+            versions.onSuccess {
+                _state.value = OtaFlow.reduce(
+                    _state.value,
+                    OtaEvent.FirmwareVersionsLoaded(it),
+                )
+            }
+            val cloud = runCatching { gateway.queryCloudUpgradeStatus() }
+            cloud.fold(
+                onSuccess = { status ->
+                    _state.value = OtaFlow.reduce(
+                        _state.value,
+                        OtaEvent.CloudStatusLoaded(status),
+                    )
+                    if (status?.state == OtaCloudUpgradeState.Upgrading) {
+                        startCloudStatusPolling()
+                    } else if (status?.isTerminal == true) {
+                        acknowledgeTerminalStatus(status)
+                    }
+                },
+                onFailure = { error ->
+                    _state.value = OtaFlow.reduce(
+                        _state.value,
+                        OtaEvent.CloudStatusFailed(
+                            error.message ?: "查询云端升级状态失败",
+                        ),
+                    )
+                },
+            )
+            _state.value = _state.value.copy(
+                cloudStatusLoading = false,
+                cloudStatusError = if (versions.isFailure && cloud.isFailure) {
+                    "云端版本与升级状态查询失败"
+                } else {
+                    _state.value.cloudStatusError
+                },
+            )
+        }
+    }
+
+    private fun startCloudStatusPolling() {
+        val gateway = gateway ?: return
+        if (cloudPollJob?.isActive == true) return
+        cloudPollJob = scope.launch {
+            repeat(CLOUD_STATUS_POLL_ATTEMPTS) {
+                kotlinx.coroutines.delay(CLOUD_STATUS_POLL_MS)
+                val status = runCatching { gateway.queryCloudUpgradeStatus() }.getOrNull()
+                if (status != null) {
+                    _state.value = OtaFlow.reduce(
+                        _state.value,
+                        OtaEvent.CloudStatusLoaded(status),
+                    )
+                    if (status.isTerminal) {
+                        acknowledgeTerminalStatus(status)
+                        runCatching { gateway.queryFirmwareVersions() }
+                            .getOrNull()
+                            ?.let {
+                                _state.value = OtaFlow.reduce(
+                                    _state.value,
+                                    OtaEvent.FirmwareVersionsLoaded(it),
+                                )
+                            }
+                        return@launch
+                    }
+                }
+            }
+            _state.value = _state.value.copy(
+                message = "云端升级状态轮询超时，可手动刷新",
+            )
+        }
+    }
+
+    private fun acknowledgeTerminalStatus(status: OtaCloudUpgradeStatus) {
+        val gateway = gateway ?: return
+        if (status.behaviorId.isBlank()) return
+        scope.launch {
+            runCatching { gateway.acknowledgeCloudUpgrade(status.behaviorId) }
+        }
     }
 
     fun loadRecords(reset: Boolean = true) {
@@ -309,10 +542,15 @@ class OtaController(
                             OtaEvent.Failed("云端升级确认失败，请检查网络或任务状态"),
                         )
                     }
+                    if (confirmed) {
+                        startCloudStatusPolling()
+                    }
                     return@launch
                 }
                 OtaMethod.Wifi, OtaMethod.WifiDvr, OtaMethod.Ble -> Unit
             }
+            val beforeVersion = _state.value.currentVersion
+            val startedAt = timestampTextProvider()
             _state.value = OtaFlow.reduce(_state.value, OtaEvent.InstallStarted)
             val result = runCatching {
                 gateway.install(pkg) { progress, stage ->
@@ -334,6 +572,41 @@ class OtaController(
                     ),
                 )
             }
+            val endedAt = timestampTextProvider()
+            scope.launch {
+                runCatching { gateway.uploadFirmwareInfo(pkg, success) }
+                runCatching {
+                    gateway.addUpgradeLog(
+                        OtaUpgradeLogEntry(
+                            taskId = pkg.taskId,
+                            strategyId = pkg.strategyId,
+                            firmwareName = pkg.typeName,
+                            firmwareCode = pkg.firmwareCode
+                                .ifBlank { pkg.firmwareModuleCode },
+                            beforeVersion = beforeVersion,
+                            afterVersion = if (success) pkg.version else beforeVersion,
+                            startTime = startedAt,
+                            endTime = endedAt,
+                            upgradeResult = if (success) 0 else 1,
+                            failureReason = if (success) {
+                                ""
+                            } else {
+                                result.exceptionOrNull()?.message.orEmpty()
+                            },
+                        ),
+                    )
+                }
+                if (success) {
+                    runCatching { gateway.queryFirmwareVersions() }
+                        .getOrNull()
+                        ?.let {
+                            _state.value = OtaFlow.reduce(
+                                _state.value,
+                                OtaEvent.FirmwareVersionsLoaded(it),
+                            )
+                        }
+                }
+            }
         }
     }
 
@@ -350,9 +623,20 @@ class OtaController(
         job = null
         recordsJob?.cancel()
         recordsJob = null
+        cloudJob?.cancel()
+        cloudJob = null
+        cloudPollJob?.cancel()
+        cloudPollJob = null
     }
 
     private companion object {
         const val RECORD_PAGE_SIZE = 50
+        const val CLOUD_STATUS_POLL_MS = 10_000L
+        const val CLOUD_STATUS_POLL_ATTEMPTS = 60
     }
 }
+
+private fun firmwareVersionSummary(versions: List<OtaFirmwareVersion>): String =
+    versions
+        .filter { it.currentVersion.isNotBlank() }
+        .joinToString(" · ") { "${it.label} ${it.currentVersion}" }

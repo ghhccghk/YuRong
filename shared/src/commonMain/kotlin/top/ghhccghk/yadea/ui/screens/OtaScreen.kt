@@ -32,6 +32,7 @@ fun OtaScreen(
     var showRiskConfirm by remember { mutableStateOf(false) }
     LaunchedEffect(controller) {
         controller.loadRecords()
+        controller.refreshCloudState()
     }
 
     LazyColumn(
@@ -91,9 +92,23 @@ fun OtaScreen(
                     value = state.selectedMethod.label,
                     showDivider = true,
                 )
+                state.firmwareVersions.forEach { module ->
+                    AppListRow(
+                        title = module.label,
+                        value = module.currentVersion.ifBlank { "—" },
+                        summary = module.latestVersion
+                            .takeIf { it.isNotBlank() && it != module.currentVersion }
+                            ?.let { "云端最新 $it" },
+                        showDivider = true,
+                    )
+                }
                 AppListRow(
                     "可用版本",
-                    value = state.packageInfo?.version ?: "—",
+                    value = state.packageInfo?.version
+                        ?: state.firmwareVersions
+                            .mapNotNull { it.latestVersion.takeIf(String::isNotBlank) }
+                            .maxOrNull()
+                        ?: "—",
                     showDivider = true,
                 )
                 AppListRow(
@@ -102,6 +117,50 @@ fun OtaScreen(
                     showDivider = true,
                 )
                 AppListRow("升级状态", value = state.stage.label(), summary = state.message)
+            }
+        }
+        item {
+            AppSection(title = "云端升级状态") {
+                val cloud = state.cloudUpgradeStatus
+                if (state.cloudStatusLoading) {
+                    AppEmptyState("正在查询云端升级任务…")
+                } else if (cloud == null) {
+                    AppEmptyState(state.cloudStatusError ?: "当前没有进行中的云端升级任务")
+                } else {
+                    AppListRow(
+                        title = "任务状态",
+                        value = cloud.stateLabel,
+                        summary = cloud.message.takeIf { it.isNotBlank() },
+                        showDivider = true,
+                    )
+                    if (cloud.taskName.isNotBlank()) {
+                        AppListRow(
+                            title = "任务",
+                            value = cloud.taskName,
+                            showDivider = true,
+                        )
+                    }
+                    if (cloud.firmwareName.isNotBlank() || cloud.firmwareVersion.isNotBlank()) {
+                        AppListRow(
+                            title = cloud.firmwareName.ifBlank { "升级固件" },
+                            value = cloud.firmwareVersion.ifBlank { "—" },
+                            showDivider = cloud.alertCode != null,
+                        )
+                    }
+                    cloud.alertCode?.let {
+                        AppListRow(title = "云端告警码", value = it.toString())
+                    }
+                }
+                AppOutlinedButton(
+                    onClick = controller::refreshCloudState,
+                    modifier = Modifier.fillMaxWidth().padding(
+                        horizontal = dimensions.itemHorizontalPadding,
+                        vertical = dimensions.itemVerticalPadding,
+                    ),
+                    enabled = !state.cloudStatusLoading,
+                ) {
+                    AppText("刷新云端状态", style = AppDesign.typography.button)
+                }
             }
         }
         item {
@@ -239,7 +298,10 @@ fun OtaScreen(
                     horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
                 ) {
                     AppButton(
-                        onClick = controller::checkForUpdate,
+                        onClick = {
+                            controller.refreshCloudState()
+                            controller.checkForUpdate()
+                        },
                         modifier = Modifier.weight(1f),
                         enabled = state.canCheck,
                     ) {
