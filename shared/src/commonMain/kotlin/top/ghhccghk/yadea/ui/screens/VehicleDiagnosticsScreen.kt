@@ -238,7 +238,7 @@ fun VehicleDiagnosticsScreen(
                 )
                 AppOutlinedButton(
                     onClick = {
-                        lostModeTarget = cloudStatus?.lossState != 1
+                        lostModeTarget = cloudStatus?.lossState != 0
                         lostModePhone = accountMobile
                         lostModeCode = ""
                         showLostModeSheet = true
@@ -250,7 +250,7 @@ fun VehicleDiagnosticsScreen(
                     enabled = lostModeController.available && !lostState.busy,
                 ) {
                     AppText(
-                        if (cloudStatus?.lossState == 1) "关闭报失模式" else "开启报失模式",
+                        if (cloudStatus?.lossState == 0) "关闭报失模式" else "开启报失模式",
                         style = AppDesign.typography.button,
                     )
                 }

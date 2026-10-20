@@ -246,9 +246,9 @@ object VehicleDiagnosticsFormatter {
             "定位功能" to cloud?.positioningFunc?.let(::switchLabel).orEmpty().ifBlank { "—" },
             "最近定位" to coordinates,
             "报失模式" to when (cloud?.lossState) {
-                1 -> "已开启"
-                0 -> "关闭"
-                else -> "—"
+                0 -> "已开启"
+                null -> "—"
+                else -> "关闭"
             },
         )
     }

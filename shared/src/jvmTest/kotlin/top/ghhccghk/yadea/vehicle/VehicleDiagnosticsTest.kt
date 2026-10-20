@@ -101,6 +101,12 @@ class VehicleDiagnosticsTest {
         assertTrue(rows.any { it.first == "前轮胎压" && it.second.contains("过高") })
         assertTrue(rows.any { it.first == "后轮胎压" && !it.second.contains("告警") })
         assertFalse(VehicleDiagnosticsFormatter.locationRows(null, status).isEmpty())
+        assertEquals(
+            "关闭",
+            VehicleDiagnosticsFormatter.locationRows(null, status)
+                .first { it.first == "报失模式" }
+                .second,
+        )
     }
 
     @Test
