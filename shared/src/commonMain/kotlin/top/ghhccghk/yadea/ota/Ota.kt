@@ -468,7 +468,6 @@ class OtaController(
         if (cloudPollJob?.isActive == true) return
         cloudPollJob = scope.launch {
             repeat(CLOUD_STATUS_POLL_ATTEMPTS) {
-                kotlinx.coroutines.delay(CLOUD_STATUS_POLL_MS)
                 val status = runCatching { gateway.queryCloudUpgradeStatus() }.getOrNull()
                 if (status != null) {
                     _state.value = OtaFlow.reduce(
@@ -488,9 +487,12 @@ class OtaController(
                         return@launch
                     }
                 }
+                if (it < CLOUD_STATUS_POLL_ATTEMPTS - 1) {
+                    kotlinx.coroutines.delay(CLOUD_STATUS_POLL_MS)
+                }
             }
             _state.value = _state.value.copy(
-                message = "云端升级状态轮询超时，可手动刷新",
+                message = "本轮云端状态轮询已结束，可手动刷新",
             )
         }
     }
@@ -648,8 +650,9 @@ class OtaController(
 
     private companion object {
         const val RECORD_PAGE_SIZE = 50
-        const val CLOUD_STATUS_POLL_MS = 10_000L
-        const val CLOUD_STATUS_POLL_ATTEMPTS = 60
+        // 原 OtaPollingSource：立即查一次，间隔约 60 秒，整轮窗口约 1 分钟。
+        const val CLOUD_STATUS_POLL_MS = 60_000L
+        const val CLOUD_STATUS_POLL_ATTEMPTS = 2
     }
 }
 
