@@ -84,6 +84,8 @@
   IoT 内置电池等云端最近上报字段。
 - [ ] Phase 5.3：外部胎压设备的独立 BLE 绑定、阈值和实时外设诊断仍需
   `BlePartsConnect` 外设链路；当前不伪造外设实时状态。
+- [x] Phase 6.2：Android 登录 Token 已迁移到 Android Keystore AES/GCM 安全存储，
+  `usr_info` 不再保存 token；旧明文 token 会在启动时加密迁移并清理。
 
 ## Phase 1：云端车辆绑定与多车辆管理
 
