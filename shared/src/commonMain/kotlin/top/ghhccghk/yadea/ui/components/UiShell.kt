@@ -278,8 +278,8 @@ fun AppTopBar(
                     title = {},
                     modifier = modifier,
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = AppDesign.colors.topBar,
-                        actionIconContentColor = AppDesign.colors.onTopBar,
+                        containerColor = AppDesign.colors.background,
+                        actionIconContentColor = AppDesign.colors.onBackground,
                     ),
                     scrollBehavior = scrollBehavior?.material,
                     actions = { actions() },
@@ -291,10 +291,10 @@ fun AppTopBar(
             // 此时完全保持原生纯色顶栏，不引入任何额外绘制。
             val backdrop = LocalAppBlurBackdrop.current
             // Miuix 的 TopAppBar 默认取 surface；Monet 下这仍是近白色，和动态 background 不一致。
-            // 语义 token 在 Miuix 分支取应用的动态配色，不受 Monet 开关影响，
-            // 避免原生 HyperOS 的纯黑/纯白顶栏与动态色页面割裂。
-            val topBarColor = AppDesign.colors.topBar
-            val titleColor = AppDesign.colors.onTopBar
+            // 取 Miuix 自己的 background：开启 Monet 时随 Miuix 动态色变化，
+            // 关闭 Monet 时保持原生 HyperOS 配色，不把 Material 色板混进 Miuix。
+            val topBarColor = AppDesign.colors.background
+            val titleColor = AppDesign.colors.onBackground
             if (backdrop == null) {
                 MiuixTopAppBar(
                     title = title,

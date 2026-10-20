@@ -2,7 +2,6 @@ package top.ghhccghk.yadea.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -118,10 +117,6 @@ data class AppColors(
     val onPrimary: Color,
     val background: Color,
     val onBackground: Color,
-    // 顶栏专用颜色：Miuix 原生 HyperOS 配色开启时仍需跟随应用的动态取色，
-    // 因此不能直接复用 Miuix 自己的 background。
-    val topBar: Color,
-    val onTopBar: Color,
     val surface: Color,
     val onSurface: Color,
     val surfaceVariant: Color,
@@ -307,7 +302,7 @@ fun AppTheme(
                         // 等组件在没有显式颜色时都会回退到它。这里显式跟随动画后的 onBackground，
                         // 否则这些组件会一直沿用外层 controller 的静态内容色，动态配色切换时不同步。
                         CompositionLocalProvider(MiuixLocalContentColor provides animatedColors.onBackground) {
-                            val tokens = rememberMiuixAppThemeTokens(darkTheme, materialColors)
+                            val tokens = rememberMiuixAppThemeTokens(darkTheme)
                             CompositionLocalProvider(LocalAppThemeTokens provides tokens) {
                                 MaterialTheme(
                                     colorScheme = materialColors,
@@ -377,8 +372,6 @@ private fun rememberMaterialAppThemeTokens(darkTheme: Boolean): AppThemeTokens {
                 onPrimary = colors.onPrimary,
                 background = colors.background,
                 onBackground = colors.onBackground,
-                topBar = colors.background,
-                onTopBar = colors.onBackground,
                 surface = colors.surface,
                 onSurface = colors.onSurface,
                 surfaceVariant = colors.surfaceVariant,
@@ -435,10 +428,7 @@ private fun rememberMaterialAppThemeTokens(darkTheme: Boolean): AppThemeTokens {
 }
 
 @Composable
-private fun rememberMiuixAppThemeTokens(
-    darkTheme: Boolean,
-    dynamicColors: ColorScheme,
-): AppThemeTokens {
+private fun rememberMiuixAppThemeTokens(darkTheme: Boolean): AppThemeTokens {
     val colors = MiuixTheme.colorScheme
     val typography = MiuixTheme.textStyles
     val status = appStatusColors(darkTheme)
@@ -447,17 +437,13 @@ private fun rememberMiuixAppThemeTokens(
     // token 会永远停留在首次组合的那套配色，表现就是“只有一部分组件跟着换色”。
     // 这里在组合期读一份颜色快照作为 key：任意字段变化都会触发重组并重算 token。
     val colorSnapshot = colors.toColorList()
-    return remember(colorSnapshot, typography, darkTheme, dynamicColors) {
+    return remember(colorSnapshot, typography, darkTheme) {
         AppThemeTokens(
             colors = AppColors(
                 primary = colors.primary,
                 onPrimary = colors.onPrimary,
                 background = colors.background,
                 onBackground = colors.onBackground,
-                // Miuix 原生 HyperOS 模式也使用应用的动态配色作为顶栏底色，
-                // 避免纯黑/纯白顶栏和动态色卡片并排时割裂。
-                topBar = dynamicColors.background,
-                onTopBar = dynamicColors.onBackground,
                 surface = colors.surface,
                 onSurface = colors.onSurface,
                 surfaceVariant = colors.surfaceVariant,
