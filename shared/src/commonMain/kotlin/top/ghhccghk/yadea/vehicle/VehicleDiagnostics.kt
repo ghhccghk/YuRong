@@ -253,6 +253,67 @@ object VehicleDiagnosticsFormatter {
         )
     }
 
+    fun cloudStatusRows(status: VehicleCloudStatus?): List<Pair<String, String>> {
+        if (status == null) return emptyList()
+        return buildList {
+            status.onlineState?.let {
+                add("在线状态" to if (it) "在线" else "离线")
+            }
+            status.powerState?.let { add("电源状态" to "状态 $it") }
+            status.rideStatus?.let { add("骑行状态" to "状态 $it") }
+            status.lockStatus?.let { add("锁状态" to "状态 $it") }
+            status.chargingStatus?.let { add("充电状态" to "状态 $it") }
+            status.powerDown?.let { add("断电状态" to "状态 $it") }
+            status.bmsFault?.let {
+                add("BMS 故障" to if (it == 0) "无" else "故障码 $it")
+            }
+            status.sleepMode?.let { add("休眠模式" to switchLabel(it)) }
+            addIfPresent("总电压", status.totalVoltage, " V")
+            addIfPresent("总电流", status.totalCurrent, " A")
+            addIfPresent("环境温度", status.ambientTemperature, " ℃")
+            addIfPresent("电池最高温度", status.maxBatteryTemperature, " ℃")
+            addIfPresent("电池最低温度", status.minBatteryTemperature, " ℃")
+            addIfPresent("MOS 温度", status.mosTemperature, " ℃")
+            addIfPresent("剩余充电时间", status.remainChargeMinutes, " 分钟")
+            status.realtimeChargeWatt?.let { add("实时充电功率" to "$it W") }
+            addIfPresent("蜂窝信号", status.gsmSignal)
+            addIfPresent("GPS 信号", status.gpsSignal)
+            val gpsCoordinates = listOf(status.gpsLongitude, status.gpsLatitude)
+                .filter { it.isNotBlank() }
+                .joinToString(", ")
+            if (gpsCoordinates.isNotBlank()) add("GPS 坐标" to gpsCoordinates)
+            if (status.mapImei.isNotBlank()) {
+                add(
+                    "地图定位信息" to buildString {
+                        append("IMEI ").append(status.mapImei)
+                        if (status.mapMcc.isNotBlank() || status.mapMnc.isNotBlank()) {
+                            append(" · MCC/MNC ")
+                            append(status.mapMcc.ifBlank { "—" })
+                            append('/')
+                            append(status.mapMnc.ifBlank { "—" })
+                        }
+                        if (status.baseStationCount > 0) {
+                            append(" · 基站 ").append(status.baseStationCount)
+                        }
+                    },
+                )
+            }
+            if (status.iotBatteryVoltage.isNotBlank() || status.iotBatteryCapacity != null) {
+                add(
+                    "IoT 内置电池" to buildString {
+                        append(status.iotBatteryVoltage.ifBlank { "—" })
+                        if (status.iotBatteryVoltage.isNotBlank()) append(" V")
+                        status.iotBatteryCapacity?.let { append(" · $it%") }
+                    },
+                )
+            }
+            status.innerSoc?.let { add("内部 SOC" to "$it%") }
+            status.tireStatus?.let { add("轮胎状态" to "状态 $it") }
+            status.batteryTotalCount?.let { add("电池总数" to it.toString()) }
+            status.doorLockStatus?.let { add("门锁状态" to "状态 $it") }
+        }
+    }
+
     fun cloudFaultRows(report: VehicleFaultReport?): List<Pair<String, String>> {
         if (report == null) return emptyList()
         if (report.levels.isEmpty()) return listOf("检测结果" to "未返回故障等级")
@@ -278,6 +339,14 @@ object VehicleDiagnosticsFormatter {
 
     private fun temperatureLabel(value: Int?): String =
         value?.let { "$it ℃" } ?: "—"
+
+    private fun MutableList<Pair<String, String>>.addIfPresent(
+        title: String,
+        value: String,
+        unit: String = "",
+    ) {
+        if (value.isNotBlank()) add(title to value + unit)
+    }
 
     private fun switchLabel(value: Int): String = when (value) {
         0 -> "关闭"

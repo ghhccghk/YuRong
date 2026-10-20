@@ -77,7 +77,24 @@ class VehicleDiagnosticsTest {
               "lowBatWarningStartTime":"07:00",
               "lowBatWarningEndTime":"21:00",
               "positioningFunc":1,
-              "lossState":1
+              "lossState":1,
+              "onlineState":true,
+              "powerState":1,
+              "chgStatus":0,
+              "bmsFault":0,
+              "volt":75.7,
+              "cur":-0.1,
+              "ambientTemp":29.0,
+              "gsmSignal":-51,
+              "gpsSignal":8,
+              "gpsLon":121.17,
+              "gpsLat":28.80,
+              "mapLocation":{
+                "imei":"861566",
+                "mcc":460,
+                "mnc":0,
+                "baseStations":[{"cellId":1},{"cellId":2}]
+              }
             }}
         """.trimIndent()
         val gateway = YadeaVehicleCloudStatusGateway(
@@ -97,6 +114,9 @@ class VehicleDiagnosticsTest {
         assertEquals(1, status.leftFrontPressureWarning)
         assertEquals(32, status.leftRearTireTemp)
         assertEquals(1, status.positioningFunc)
+        assertEquals(true, status.onlineState)
+        assertEquals("75.7", status.totalVoltage)
+        assertEquals(2, status.baseStationCount)
         val rows = VehicleDiagnosticsFormatter.tireRows(status)
         assertTrue(rows.any { it.first == "前轮胎压" && it.second.contains("过高") })
         assertTrue(rows.any { it.first == "后轮胎压" && !it.second.contains("告警") })
@@ -107,6 +127,10 @@ class VehicleDiagnosticsTest {
                 .first { it.first == "报失模式" }
                 .second,
         )
+        val cloudRows = VehicleDiagnosticsFormatter.cloudStatusRows(status)
+        assertTrue(cloudRows.any { it.first == "在线状态" && it.second == "在线" })
+        assertTrue(cloudRows.any { it.first == "总电压" && it.second == "75.7 V" })
+        assertTrue(cloudRows.any { it.first == "BMS 故障" && it.second == "无" })
     }
 
     @Test

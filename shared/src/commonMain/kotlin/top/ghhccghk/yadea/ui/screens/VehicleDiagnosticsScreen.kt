@@ -57,6 +57,7 @@ fun VehicleDiagnosticsScreen(
     }
     val faultCodes = VehicleDiagnosticsFormatter.faultCodes(status)
     val cloudFaults = VehicleDiagnosticsFormatter.cloudFaultRows(faultState.report)
+    val cloudStatusRows = VehicleDiagnosticsFormatter.cloudStatusRows(cloudStatus)
     val tireRows = VehicleDiagnosticsFormatter.tireRows(cloudStatus)
     val radarRows = VehicleDiagnosticsFormatter.radarRows(status)
     val lowBatteryRows = VehicleDiagnosticsFormatter.lowBatteryRows(status, cloudStatus)
@@ -92,6 +93,31 @@ fun VehicleDiagnosticsScreen(
                     kind = AppTipKind.Info,
                     title = "BLE 未连接",
                     message = "故障码和雷达实时状态需要连接车辆 BLE；云端胎压、低电量和定位仍可显示最近一次上报。",
+                )
+            }
+        }
+
+        item {
+            AppSection(title = "云端状态（CLOUD_STATUS）") {
+                if (cloudStatusRows.isEmpty()) {
+                    AppEmptyState("还没有取得云端最近状态数据")
+                } else {
+                    cloudStatusRows.forEachIndexed { index, (title, value) ->
+                        AppListRow(
+                            title = title,
+                            value = value,
+                            showDivider = index != cloudStatusRows.lastIndex,
+                        )
+                    }
+                }
+                AppText(
+                    text = "以上为云端最近一次上报，不等同于当前 BLE 实时状态；刷新诊断数据会重新请求云端状态。",
+                    style = AppDesign.typography.summary,
+                    color = AppDesign.colors.onSurfaceVariant,
+                    modifier = Modifier.padding(
+                        horizontal = dimensions.itemHorizontalPadding,
+                        vertical = dimensions.itemVerticalPadding,
+                    ),
                 )
             }
         }

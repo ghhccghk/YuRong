@@ -60,6 +60,37 @@ data class VehicleCloudStatus(
     val positioningFunc: Int? = null,
     val lossState: Int? = null,
     val gpsLocationTime: Long? = null,
+    val onlineState: Boolean? = null,
+    val powerState: Int? = null,
+    val rideStatus: Int? = null,
+    val lockStatus: Int? = null,
+    val chargingStatus: Int? = null,
+    val powerDown: Int? = null,
+    val bmsFault: Int? = null,
+    val sleepMode: Int? = null,
+    val totalVoltage: String = "",
+    val totalCurrent: String = "",
+    val ambientTemperature: String = "",
+    val maxBatteryTemperature: String = "",
+    val minBatteryTemperature: String = "",
+    val mosTemperature: String = "",
+    val remainChargeMinutes: String = "",
+    val gsmSignal: String = "",
+    val gpsSignal: String = "",
+    val collectTime: Long? = null,
+    val gpsLongitude: String = "",
+    val gpsLatitude: String = "",
+    val tireStatus: Int? = null,
+    val realtimeChargeWatt: Int? = null,
+    val innerSoc: Int? = null,
+    val iotBatteryVoltage: String = "",
+    val iotBatteryCapacity: Int? = null,
+    val mapImei: String = "",
+    val mapMcc: String = "",
+    val mapMnc: String = "",
+    val baseStationCount: Int = 0,
+    val batteryTotalCount: Int? = null,
+    val doorLockStatus: Int? = null,
 )
 
 interface VehicleCloudStatusGateway {
@@ -108,6 +139,7 @@ class YadeaVehicleCloudStatusGateway(
         val data = JsonSupport.objectField(plain, "data") ?: return null
         val rawRange = text(data, "remMileage")
         val rawRangeValue = rawRange.toFloatOrNull()
+        val mapLocation = JsonSupport.objectField(data, "mapLocation")
         val status = VehicleCloudStatus(
             // 超大的 remMileage 不能当公里数展示；估算接口失败时宁可显示空。
             remainingMileage = if (rawRangeValue != null && rawRangeValue > 500f) {
@@ -140,6 +172,39 @@ class YadeaVehicleCloudStatusGateway(
             lossState = JsonSupport.int(data, "lossState")
                 ?: text(data, "lossState").toIntOrNull(),
             gpsLocationTime = JsonSupport.numberText(data, "gpsLocationTime")?.toLongOrNull(),
+            onlineState = JsonSupport.boolean(data, "onlineState"),
+            powerState = intValue(data, "powerState"),
+            rideStatus = intValue(data, "rideStatus"),
+            lockStatus = intValue(data, "lockStatus"),
+            chargingStatus = intValue(data, "chgStatus"),
+            powerDown = intValue(data, "powerDown"),
+            bmsFault = intValue(data, "bmsFault"),
+            sleepMode = intValue(data, "sleepMode"),
+            totalVoltage = text(data, "volt"),
+            totalCurrent = text(data, "cur"),
+            ambientTemperature = text(data, "ambientTemp"),
+            maxBatteryTemperature = text(data, "maxTemp1"),
+            minBatteryTemperature = text(data, "minTemp1"),
+            mosTemperature = text(data, "mosTemp1"),
+            remainChargeMinutes = text(data, "remainChgTime1"),
+            gsmSignal = text(data, "gsmSignal"),
+            gpsSignal = text(data, "gpsSignal"),
+            collectTime = JsonSupport.numberText(data, "collectTime")?.toLongOrNull(),
+            gpsLongitude = text(data, "gpsLon"),
+            gpsLatitude = text(data, "gpsLat"),
+            tireStatus = intValue(data, "tireStatus"),
+            realtimeChargeWatt = intValue(data, "realTimeChargeWatt"),
+            innerSoc = intValue(data, "innerSoc"),
+            iotBatteryVoltage = text(data, "iotInnerLittleBatteryVolt"),
+            iotBatteryCapacity = intValue(data, "iotInnerLittleBatteryCapacity"),
+            mapImei = mapLocation?.let { text(it, "imei") }.orEmpty(),
+            mapMcc = mapLocation?.let { text(it, "mcc") }.orEmpty(),
+            mapMnc = mapLocation?.let { text(it, "mnc") }.orEmpty(),
+            baseStationCount = mapLocation
+                ?.let { JsonSupport.arrayObjects(it, "baseStations").size }
+                ?: 0,
+            batteryTotalCount = intValue(data, "batteryTotalCount"),
+            doorLockStatus = intValue(data, "doorLockStatus"),
         )
         // 云端状态常常只给 totalSoc，soc1/soc2 为空；估算接口仍可用总 SOC 计算。
         val estimateSoc1 = status.soc1.ifBlank { status.soc?.toString().orEmpty() }
@@ -217,6 +282,11 @@ class YadeaVehicleCloudStatusGateway(
         JsonSupport.string(json, key)
             ?: JsonSupport.numberText(json, key)
             ?: ""
+
+    private fun intValue(json: String, key: String): Int? =
+        JsonSupport.int(json, key)
+            ?: JsonSupport.numberText(json, key)?.toIntOrNull()
+            ?: JsonSupport.string(json, key)?.toIntOrNull()
 
     private fun escape(value: String): String =
         value.replace("\\", "\\\\").replace("\"", "\\\"")
