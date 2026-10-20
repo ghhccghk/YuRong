@@ -45,6 +45,10 @@ data class OtaFirmwareVersion(
     val currentVersion: String = "",
     val latestVersion: String = "",
     val statusCode: Int? = null,
+    val channelList: List<Int> = emptyList(),
+    val firmwareCode: String = "",
+    /** `true` 表示该条目只是车辆已安装版本，不代表存在可升级目标。 */
+    val installedOnly: Boolean = false,
 ) {
     val label: String
         get() = firmwareName.ifBlank { typeName }.ifBlank {

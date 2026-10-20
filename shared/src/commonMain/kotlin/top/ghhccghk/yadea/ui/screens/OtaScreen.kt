@@ -97,20 +97,27 @@ fun OtaScreen(
                         title = module.label,
                         value = module.currentVersion.ifBlank { "—" },
                         summary = module.latestVersion
-                            .takeIf { it.isNotBlank() && it != module.currentVersion }
+                            .takeIf {
+                                !module.installedOnly &&
+                                    it.isNotBlank() &&
+                                    it != module.currentVersion
+                            }
                             ?.let { "云端最新 $it" },
                         showDivider = true,
                     )
                 }
-                AppListRow(
-                    "可用版本",
-                    value = state.packageInfo?.version
-                        ?: state.firmwareVersions
-                            .mapNotNull { it.latestVersion.takeIf(String::isNotBlank) }
-                            .maxOrNull()
-                        ?: "—",
-                    showDivider = true,
-                )
+                if (state.packageInfo != null || state.firmwareVersions.any { !it.installedOnly }) {
+                    AppListRow(
+                        title = "可用版本",
+                        value = state.packageInfo?.version
+                            ?: state.firmwareVersions
+                                .filter { !it.installedOnly }
+                                .mapNotNull { it.latestVersion.takeIf(String::isNotBlank) }
+                                .maxOrNull()
+                            ?: "—",
+                        showDivider = true,
+                    )
+                }
                 AppListRow(
                     "安装包大小",
                     value = state.packageInfo?.sizeBytes?.let(::formatOtaSize) ?: "—",

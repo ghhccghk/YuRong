@@ -93,6 +93,7 @@ class YadeaOtaGateway(
                 "experimental" to profile.experimental,
                 "izSkip" to true,
                 "modelNo" to profile.modelNo,
+                "testBike" to 0,
                 "vin" to profile.vin,
             ),
         )
@@ -122,7 +123,11 @@ class YadeaOtaGateway(
             val firmwareObjects = JsonSupport.arrayObjects(task, "firmwareInfoList")
             firmwareObjects.mapNotNull { firmware ->
                 val version = textOrNumber(firmware, "firmwareVersion") ?: return@mapNotNull null
+                // 实际任务可能只带 `channelList`，缺 `channel` 时不能直接判成蓝牙。
                 val channel = textOrNumber(firmware, "channel").orEmpty()
+                    .ifBlank {
+                        intList(firmware, "channelList").firstOrNull()?.toString().orEmpty()
+                    }
                 OtaPackage(
                     version = version,
                     releaseNotes = stringField(firmware, "versionDesc")
@@ -227,10 +232,10 @@ class YadeaOtaGateway(
         if (profile.vin.isBlank()) return emptyList()
         // 原请求把 VIN 放进 `vinList` 数组，普通 sortedJson 只接受标量字段。
         val json = """{"_gateway":"True","vinList":["${escape(profile.vin)}"]}"""
-        val plain = post("ota/upgrade/version", json) ?: return emptyList()
+        val plain = post("ota/upgrade/version", json).orEmpty()
         val objects = JsonSupport.arrayObjects(plain, "data")
             .ifEmpty { listOfNotNull(JsonSupport.objectField(plain, "data")) }
-        return objects.mapNotNull { item ->
+        val versions = objects.mapNotNull { item ->
             val firmwareType = intField(item, "firmwareType") ?: 0
             val current = stringField(item, "currentVersion")
                 ?: textOrNumber(item, "currentVersion")
@@ -247,6 +252,48 @@ class YadeaOtaGateway(
                 currentVersion = current,
                 latestVersion = latest,
                 statusCode = intField(item, "statusCode"),
+                channelList = intList(item, "channelList"),
+                firmwareCode = textOrNumber(item, "firmwareCode").orEmpty(),
+            )
+        }
+        if (versions.isNotEmpty()) return versions
+        return loadFirmwareVersionsFromTaskList(profile)
+    }
+
+    /**
+     * `queryTaskList/V4` 即使 `hasTask=0` 也会返回 `firmwareList`，其中是
+     * 车辆当前安装的各部件版本。它不能当作升级任务，但可作为版本展示来源。
+     */
+    private suspend fun loadFirmwareVersionsFromTaskList(
+        profile: VehicleProfile,
+    ): List<OtaFirmwareVersion> {
+        val json = sortedJson(
+            mapOf(
+                "_gateway" to "True",
+                "experimental" to profile.experimental,
+                "izSkip" to true,
+                "modelNo" to profile.modelNo,
+                "testBike" to 0,
+                "vin" to profile.vin,
+            ),
+        )
+        val plain = post("upgradeTask/queryTaskList/V4", json) ?: return emptyList()
+        val data = JsonSupport.objectField(plain, "data") ?: return emptyList()
+        return JsonSupport.arrayObjects(data, "firmwareList").mapNotNull { item ->
+            val version = textOrNumber(item, "firmwareVersion") ?: return@mapNotNull null
+            OtaFirmwareVersion(
+                firmwareType = intField(item, "firmwareType") ?: 0,
+                typeName = stringField(item, "typeName").orEmpty(),
+                firmwareName = stringField(item, "firmwareName")
+                    .orEmpty()
+                    .ifBlank { stringField(item, "typeShowName").orEmpty() },
+                currentVersion = version,
+                latestVersion = version,
+                statusCode = intField(item, "firmwareStatus"),
+                channelList = intList(item, "channelList")
+                    .ifEmpty { intField(item, "channel")?.let(::listOf).orEmpty() },
+                firmwareCode = textOrNumber(item, "firmwareCode").orEmpty(),
+                installedOnly = true,
             )
         }
     }
@@ -496,6 +543,16 @@ class YadeaOtaGateway(
 
     private fun intField(json: String, key: String): Int? =
         JsonSupport.int(json, key) ?: stringField(json, key)?.toIntOrNull()
+
+    private fun intList(json: String, key: String): List<Int> {
+        val raw = Regex("\"${Regex.escape(key)}\"\\s*:\\s*\\[([^]]*)]")
+            .find(json)
+            ?.groupValues
+            ?.get(1)
+            ?: return emptyList()
+        return raw.split(',')
+            .mapNotNull { it.trim().trim('"').toIntOrNull() }
+    }
 
     private fun escape(value: String): String =
         value.replace("\\", "\\\\").replace("\"", "\\\"")
