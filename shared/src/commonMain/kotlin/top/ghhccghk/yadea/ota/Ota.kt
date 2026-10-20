@@ -59,6 +59,7 @@ data class OtaFirmwareVersion(
 
 enum class OtaCloudUpgradeState {
     Idle,
+    Preparing,
     Upgrading,
     Succeeded,
     Failed,
@@ -79,20 +80,24 @@ data class OtaCloudUpgradeStatus(
     val firmwareName: String = "",
     val firmwareVersion: String = "",
     val alertCode: Int? = null,
+    val completedParts: Int? = null,
+    val totalParts: Int? = null,
     val message: String = "",
 ) {
     val state: OtaCloudUpgradeState
         get() = when (status.trim()) {
+            "1" -> OtaCloudUpgradeState.Preparing
             "2" -> OtaCloudUpgradeState.Upgrading
             "3" -> OtaCloudUpgradeState.Succeeded
             "4" -> OtaCloudUpgradeState.Failed
-            "", "0", "1" -> OtaCloudUpgradeState.Idle
+            "", "0" -> OtaCloudUpgradeState.Idle
             else -> OtaCloudUpgradeState.Unknown
         }
 
     val stateLabel: String
         get() = when (state) {
             OtaCloudUpgradeState.Idle -> "等待车辆"
+            OtaCloudUpgradeState.Preparing -> "正在准备升级"
             OtaCloudUpgradeState.Upgrading -> "车辆升级中"
             OtaCloudUpgradeState.Succeeded -> "升级成功"
             OtaCloudUpgradeState.Failed -> "升级失败"
@@ -102,6 +107,16 @@ data class OtaCloudUpgradeStatus(
     val isTerminal: Boolean
         get() = state == OtaCloudUpgradeState.Succeeded ||
             state == OtaCloudUpgradeState.Failed
+
+    val isInProgress: Boolean
+        get() = state == OtaCloudUpgradeState.Preparing ||
+            state == OtaCloudUpgradeState.Upgrading
+
+    val partProgressLabel: String?
+        get() = when {
+            completedParts == null && totalParts == null -> null
+            else -> "${completedParts ?: 0}/${totalParts ?: 0}"
+        }
 }
 
 /** `ota/upgradeLog/addUpgradeLog` 的请求字段。 */
@@ -278,6 +293,8 @@ object OtaFlow {
                         "云端升级任务已完成"
                     cloud?.state == OtaCloudUpgradeState.Failed ->
                         cloud.message.ifBlank { "云端升级任务失败" }
+                    cloud?.state == OtaCloudUpgradeState.Preparing ->
+                        "车辆正在准备升级，请保持车辆在线"
                     cloud?.state == OtaCloudUpgradeState.Upgrading ->
                         "车辆正在执行云端升级，请勿断电或骑行"
                     else -> state.message
@@ -420,7 +437,7 @@ class OtaController(
                         _state.value,
                         OtaEvent.CloudStatusLoaded(status),
                     )
-                    if (status?.state == OtaCloudUpgradeState.Upgrading) {
+                    if (status?.isInProgress == true) {
                         startCloudStatusPolling()
                     } else if (status?.isTerminal == true) {
                         acknowledgeTerminalStatus(status)

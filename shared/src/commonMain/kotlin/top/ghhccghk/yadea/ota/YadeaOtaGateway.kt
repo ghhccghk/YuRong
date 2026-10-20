@@ -273,6 +273,8 @@ class YadeaOtaGateway(
             }.orEmpty(),
             alertCode = intField(data, "alertCode")
                 ?: firmware?.let { intField(it, "alertCode") },
+            completedParts = intField(data, "hasNum"),
+            totalParts = intField(data, "canNum"),
             message = firmware?.let {
                 stringField(it, "firmwareUpgrdeErrorCodeName")
                     ?: stringField(it, "upgradeErrorMsg")

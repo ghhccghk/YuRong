@@ -144,6 +144,14 @@ fun OtaScreen(
                         AppListRow(
                             title = cloud.firmwareName.ifBlank { "升级固件" },
                             value = cloud.firmwareVersion.ifBlank { "—" },
+                            showDivider = cloud.alertCode != null ||
+                                cloud.partProgressLabel != null,
+                        )
+                    }
+                    cloud.partProgressLabel?.let {
+                        AppListRow(
+                            title = "升级部件",
+                            value = it,
                             showDivider = cloud.alertCode != null,
                         )
                     }
