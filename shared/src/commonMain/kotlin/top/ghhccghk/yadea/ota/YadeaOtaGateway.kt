@@ -90,7 +90,7 @@ class YadeaOtaGateway(
         val json = sortedJson(
             mapOf(
                 "_gateway" to "True",
-                "experimental" to "",
+                "experimental" to profile.experimental,
                 "izSkip" to true,
                 "modelNo" to profile.modelNo,
                 "vin" to profile.vin,
@@ -167,7 +167,7 @@ class YadeaOtaGateway(
         val json = sortedJson(
             mapOf(
                 "_gateway" to "True",
-                "experimental" to "",
+                "experimental" to profile.experimental,
                 "izSkip" to true,
                 "modelNo" to profile.modelNo,
                 "testBike" to 0,
@@ -200,7 +200,7 @@ class YadeaOtaGateway(
                 "os" to "1",
                 "modelNo" to profile.modelNo,
                 "modelName" to profile.modelName,
-                "experimental" to "",
+                "experimental" to profile.experimental,
                 "confirmUpgradeType" to upgradeType,
                 "firmwareModuleCode" to packageInfo.firmwareModuleCode,
             ),
@@ -214,7 +214,7 @@ class YadeaOtaGateway(
         val json = sortedJson(
             mapOf(
                 "_gateway" to "True",
-                "experimental" to "",
+                "experimental" to profile.experimental,
                 "testBike" to 0,
                 "vin" to profile.vin,
             ),
@@ -256,7 +256,7 @@ class YadeaOtaGateway(
         val json = sortedJson(
             mapOf(
                 "_gateway" to "True",
-                "experimental" to "",
+                "experimental" to profile.experimental,
                 "testBike" to 0,
                 "vin" to profile.vin,
             ),
@@ -300,11 +300,12 @@ class YadeaOtaGateway(
 
     override suspend fun acknowledgeCloudUpgrade(behaviorId: String): Boolean {
         if (behaviorId.isBlank()) return false
+        val profile = profileProvider() ?: return false
         val json = sortedJson(
             mapOf(
                 "_gateway" to "True",
                 "behaviorId" to behaviorId,
-                "experimental" to "",
+                "experimental" to profile.experimental,
             ),
         )
         return post("upgradeTask/userCheckFlag", json) != null

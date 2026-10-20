@@ -86,6 +86,7 @@ class YadeaVehicleProfileGateway(
             modelNo = stringField(objectText, "modelNo").orEmpty(),
             modelName = stringField(objectText, "modelName").orEmpty(),
             dLinkTag = stringField(objectText, "dLinkTag").orEmpty(),
+            experimental = textOrNumber(objectText, "experimental").orEmpty(),
             backgroundImageUrl = stringField(objectText, "skinPicUrl").orEmpty(),
             vehicleImageUrl = stringField(objectText, "imgUrl").orEmpty(),
             bikeNickName = stringField(objectText, "bikeNickName").orEmpty(),
@@ -198,6 +199,13 @@ private fun intField(json: String, key: String): Int? {
         ?: return null
     return match.groupValues[1].toIntOrNull()
 }
+
+    private fun textOrNumber(json: String, key: String): String? =
+        stringField(json, key)
+            ?: Regex("\"${Regex.escape(key)}\"\\s*:\\s*(-?\\d+)")
+                .find(json)
+                ?.groupValues
+                ?.get(1)
 
 private fun longField(json: String, key: String): Long? {
     val match = Regex("\"${Regex.escape(key)}\"\\s*:\\s*(-?\\d+)").find(json)

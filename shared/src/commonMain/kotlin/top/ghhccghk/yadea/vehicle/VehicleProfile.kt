@@ -19,6 +19,13 @@ data class VehicleProfile(
     val modelName: String = "",
     /** 联动款标记；原实现用 `dLinkTag`/车型号判断联动款。 */
     val dLinkTag: String = "",
+    /**
+     * `VehicleInfoBean.experimental`。
+     *
+     * OTA、升级任务确认和任务标记接口都会原样提交这个字段；缺失时为空白，
+     * 不能由客户端自行猜测。
+     */
+    val experimental: String = "",
     /** `VehicleInfoBean.skinPicUrl`，车辆页背景图。 */
     val backgroundImageUrl: String = "",
     /** `VehicleInfoBean.imgUrl`，车辆本体图。 */
