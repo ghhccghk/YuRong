@@ -93,7 +93,6 @@ class YadeaOtaGateway(
                 "experimental" to "",
                 "izSkip" to true,
                 "modelNo" to profile.modelNo,
-                "testBike" to 0,
                 "vin" to profile.vin,
             ),
         )
@@ -216,6 +215,7 @@ class YadeaOtaGateway(
             mapOf(
                 "_gateway" to "True",
                 "experimental" to "",
+                "testBike" to 0,
                 "vin" to profile.vin,
             ),
         )
@@ -257,6 +257,7 @@ class YadeaOtaGateway(
             mapOf(
                 "_gateway" to "True",
                 "experimental" to "",
+                "testBike" to 0,
                 "vin" to profile.vin,
             ),
         )
