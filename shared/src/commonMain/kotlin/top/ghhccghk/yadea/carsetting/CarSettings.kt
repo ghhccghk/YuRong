@@ -297,6 +297,15 @@ class CarSettingsController(
                 "63" -> item.copy(
                     kind = CarSettingKind.Toggle(status.extended.tPowerStatus != 0),
                 )
+                "2" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.sideBraceStatus != 0),
+                )
+                "32" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.tiltWarningStatus != 0),
+                )
+                "45" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.cruiseControl != 0),
+                )
                 "72" -> item.copy(
                     kind = CarSettingKind.Toggle(status.extended.longEnduranceStatus != 0),
                 )

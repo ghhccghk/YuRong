@@ -263,6 +263,9 @@ fun MainScreen(
     LaunchedEffect(
         vehicleStatus?.extended?.tcsWorkMode,
         vehicleStatus?.extended?.absFunctionStatus,
+        vehicleStatus?.extended?.sideBraceStatus,
+        vehicleStatus?.extended?.tiltWarningStatus,
+        vehicleStatus?.cruiseControl,
         vehicleStatus?.extended?.simulatedSoundWaveStatus,
         vehicleStatus?.extended?.brightnessAdjustSwitch,
         vehicleStatus?.extended?.automaticHeadlightFunctionStatus,

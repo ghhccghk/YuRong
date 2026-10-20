@@ -116,6 +116,10 @@ data class TtpExtendedInfo(
     val helpCarState: Int,
     /** 定速巡航状态。`0x6F` bit0-1。 */
     val constSpeedState: Int,
+    /** 边撑感应开关状态。`0x25` bit0-1。 */
+    val sideBraceStatus: Int,
+    /** 倾倒提醒开关状态。`0x1A` bit4-5。 */
+    val tiltWarningStatus: Int,
     /** 模拟声浪音量。`0x92` bit3-7。 */
     val simulatedSoundWaveVolumeStatus: Int,
     /** 模拟声浪在线状态。`0xA3` bit0-1。 */
@@ -607,6 +611,8 @@ internal object TtpInfoParser {
             customizeEnergyLevel = Ttp.C(d, 0x89, 3),
             customizeEnergyState = Ttp.G(d, 0x89, 6),
             customizeTcs = Ttp.G(d, 0x8A, 4),
+            sideBraceStatus = Ttp.G(d, 0x25, 0),
+            tiltWarningStatus = Ttp.G(d, 0x1A, 4),
             otdSwitch = Ttp.G(d, 0x2F, 2),
             sleepModeSwitch = Ttp.G(d, 0x88, 4),
             seatPowerStatus = Ttp.G(d, 0x2F, 6),
