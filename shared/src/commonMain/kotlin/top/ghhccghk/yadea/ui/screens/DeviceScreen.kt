@@ -20,6 +20,7 @@ import top.ghhccghk.yadea.vehicle.VehicleCloudStatus
 import top.ghhccghk.yadea.vehicle.VehicleBindingController
 import top.ghhccghk.yadea.vehicle.VehicleControlController
 import top.ghhccghk.yadea.vehicle.VehicleFaultController
+import top.ghhccghk.yadea.vehicle.LostModeController
 
 /** 车辆页的子功能。 */
 internal enum class VehicleSection(val label: String) {
@@ -54,6 +55,8 @@ internal fun VehicleHubScreen(
     vehiclesErrorMessage: String? = null,
     vehicleCloudStatus: VehicleCloudStatus? = null,
     vehicleFaultController: VehicleFaultController,
+    lostModeController: LostModeController,
+    accountMobile: String,
     onRefreshVehicleCloudStatus: ((String) -> Unit)? = null,
     vehicleBindingController: VehicleBindingController? = null,
     currentUser: AuthUser? = null,
@@ -106,6 +109,8 @@ internal fun VehicleHubScreen(
                     connected = connected,
                     profile = profile,
                     faultController = vehicleFaultController,
+                    lostModeController = lostModeController,
+                    accountMobile = accountMobile,
                     contentPadding = pagePadding,
                     onRefreshCloudStatus = {
                         profile?.vin?.takeIf { it.isNotBlank() }

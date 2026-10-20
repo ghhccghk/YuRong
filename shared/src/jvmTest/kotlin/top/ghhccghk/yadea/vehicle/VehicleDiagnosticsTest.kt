@@ -103,6 +103,28 @@ class VehicleDiagnosticsTest {
         assertFalse(VehicleDiagnosticsFormatter.locationRows(null, status).isEmpty())
     }
 
+    @Test
+    fun lostModeUsesSmsSceneThenLossValueCodes() = runBlocking {
+        val requests = mutableListOf<HttpRequest>()
+        val gateway = YadeaLostModeGateway(
+            transport = object : HttpTransport {
+                override suspend fun execute(request: HttpRequest): HttpResponse {
+                    requests += request
+                    return HttpResponse(200, encrypted("""{"success":true}"""))
+                }
+            },
+            tokenProvider = { "token" },
+            timestampProvider = { 1L },
+        )
+
+        assertTrue(gateway.sendCode("13500000000").success)
+        assertTrue(gateway.verifyCode("13500000000", "123456").success)
+        assertTrue(gateway.setLostMode("VIN", enabled = true).success)
+        assertTrue(requests[0].url.endsWith(YadeaLostModeGateway.SEND_CODE_PATH))
+        assertTrue(requests[1].url.endsWith(YadeaLostModeGateway.VERIFY_CODE_PATH))
+        assertTrue(requests[2].url.contains("vin=VIN&value=00"))
+    }
+
     private fun ttpInfoWithFaults(): TtpInfo = TtpInfoParser.parse(faultTestFrame())
 
     private fun faultTestFrame(): ByteArray {

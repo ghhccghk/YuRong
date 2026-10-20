@@ -1,6 +1,7 @@
 package top.ghhccghk.yadea.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -8,11 +9,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
+import top.ghhccghk.yadea.vehicle.LostModeController
 import top.ghhccghk.yadea.vehicle.TtpInfo
 import top.ghhccghk.yadea.vehicle.VehicleCloudStatus
 import top.ghhccghk.yadea.vehicle.VehicleDiagnosticsFormatter
@@ -26,14 +33,27 @@ fun VehicleDiagnosticsScreen(
     connected: Boolean,
     profile: VehicleProfile?,
     faultController: VehicleFaultController,
+    lostModeController: LostModeController,
+    accountMobile: String,
     contentPadding: PaddingValues,
     onRefreshCloudStatus: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val faultState by faultController.state.collectAsState()
+    val lostState by lostModeController.state.collectAsState()
+    var showLostModeSheet by remember { mutableStateOf(false) }
+    var lostModeTarget by remember { mutableStateOf(true) }
+    var lostModePhone by remember(accountMobile) { mutableStateOf(accountMobile) }
+    var lostModeCode by remember { mutableStateOf("") }
     val dimensions = AppDesign.dimensions
     LaunchedEffect(profile?.modelNo) {
         profile?.modelNo?.takeIf { it.isNotBlank() }?.let(faultController::refresh)
+    }
+    LaunchedEffect(lostState.message) {
+        val message = lostState.message.orEmpty()
+        if (message.contains("已开启") || message.contains("已关闭")) {
+            showLostModeSheet = false
+        }
     }
     val faultCodes = VehicleDiagnosticsFormatter.faultCodes(status)
     val cloudFaults = VehicleDiagnosticsFormatter.cloudFaultRows(faultState.report)
@@ -43,11 +63,12 @@ fun VehicleDiagnosticsScreen(
     val locationRows = VehicleDiagnosticsFormatter.locationRows(status, cloudStatus)
     val hasFault = faultCodes.isNotEmpty() || faultState.report?.hasFaults == true
 
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = contentPadding,
-        verticalArrangement = Arrangement.spacedBy(dimensions.sectionSpacing),
-    ) {
+    Box(modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = contentPadding,
+            verticalArrangement = Arrangement.spacedBy(dimensions.sectionSpacing),
+        ) {
         item {
             AppPageHeader(
                 title = "车辆诊断",
@@ -153,7 +174,7 @@ fun VehicleDiagnosticsScreen(
                     }
                 }
                 AppText(
-                    text = "外部胎压设备需要独立的 BLE 外设链路；当前版本未接入时不会伪造胎压值。",
+                    text = "前后轮胎压来自云端最近一次上报，通常由车辆绑定的外部胎压传感器采集；没有外设数据时不会伪造胎压值。",
                     style = AppDesign.typography.summary,
                     color = AppDesign.colors.onSurfaceVariant,
                     modifier = Modifier.padding(
@@ -213,8 +234,107 @@ fun VehicleDiagnosticsScreen(
                 AppTip(
                     kind = AppTipKind.Warning,
                     title = "报失模式需要短信验证",
-                    message = "原 App 在开启或关闭报失模式前会向车主手机发送验证码，并限制单位时间内的发送次数。当前版本只展示状态，不在未完成验证流程时直接下发报失命令。",
+                    message = "开启或关闭前会向车主手机发送验证码，云端校验通过后才会写入车辆状态。请勿频繁请求验证码；原 App 对单位时间内的发送次数有限制。",
                 )
+                AppOutlinedButton(
+                    onClick = {
+                        lostModeTarget = cloudStatus?.lossState != 1
+                        lostModePhone = accountMobile
+                        lostModeCode = ""
+                        showLostModeSheet = true
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(
+                        horizontal = dimensions.itemHorizontalPadding,
+                        vertical = dimensions.itemVerticalPadding,
+                    ),
+                    enabled = lostModeController.available && !lostState.busy,
+                ) {
+                    AppText(
+                        if (cloudStatus?.lossState == 1) "关闭报失模式" else "开启报失模式",
+                        style = AppDesign.typography.button,
+                    )
+                }
+                lostState.message?.let { message ->
+                    AppText(
+                        text = message,
+                        style = AppDesign.typography.summary,
+                        color = AppDesign.colors.onSurfaceVariant,
+                        modifier = Modifier.padding(
+                            horizontal = dimensions.itemHorizontalPadding,
+                            vertical = dimensions.itemVerticalPadding,
+                        ),
+                    )
+                }
+            }
+        }
+        }
+        AppBottomSheet(
+            show = showLostModeSheet,
+            onDismissRequest = {
+                if (!lostState.busy) showLostModeSheet = false
+            },
+            title = if (lostModeTarget) "开启报失模式" else "关闭报失模式",
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+            ) {
+                AppText(
+                    text = "验证码会发送到车主手机；通过校验后才会写入车辆报失状态。",
+                    style = AppDesign.typography.summary,
+                    color = AppDesign.colors.onSurfaceVariant,
+                )
+                AppTextField(
+                    value = lostModePhone,
+                    onValueChange = { lostModePhone = it.filter(Char::isDigit).take(11) },
+                    label = "车主手机号",
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !lostState.busy,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+                ) {
+                    AppTextField(
+                        value = lostModeCode,
+                        onValueChange = { lostModeCode = it.filter(Char::isDigit).take(6) },
+                        label = "验证码",
+                        modifier = Modifier.weight(1f),
+                        enabled = !lostState.busy,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                    AppOutlinedButton(
+                        onClick = { lostModeController.sendCode(lostModePhone) },
+                        enabled = !lostState.busy && lostModePhone.isNotBlank(),
+                    ) {
+                        AppText(
+                            if (lostState.busy) "请稍候" else "发送验证码",
+                            style = AppDesign.typography.button,
+                        )
+                    }
+                }
+                AppButton(
+                    onClick = {
+                        profile?.vin?.takeIf { it.isNotBlank() }?.let { vin ->
+                            lostModeController.apply(
+                                vin = vin,
+                                mobile = lostModePhone,
+                                code = lostModeCode,
+                                enabled = lostModeTarget,
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !lostState.busy &&
+                        lostModePhone.isNotBlank() &&
+                        lostModeCode.isNotBlank(),
+                ) {
+                    AppText(
+                        if (lostModeTarget) "验证并开启" else "验证并关闭",
+                        style = AppDesign.typography.button,
+                    )
+                }
             }
         }
     }
