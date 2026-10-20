@@ -287,10 +287,17 @@ fun AppTopBar(
             // 从脚手架下发的捕获层读取模糊能力：为空表示当前未启用模糊或平台不支持，
             // 此时完全保持原生纯色顶栏，不引入任何额外绘制。
             val backdrop = LocalAppBlurBackdrop.current
+            // Miuix 的 TopAppBar 默认取 surface；Monet 下这仍是近白色，和动态 background 不一致。
+            // 与 Material 3 分支共用同一语义 token，保证顶栏随种子色/动态取色一起变化。
+            val topBarColor = AppDesign.colors.background
+            val titleColor = AppDesign.colors.onBackground
             if (backdrop == null) {
                 MiuixTopAppBar(
                     title = title,
                     modifier = modifier,
+                    color = topBarColor,
+                    titleColor = titleColor,
+                    largeTitleColor = titleColor,
                     actions = { actions?.invoke(this) },
                     scrollBehavior = scrollBehavior?.miuix,
                 )
@@ -305,6 +312,8 @@ fun AppTopBar(
                     ),
                     // 底色必须透明，否则会盖住刚画好的模糊层。
                     color = Color.Transparent,
+                    titleColor = titleColor,
+                    largeTitleColor = titleColor,
                     actions = { actions?.invoke(this) },
                     scrollBehavior = scrollBehavior?.miuix,
                 )
