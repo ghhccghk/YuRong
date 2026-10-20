@@ -577,16 +577,14 @@ private fun MainScreenContent(
 
 @Composable
 fun appPagePadding(scaffoldPadding: PaddingValues): PaddingValues {
-    val useMiuix = LocalUiThemeStyle.current == UiThemeStyle.Miuix
     val dimensions = AppDesign.dimensions
-    // useMiuix 沿用你原来那处的取法
-    val horizontal = if (useMiuix) 0.dp else dimensions.pageHorizontalPadding
-    val vertical = if (useMiuix) 0.dp else dimensions.pageVerticalPadding
+    // 页面级留白只有一个来源：Miuix 与 Material 3 使用相同的 16dp 水平、12dp 垂直边距。
+    // Scaffold 只负责顶栏、底栏与系统栏避让，这里在其基础上叠加页面留白，避免各页重复计算。
     return PaddingValues(
-        start = horizontal,
-        end = horizontal,
-        top = vertical + scaffoldPadding.calculateTopPadding(),
-        bottom = vertical + scaffoldPadding.calculateBottomPadding(),
+        start = dimensions.pageHorizontalPadding,
+        end = dimensions.pageHorizontalPadding,
+        top = dimensions.pageVerticalPadding + scaffoldPadding.calculateTopPadding(),
+        bottom = dimensions.pageVerticalPadding + scaffoldPadding.calculateBottomPadding(),
     )
 }
 
@@ -636,7 +634,8 @@ private fun MainDestinationContent(
             // 连接页承载两个子功能：设备连接与投屏。
             MainDestination.Connection -> ConnectionHubScreen(
                 section = connectionSection,
-                contentPadding = appPagePadding(contentPadding),       // 新增
+                // Hub 只消费 Scaffold 的系统栏避让；子页面的 LazyColumn 各自提供页面级留白。
+                contentPadding = contentPadding,
                 onSectionChange = onConnectionSectionChange,
                 viewModel = viewModel,
                 scrollBehavior = scrollBehavior,
@@ -701,8 +700,8 @@ private fun ConnectionHubScreen(
     contentPadding: PaddingValues,
 ) {
     val dimensions = AppDesign.dimensions
-    Column(modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState())
-        .padding(contentPadding),) {
+    // 外层只负责分段控件与子页面占位；滚动交给子页面各自的 LazyColumn，避免嵌套滚动抢手势。
+    Column(modifier = modifier.fillMaxSize().padding(contentPadding)) {
         AppSegmentedControl(
             options = ConnectionSection.entries.map { it.label },
             selectedIndex = ConnectionSection.entries.indexOf(section),

@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -30,6 +29,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SegmentedButton
@@ -509,31 +509,86 @@ fun AppSegmentedControl(
     )
 }
 
+/**
+ * 只读状态胶囊：圆点表达连接状态，文字说明当前结果。
+ *
+ * 它不响应用户点击，因此两套风格都使用静态 Surface，不注册按钮或点击语义。
+ * 已连接使用 success 容器色，未连接使用 surfaceVariant，保证浅色与深色下都有足够对比度。
+ */
 @Composable
-fun AppStatusChip(connected: Boolean, text: String) {
+fun AppStatusChip(
+    connected: Boolean,
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    val containerColor = if (connected) {
+        AppDesign.colors.successContainer
+    } else {
+        AppDesign.colors.surfaceVariant
+    }
+    val contentColor = if (connected) {
+        AppDesign.colors.onSuccessContainer
+    } else {
+        AppDesign.colors.onSurfaceVariant
+    }
     AppStyleContent(
         material = {
-            AssistChip(
-                onClick = {},
-                label = {
-                    Text(
-                        text = text,
-                        color = if (connected) AppDesign.colors.primary
-                        else AppDesign.colors.outline,
-                    )
-                },
-                leadingIcon = { Text(if (connected) "●" else "○") },
-            )
+            Surface(
+                modifier = modifier,
+                shape = AppDesign.shapes.item,
+                color = containerColor,
+                contentColor = contentColor,
+            ) {
+                AppStatusChipContent(
+                    connected = connected,
+                    text = text,
+                    contentColor = contentColor,
+                )
+            }
         },
         miuix = {
-            Text(
-                text = if (connected) "● $text" else "○ $text",
-                color = if (connected) MiuixTheme.colorScheme.primary
-                else MiuixTheme.colorScheme.onSurfaceVariantActions,
-                style = AppDesign.typography.summary,
-            )
+            MiuixSurface(
+                modifier = modifier,
+                shape = AppDesign.shapes.item,
+                color = containerColor,
+                contentColor = contentColor,
+            ) {
+                AppStatusChipContent(
+                    connected = connected,
+                    text = text,
+                    contentColor = contentColor,
+                )
+            }
         },
     )
+}
+
+@Composable
+private fun AppStatusChipContent(
+    connected: Boolean,
+    text: String,
+    contentColor: Color,
+) {
+    val dimensions = AppDesign.dimensions
+    Row(
+        modifier = Modifier.padding(
+            horizontal = dimensions.controlSpacing,
+            vertical = dimensions.compactSpacing,
+        ),
+        horizontalArrangement = Arrangement.spacedBy(dimensions.compactSpacing),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AppText(
+            text = if (connected) "●" else "○",
+            style = AppDesign.typography.caption,
+            color = contentColor,
+        )
+        AppText(
+            text = text,
+            style = AppDesign.typography.summary,
+            color = contentColor,
+        )
+    }
 }
 
 /** 设置项左侧图标的尺寸，与两套风格的标题字号保持视觉平衡。 */
