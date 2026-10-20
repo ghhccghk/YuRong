@@ -240,9 +240,22 @@ class CarSettingsController(
                 "33" -> item.copy(
                     kind = CarSettingKind.Toggle(status.extended.simulatedSoundWaveStatus != 0),
                 )
-                "86" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.brightnessAdjustSwitch != 0),
-                )
+                "86" -> when (val kind = item.kind) {
+                    is CarSettingKind.Toggle -> item.copy(
+                        kind = kind.copy(
+                            checked = status.extended.brightnessAdjustSwitch != 0,
+                        ),
+                    )
+                    is CarSettingKind.Slider -> {
+                        val brightness = status.extended.brightnessAdjustValue
+                        if (brightness in 0..100) {
+                            item.copy(kind = kind.copy(value = brightness.toFloat()))
+                        } else {
+                            item
+                        }
+                    }
+                    else -> item
+                }
                 "19" -> item.copy(
                     kind = CarSettingKind.Toggle(
                         status.extended.automaticHeadlightFunctionStatus != 0,

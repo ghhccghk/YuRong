@@ -317,7 +317,8 @@ class YadeaCarSettingsGateway(
             "bikeModelTopSpeedMax", "bikeModelTopSpeedMin", "bikeSpeedMax",
             "bleApproachPowerOnDistance", "bleApproachPowerOnEnable", "bleDistance",
             "bleLeavePowerOffDistance", "bleLeavePowerOffEnable", "bleUnlockOn",
-            "capacity", "chargeUlVal", "chargeWattSwitch", "chargeWattVal",
+            "brightnessAdjustValue", "capacity", "chargeUlVal", "chargeWattSwitch",
+            "chargeWattVal",
             "colorEggSoundEffect", "cutPowerOn", "distance", "distanceOn",
             "dumpAlarm", "emergencyContact", "highestSpeedLimit", "lowBatTelWarning",
             "lowBatWarningEndTime", "lowBatWarningStartTime", "modeOn", "nfcOn",
@@ -470,6 +471,28 @@ object CloudCarSettingMapper {
                 kind = CarSettingKind.Choice(
                     selectedIndex = 0,
                     options = listOf("5", "10", "15", "30"),
+                ),
+                writable = config.isAuth != false,
+                sort = (config.sort.toIntOrNull() ?: 0) + 1,
+            )
+        }
+        cloud.configs.firstOrNull { it.confId.trim() == "86" }?.let { config ->
+            val brightness = cloud.intValue("brightnessAdjustValue")
+                ?.takeIf { it in 0..100 }
+                ?: 80
+            items += CarSettingItem(
+                id = "cloud:86:value",
+                configId = "86",
+                title = "仪表亮度",
+                summary = "手动调节仪表屏幕亮度；需同时开启亮度调节开关",
+                classification = classificationOf("86", config),
+                group = groupOf(config, classificationOf("86", config)),
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Slider(
+                    value = brightness.toFloat(),
+                    range = 0f..100f,
+                    steps = 99,
+                    unit = "%",
                 ),
                 writable = config.isAuth != false,
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,
@@ -639,6 +662,10 @@ object CloudCarSettingMapper {
             selectedIndex = 0,
             options = listOf("48V", "60V", "70V"),
         )
+        // 边撑自动关机：原 App 只给开关，依赖边撑感应（confId 2）。
+        "39" -> CarSettingKind.Toggle(false)
+        // 报失模式需要短信验证，统一在“诊断 · 定位与报失”中操作。
+        "8" -> CarSettingKind.Info("请到“诊断 · 定位与报失”中操作")
         "15" -> CarSettingKind.Toggle(
             cloud.boolValue("vehiclePowerDownStatus") == true,
         )
@@ -722,11 +749,11 @@ object CloudCarSettingMapper {
         "75", "76", "77", "82", "85", "91",
     )
     private val IOT_IDS = setOf(
-        "9", "10", "16", "24", "40", "47", "48", "60", "61", "62", "75", "76", "82", "91",
+        "8", "9", "10", "16", "24", "40", "47", "48", "60", "61", "62", "75", "76", "82", "91",
     )
     private val ENTRANCE_IDS = setOf(
-        "4", "5", "7", "8", "9", "10", "11", "14", "15", "17", "18", "20", "24",
-        "25", "27", "31", "33", "39", "41", "47", "48", "50", "55", "58", "59",
+        "4", "5", "7", "9", "10", "11", "14", "15", "17", "18", "20", "24",
+        "25", "27", "31", "33", "41", "47", "48", "50", "55", "58", "59",
         "61", "64", "69", "71", "72", "73", "77", "81", "85", "86", "88", "89",
         "91", "92", "93", "95", "1005",
     )

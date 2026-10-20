@@ -164,6 +164,14 @@ object VehicleSettingCommands {
                 onId = 0xA4,
                 offId = 0xA5,
             )
+            // BraceAutoShutDownActivity：边撑自动关机，依赖边撑感应（confId 2）。
+            "39" -> toggle(
+                kind = kind,
+                onType = "LEAVE_THE_CAR_AUTO_LOCK_ON",
+                offType = "LEAVE_THE_CAR_AUTO_LOCK_OFF",
+                onId = 0x53,
+                offId = 0x54,
+            )
             "81" -> when (kind) {
                 is CarSettingKind.Toggle -> toggle(
                     kind = kind,
@@ -230,16 +238,24 @@ object VehicleSettingCommands {
                 onId = 0x95,
                 offId = 0x96,
             )
-            // BrightnessAdjustmentActivity：同一个命令 ID，用参数区分开关。
-            "86" -> toggle(
-                kind = kind,
-                onType = "BRIGHTNESS_ADJUST_SWITCH",
-                offType = "BRIGHTNESS_ADJUST_SWITCH",
-                onId = 0x135,
-                offId = 0x135,
-                onParameter = 1,
-                offParameter = 0,
-            )
+            // BrightnessAdjustmentActivity：开关走 0x135，手动亮度走 0x134。
+            "86" -> when (kind) {
+                is CarSettingKind.Toggle -> toggle(
+                    kind = kind,
+                    onType = "BRIGHTNESS_ADJUST_SWITCH",
+                    offType = "BRIGHTNESS_ADJUST_SWITCH",
+                    onId = 0x135,
+                    offId = 0x135,
+                    onParameter = 1,
+                    offParameter = 0,
+                )
+                is CarSettingKind.Slider -> VehicleSettingCommand(
+                    commandType = "BRIGHTNESS_ADJUST_VALUE",
+                    commandId = 0x134,
+                    parameter = kind.value.toInt().coerceIn(0, 100),
+                )
+                else -> null
+            }
             "19" -> toggle(
                 kind = kind,
                 onType = "AUTOMATIC_HEADLIGHT_OPEN",

@@ -31,6 +31,7 @@ fun CarSettingsScreen(
     controller: CarSettingsController,
     contentPadding: PaddingValues,
     emergencyContactController: EmergencyContactController? = null,
+    onOpenLostMode: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val state by controller.state.collectAsState()
@@ -38,6 +39,7 @@ fun CarSettingsScreen(
     val scope = rememberCoroutineScope()
     val dimensions = AppDesign.dimensions
     var confirmDisable by remember { mutableStateOf<CarSettingItem?>(null) }
+    var confirmBraceDependency by remember { mutableStateOf<CarSettingItem?>(null) }
     var detailItem by remember { mutableStateOf<CarSettingItem?>(null) }
     var showEmergencyContacts by remember { mutableStateOf(false) }
     var ownerName by remember { mutableStateOf("") }
@@ -120,7 +122,13 @@ fun CarSettingsScreen(
                                 item.writable &&
                                 item.id !in state.pendingIds,
                             pending = item.id in state.pendingIds,
-                            onOpenDetail = { detailItem = item },
+                            onOpenDetail = {
+                                if (item.configId == "8" && onOpenLostMode != null) {
+                                    onOpenLostMode()
+                                } else {
+                                    detailItem = item
+                                }
+                            },
                             onUpdate = { transform ->
                                 val next = transform(item.kind)
                                 if (next is CarSettingKind.Toggle &&
@@ -128,6 +136,21 @@ fun CarSettingsScreen(
                                     item.configId in SAFETY_CONFIRM_IDS
                                 ) {
                                     confirmDisable = item
+                                } else if (next is CarSettingKind.Toggle &&
+                                    next.checked &&
+                                    item.configId == "39"
+                                ) {
+                                    val braceOn = state.items.any {
+                                        it.configId == "2" &&
+                                            (it.kind as? CarSettingKind.Toggle)?.checked == true
+                                    }
+                                    if (braceOn) {
+                                        scope.launch {
+                                            controller.update(item.id, transform)
+                                        }
+                                    } else {
+                                        confirmBraceDependency = item
+                                    }
                                 } else {
                                     scope.launch { controller.update(item.id, transform) }
                                 }
@@ -180,6 +203,33 @@ fun CarSettingsScreen(
             }
         },
         onDismissRequest = { confirmDisable = null },
+    )
+
+    val braceTarget = confirmBraceDependency
+    AppAlertDialog(
+        show = braceTarget != null,
+        title = "开启边撑自动关机",
+        message = "该功能依赖边撑感应。开启时会同时开启边撑感应，是否继续？",
+        onConfirm = {
+            confirmBraceDependency = null
+            braceTarget?.let { item ->
+                scope.launch {
+                    val brace = state.items.firstOrNull { it.configId == "2" }
+                    val braceOn =
+                        (brace?.kind as? CarSettingKind.Toggle)?.checked == true
+                    if (brace != null && !braceOn) {
+                        val enabled = controller.update(brace.id) { current ->
+                            (current as? CarSettingKind.Toggle)?.copy(checked = true) ?: current
+                        }
+                        if (!enabled) return@launch
+                    }
+                    controller.update(item.id) { current ->
+                        (current as? CarSettingKind.Toggle)?.copy(checked = true) ?: current
+                    }
+                }
+            }
+        },
+        onDismissRequest = { confirmBraceDependency = null },
     )
 
     val detailTarget = detailItem

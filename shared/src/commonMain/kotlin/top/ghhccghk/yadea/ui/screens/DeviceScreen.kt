@@ -134,6 +134,7 @@ internal fun VehicleHubScreen(
                     controller = carSettingsController,
                     contentPadding = pagePadding,
                     emergencyContactController = emergencyContactController,
+                    onOpenLostMode = { onSectionChange(VehicleSection.Diagnostics) },
                 )
                 VehicleSection.Ota -> OtaScreen(
                     controller = otaController,
