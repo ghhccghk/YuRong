@@ -77,8 +77,10 @@
   不再静默无响应；不会发送猜测命令。
 - [x] Phase 5.1：新增“车辆诊断”页，展示 TTP 故障码、云端故障等级、
   云端胎压、FCM/FCW/RCW/BSD 雷达、低电量提醒和定位/报失状态。
-- [ ] Phase 5.2：外部胎压 BLE 外设链路未接入；报失模式需要短信验证，
-  当前只读并展示风险说明。
+- [x] Phase 5.2：报失模式已接入车主短信验证、云端校验和
+  `set-param/loss` 写入；外部胎压使用车辆绑定的外部胎压传感器云端最近值。
+- [ ] Phase 5.3：外部胎压设备的独立 BLE 绑定、阈值和实时外设诊断仍需
+  `BlePartsConnect` 外设链路；当前不伪造外设实时状态。
 
 ## Phase 1：云端车辆绑定与多车辆管理
 
@@ -418,9 +420,14 @@ TTP 回填：
 
 未接入项：
 
-- 外部胎压设备使用独立 BLE 外设 TTP，当前 App 尚未建立外设连接，不能伪造读数。
-- 报失模式在原 App 中需要短信验证码、次数限制和车辆 BLE 回执；
-  当前版本只展示云端状态，不直接下发报失命令。
+- 外部胎压设备使用独立 BLE 外设 TTP；当前 App 使用云端
+  `leftFrontPressure/leftRearPressure` 最近值，尚未实现
+  `BlePartsConnect` 的配对、阈值和实时外设诊断。
+- 报失模式已按原 App 顺序接入：
+  `user/sendCode(sendCode=10)` →
+  `user/verifySmsCode(smsScene=10)` →
+  `common-cmd/low-freq/set-param/loss`；
+  `value=00` 开启、`value=01` 关闭。
 
 验收：
 
