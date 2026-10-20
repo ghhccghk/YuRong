@@ -590,6 +590,18 @@ object CloudCarSettingMapper {
         "68", "94", "84" -> CarSettingKind.Toggle(false)
         "76" -> CarSettingKind.Toggle(cloud.boolValue("positioningFunc") == true)
         "45" -> CarSettingKind.Toggle(false)
+        "27" -> CarSettingKind.Choice(
+            selectedIndex = 0,
+            options = listOf("关机不设防", "关机自动设防"),
+        )
+        "31" -> CarSettingKind.Choice(
+            selectedIndex = 0,
+            options = listOf("km/h", "mph"),
+        )
+        "54" -> CarSettingKind.Choice(
+            selectedIndex = 0,
+            options = listOf("48V", "60V", "70V"),
+        )
         "9" -> CarSettingKind.Toggle(cloud.boolValue("alarmOn") == true)
         "24" -> CarSettingKind.Toggle(cloud.boolValue("emergencyContact") == true)
         "75" -> CarSettingKind.Toggle(cloud.boolValue("tamperProofIotEnable") == true)

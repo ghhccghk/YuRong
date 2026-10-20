@@ -118,6 +118,30 @@ object VehicleSettingCommands {
                 onId = 0x92,
                 offId = 0x93,
             )
+            "27" -> {
+                val choice = kind as? CarSettingKind.Choice ?: return null
+                if (choice.selectedIndex == 0) {
+                    VehicleSettingCommand("FORTIFY_MODE_NO", 0x8D)
+                } else {
+                    VehicleSettingCommand("FORTIFY_MODE_AUTO", 0x8E)
+                }
+            }
+            "31" -> {
+                val choice = kind as? CarSettingKind.Choice ?: return null
+                if (choice.selectedIndex == 0) {
+                    VehicleSettingCommand("IMPERIAL_UNIT_KM", 0x89)
+                } else {
+                    VehicleSettingCommand("IMPERIAL_UNIT_MILES", 0x8A)
+                }
+            }
+            "54" -> {
+                val choice = kind as? CarSettingKind.Choice ?: return null
+                VehicleSettingCommand(
+                    commandType = "COMMAND_CONST_VOLTAGE_SETTING",
+                    commandId = 0xC6,
+                    parameter = (choice.selectedIndex + 1).coerceIn(1, 3),
+                )
+            }
             "13" -> toggle(
                 kind = kind,
                 onType = "WARING_SOUND_OPEN",

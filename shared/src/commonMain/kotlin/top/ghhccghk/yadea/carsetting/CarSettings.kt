@@ -306,6 +306,22 @@ class CarSettingsController(
                 "45" -> item.copy(
                     kind = CarSettingKind.Toggle(status.cruiseControl != 0),
                 )
+                "27" -> item.copy(
+                    kind = (item.kind as? CarSettingKind.Choice)?.copy(
+                        selectedIndex = status.extended.offModeStatus.coerceIn(0, 1),
+                    ) ?: item.kind,
+                )
+                "31" -> item.copy(
+                    kind = (item.kind as? CarSettingKind.Choice)?.copy(
+                        selectedIndex = status.extended.metricSystemStatus.coerceIn(0, 1),
+                    ) ?: item.kind,
+                )
+                "54" -> item.copy(
+                    kind = (item.kind as? CarSettingKind.Choice)?.copy(
+                        selectedIndex = (status.extended.voltageSettingStatus - 1)
+                            .coerceIn(0, 2),
+                    ) ?: item.kind,
+                )
                 "72" -> item.copy(
                     kind = CarSettingKind.Toggle(status.extended.longEnduranceStatus != 0),
                 )

@@ -120,6 +120,10 @@ data class TtpExtendedInfo(
     val sideBraceStatus: Int,
     /** 倾倒提醒开关状态。`0x1A` bit4-5。 */
     val tiltWarningStatus: Int,
+    /** 设防模式。`0x1D` bit0-1：0 关机不设防，1 关机自动设防。 */
+    val offModeStatus: Int,
+    /** 速度单位。`0x41` bit3-4：0 km/h，1 mph。 */
+    val metricSystemStatus: Int,
     /** 模拟声浪音量。`0x92` bit3-7。 */
     val simulatedSoundWaveVolumeStatus: Int,
     /** 模拟声浪在线状态。`0xA3` bit0-1。 */
@@ -613,6 +617,8 @@ internal object TtpInfoParser {
             customizeTcs = Ttp.G(d, 0x8A, 4),
             sideBraceStatus = Ttp.G(d, 0x25, 0),
             tiltWarningStatus = Ttp.G(d, 0x1A, 4),
+            offModeStatus = Ttp.G(d, 0x1D, 0),
+            metricSystemStatus = Ttp.G(d, 0x41, 3),
             otdSwitch = Ttp.G(d, 0x2F, 2),
             sleepModeSwitch = Ttp.G(d, 0x88, 4),
             seatPowerStatus = Ttp.G(d, 0x2F, 6),
