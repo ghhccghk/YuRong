@@ -651,8 +651,9 @@ object CloudCarSettingMapper {
             steps = 6,
         )
         "2", "32" -> CarSettingKind.Toggle(false)
-        "42", "43", "44", "51" ->
+        "43", "44", "51" ->
             CarSettingKind.Info("状态由车辆回读")
+        "42" -> CarSettingKind.Toggle(false)
         "47" -> {
             // ChargingPowerActivity：200..1000W，50W 步进；最大值按云端/车型上限 1000W。
             val maxWatt = 1000

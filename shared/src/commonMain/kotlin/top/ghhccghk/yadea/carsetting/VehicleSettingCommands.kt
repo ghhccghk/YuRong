@@ -157,6 +157,13 @@ object VehicleSettingCommands {
                 )
                 else -> null
             }
+            "42" -> toggle(
+                kind = kind,
+                onType = "DISPLAY_REMAINING_MILEAGE_OPEN",
+                offType = "DISPLAY_REMAINING_MILEAGE_CLOSE",
+                onId = 0xA4,
+                offId = 0xA5,
+            )
             "13" -> toggle(
                 kind = kind,
                 onType = "WARING_SOUND_OPEN",

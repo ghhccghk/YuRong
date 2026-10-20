@@ -337,6 +337,11 @@ class CarSettingsController(
                     )
                     else -> item
                 }
+                "42" -> item.copy(
+                    kind = CarSettingKind.Toggle(
+                        status.extended.remainingMileageDebugStatus != 0,
+                    ),
+                )
                 "72" -> item.copy(
                     kind = CarSettingKind.Toggle(status.extended.longEnduranceStatus != 0),
                 )

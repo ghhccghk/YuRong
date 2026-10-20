@@ -272,6 +272,7 @@ fun MainScreen(
         vehicleStatus?.extended?.voltageSettingStatus,
         vehicleStatus?.extended?.vehiclePowerDownStatus,
         vehicleStatus?.extended?.vehiclePowerDownTimeStatus,
+        vehicleStatus?.extended?.remainingMileageDebugStatus,
         vehicleStatus?.cruiseControl,
         vehicleStatus?.extended?.simulatedSoundWaveStatus,
         vehicleStatus?.extended?.brightnessAdjustSwitch,
