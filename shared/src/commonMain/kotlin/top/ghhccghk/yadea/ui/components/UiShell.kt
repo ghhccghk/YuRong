@@ -290,11 +290,10 @@ fun AppTopBar(
             // 从脚手架下发的捕获层读取模糊能力：为空表示当前未启用模糊或平台不支持，
             // 此时完全保持原生纯色顶栏，不引入任何额外绘制。
             val backdrop = LocalAppBlurBackdrop.current
-            // Miuix 的 TopAppBar 默认取 surface；Monet 下这仍是近白色，和动态 background 不一致。
-            // 取 Miuix 自己的 background：开启 Monet 时随 Miuix 动态色变化，
-            // 关闭 Monet 时保持原生 HyperOS 配色，不把 Material 色板混进 Miuix。
-            val topBarColor = AppDesign.colors.background
-            val titleColor = AppDesign.colors.onBackground
+            // Miuix 的页面底色是 surface：顶栏与页面背景保持一致。
+            // 开启 Monet 时 surface 由动态色生成，关闭时保持 HyperOS 原生背景。
+            val topBarColor = AppDesign.colors.surface
+            val titleColor = AppDesign.colors.onSurface
             if (backdrop == null) {
                 MiuixTopAppBar(
                     title = title,
