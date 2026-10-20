@@ -368,6 +368,17 @@ TTP 回填：
 | --- | --- |
 | `62` | `seatHeatSwitchStatus`、`seatHeatLevelStatus` |
 | `63` | `tPowerStatus` |
+| `2` | `sideBraceStatus` |
+| `32` | `tiltWarningStatus` |
+| `45` | `cruiseControl` |
+| `27` | `offModeStatus` |
+| `31` | `metricSystemStatus` |
+| `54` | `voltageSettingStatus` |
+| `15` | `vehiclePowerDownStatus`、`vehiclePowerDownTimeStatus` |
+| `42` | `remainingMileageDebugStatus` |
+| `51` | `syncTimeResultStatus` |
+| `73` | `ambientStatus` |
+| `81` | `withGoHomeStatus`、`withGoHomeTimeStatus` |
 | `72` | `longEnduranceStatus` |
 | `79` | `seatPowerStatus` |
 | `80` | `otdSwitch` |
@@ -375,12 +386,11 @@ TTP 回填：
 
 仍保持只读的项：
 
-- `15/59` 离车定时关机/报警锁：原 App 使用独立子页面和额外参数。
-- `27` 设防模式、`31` 速度单位、`50` 仪表风格、`54` 电压平台、
-  `58` 档位设置、`60` 电池设置、`73` 氛围灯、`81` 大灯延时、
-  `1005` 自定义按键：尚未提取完整的二级页写入协议。
-- `42` 剩余里程显示、`43` 倒车模式、`44/64/89` 辅助推行、
-  `51` 仪表时间同步：云端状态字段或开关帧参数尚不完整，继续只读。
+- `59` 报警锁：仍需确认它和 `15` 是否共用同一组定时关机参数。
+- `50` 仪表风格、`58` 档位设置、`60` 电池设置、`1005` 自定义按键：
+  尚未提取完整的二级页写入协议。
+- `43` 倒车模式、`44/64/89` 辅助推行：依赖联动开关或独立骑行模式。
+- `73` 氛围灯颜色、亮度和模式：基础开关已接入，二级参数仍待提取。
 
 验收：
 
