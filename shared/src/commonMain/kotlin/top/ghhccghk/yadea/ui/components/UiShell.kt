@@ -58,6 +58,9 @@ import top.yukonga.miuix.kmp.basic.ScrollBehavior as MiuixScrollBehaviorState
 import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
+/** 模糊顶栏上的动态色着色强度：保留模糊层次，同时让底色明显跟随应用配色。 */
+private const val MiuixTopBarBlurTintAlpha = 0.82f
+
 data class AppNavigationItem(
     val label: String,
     val icon: ImageVector,
@@ -275,8 +278,8 @@ fun AppTopBar(
                     title = {},
                     modifier = modifier,
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = AppDesign.colors.background,
-                        actionIconContentColor = AppDesign.colors.onBackground,
+                        containerColor = AppDesign.colors.topBar,
+                        actionIconContentColor = AppDesign.colors.onTopBar,
                     ),
                     scrollBehavior = scrollBehavior?.material,
                     actions = { actions() },
@@ -288,9 +291,10 @@ fun AppTopBar(
             // 此时完全保持原生纯色顶栏，不引入任何额外绘制。
             val backdrop = LocalAppBlurBackdrop.current
             // Miuix 的 TopAppBar 默认取 surface；Monet 下这仍是近白色，和动态 background 不一致。
-            // 与 Material 3 分支共用同一语义 token，保证顶栏随种子色/动态取色一起变化。
-            val topBarColor = AppDesign.colors.background
-            val titleColor = AppDesign.colors.onBackground
+            // 语义 token 在 Miuix 分支取应用的动态配色，不受 Monet 开关影响，
+            // 避免原生 HyperOS 的纯黑/纯白顶栏与动态色页面割裂。
+            val topBarColor = AppDesign.colors.topBar
+            val titleColor = AppDesign.colors.onTopBar
             if (backdrop == null) {
                 MiuixTopAppBar(
                     title = title,
@@ -310,8 +314,8 @@ fun AppTopBar(
                         shape = RectangleShape,
                         blurRadius = BlurDefaults.BlurRadius,
                     ),
-                    // 底色必须透明，否则会盖住刚画好的模糊层。
-                    color = Color.Transparent,
+                    // 在模糊层之上叠加动态顶栏色；全透明会让模糊区域完全沿用底层原生 surface。
+                    color = topBarColor.copy(alpha = MiuixTopBarBlurTintAlpha),
                     titleColor = titleColor,
                     largeTitleColor = titleColor,
                     actions = { actions?.invoke(this) },
