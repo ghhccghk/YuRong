@@ -122,11 +122,28 @@ interface AuthGateway {
 
 /** `usr_info` 的扁平 JSON 编解码，避免为几个字段引入序列化依赖。 */
 internal object AuthProfileCodec {
+    /** 完整编码，保留 `token` 字段；仅用于旧数据兼容与测试。 */
     fun encode(user: AuthUser): String = buildString {
+        encodeFields(user, includeToken = true)
+    }
+
+    /**
+     * 安全存储用的 profile 编码：不写入 token。
+     *
+     * token 由 [top.ghhccghk.yadea.settings.SecretStore] 单独保存，读取时再回填到
+     * [AuthUser.token]，避免 `usr_info` JSON 里出现第二份明文凭据。
+     */
+    fun encodeProfile(user: AuthUser): String = buildString {
+        encodeFields(user, includeToken = false)
+    }
+
+    private fun StringBuilder.encodeFields(user: AuthUser, includeToken: Boolean) {
         append('{')
         appendField("id", user.id)
-        append(',')
-        appendField("token", user.token)
+        if (includeToken) {
+            append(',')
+            appendField("token", user.token)
+        }
         append(',')
         appendField("tokenExpire", user.tokenExpire)
         append(',')

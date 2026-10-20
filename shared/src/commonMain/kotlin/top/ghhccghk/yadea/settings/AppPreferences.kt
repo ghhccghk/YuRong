@@ -99,6 +99,7 @@ data class VehicleConnectionPreferences(
 
 class AppPreferences(
     private val store: PreferenceStore,
+    private val secretStore: SecretStore? = null,
 ) {
     fun read(): AppAppearance = decode(
         uiStyle = store.read(AppPreferenceKeys.uiStyle),
@@ -179,8 +180,10 @@ class AppPreferences(
 
     /** 读取持久化登录态；损坏的用户 JSON 会回退为未登录。 */
     fun readAuth(): AuthSessionSnapshot {
-        val token = store.read(AppPreferenceKeys.usrToken)
+        val token = readSecureToken()
+        // Token 单独保存；旧 profile 里即使还带 token，也以安全存储/旧 token 字段为准。
         val user = AuthProfileCodec.decode(store.read(AppPreferenceKeys.usrInfo))
+            ?.copy(token = token)
         return AuthSessionSnapshot(
             token = token,
             user = user,
@@ -201,10 +204,11 @@ class AppPreferences(
         }
         val currentLoginId = store.read(AppPreferenceKeys.loginId)
             .ifBlank { newLoginId() }
+        val tokenResult = writeSecureToken(user.token)
+        if (tokenResult != PreferenceWriteResult.Success) return tokenResult
         val writes = listOf(
             AppPreferenceKeys.schemaVersion to AppPreferenceKeys.SCHEMA_VERSION,
-            AppPreferenceKeys.usrToken to user.token,
-            AppPreferenceKeys.usrInfo to AuthProfileCodec.encode(user),
+            AppPreferenceKeys.usrInfo to AuthProfileCodec.encodeProfile(user),
             AppPreferenceKeys.loginId to currentLoginId,
         )
         for ((key, value) in writes) {
@@ -214,13 +218,55 @@ class AppPreferences(
         return PreferenceWriteResult.Success
     }
 
+    /**
+     * 迁移旧版本 profile：去掉 `usr_info` 中的明文 token。
+     *
+     * 新登录写入已经使用 [AuthProfileCodec.encodeProfile]；这里覆盖升级用户，
+     * 在应用启动时调用一次即可。
+     */
+    suspend fun migrateLegacyAuthProfile(): PreferenceWriteResult {
+        val raw = store.read(AppPreferenceKeys.usrInfo)
+        val user = AuthProfileCodec.decode(raw) ?: return PreferenceWriteResult.Success
+        val token = readSecureToken()
+        val sanitized = AuthProfileCodec.encodeProfile(user.copy(token = token))
+        if (sanitized == raw) return PreferenceWriteResult.Success
+        return writeTyped(AppPreferenceKeys.usrInfo, sanitized)
+    }
+
     /** 只清理登录相关 key，不动外观设置。 */
     suspend fun clearAuth(): PreferenceWriteResult {
+        val secretResult = deleteSecureToken()
+        if (secretResult != PreferenceWriteResult.Success) return secretResult
         for (key in AppPreferenceKeys.authKeys) {
             val result = store.delete(key)
             if (result != PreferenceWriteResult.Success) return result
         }
         return PreferenceWriteResult.Success
+    }
+
+    private fun readSecureToken(): String {
+        val secure = secretStore?.let {
+            runCatching { it.read(AppSecretKeys.userToken) }.getOrNull()
+        }
+        // 未接入安全后端的平台继续读取旧字段；Android 上安全存储会负责迁移并删除它。
+        return secure ?: store.read(AppPreferenceKeys.usrToken)
+    }
+
+    private suspend fun writeSecureToken(token: String): PreferenceWriteResult {
+        val secure = secretStore ?: return writeTyped(AppPreferenceKeys.usrToken, token)
+        return runCatching {
+            secure.write(AppSecretKeys.userToken, token)
+            // 安全写入完成后清理普通偏好里的旧明文。
+            store.delete(AppPreferenceKeys.usrToken)
+        }.getOrElse { PreferenceWriteResult.Failure(it) }
+    }
+
+    private suspend fun deleteSecureToken(): PreferenceWriteResult {
+        val secure = secretStore ?: return PreferenceWriteResult.Success
+        return runCatching {
+            secure.delete(AppSecretKeys.userToken)
+            PreferenceWriteResult.Success
+        }.getOrElse { PreferenceWriteResult.Failure(it) }
     }
 
     fun readVehicleConnection(): VehicleConnectionPreferences =

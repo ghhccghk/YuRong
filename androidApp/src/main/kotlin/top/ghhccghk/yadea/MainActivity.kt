@@ -24,6 +24,7 @@ import top.ghhccghk.yadea.ble.AndroidBleAdapter
 import top.ghhccghk.yadea.ble.BleConnectionState
 import top.ghhccghk.yadea.carsetting.VehicleSettingCommand
 import top.ghhccghk.yadea.settings.AppPreferences
+import top.ghhccghk.yadea.settings.AndroidSecretStore
 import top.ghhccghk.yadea.settings.SharedPreferencesPreferenceStore
 import top.ghhccghk.yadea.network.GatewayClientInfo
 import top.ghhccghk.yadea.network.createHttpTransport
@@ -99,7 +100,13 @@ class MainActivity : ComponentActivity() {
         val vehicleBleAdapter = AndroidVehicleBleSession.get(this).also { bleAdapter = it }
         val vehicleStatus = BleVehicleStatusSource(vehicleBleAdapter, lifecycleScope)
             .also { vehicleStatusSource = it }
-        val appPreferences = AppPreferences(SharedPreferencesPreferenceStore(this))
+        val appPreferences = AppPreferences(
+            store = SharedPreferencesPreferenceStore(this),
+            secretStore = AndroidSecretStore(this),
+        )
+        lifecycleScope.launch {
+            appPreferences.migrateLegacyAuthProfile()
+        }
         lifecycleScope.launch {
             vehicleBleAdapter.connectionState.collect { state ->
                 when (state) {
