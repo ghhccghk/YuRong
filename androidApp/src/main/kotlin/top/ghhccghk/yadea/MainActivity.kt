@@ -45,6 +45,8 @@ import top.ghhccghk.yadea.vehicle.YadeaVehicleBindingGateway
 import top.ghhccghk.yadea.vehicle.YadeaVehicleBleTokenGateway
 import top.ghhccghk.yadea.vehicle.YadeaVehicleFaultGateway
 import top.ghhccghk.yadea.vehicle.YadeaLostModeGateway
+import top.ghhccghk.yadea.vehicle.EmergencyContactController
+import top.ghhccghk.yadea.vehicle.YadeaEmergencyContactGateway
 import top.ghhccghk.yadea.wifi.AndroidWifiP2pManager
 import top.ghhccghk.yadea.wifi.AndroidWifiConnectionManager
 import top.ghhccghk.yadea.mirror.source.AndroidFrameSourceFactory
@@ -205,6 +207,17 @@ class MainActivity : ComponentActivity() {
             scope = lifecycleScope,
             onChanged = { profileController.refresh() },
         )
+        val emergencyContactController = EmergencyContactController(
+            gateway = YadeaEmergencyContactGateway(
+                transport = httpTransport,
+                tokenProvider = { appPreferences.readAuth().token },
+                deviceIdProvider = deviceIdProvider,
+                clientInfoProvider = { clientInfo },
+                timestampProvider = { System.currentTimeMillis() },
+            ),
+            vinProvider = { vehicleProfileSource.profile.value?.vin.orEmpty() },
+            scope = lifecycleScope,
+        )
         val authGateway = YadeaAuthGateway(
             transport = httpTransport,
             timestampProvider = { System.currentTimeMillis() },
@@ -301,6 +314,7 @@ class MainActivity : ComponentActivity() {
                 lostModeGateway = lostModeGateway,
                 onRefreshVehicleCloudStatus = cloudStatusController::refresh,
                 vehicleBindingController = vehicleBindingController,
+                emergencyContactController = emergencyContactController,
                 vehicleBackgroundContent = { url, modifier ->
                     AndroidVehicleBackgroundImage(url, modifier)
                 },

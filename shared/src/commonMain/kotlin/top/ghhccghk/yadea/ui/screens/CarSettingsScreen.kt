@@ -1,12 +1,14 @@
 package top.ghhccghk.yadea.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -14,23 +16,43 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.carsetting.CarSettingItem
 import top.ghhccghk.yadea.carsetting.CarSettingKind
 import top.ghhccghk.yadea.carsetting.CarSettingsController
+import top.ghhccghk.yadea.vehicle.ContactType
+import top.ghhccghk.yadea.vehicle.EmergencyContactController
 
 /** 车辆设置页。业务状态由 [CarSettingsController] 提供，页面只负责语义渲染。 */
 @Composable
 fun CarSettingsScreen(
     controller: CarSettingsController,
     contentPadding: PaddingValues,
+    emergencyContactController: EmergencyContactController? = null,
     modifier: Modifier = Modifier,
 ) {
     val state by controller.state.collectAsState()
+    val contactState = emergencyContactController?.state?.collectAsState()?.value
     val scope = rememberCoroutineScope()
     val dimensions = AppDesign.dimensions
     var confirmDisable by remember { mutableStateOf<CarSettingItem?>(null) }
     var detailItem by remember { mutableStateOf<CarSettingItem?>(null) }
+    var showEmergencyContacts by remember { mutableStateOf(false) }
+    var ownerName by remember { mutableStateOf("") }
+    var ownerMobile by remember { mutableStateOf("") }
+    var emergencyName by remember { mutableStateOf("") }
+    var emergencyMobile by remember { mutableStateOf("") }
+
+    LaunchedEffect(contactState?.contacts) {
+        contactState?.contacts?.let { contacts ->
+            ownerName = contacts.ownerName
+            ownerMobile = contacts.ownerMobile
+            emergencyName = contacts.emergencyName
+            emergencyMobile = contacts.emergencyMobile
+        }
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -111,6 +133,18 @@ fun CarSettingsScreen(
                                 }
                             },
                         )
+                        if (item.configId == "24" && emergencyContactController != null) {
+                            AppActionPreference(
+                                title = "编辑车主与紧急联系人",
+                                summary = "车主和紧急联系人分别保存；开启提醒前需要至少填写紧急联系人",
+                                value = "编辑",
+                                onClick = {
+                                    emergencyContactController.clearMessage()
+                                    emergencyContactController.load()
+                                    showEmergencyContacts = true
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -163,6 +197,111 @@ fun CarSettingsScreen(
         confirmText = "知道了",
         onConfirm = { detailItem = null },
     )
+
+    if (emergencyContactController != null) {
+        AppBottomSheet(
+            show = showEmergencyContacts,
+            onDismissRequest = { showEmergencyContacts = false },
+            title = "车主与紧急联系人",
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+            ) {
+                if (contactState?.loading == true) {
+                    AppText(
+                        text = "正在加载联系人…",
+                        style = AppDesign.typography.summary,
+                        color = AppDesign.colors.onSurfaceVariant,
+                    )
+                }
+                AppText("车主", style = AppDesign.typography.itemTitle)
+                AppTextField(
+                    value = ownerName,
+                    onValueChange = { ownerName = it },
+                    label = "车主姓名",
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = contactState?.savingType == null && contactState?.loading != true,
+                )
+                AppTextField(
+                    value = ownerMobile,
+                    onValueChange = { ownerMobile = it.filter(Char::isDigit).take(11) },
+                    label = "车主手机号",
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = contactState?.savingType == null && contactState?.loading != true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                )
+                AppOutlinedButton(
+                    onClick = {
+                        emergencyContactController.save(
+                            type = ContactType.Owner,
+                            name = ownerName,
+                            mobile = ownerMobile,
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = ownerName.isNotBlank() &&
+                        ownerMobile.isNotBlank() &&
+                        contactState?.savingType == null,
+                ) {
+                    AppText(
+                        if (contactState?.savingType == ContactType.Owner) "保存中…" else "保存车主",
+                        style = AppDesign.typography.button,
+                    )
+                }
+
+                AppText("紧急联系人", style = AppDesign.typography.itemTitle)
+                AppTextField(
+                    value = emergencyName,
+                    onValueChange = { emergencyName = it },
+                    label = "联系人姓名",
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = contactState?.savingType == null && contactState?.loading != true,
+                )
+                AppTextField(
+                    value = emergencyMobile,
+                    onValueChange = { emergencyMobile = it.filter(Char::isDigit).take(11) },
+                    label = "联系人手机号",
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = contactState?.savingType == null && contactState?.loading != true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                )
+                AppButton(
+                    onClick = {
+                        emergencyContactController.save(
+                            type = ContactType.Emergency,
+                            name = emergencyName,
+                            mobile = emergencyMobile,
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = emergencyName.isNotBlank() &&
+                        emergencyMobile.isNotBlank() &&
+                        contactState?.savingType == null,
+                ) {
+                    AppText(
+                        if (contactState?.savingType == ContactType.Emergency) {
+                            "保存中…"
+                        } else {
+                            "保存紧急联系人"
+                        },
+                        style = AppDesign.typography.button,
+                    )
+                }
+                contactState?.message?.let { message ->
+                    AppText(
+                        text = message,
+                        style = AppDesign.typography.summary,
+                        color = if (contactState.success) {
+                            AppDesign.colors.primary
+                        } else {
+                            AppDesign.colors.error
+                        },
+                    )
+                }
+            }
+        }
+    }
 }
 
 private val SAFETY_CONFIRM_IDS = setOf("37", "38")

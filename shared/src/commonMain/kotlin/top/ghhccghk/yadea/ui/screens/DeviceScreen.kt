@@ -21,6 +21,7 @@ import top.ghhccghk.yadea.vehicle.VehicleBindingController
 import top.ghhccghk.yadea.vehicle.VehicleControlController
 import top.ghhccghk.yadea.vehicle.VehicleFaultController
 import top.ghhccghk.yadea.vehicle.LostModeController
+import top.ghhccghk.yadea.vehicle.EmergencyContactController
 
 /** 车辆页的子功能。 */
 internal enum class VehicleSection(val label: String) {
@@ -59,6 +60,7 @@ internal fun VehicleHubScreen(
     accountMobile: String,
     onRefreshVehicleCloudStatus: ((String) -> Unit)? = null,
     vehicleBindingController: VehicleBindingController? = null,
+    emergencyContactController: EmergencyContactController? = null,
     currentUser: AuthUser? = null,
     authController: AuthController,
     carSettingsController: CarSettingsController,
@@ -131,6 +133,7 @@ internal fun VehicleHubScreen(
                 VehicleSection.Settings -> CarSettingsScreen(
                     controller = carSettingsController,
                     contentPadding = pagePadding,
+                    emergencyContactController = emergencyContactController,
                 )
                 VehicleSection.Ota -> OtaScreen(
                     controller = otaController,

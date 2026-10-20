@@ -59,6 +59,7 @@ import top.ghhccghk.yadea.vehicle.VehicleBleTokenProvider
 import top.ghhccghk.yadea.vehicle.VehicleControlController
 import top.ghhccghk.yadea.vehicle.VehicleControlSink
 import top.ghhccghk.yadea.vehicle.VehicleStatusSource
+import top.ghhccghk.yadea.vehicle.EmergencyContactController
 import top.ghhccghk.yadea.wifi.WifiConnectionManager
 import top.ghhccghk.yadea.wifi.WifiP2pManager
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -115,6 +116,7 @@ fun MainScreen(
     vehicleCloudStatus: VehicleCloudStatus? = null,
     vehicleFaultGateway: VehicleFaultGateway? = null,
     lostModeGateway: LostModeGateway? = null,
+    emergencyContactController: EmergencyContactController? = null,
     onRefreshVehicleCloudStatus: ((String) -> Unit)? = null,
     vehicleBindingController: VehicleBindingController? = null,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)? = null,
@@ -336,6 +338,7 @@ fun MainScreen(
             accountMobile = authUiState.session.user?.mobile.orEmpty(),
             onRefreshVehicleCloudStatus = onRefreshVehicleCloudStatus,
             vehicleBindingController = vehicleBindingController,
+            emergencyContactController = emergencyContactController,
             currentUser = authUiState.session.user,
             vehicleBackgroundContent = vehicleBackgroundContent,
             vehicleImageContent = vehicleImageContent,
@@ -393,6 +396,7 @@ private fun MainScreenContent(
     accountMobile: String,
     onRefreshVehicleCloudStatus: ((String) -> Unit)?,
     vehicleBindingController: VehicleBindingController?,
+    emergencyContactController: EmergencyContactController?,
     currentUser: AuthUser?,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)?,
@@ -516,6 +520,7 @@ private fun MainScreenContent(
             accountMobile = accountMobile,
             onRefreshVehicleCloudStatus = onRefreshVehicleCloudStatus,
             vehicleBindingController = vehicleBindingController,
+            emergencyContactController = emergencyContactController,
             currentUser = currentUser,
             vehicleBackgroundContent = vehicleBackgroundContent,
             vehicleImageContent = vehicleImageContent,
@@ -622,6 +627,7 @@ private fun MainDestinationContent(
     accountMobile: String,
     onRefreshVehicleCloudStatus: ((String) -> Unit)?,
     vehicleBindingController: VehicleBindingController?,
+    emergencyContactController: EmergencyContactController?,
     currentUser: AuthUser?,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)?,
