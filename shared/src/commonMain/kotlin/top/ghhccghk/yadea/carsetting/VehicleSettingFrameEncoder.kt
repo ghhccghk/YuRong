@@ -60,6 +60,9 @@ object VehicleSettingFrameEncoder {
         0xD9 -> bitfieldSuffix(0x39, command.parameter, 6, 7)
         0x144 -> bitfieldSuffix(0x39, command.parameter, 2, 3)
         0x136 -> bitfieldSuffix(0x37, command.parameter, 6, 7)
+        // HelpPromotePlusActivity：自适应推行开关（0xD0）与推行档位（0xD1）。
+        0xD0 -> bitfieldSuffix(0x37, command.parameter, 2, 3)
+        0xD1 -> bitfieldSuffix(0x38, command.parameter, 0, 2)
         // CarSettingsPowerRegistry：边撑感应 0x131、座垫感应上电 0x130。
         0x131 -> bitfieldSuffix(0x1F, command.parameter, 4, 7)
         0x130 -> bitfieldSuffix(0x1F, command.parameter, 0, 3)
@@ -83,6 +86,23 @@ object VehicleSettingFrameEncoder {
         0xCB -> {
             val percent = (command.parameter.coerceIn(70, 100) / 5 * 5)
             "FF".repeat(43) + hex2(0xF8 + ((percent - 70) / 5))
+        }
+        // OldVehicleSoundEffectsActivity：ALARM_THEME_0/1/2 -> 3F/7F/BF。
+        0x2E -> "FF".repeat(22) +
+            hex2(0x3F + (command.parameter.coerceIn(0, 2) shl 6)) +
+            "FF".repeat(28)
+        // HelpPromotePlusActivity：STROLLER_OPEN / STROLLER_CLOSE。
+        0xA8 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD"
+        0xA9 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFC"
+        // VehicleCustomizeActivity：0x51 打包三项，0x52 放 TCS。
+        0xC8 -> {
+            val params = command.parameters
+            if (params.size < 4) return null
+            var first = applyBits(0xFF, params[0], 0, 2)
+            first = applyBits(first, params[1], 3, 5)
+            first = applyBits(first, params[2], 6, 7)
+            val second = applyBits(0xFF, params[3], 0, 1)
+            "FF".repeat(76) + hex2(first) + hex2(second)
         }
         // ChargingPowerActivity：瓦数除以 50 写入最后一字节。
         0xCA -> {
@@ -110,6 +130,15 @@ object VehicleSettingFrameEncoder {
 
     private fun hex2(value: Int): String =
         (value and 0xFF).toString(16).padStart(2, '0').uppercase()
+
+    private fun applyBits(base: Int, value: Int, fromBit: Int, toBit: Int): Int {
+        require(fromBit in 0..7 && toBit in fromBit..7) {
+            "invalid bit range $fromBit..$toBit"
+        }
+        val width = toBit - fromBit + 1
+        val mask = ((1 shl width) - 1) shl fromBit
+        return (base and mask.inv()) or ((value shl fromBit) and mask)
+    }
 
     /**
      * 移植自 `uj.c(start, value, fromBit, toBit)`。

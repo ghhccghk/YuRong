@@ -11,6 +11,8 @@ data class VehicleSettingCommand(
     val commandType: String,
     val commandId: Int,
     val parameter: Int = -1,
+    /** 多参数命令的附加字段，顺序与 [commandType] 的原实现一致。 */
+    val parameters: List<Int> = emptyList(),
 )
 
 /** 平台侧负责把 [VehicleSettingCommand] 编码成整车 BLE 命令并写入主特征。 */
@@ -142,6 +144,15 @@ object VehicleSettingCommands {
                     parameter = (choice.selectedIndex + 1).coerceIn(1, 3),
                 )
             }
+            // OldVehicleSoundEffectsActivity：ALARM_THEME_0/1。
+            "5" -> {
+                val choice = kind as? CarSettingKind.Choice ?: return null
+                VehicleSettingCommand(
+                    commandType = "ALARM_THEME",
+                    commandId = 0x2E,
+                    parameter = choice.selectedIndex.coerceIn(0, 1),
+                )
+            }
             "15" -> when (kind) {
                 is CarSettingKind.Toggle -> toggle(
                     kind = kind,
@@ -164,6 +175,36 @@ object VehicleSettingCommands {
                 onId = 0xA4,
                 offId = 0xA5,
             )
+            // HelpPromotePlusActivity：辅助推行开关与推行档位。
+            "64" -> when (kind) {
+                is CarSettingKind.Toggle -> toggle(
+                    kind = kind,
+                    onType = "STROLLER_OPEN",
+                    offType = "STROLLER_CLOSE",
+                    onId = 0xA8,
+                    offId = 0xA9,
+                )
+                is CarSettingKind.Slider -> VehicleSettingCommand(
+                    commandType = "COMMAND_CONST_CUSTOM_DRIVE_LEVEL_SETTING",
+                    commandId = 0xD1,
+                    parameter = kind.value.toInt().coerceIn(1, 3),
+                )
+                else -> null
+            }
+            // VehicleCustomizeActivity：CUSTOMIZE_SETTING 一次下发四项参数。
+            "55" -> {
+                val customize = kind as? CarSettingKind.Customize ?: return null
+                VehicleSettingCommand(
+                    commandType = "CUSTOMIZE_SETTING",
+                    commandId = 0xC8,
+                    parameters = listOf(
+                        customize.throttleLevel.coerceIn(0, 2),
+                        customize.energyLevel.coerceIn(0, 2),
+                        if (customize.energyState) 1 else 0,
+                        if (customize.tcs) 1 else 0,
+                    ),
+                )
+            }
             // BraceAutoShutDownActivity：边撑自动关机，依赖边撑感应（confId 2）。
             "39" -> toggle(
                 kind = kind,
@@ -383,6 +424,19 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        // 自适应推行与总开关共用 confId 64，需要按条目 id 区分。
+        if (item.id == "cloud:64:adaptive") {
+            return toggle(
+                kind = item.kind,
+                onType = "COMMAND_CONST_CUSTOM_DRIVE_SWITCH_SETTING",
+                offType = "COMMAND_CONST_CUSTOM_DRIVE_SWITCH_SETTING",
+                onId = 0xD0,
+                offId = 0xD0,
+                // 原通过 CheckBox 反值下发：勾选 = 0，未勾选 = 1。
+                onParameter = 0,
+                offParameter = 1,
+            )
+        }
         forConfigId(item.configId, item.kind)?.let { return it }
         return forLegacyItem(item)
     }

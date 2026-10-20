@@ -50,6 +50,16 @@ sealed interface CarSettingKind {
         val minimumNonZero: Float? = null,
     ) : CarSettingKind
     data class Info(val value: String) : CarSettingKind
+    /**
+     * 自定义骑行参数（confId 55）。原 App 用一个二级页同时下发四个字段，
+     * 因此这里作为一个整体条目，避免逐项写入时覆盖其它参数。
+     */
+    data class Customize(
+        val throttleLevel: Int = 1,
+        val energyLevel: Int = 1,
+        val energyState: Boolean = false,
+        val tcs: Boolean = false,
+    ) : CarSettingKind
     /** 云端下发、需要进入二级页面的入口；当前只展示云端提示。 */
     data class Entrance(val hint: String = "进入设置") : CarSettingKind
 }
@@ -310,6 +320,36 @@ class CarSettingsController(
                 "63" -> item.copy(
                     kind = CarSettingKind.Toggle(status.extended.tPowerStatus != 0),
                 )
+                "64" -> when {
+                    item.id == "cloud:64:adaptive" -> item.copy(
+                        kind = CarSettingKind.Toggle(
+                            status.extended.customDriveSwitchStatus != 0,
+                        ),
+                    )
+                    item.kind is CarSettingKind.Slider -> {
+                        val kind = item.kind
+                        val level = status.extended.customDriveLevelStatus
+                        if (level in 1..3) {
+                            item.copy(kind = kind.copy(value = level.toFloat()))
+                        } else {
+                            item
+                        }
+                    }
+                    else -> item
+                }
+                "55" -> when (val kind = item.kind) {
+                    is CarSettingKind.Customize -> item.copy(
+                        kind = kind.copy(
+                            throttleLevel = status.extended.customizeThrottleSensitivity
+                                .takeIf { it in 0..2 } ?: kind.throttleLevel,
+                            energyLevel = status.extended.customizeEnergyLevel
+                                .takeIf { it in 0..2 } ?: kind.energyLevel,
+                            energyState = status.extended.customizeEnergyState != 0,
+                            tcs = status.extended.customizeTcs != 0,
+                        ),
+                    )
+                    else -> item
+                }
                 "2" -> item.copy(
                     kind = CarSettingKind.Toggle(status.extended.sideBraceStatus != 0),
                 )

@@ -40,6 +40,13 @@ fun CarSettingsScreen(
     val dimensions = AppDesign.dimensions
     var confirmDisable by remember { mutableStateOf<CarSettingItem?>(null) }
     var confirmBraceDependency by remember { mutableStateOf<CarSettingItem?>(null) }
+    var customizeItem by remember { mutableStateOf<CarSettingItem?>(null) }
+    var customizeDraft by remember(customizeItem?.id) {
+        mutableStateOf(
+            (customizeItem?.kind as? CarSettingKind.Customize)
+                ?: CarSettingKind.Customize(),
+        )
+    }
     var detailItem by remember { mutableStateOf<CarSettingItem?>(null) }
     var showEmergencyContacts by remember { mutableStateOf(false) }
     var ownerName by remember { mutableStateOf("") }
@@ -123,7 +130,9 @@ fun CarSettingsScreen(
                                 item.id !in state.pendingIds,
                             pending = item.id in state.pendingIds,
                             onOpenDetail = {
-                                if (item.configId == "8" && onOpenLostMode != null) {
+                                if (item.kind is CarSettingKind.Customize) {
+                                    customizeItem = item
+                                } else if (item.configId == "8" && onOpenLostMode != null) {
                                     onOpenLostMode()
                                 } else {
                                     detailItem = item
@@ -247,6 +256,75 @@ fun CarSettingsScreen(
         confirmText = "知道了",
         onConfirm = { detailItem = null },
     )
+
+    val customizeTarget = customizeItem
+    AppBottomSheet(
+        show = customizeTarget != null,
+        onDismissRequest = { customizeItem = null },
+        title = "FREE 自由模式参数",
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+        ) {
+            AppText(
+                text = "以上参数切换到 FREE 模式后生效，保存时会一次性下发到车辆。",
+                style = AppDesign.typography.summary,
+                color = AppDesign.colors.onSurfaceVariant,
+            )
+            AppPopupPreference(
+                title = "油门灵敏度",
+                summary = "改变转把响应的灵敏度",
+                options = listOf("迅猛", "平稳", "缓慢"),
+                selectedIndex = customizeDraft.throttleLevel,
+                onSelectedIndexChange = {
+                    customizeDraft = customizeDraft.copy(throttleLevel = it)
+                },
+            )
+            AppPopupPreference(
+                title = "能量回收档位",
+                summary = "松转把时的能量回收强度",
+                options = listOf("弱", "中", "强"),
+                selectedIndex = customizeDraft.energyLevel,
+                onSelectedIndexChange = {
+                    customizeDraft = customizeDraft.copy(energyLevel = it)
+                },
+            )
+            AppSwitchPreference(
+                title = "能量回收",
+                summary = "关闭后 FREE 模式不进行能量回收",
+                checked = customizeDraft.energyState,
+                onCheckedChange = {
+                    customizeDraft = customizeDraft.copy(energyState = it)
+                },
+            )
+            AppSwitchPreference(
+                title = "TCS 车身稳定",
+                summary = "FREE 模式下保持车身稳定辅助",
+                checked = customizeDraft.tcs,
+                onCheckedChange = {
+                    customizeDraft = customizeDraft.copy(tcs = it)
+                },
+            )
+            AppOutlinedButton(
+                onClick = {
+                    val target = customizeTarget ?: return@AppOutlinedButton
+                    scope.launch {
+                        val saved = controller.update(target.id) { customizeDraft }
+                        if (saved) customizeItem = null
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = customizeTarget != null &&
+                    customizeTarget.id !in state.pendingIds,
+            ) {
+                AppText(
+                    if (customizeTarget?.id in state.pendingIds) "保存中…" else "保存参数",
+                    style = AppDesign.typography.button,
+                )
+            }
+        }
+    }
 
     if (emergencyContactController != null) {
         AppBottomSheet(
@@ -425,6 +503,12 @@ private fun CarSettingRow(
             title = item.title,
             summary = item.summary,
             value = kind.value,
+            onClick = onOpenDetail,
+        )
+        is CarSettingKind.Customize -> AppListRow(
+            title = item.title,
+            summary = item.summary,
+            value = "设置",
             onClick = onOpenDetail,
         )
         is CarSettingKind.Entrance -> AppListRow(
