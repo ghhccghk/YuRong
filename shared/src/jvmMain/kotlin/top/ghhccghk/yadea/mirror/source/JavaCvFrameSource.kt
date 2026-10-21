@@ -13,19 +13,21 @@ import top.ghhccghk.yadea.mirror.PlatformBitmap
 /**
  * Camera and media-file frame source backed by JavaCV.
  *
- * Camera capture uses OpenCV while files and network streams use FFmpeg.
- * [FrameGrabber.grabAtFrameRate] keeps recorded media close to its source
- * timing while the mirror engine remains free to conflate frames to 10 fps.
+ * Camera capture uses OpenCV while files and network streams use FFmpeg. Media
+ * sources follow their own presentation timestamps through grabAtFrameRate();
+ * camera capture uses the grabber's native blocking cadence. Neither source adds
+ * a second fixed FPS limit: MirrorEngine performs the negotiated send schedule,
+ * and FrameBus retains only the latest frame.
  */
 class JavaCvFrameSource private constructor(
     private val grabber: FrameGrabber,
-    private val fallbackIntervalMs: Long,
+    private val paceByPresentationTimestamp: Boolean,
 ) : FrameSource {
 
     private val running = AtomicBoolean(false)
     private val closed = AtomicBoolean(false)
-    private var worker: Thread? = null
-    private var cropConfig: FrameCropConfig = FrameCropConfig.FULL
+    @Volatile private var worker: Thread? = null
+    @Volatile private var cropConfig: FrameCropConfig = FrameCropConfig.FULL
     @Volatile private var failureHandler: ((String) -> Unit)? = null
 
     override val isRunning: Boolean
@@ -40,6 +42,7 @@ class JavaCvFrameSource private constructor(
     }
 
     override suspend fun start(onFrame: (PlatformBitmap) -> Unit) {
+        check(!closed.get()) { "视频帧源已释放，不能重新启动" }
         if (!running.compareAndSet(false, true)) return
 
         try {
@@ -56,7 +59,11 @@ class JavaCvFrameSource private constructor(
             try {
                 while (running.get()) {
                     val frame = try {
-                        grabber.grabFrame()
+                        if (paceByPresentationTimestamp) {
+                            grabber.grabAtFrameRate()
+                        } else {
+                            grabber.grabFrame()
+                        }
                     } catch (_: InterruptedException) {
                         Thread.currentThread().interrupt()
                         break
@@ -66,9 +73,6 @@ class JavaCvFrameSource private constructor(
                     val copied = Java2DFrameConverter.cloneBufferedImage(converted)
                     val cropped = applyCrop(copied)
                     onFrame(PlatformBitmap(cropped))
-                    if (fallbackIntervalMs > 0) {
-                        Thread.sleep(fallbackIntervalMs)
-                    }
                 }
             } catch (_: InterruptedException) {
                 Thread.currentThread().interrupt()
@@ -168,11 +172,11 @@ class JavaCvFrameSource private constructor(
 
     companion object {
         fun camera(cameraIndex: Int): JavaCvFrameSource =
-            JavaCvFrameSource(OpenCVFrameGrabber(cameraIndex), fallbackIntervalMs = 33)
+            JavaCvFrameSource(OpenCVFrameGrabber(cameraIndex), paceByPresentationTimestamp = false)
 
         fun media(uri: String): JavaCvFrameSource {
             require(uri.isNotBlank()) { "请填写视频文件路径或网络流地址" }
-            return JavaCvFrameSource(FFmpegFrameGrabber(uri), fallbackIntervalMs = 40)
+            return JavaCvFrameSource(FFmpegFrameGrabber(uri), paceByPresentationTimestamp = true)
         }
 
         private fun mediaErrorMessage(error: Throwable): String {

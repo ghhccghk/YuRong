@@ -6,26 +6,36 @@ import java.awt.Robot
 import java.awt.image.BufferedImage
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import top.ghhccghk.yadea.mirror.FrameCropConfig
+import top.ghhccghk.yadea.mirror.FrameRatePolicy
 import top.ghhccghk.yadea.mirror.FrameSource
 import top.ghhccghk.yadea.mirror.PlatformBitmap
 
 /**
  * Desktop screen frame source backed by java.awt.Robot.
  *
- * The source captures one physical display on a dedicated worker thread and
- * emits a fresh BufferedImage for every frame. It is intentionally limited to
- * the JVM target so other platforms keep their native capture implementations.
+ * The source captures one physical display on a dedicated worker thread. The
+ * target FPS is a capture-cost hint that prevents a busy loop; MirrorEngine
+ * remains the sole owner of the protocol send schedule and FrameBus conflates
+ * frames to the latest one.
  */
 class RobotScreenCaptureFrameSource(
     private val displayIndex: Int = 0,
-    private val frameIntervalMs: Long = 100,
 ) : FrameSource {
 
+    private val lifecycleLock = Any()
+    private val startGeneration = AtomicLong(0L)
     private val running = AtomicBoolean(false)
     private var worker: ExecutorService? = null
+    @Volatile
     private var cropConfig: FrameCropConfig = FrameCropConfig.FULL
+
+    @Volatile
+    private var targetFrameIntervalNanos = TimeUnit.MILLISECONDS.toNanos(100L)
+
     @Volatile private var failureHandler: ((String) -> Unit)? = null
 
     override val isRunning: Boolean
@@ -35,12 +45,22 @@ class RobotScreenCaptureFrameSource(
         if (config.isValid) cropConfig = config
     }
 
+    override fun updateTargetFps(fps: Int) {
+        targetFrameIntervalNanos = TimeUnit.MILLISECONDS.toNanos(FrameRatePolicy.intervalMillis(fps))
+    }
+
     override fun onFailure(handler: (String) -> Unit) {
         failureHandler = handler
     }
 
     override suspend fun start(onFrame: (PlatformBitmap) -> Unit) {
-        if (!running.compareAndSet(false, true)) return
+        val generation: Long
+        synchronized(lifecycleLock) {
+            if (running.get()) return
+            generation = startGeneration.incrementAndGet()
+            running.set(true)
+        }
+
         try {
             if (GraphicsEnvironment.isHeadless()) {
                 throw IllegalStateException("桌面环境处于 headless 模式，无法捕获屏幕")
@@ -56,35 +76,80 @@ class RobotScreenCaptureFrameSource(
             val executor = Executors.newSingleThreadExecutor { runnable ->
                 Thread(runnable, "desktop-screen-capture").apply { isDaemon = true }
             }
-            worker = executor
+            synchronized(lifecycleLock) {
+                if (!isCurrentLocked(generation)) {
+                    executor.shutdownNow()
+                    return
+                }
+                worker = executor
+            }
             executor.execute {
                 try {
-                    while (running.get()) {
+                    var nextCaptureAtNanos = System.nanoTime()
+                    while (isCurrent(generation)) {
+                        val waitNanos = nextCaptureAtNanos - System.nanoTime()
+                        if (waitNanos > 0L) TimeUnit.NANOSECONDS.sleep(waitNanos)
+                        if (!isCurrent(generation)) break
+
                         val captured = robot.createScreenCapture(deviceBounds)
                         val cropped = applyCrop(captured)
                         onFrame(PlatformBitmap(cropped))
-                        Thread.sleep(frameIntervalMs.coerceAtLeast(1L))
+
+                        val intervalNanos = targetFrameIntervalNanos.coerceAtLeast(1L)
+                        nextCaptureAtNanos += intervalNanos
+                        val now = System.nanoTime()
+                        if (nextCaptureAtNanos < now) {
+                            val missedSlots =
+                                (now - nextCaptureAtNanos + intervalNanos - 1L) / intervalNanos
+                            nextCaptureAtNanos += missedSlots * intervalNanos
+                        }
                     }
                 } catch (_: InterruptedException) {
                     Thread.currentThread().interrupt()
                 } catch (error: Exception) {
-                    val message = desktopCaptureErrorMessage(error)
-                    System.err.println("Desktop screen capture stopped: $message")
-                    failureHandler?.invoke(message)
+                    if (isCurrent(generation)) {
+                        val message = desktopCaptureErrorMessage(error)
+                        System.err.println("Desktop screen capture stopped: $message")
+                        failureHandler?.invoke(message)
+                    }
+                } finally {
+                    synchronized(lifecycleLock) {
+                        if (startGeneration.get() == generation) {
+                            running.set(false)
+                            if (worker === executor) worker = null
+                        }
+                    }
                 }
             }
         } catch (error: Exception) {
-            running.set(false)
-            worker?.shutdownNow()
-            worker = null
+            stopIfCurrent(generation)
             throw error
         }
     }
+
     override fun stop() {
-        if (!running.getAndSet(false)) return
-        worker?.shutdownNow()
-        worker = null
+        val executor = synchronized(lifecycleLock) {
+            if (!running.getAndSet(false)) return
+            startGeneration.incrementAndGet()
+            worker.also { worker = null }
+        }
+        executor?.shutdownNow()
     }
+
+    private fun stopIfCurrent(generation: Long) {
+        val executor = synchronized(lifecycleLock) {
+            if (startGeneration.get() != generation) return
+            running.set(false)
+            worker.also { worker = null }
+        }
+        executor?.shutdownNow()
+    }
+
+    private fun isCurrent(generation: Long): Boolean =
+        running.get() && startGeneration.get() == generation
+
+    private fun isCurrentLocked(generation: Long): Boolean =
+        running.get() && startGeneration.get() == generation
 
     private fun screenBounds(index: Int): java.awt.Rectangle {
         val devices = GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices

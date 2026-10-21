@@ -159,6 +159,9 @@ fun MainScreen(
             },
         )
     }
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.cleanup() }
+    }
     val resolvedVehicleSource = remember(vehicleStatusSource) {
         vehicleStatusSource ?: EmptyVehicleStatusSource()
     }

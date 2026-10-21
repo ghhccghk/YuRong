@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.mirror.FrameCropConfig
 import top.ghhccghk.yadea.mirror.MirrorPreviewPanel
 import top.ghhccghk.yadea.mirror.MirrorState
+import top.ghhccghk.yadea.mirror.fmt
 import top.ghhccghk.yadea.mirror.MirrorConnectStage
 
 @Composable
@@ -38,6 +39,7 @@ fun MirrorScreen(
     val mirrorStatus by viewModel.mirrorStatus.collectAsState()
     val frameCount by viewModel.frameCount.collectAsState()
     val bytesSent by viewModel.bytesSent.collectAsState()
+    val mirrorMetrics by viewModel.mirrorMetrics.collectAsState()
     val selectedSource by viewModel.selectedSource.collectAsState()
     val sourceCapabilities = viewModel.sourceCapabilities
     val sourceUri by viewModel.sourceUri.collectAsState()
@@ -205,7 +207,7 @@ fun MirrorScreen(
                     ) {
                         StatItem("帧数", "$frameCount")
                         StatItem("已发送", formatBytes(bytesSent))
-                        StatItem("帧率", "~10 fps")
+                        StatItem("发送帧率", if (mirrorMetrics.sentFrames > 0) "${fmt(mirrorMetrics.sendFps.toFloat(), 1)} fps" else "-- fps")
                     }
                 }
             }

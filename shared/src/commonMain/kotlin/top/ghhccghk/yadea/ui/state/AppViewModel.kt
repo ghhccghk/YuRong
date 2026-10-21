@@ -1,5 +1,6 @@
 package top.ghhccghk.yadea.ui
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -10,10 +11,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
+import kotlin.concurrent.Volatile
 import top.ghhccghk.yadea.ble.BleAdapter
 import top.ghhccghk.yadea.ble.BleConnectionState
 import top.ghhccghk.yadea.ble.BleDevice
@@ -122,6 +128,12 @@ class AppViewModel(
     val bytesSent: StateFlow<Long> = _bytesSent.asStateFlow()
     private val _navConfig = MutableStateFlow(NavDisplayConfig())
     val navConfig: StateFlow<NavDisplayConfig> = _navConfig.asStateFlow()
+    private val _mirrorMetrics = MutableStateFlow(MirrorMetricsSnapshot())
+    val mirrorMetrics: StateFlow<MirrorMetricsSnapshot> = _mirrorMetrics.asStateFlow()
+    private val acceptingFramesFrom = MutableStateFlow<top.ghhccghk.yadea.mirror.FrameSource?>(null)
+    private val cleaningUp = MutableStateFlow(false)
+    @Volatile private var mirrorSessionJob: Job? = null
+    @Volatile private var stopMirrorJob: Job? = null
 
     private val _selectedSource = MutableStateFlow(
         frameSourceFactory?.capabilities
@@ -139,7 +151,7 @@ class AppViewModel(
     val sourceUri: StateFlow<String> = _sourceUri.asStateFlow()
 
     val frameBus = FrameBus()
-    private var currentFrameSource: top.ghhccghk.yadea.mirror.FrameSource? = null
+    @Volatile private var currentFrameSource: top.ghhccghk.yadea.mirror.FrameSource? = null
     private var mirrorEngine: MirrorEngine? = null
     private var tcpTransport: TcpTransport? = null
     private var udpTransport: UdpTransport? = null
@@ -396,8 +408,21 @@ class AppViewModel(
         }
 
     private fun releaseFrameSource(source: top.ghhccghk.yadea.mirror.FrameSource?) {
-        source?.stop()
-        screenCaptureAuthorizer?.releaseScreenCapture()
+        runCatching { source?.release() }
+            .onFailure { debug("释放帧源失败: ${it.message}") }
+        runCatching { screenCaptureAuthorizer?.releaseScreenCapture() }
+            .onFailure { debug("释放屏幕录制授权失败: ${it.message}") }
+    }
+
+    private fun submitSourceFrame(
+        source: top.ghhccghk.yadea.mirror.FrameSource,
+        bitmap: PlatformBitmap,
+    ) {
+        val capturedAt = top.ghhccghk.yadea.currentMonotonicMillis()
+        val buffered = frameBus.submit(bitmap, capturedAt)
+        if (acceptingFramesFrom.value !== source) {
+            frameBus.discardIf(buffered)
+        }
     }
 
     /**
@@ -508,6 +533,11 @@ class AppViewModel(
     }
 
     fun startMirror(targetHost: String, tcpControlPort: Int = 8888, udpImagePort: Int = 8889) {
+        if (cleaningUp.value) return
+        if (_mirrorState.value == MirrorState.Running || _mirrorState.value == MirrorState.Negotiating) {
+            debug("忽略重复的 startMirror 请求")
+            return
+        }
         debug("startMirror: TCP=$targetHost:$tcpControlPort, UDP=$targetHost:$udpImagePort")
 
         val requiredPerms = PermissionChecker.permissionsForSource(_selectedSource.value)
@@ -520,10 +550,9 @@ class AppViewModel(
             return
         }
 
-        scope.launch {
-            _mirrorState.value = MirrorState.Negotiating
-            _mirrorStatus.value = "正在准备投屏源..."
-
+        _mirrorState.value = MirrorState.Negotiating
+        _mirrorStatus.value = "正在准备投屏源..."
+        mirrorSessionJob = scope.launch {
             val request = when (_selectedSource.value) {
                 0 -> FrameSourceRequest.Camera(cropConfig = _cropConfig.value)
                 1 -> FrameSourceRequest.Screen(cropConfig = _cropConfig.value)
@@ -547,11 +576,17 @@ class AppViewModel(
                 createdSource.also {
                     it.updateCropConfig(_cropConfig.value)
                 }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
             } catch (e: Exception) {
                 screenCaptureAuthorizer?.releaseScreenCapture()
                 debug("投屏源准备失败: ${e.message}")
                 _mirrorState.value = MirrorState.Failed
                 _mirrorStatus.value = "投屏源不可用: ${e.message}"
+                return@launch
+            }
+            if (cleaningUp.value || !currentCoroutineContext().isActive) {
+                releaseFrameSource(source)
                 return@launch
             }
             currentFrameSource = source
@@ -573,6 +608,8 @@ class AppViewModel(
                         connected = true
                         if (index > 0) debug("TCP 第 ${index + 1} 次连接成功")
                         break
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation
                     } catch (e: Exception) {
                         lastError = e
                         if (index < 15) {
@@ -583,6 +620,14 @@ class AppViewModel(
                 }
                 if (!connected) throw lastError ?: IllegalStateException("TCP 连接失败")
                 debug("TCP 连接成功")
+            } catch (cancellation: CancellationException) {
+                releaseFrameSource(source)
+                currentFrameSource = null
+                tcp.close()
+                udp.close()
+                tcpTransport = null
+                udpTransport = null
+                throw cancellation
             } catch (e: Exception) {
                 debug("TCP 连接失败: ${e.message}")
                 releaseFrameSource(source)
@@ -599,15 +644,29 @@ class AppViewModel(
             val sender = FrameSender(tcp, udp) { msg -> debug(msg) }
             val engine = MirrorEngine(sender, frameBus) { _mirrorStatus.value = it }
             mirrorEngine = engine
+            _mirrorMetrics.value = engine.metrics.value
 
-            val success = engine.start(
-                targetHost = targetHost,
-                targetPort = udpImagePort,
-                scope = scope,
-                currentTimeProvider = { getCurrentTime() }
-            )
+            val success = try {
+                engine.start(
+                    targetHost = targetHost,
+                    targetPort = udpImagePort,
+                    scope = scope,
+                    currentTimeProvider = { getCurrentTime() },
+                )
+            } catch (cancellation: CancellationException) {
+                engine.release()
+                releaseFrameSource(source)
+                currentFrameSource = null
+                tcp.close()
+                udp.close()
+                tcpTransport = null
+                udpTransport = null
+                mirrorEngine = null
+                throw cancellation
+            }
 
             if (!success) {
+                engine.release()
                 releaseFrameSource(source)
                 currentFrameSource = null
                 tcp.close()
@@ -622,21 +681,33 @@ class AppViewModel(
             }
 
             try {
-                source.start { bitmap -> frameBus.submit(bitmap) }
+                acceptingFramesFrom.value = source
+                frameBus.clear()
+                runCatching { source.updateTargetFps(engine.effectiveFps) }
+                    .onFailure { debug("更新帧源目标帧率失败: ${it.message}") }
+                source.start { bitmap -> submitSourceFrame(source, bitmap) }
                 _mirrorState.value = MirrorState.Running
                 _navConfig.value = engine.currentConfig
                 _mirrorStatus.value = "投屏中"
-                debug("投屏启动成功")
-                launch {
+                debug("投屏启动成功 (${engine.effectiveFps}fps)")
+                scope.launch {
                     while (engine.isRunning) {
+                        _mirrorMetrics.value = engine.metrics.value
                         _frameCount.value = engine.sentFrameCount
-                        _bytesSent.value = engine.sentByteCount.toLong()
+                        _bytesSent.value = engine.sentByteCount
+                        _navConfig.value = engine.currentConfig
                         kotlinx.coroutines.delay(500)
                     }
+                    _mirrorMetrics.value = engine.metrics.value
                 }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
             } catch (e: Exception) {
                 debug("帧源启动失败: ${e.message}")
+                acceptingFramesFrom.value = null
+                frameBus.discardLatestFrame()
                 engine.stop()
+                _mirrorMetrics.value = engine.metrics.value
                 releaseFrameSource(source)
                 currentFrameSource = null
                 tcp.close()
@@ -649,47 +720,95 @@ class AppViewModel(
             }
         }
     }
+
     private fun handleSourceFailure(source: top.ghhccghk.yadea.mirror.FrameSource, message: String) {
-        scope.launch {
-            if (currentFrameSource !== source) return@launch
-            debug("投屏源运行失败: $message")
-            releaseFrameSource(source)
-            currentFrameSource = null
-            mirrorEngine?.stop()
-            mirrorEngine = null
-            tcpTransport?.close()
-            udpTransport?.close()
-            tcpTransport = null
-            udpTransport = null
-            frameBus.clear()
-            _mirrorState.value = MirrorState.Failed
-            _mirrorStatus.value = "投屏源中断: $message"
-        }
+        if (cleaningUp.value || currentFrameSource !== source) return
+        debug("投屏源运行失败: $message")
+        stopMirrorInternal(MirrorState.Failed, "投屏源中断: $message")
     }
 
     fun stopMirror() {
-        scope.launch {
-            releaseFrameSource(currentFrameSource)
+        stopMirrorInternal(MirrorState.Stopped, "已停止")
+    }
+
+    private fun stopMirrorInternal(finalState: MirrorState, statusMessage: String) {
+        if (cleaningUp.value || stopMirrorJob?.isActive == true) return
+        stopMirrorJob = scope.launch {
+            val source = currentFrameSource
             currentFrameSource = null
-            mirrorEngine?.stop()
-            _mirrorState.value = MirrorState.Stopped
-            _mirrorStatus.value = "已停止"
-            tcpTransport?.close()
-            udpTransport?.close()
-            tcpTransport = null
-            udpTransport = null
+            acceptingFramesFrom.value = null
+            frameBus.discardLatestFrame()
+            releaseFrameSource(source)
+
+            val session = mirrorSessionJob
+            mirrorSessionJob = null
+            session?.cancelAndJoin()
+
+            val engine = mirrorEngine
             mirrorEngine = null
+            try {
+                if (engine != null) {
+                    _mirrorMetrics.value = engine.metrics.value
+                    engine.stop()
+                    _mirrorMetrics.value = engine.metrics.value
+                }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (e: Exception) {
+                debug("停止投屏失败: ${e.message}")
+            } finally {
+                frameBus.discardLatestFrame()
+                tcpTransport?.close()
+                udpTransport?.close()
+                tcpTransport = null
+                udpTransport = null
+                if (!cleaningUp.value) {
+                    _mirrorState.value = finalState
+                    _mirrorStatus.value = statusMessage
+                }
+            }
         }
     }
 
-    fun submitFrame(bitmap: PlatformBitmap) { frameBus.submit(bitmap) }
-    fun cleanup() {
-        autoMirrorJob?.cancel()
-        autoMirrorJob = null
-        stopMirror()
-        frameBus.clear()
+    fun submitFrame(bitmap: PlatformBitmap) {
+        if (cleaningUp.value) {
+            bitmap.recycle()
+            return
+        }
+        val buffered = frameBus.submit(bitmap)
+        if (cleaningUp.value) {
+            frameBus.discardIf(buffered)
+        }
     }
 
+    /** Immediate cleanup for Compose/Activity destruction; it never waits for NAV_END. */
+    fun cleanup() {
+        if (!cleaningUp.compareAndSet(expect = false, update = true)) return
+        acceptingFramesFrom.value = null
+        frameBus.discardLatestFrame()
+        autoMirrorJob?.cancel()
+        autoMirrorJob = null
+        stopMirrorJob?.cancel()
+        stopMirrorJob = null
+        mirrorSessionJob?.cancel()
+        mirrorSessionJob = null
+
+        val source = currentFrameSource
+        currentFrameSource = null
+        runCatching { releaseFrameSource(source) }
+            .onFailure { debug("清理帧源失败: ${it.message}") }
+
+        val engine = mirrorEngine
+        mirrorEngine = null
+        engine?.release()
+        _mirrorMetrics.value = engine?.metrics?.value ?: _mirrorMetrics.value
+        tcpTransport?.close()
+        udpTransport?.close()
+        tcpTransport = null
+        udpTransport = null
+        _mirrorState.value = MirrorState.Stopped
+        scope.cancel()
+    }
     private companion object {
         const val WIFI_READY_TIMEOUT_MS = 15_000L
         const val P2P_DISCOVER_TIMEOUT_MS = 15_000L
@@ -698,6 +817,5 @@ class AppViewModel(
         const val STATUS_POLL_INTERVAL_MS = 500L
     }
 }
-
 
 

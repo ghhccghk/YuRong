@@ -11,16 +11,6 @@ class FrameSender(
     private val frameBuffer = ArrayList<ByteArray>()
     private val rawBuffer = ArrayList<Byte>()
 
-    private fun hex(data: ByteArray, maxLen: Int = 48): String {
-        val sb = StringBuilder()
-        for (i in 0 until minOf(data.size, maxLen)) {
-            if (i > 0) sb.append(' ')
-            sb.append(hexByte(data[i].toInt()))
-        }
-        if (data.size > maxLen) sb.append(" ...(${data.size}B)")
-        return sb.toString()
-    }
-
     private fun cmdName(cmd: Int): String = when (cmd) {
         YadeaProtocol.CMD_NAV_START -> "NAV_START"
         YadeaProtocol.CMD_NAV_END -> "NAV_END"
@@ -40,7 +30,7 @@ class FrameSender(
 
     suspend fun sendFrame(type: Int, payload: ByteArray) {
         val frame = YadeaProtocol.buildFullFrame(type, payload)
-        logger("[TX] ${cmdName(type)} payload=${payload.size}B: ${hex(payload)}")
+        logger("[TX] ${cmdName(type)} payload=${payload.size}B")
         tcp.send(frame)
     }
 
@@ -79,8 +69,7 @@ class FrameSender(
         timestamp: Long = 0L
     ): Int {
         val frames = YadeaProtocol.buildImageFrames(image, imageSeq, timestamp)
-        logger("[TX-UDP] IMG seq=$imageSeq size=${image.size}B chunks=${frames.size} -> $targetHost:$targetPort")
-        frames.firstOrNull()?.let { logger("[TX-UDP] 首包 ${it.size}B: ${hex(it, 64)}") }
+        // 图片帧属于实时热路径。逐帧统计由 MirrorMetrics 聚合，禁止在这里同步写日志。
         for (frame in frames) {
             udp.send(frame, targetHost, targetPort)
         }
@@ -93,7 +82,7 @@ class FrameSender(
         timestamp: Long = 0L
     ): Int {
         val frames = YadeaProtocol.buildImageFrames(image, imageSeq, timestamp)
-        logger("[TX-UDP] BROADCAST seq=$imageSeq chunks=${frames.size}")
+        // 图片帧属于实时热路径。逐帧统计由 MirrorMetrics 聚合，禁止在这里同步写日志。
         for (frame in frames) {
             udp.broadcast(frame, broadcastPort)
         }
@@ -113,7 +102,7 @@ class FrameSender(
 
             val raw = tcp.receive(4096, 50)
             if (raw != null && raw.isNotEmpty()) {
-                logger("[RX] 收到 ${raw.size}B: ${hex(raw)}")
+                logger("[RX] 收到 ${raw.size}B")
                 raw.forEach { rawBuffer.add(it) }
             }
         }
@@ -164,9 +153,10 @@ class FrameSender(
         val result = YadeaProtocol.parseFrame(frame)
         if (result != null) {
             val (cmd, payload, frameLen) = result
-            logger("[RX] ${cmdName(cmd)} payload=${payload.size}B: ${hex(payload)}")
+            logger("[RX] ${cmdName(cmd)} payload=${payload.size}B")
             return result
         }
+        logger("[RX] 协议帧解析失败 (${frame.size}B)")
         return null
     }
 

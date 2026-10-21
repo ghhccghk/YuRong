@@ -6,38 +6,39 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.roundToInt
 import top.ghhccghk.yadea.mirror.FrameCropConfig
 import top.ghhccghk.yadea.mirror.FrameSource
 import top.ghhccghk.yadea.mirror.PlatformBitmap
 
 private const val MAX_CAPTURE_EDGE = 1280
+private const val PAUSE_POLL_INTERVAL_MS = 50L
+private const val UNKNOWN_SOURCE_FRAME_INTERVAL_MS = 100L
+private const val MIN_SOURCE_FRAME_INTERVAL_MS = 1L
+private const val MAX_SOURCE_FRAME_INTERVAL_MS = 1_000L
 
 /**
  * Android 视频/网络流帧源。
  *
- * 使用 MediaMetadataRetriever 从本地 content URI、文件路径或受支持的网络地址
- * 提取视频帧，不依赖尚未挂载到 Window 的 TextureView。
+ * 每次 start 都创建独立的 MediaMetadataRetriever 与工作线程。播放节奏优先使用
+ * 媒体帧时间戳，不在源层套用固定的 10/30/60 FPS 限速；最终发送节奏由
+ * MirrorEngine 根据车辆协商结果统一调度，FrameBus 只保留最新一帧。
  */
 class VideoFrameSource(
     private val context: Context,
     private val uri: Uri,
-    frameIntervalMs: Long = 100,
 ) : FrameSource {
 
-    private val retriever = MediaMetadataRetriever()
-    private val executor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "android-video-frame-source").apply { isDaemon = true }
-    }
-    private val started = AtomicBoolean(false)
-    private val closed = AtomicBoolean(false)
+    private val lifecycleLock = Any()
+    private val running = AtomicBoolean(false)
+    private val released = AtomicBoolean(false)
+    private val generation = AtomicLong(0L)
 
     @Volatile
-    private var running = false
+    private var worker: Thread? = null
 
     @Volatile
     private var playing = true
@@ -60,8 +61,6 @@ class VideoFrameSource(
     @Volatile
     private var playbackOriginElapsedMs = 0L
 
-    private val frameIntervalMs = frameIntervalMs.coerceAtLeast(50)
-
     val isPlaying: Boolean
         get() = playing
 
@@ -72,7 +71,7 @@ class VideoFrameSource(
         get() = TimeUnit.MICROSECONDS.toMillis(currentPositionUs())
 
     override val isRunning: Boolean
-        get() = running
+        get() = running.get()
 
     override fun updateCropConfig(config: FrameCropConfig) {
         if (config.isValid) cropConfig = config
@@ -83,46 +82,83 @@ class VideoFrameSource(
     }
 
     override suspend fun start(onFrame: (PlatformBitmap) -> Unit) {
-        if (!started.compareAndSet(false, true)) return
+        check(!released.get()) { "视频帧源已释放，不能重新启动" }
         if (uri.toString().isBlank()) {
-            started.set(false)
             throw IllegalArgumentException("请先选择视频文件或填写视频地址")
         }
 
-        running = true
-        positionUs = 0L
-        playbackOriginUs = 0L
-        playbackOriginElapsedMs = SystemClock.elapsedRealtime()
-        playing = true
-        executor.execute { decodeFrames(onFrame) }
+        val startGeneration: Long
+        synchronized(lifecycleLock) {
+            if (running.get()) return
+            startGeneration = generation.incrementAndGet()
+            durationUs = 0L
+            positionUs = 0L
+            playbackOriginUs = 0L
+            playbackOriginElapsedMs = SystemClock.elapsedRealtime()
+            playing = true
+            running.set(true)
+
+            worker = Thread(
+                {
+                    decodeFrames(
+                        generation = startGeneration,
+                        retriever = MediaMetadataRetriever(),
+                        onFrame = onFrame,
+                    )
+                },
+                "android-video-frame-source",
+            ).apply {
+                isDaemon = true
+                start()
+            }
+        }
     }
 
     override fun stop() {
-        running = false
-        playing = false
-        executor.shutdownNow()
+        val thread = synchronized(lifecycleLock) {
+            if (!running.getAndSet(false)) return
+            generation.incrementAndGet()
+            playing = false
+            worker.also { worker = null }
+        }
+        thread?.interrupt()
+    }
+
+    override fun release() {
+        if (!released.compareAndSet(false, true)) return
+        stop()
     }
 
     fun play() {
-        if (playing) return
-        playbackOriginUs = positionUs
-        playbackOriginElapsedMs = SystemClock.elapsedRealtime()
-        playing = true
+        synchronized(lifecycleLock) {
+            if (playing || !running.get()) return
+            playbackOriginUs = positionUs
+            playbackOriginElapsedMs = SystemClock.elapsedRealtime()
+            playing = true
+        }
     }
 
     fun pause() {
-        if (!playing) return
-        positionUs = currentPositionUs()
-        playing = false
+        synchronized(lifecycleLock) {
+            if (!playing) return
+            positionUs = currentPositionUsLocked()
+            playing = false
+        }
     }
 
     fun seekTo(positionMs: Long) {
-        positionUs = TimeUnit.MILLISECONDS.toMicros(positionMs.coerceAtLeast(0L))
-        playbackOriginUs = positionUs
-        playbackOriginElapsedMs = SystemClock.elapsedRealtime()
+        synchronized(lifecycleLock) {
+            val requestedUs = TimeUnit.MILLISECONDS.toMicros(positionMs.coerceAtLeast(0L))
+            positionUs = if (durationUs > 0L) requestedUs.coerceAtMost(durationUs) else requestedUs
+            playbackOriginUs = positionUs
+            playbackOriginElapsedMs = SystemClock.elapsedRealtime()
+        }
     }
 
-    private fun currentPositionUs(): Long {
+    private fun currentPositionUs(): Long =
+        synchronized(lifecycleLock) { currentPositionUsLocked() }
+
+    private fun currentPositionUsLocked(): Long {
         if (!playing) return positionUs
         val elapsedUs = TimeUnit.MILLISECONDS.toMicros(
             (SystemClock.elapsedRealtime() - playbackOriginElapsedMs).coerceAtLeast(0L)
@@ -130,57 +166,106 @@ class VideoFrameSource(
         return (playbackOriginUs + elapsedUs).coerceAtLeast(0L)
     }
 
-    private fun decodeFrames(onFrame: (PlatformBitmap) -> Unit) {
+    private fun decodeFrames(
+        generation: Long,
+        retriever: MediaMetadataRetriever,
+        onFrame: (PlatformBitmap) -> Unit,
+    ) {
         try {
             retriever.setDataSource(context, uri)
-            durationUs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+            val sourceDurationUs = retriever
+                .extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                 ?.toLongOrNull()
                 ?.let(TimeUnit.MILLISECONDS::toMicros)
                 ?: 0L
-            val sourceWidth = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+            val sourceWidth = retriever
+                .extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
                 ?.toIntOrNull() ?: 0
-            val sourceHeight = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+            val sourceHeight = retriever
+                .extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
                 ?.toIntOrNull() ?: 0
             val (scaledWidth, scaledHeight) = scaledSize(sourceWidth, sourceHeight)
+            var sourceFrameIntervalUs = resolveSourceFrameIntervalUs(retriever, sourceDurationUs)
 
-            playbackOriginUs = positionUs
-            playbackOriginElapsedMs = SystemClock.elapsedRealtime()
+            synchronized(lifecycleLock) {
+                if (!isCurrent(generation)) return
+                durationUs = sourceDurationUs
+                positionUs = 0L
+                playbackOriginUs = 0L
+                playbackOriginElapsedMs = SystemClock.elapsedRealtime()
+            }
 
-            while (running) {
+            var nextRetrievalAtMs = SystemClock.elapsedRealtime()
+
+            while (isCurrent(generation)) {
                 if (!playing) {
-                    Thread.sleep(50)
+                    Thread.sleep(PAUSE_POLL_INTERVAL_MS)
+                    nextRetrievalAtMs = SystemClock.elapsedRealtime()
                     continue
                 }
 
+                waitUntil(nextRetrievalAtMs)
+                if (!isCurrent(generation)) break
+
                 val targetUs = currentPositionUs()
-                positionUs = targetUs
-                val frame = frameAt(targetUs, scaledWidth, scaledHeight)
-                if (frame != null) {
-                    deliverFrame(frame, onFrame)
+                synchronized(lifecycleLock) {
+                    if (isCurrent(generation)) positionUs = targetUs
                 }
 
-                if (durationUs > 0L && positionUs >= durationUs) {
-                    playbackOriginUs = 0L
-                    playbackOriginElapsedMs = SystemClock.elapsedRealtime()
-                    positionUs = 0L
+                val frame = frameAt(retriever, targetUs, scaledWidth, scaledHeight)
+                if (!isCurrent(generation)) {
+                    frame?.recycle()
+                    break
                 }
-                Thread.sleep(frameIntervalMs)
+
+                if (frame != null) {
+                    deliverFrame(generation, frame, onFrame)
+                }
+
+                if (sourceDurationUs > 0L &&
+                    currentPositionUs() >= sourceDurationUs
+                ) {
+                    synchronized(lifecycleLock) {
+                        if (!isCurrent(generation)) break
+                        positionUs = 0L
+                        playbackOriginUs = 0L
+                        playbackOriginElapsedMs = SystemClock.elapsedRealtime()
+                    }
+                }
+
+                val intervalMs = TimeUnit.MICROSECONDS.toMillis(
+                    sourceFrameIntervalUs.coerceAtLeast(1L)
+                ).coerceIn(MIN_SOURCE_FRAME_INTERVAL_MS, MAX_SOURCE_FRAME_INTERVAL_MS)
+                nextRetrievalAtMs += intervalMs
             }
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
         } catch (error: Throwable) {
-            if (running) {
+            if (isCurrent(generation)) {
                 val detail = error.message ?: error::class.simpleName ?: "未知错误"
                 failureHandler?.invoke("无法读取视频源: $detail")
             }
         } finally {
-            running = false
-            playing = false
-            releaseRetriever()
+            try {
+                retriever.release()
+            } catch (_: Exception) {
+            }
+            synchronized(lifecycleLock) {
+                if (generation == this.generation.get()) {
+                    running.set(false)
+                    playing = false
+                    worker = null
+                }
+            }
         }
     }
 
-    private fun frameAt(positionUs: Long, width: Int, height: Int): Bitmap? {
+    private fun frameAt(
+        retriever: MediaMetadataRetriever,
+        positionUs: Long,
+        width: Int,
+        height: Int,
+    ): Bitmap? {
         val safePositionUs = positionUs.coerceAtLeast(0L)
         return if (Build.VERSION.SDK_INT >= 27 && width > 0 && height > 0) {
             retriever.getScaledFrameAtTime(
@@ -202,6 +287,38 @@ class VideoFrameSource(
         }
     }
 
+    private fun resolveSourceFrameIntervalUs(
+        retriever: MediaMetadataRetriever,
+        durationUs: Long,
+    ): Long {
+        val captureRate = retriever
+            .extractMetadata(MediaMetadataRetriever.METADATA_KEY_CAPTURE_FRAMERATE)
+            ?.toFloatOrNull()
+            ?.takeIf { it.isFinite() && it > 0f }
+        if (captureRate != null) {
+            return (1_000_000f / captureRate).roundToInt().toLong()
+        }
+
+        if (Build.VERSION.SDK_INT >= 28 && durationUs > 0L) {
+            val frameCount = retriever
+                .extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT)
+                ?.toLongOrNull()
+                ?.takeIf { it > 0L }
+            if (frameCount != null) {
+                return durationUs / frameCount
+            }
+        }
+
+        // Only used when the media exposes neither capture rate nor frame count.
+        // Subsequent frame timestamps replace this estimate as soon as available.
+        return TimeUnit.MILLISECONDS.toMicros(UNKNOWN_SOURCE_FRAME_INTERVAL_MS)
+    }
+
+    private fun waitUntil(targetElapsedMs: Long) {
+        val waitMs = targetElapsedMs - SystemClock.elapsedRealtime()
+        if (waitMs > 0L) Thread.sleep(waitMs)
+    }
+
     private fun scaledSize(width: Int, height: Int): Pair<Int, Int> {
         if (width <= 0 || height <= 0) return 0 to 0
         val scale = minOf(1f, MAX_CAPTURE_EDGE.toFloat() / maxOf(width, height))
@@ -209,11 +326,20 @@ class VideoFrameSource(
             (height * scale).roundToInt().coerceAtLeast(2)
     }
 
-    private fun deliverFrame(frame: Bitmap, onFrame: (PlatformBitmap) -> Unit) {
+    private fun deliverFrame(
+        generation: Long,
+        frame: Bitmap,
+        onFrame: (PlatformBitmap) -> Unit,
+    ) {
         val cropped = applyCrop(frame)
-        onFrame(PlatformBitmap(cropped))
-        if (cropped !== frame) {
-            frame.recycle()
+        var delivered = false
+        try {
+            if (!isCurrent(generation)) return
+            onFrame(PlatformBitmap(cropped))
+            delivered = true
+        } finally {
+            if (!delivered) cropped.recycle()
+            if (cropped !== frame) frame.recycle()
         }
     }
 
@@ -228,11 +354,6 @@ class VideoFrameSource(
         return Bitmap.createBitmap(bitmap, rect.x, rect.y, rect.width, rect.height)
     }
 
-    private fun releaseRetriever() {
-        if (!closed.compareAndSet(false, true)) return
-        try {
-            retriever.release()
-        } catch (_: Exception) {
-        }
-    }
+    private fun isCurrent(expectedGeneration: Long): Boolean =
+        running.get() && !released.get() && generation.get() == expectedGeneration
 }

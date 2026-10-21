@@ -2,11 +2,7 @@ package top.ghhccghk.yadea.mirror.source
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.ImageFormat
 import android.graphics.Matrix
-import android.graphics.Rect
-import android.graphics.YuvImage
 import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -14,97 +10,168 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-import java.io.ByteArrayOutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import top.ghhccghk.yadea.mirror.FrameCropConfig
 import top.ghhccghk.yadea.mirror.FrameSource
 import top.ghhccghk.yadea.mirror.PlatformBitmap
 
 /**
- * CameraFrameSource - 基于 CameraX 的摄像头帧源
+ * CameraFrameSource - 基于 CameraX 的摄像头帧源。
  *
- * 特性:
- * - 支持前置/后置摄像头
- * - 支持裁剪区域配置
- * - 10fps 帧率控制
- * - 自动旋转校正
+ * CameraX owns capture cadence and conflation. The mirror scheduler in
+ * commonMain applies the negotiated vehicle FPS, so this source must not add a
+ * second wall-clock FPS limit.
  */
 class CameraFrameSource(
     private val context: Context,
     private val lifecycleOwner: LifecycleOwner,
     private val useFrontCamera: Boolean = false,
-    frameIntervalMs: Long = 100
 ) : FrameSource {
 
-    private var cameraProvider: ProcessCameraProvider? = null
-    private val analyzerExecutor: ExecutorService = Executors.newSingleThreadExecutor()
-    private var running = false
-    private var lastFrameAt = 0L
-    private val frameIntervalMs = frameIntervalMs.coerceAtLeast(50)
+    private val lifecycleLock = Any()
+    private val analyzerExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "android-camera-frame-source").apply { isDaemon = true }
+    }
+    private val startGeneration = AtomicLong(0L)
+    private val released = AtomicBoolean(false)
+    private val failureReported = AtomicBoolean(false)
 
-    /** 裁剪区域配置 */
+    private val running = AtomicBoolean(false)
+
+    @Volatile
+    private var failureHandler: ((String) -> Unit)? = null
+
+    private var cameraProvider: ProcessCameraProvider? = null
+    private var imageAnalysis: ImageAnalysis? = null
+
+    /** 裁剪区域配置。 */
+    @Volatile
     var cropConfig: FrameCropConfig = FrameCropConfig.FULL
 
-    /** 目标分辨率 */
+    /** CameraX 分析目标分辨率；最终输出分辨率仍由 MirrorEngine 协商结果决定。 */
     var targetResolution: Size = Size(960, 368)
 
-    override val isRunning: Boolean get() = running
+    override val isRunning: Boolean get() = running.get()
+
+    override fun onFailure(handler: (String) -> Unit) {
+        failureHandler = handler
+    }
 
     override suspend fun start(onFrame: (PlatformBitmap) -> Unit) {
-        if (running) return
-        running = true
+        check(!released.get()) { "摄像头帧源已释放，不能重新启动" }
+        if (!running.compareAndSet(false, true)) return
 
+        failureReported.set(false)
+        val generation = startGeneration.incrementAndGet()
         val future = ProcessCameraProvider.getInstance(context)
         future.addListener({
-            if (!running) return@addListener
+            if (!isCurrentStart(generation)) return@addListener
             try {
                 val provider = future.get()
-                cameraProvider = provider
+                synchronized(lifecycleLock) {
+                    if (!isCurrentStart(generation)) return@synchronized
 
-                val analysis = ImageAnalysis.Builder()
-                    .setTargetResolution(targetResolution)
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-                    .build()
+                    val analysis = ImageAnalysis.Builder()
+                        .setTargetResolution(targetResolution)
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                        .build()
+                    analysis.setAnalyzer(analyzerExecutor) { imageProxy ->
+                        processFrame(generation, imageProxy, onFrame)
+                    }
 
-                analysis.setAnalyzer(analyzerExecutor) { imageProxy ->
-                    processFrame(imageProxy, onFrame)
+                    cameraProvider = provider
+                    imageAnalysis = analysis
+                    provider.unbind(analysis)
+                    val selector = if (useFrontCamera) {
+                        CameraSelector.DEFAULT_FRONT_CAMERA
+                    } else {
+                        CameraSelector.DEFAULT_BACK_CAMERA
+                    }
+                    provider.bindToLifecycle(lifecycleOwner, selector, analysis)
                 }
-
-                provider.unbindAll()
-                val selector = if (useFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA
-                else CameraSelector.DEFAULT_BACK_CAMERA
-                provider.bindToLifecycle(lifecycleOwner, selector, analysis)
-            } catch (e: Exception) {
-                running = false
+            } catch (error: Exception) {
+                failStart(
+                    generation,
+                    "摄像头启动失败: ${error.message ?: error::class.simpleName ?: "未知错误"}",
+                )
             }
         }, ContextCompat.getMainExecutor(context))
     }
 
     override fun stop() {
-        running = false
-        cameraProvider?.unbindAll()
-        cameraProvider = null
+        if (!running.getAndSet(false)) return
+        startGeneration.incrementAndGet()
+
+        val (provider, analysis) = synchronized(lifecycleLock) {
+            val currentProvider = cameraProvider
+            val currentAnalysis = imageAnalysis
+            cameraProvider = null
+            imageAnalysis = null
+            currentProvider to currentAnalysis
+        }
+        try {
+            analysis?.clearAnalyzer()
+            if (provider != null && analysis != null) {
+                provider.unbind(analysis)
+            }
+        } catch (_: Exception) {
+            // CameraX may already have unbound during lifecycle shutdown.
+        }
     }
 
-    fun close() {
+    override fun release() {
+        if (!released.compareAndSet(false, true)) return
         stop()
         analyzerExecutor.shutdownNow()
     }
 
-    private fun processFrame(imageProxy: ImageProxy, onFrame: (PlatformBitmap) -> Unit) {
+    private fun isCurrentStart(generation: Long): Boolean =
+        running.get() && !released.get() && startGeneration.get() == generation
+
+    private fun failStart(generation: Long, message: String) {
+        if (!isCurrentStart(generation)) return
+        stop()
+        reportFailure(message)
+    }
+
+    private fun reportFailure(message: String) {
+        if (failureReported.compareAndSet(false, true)) {
+            failureHandler?.invoke(message)
+        }
+    }
+
+    private fun processFrame(
+        generation: Long,
+        imageProxy: ImageProxy,
+        onFrame: (PlatformBitmap) -> Unit,
+    ) {
         try {
-            val now = System.currentTimeMillis()
-            if (!running || now - lastFrameAt < frameIntervalMs) return
-            lastFrameAt = now
+            if (!isCurrentStart(generation)) return
 
             val bitmap = imageProxy.toRgbaBitmap()
-            val cropped = applyCrop(bitmap)
-            onFrame(PlatformBitmap(cropped))
-            if (cropped !== bitmap) bitmap.recycle()
-        } catch (_: Exception) {
-            // 帧处理失败时跳过
+            var cropped: Bitmap? = null
+            var delivered = false
+            try {
+                if (!isCurrentStart(generation)) return
+                cropped = applyCrop(bitmap)
+                if (!isCurrentStart(generation)) return
+                onFrame(PlatformBitmap(cropped))
+                delivered = true
+            } finally {
+                if (cropped !== bitmap) bitmap.recycle()
+                if (!delivered) cropped?.recycle()
+            }
+        } catch (error: Exception) {
+            if (isCurrentStart(generation)) {
+                failStart(
+                    generation,
+                    "摄像头帧处理失败: ${error.message ?: error::class.simpleName ?: "未知错误"}",
+                )
+            }
         } finally {
             imageProxy.close()
         }
@@ -115,7 +182,9 @@ class CameraFrameSource(
         val rect = cropConfig.toPixelRect(bitmap.width, bitmap.height)
         if (rect.x == 0 && rect.y == 0 &&
             rect.width == bitmap.width && rect.height == bitmap.height
-        ) return bitmap
+        ) {
+            return bitmap
+        }
         return Bitmap.createBitmap(bitmap, rect.x, rect.y, rect.width, rect.height)
     }
 

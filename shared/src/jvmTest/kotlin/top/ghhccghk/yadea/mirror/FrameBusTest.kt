@@ -25,26 +25,62 @@ class FrameBusTest {
         assertNull(bus.take())
     }
 
-    @Test fun frameBus_submitReplacesOld() {
+    @Test fun frameBus_submitReplacesOldAndCountsOverwrite() {
         val bus = FrameBus()
         bus.submit(createBitmap(100, 50))
         bus.submit(createBitmap(200, 100))
-        val taken = bus.take()
-        assertEquals(200, taken!!.width)
+        val taken = bus.takeFrame()
+        assertEquals(200, taken!!.bitmap.width)
+        assertEquals(2L, bus.capturedFrameCount.value)
+        assertEquals(1L, bus.overwrittenFrameCount.value)
+    }
+
+    @Test fun frameBus_preservesMonotonicTimestamps() {
+        val bus = FrameBus()
+        val capturedAt = top.ghhccghk.yadea.currentMonotonicMillis() - 1
+        bus.submit(createBitmap(), capturedAtMillis = capturedAt)
+        val frame = bus.takeFrame()!!
+        assertEquals(capturedAt, frame.capturedAtMillis)
+        assertTrue(frame.submittedAtMillis >= frame.capturedAtMillis)
+    }
+
+    @Test fun frameBus_discardIfRemovesMatchingFrame() {
+        val bus = FrameBus()
+        val submitted = bus.submit(createBitmap())
+
+        assertTrue(bus.discardIf(submitted))
+        assertFalse(bus.hasFrame())
+        assertFalse(bus.discardIf(submitted))
+    }
+
+    @Test fun frameBus_discardIfDoesNotRemoveNewerFrame() {
+        val bus = FrameBus()
+        val stale = bus.submit(createBitmap(100, 50))
+        val newer = bus.submit(createBitmap(200, 100))
+
+        assertFalse(bus.discardIf(stale))
+        assertTrue(bus.hasFrame())
+        assertSame(newer, bus.takeFrame())
+    }
+
+    @Test fun frameBus_discardLatestFrameKeepsCumulativeCounters() {
+        val bus = FrameBus()
+        bus.submit(createBitmap())
+        bus.submit(createBitmap())
+        bus.discardLatestFrame()
+        assertFalse(bus.hasFrame())
+        assertEquals(2L, bus.capturedFrameCount.value)
+        assertEquals(1L, bus.overwrittenFrameCount.value)
     }
 
     @Test fun frameBus_clear() {
         val bus = FrameBus()
         bus.submit(createBitmap())
+        bus.submit(createBitmap())
         bus.clear()
         assertFalse(bus.hasFrame())
-    }
-
-    @Test fun frameBus_frameCount() {
-        val bus = FrameBus()
-        bus.submit(createBitmap())
-        bus.submit(createBitmap())
-        assertEquals(2L, bus.frameCount.value)
+        assertEquals(0L, bus.capturedFrameCount.value)
+        assertEquals(0L, bus.overwrittenFrameCount.value)
     }
 
     @Test fun platformBitmap_dimensions() {

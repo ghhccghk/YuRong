@@ -11,125 +11,202 @@ import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.WindowManager
+import java.nio.ByteBuffer
+import java.util.concurrent.atomic.AtomicBoolean
 import top.ghhccghk.yadea.mirror.FrameCropConfig
 import top.ghhccghk.yadea.mirror.FrameSource
 import top.ghhccghk.yadea.mirror.PlatformBitmap
 
 /**
- * ScreenCaptureFrameSource - 基于 MediaProjection 的屏幕录制帧源
+ * ScreenCaptureFrameSource - 基于 MediaProjection 的屏幕录制帧源。
  *
- * 特性:
- * - 系统屏幕捕获
- * - 支持裁剪区域配置
- * - 10fps 帧率控制
- * - 自动缩放到适合仪表的分辨率
+ * ImageReader 只保留最新帧，像素转换与裁剪在专用 HandlerThread 完成，主线程仅
+ * 用于注册系统 MediaProjection 回调。源层不重复执行固定 FPS 限速；发送节奏由
+ * MirrorEngine 统一控制。
  */
 class ScreenCaptureFrameSource(
     private val context: Context,
     private val mediaProjection: MediaProjection,
-    frameIntervalMs: Long = 100
 ) : FrameSource {
 
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private val releaseLock = Any()
-    private val projectionCallback = object : MediaProjection.Callback() {
-        override fun onStop() {
-            releaseCaptureResources()
-        }
-    }
+    private val lifecycleLock = Any()
+    private val started = AtomicBoolean(false)
+    private val released = AtomicBoolean(false)
+    private val running = AtomicBoolean(false)
+    private val stopRequested = AtomicBoolean(false)
+    private val intentionalProjectionStop = AtomicBoolean(false)
+    private val failureReported = AtomicBoolean(false)
 
+    @Volatile
+    private var failureHandler: ((String) -> Unit)? = null
+
+    private var captureThread: HandlerThread? = null
+    private var captureHandler: Handler? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
     private var callbackRegistered = false
-    private var projectionStopped = false
-    @Volatile
-    private var running = false
-    private var lastFrameAt = 0L
-    private val frameIntervalMs = frameIntervalMs.coerceAtLeast(50)
+    private var packedRgbaBuffer: ByteBuffer? = null
+    private var argbPixelBuffer: IntArray? = null
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val projectionCallback = object : MediaProjection.Callback() {
+        override fun onStop() {
+            val unexpected = !intentionalProjectionStop.get()
+            releaseCaptureResources(stopProjection = false)
+            if (unexpected) {
+                reportFailure("屏幕录制授权已结束")
+            }
+        }
+    }
 
     /** 裁剪区域配置 */
+    @Volatile
     var cropConfig: FrameCropConfig = FrameCropConfig.FULL
 
     /** 最大输出宽度（高度按比例） */
+    @Volatile
     var maxWidth: Int = 960
 
-    override val isRunning: Boolean get() = running
+    override val isRunning: Boolean get() = running.get()
+
+    override fun onFailure(handler: (String) -> Unit) {
+        failureHandler = handler
+    }
 
     override suspend fun start(onFrame: (PlatformBitmap) -> Unit) {
-        if (running) return
-        running = true
+        check(!released.get()) { "屏幕帧源已释放，不能重新启动" }
+        // A MediaProjection grant can only be consumed once. A stopped source instance
+        // is intentionally one-shot; callers must create a new source for a new grant.
+        if (!started.compareAndSet(false, true)) return
 
         val metrics = getDisplayMetrics()
         val scale = minOf(1f, maxWidth.toFloat() / maxOf(metrics.widthPixels, metrics.heightPixels))
         val outW = maxOf(2, (metrics.widthPixels * scale).toInt())
         val outH = maxOf(2, (metrics.heightPixels * scale).toInt())
 
-        val reader = ImageReader.newInstance(outW, outH, PixelFormat.RGBA_8888, 2)
-        reader.setOnImageAvailableListener({ r ->
-            processFrame(r, onFrame)
-        }, mainHandler)
-        imageReader = reader
-
-        try {
-            // createVirtualDisplay 必须在 registerCallback 成功后调用，以便系统停止授权时能及时释放资源。
-            mediaProjection.registerCallback(projectionCallback, mainHandler)
-            callbackRegistered = true
-
-            virtualDisplay = mediaProjection.createVirtualDisplay(
-                "ScreenMirror",
-                outW, outH, metrics.densityDpi,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                reader.surface, null, null
-            ) ?: throw IllegalStateException("createVirtualDisplay 返回 null")
+        val thread = HandlerThread("android-screen-frame-source").apply { start() }
+        val handler = Handler(thread.looper)
+        val reader = try {
+            ImageReader.newInstance(outW, outH, PixelFormat.RGBA_8888, 2)
         } catch (error: Throwable) {
-            releaseCaptureResources()
+            thread.quitSafely()
             throw error
+        }
+        reader.setOnImageAvailableListener({ source ->
+            processFrame(source, onFrame)
+        }, handler)
+
+        // Publish the one-shot source and the system projection atomically. A stop()
+        // before this block prevents registration; a stop() racing with it waits until
+        // every captured resource has been published and can then release it.
+        synchronized(lifecycleLock) {
+            if (released.get() || stopRequested.get()) {
+                reader.setOnImageAvailableListener(null, null)
+                reader.close()
+                thread.quitSafely()
+                return
+            }
+
+            captureThread = thread
+            captureHandler = handler
+            imageReader = reader
+            running.set(true)
+
+            try {
+                mediaProjection.registerCallback(projectionCallback, mainHandler)
+                callbackRegistered = true
+
+                virtualDisplay = mediaProjection.createVirtualDisplay(
+                    "ScreenMirror",
+                    outW,
+                    outH,
+                    metrics.densityDpi,
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                    reader.surface,
+                    null,
+                    null,
+                ) ?: throw IllegalStateException("createVirtualDisplay 返回 null")
+            } catch (error: Throwable) {
+                intentionalProjectionStop.set(true)
+                releaseCaptureResources(stopProjection = true)
+                throw error
+            }
         }
     }
 
     override fun stop() {
-        releaseCaptureResources()
+        stopRequested.set(true)
+        intentionalProjectionStop.set(true)
+        releaseCaptureResources(stopProjection = true)
     }
 
-    private fun releaseCaptureResources() {
-        synchronized(releaseLock) {
-            if (projectionStopped) return
-            projectionStopped = true
-            running = false
+    override fun release() {
+        if (!released.compareAndSet(false, true)) return
+        stop()
+    }
 
+    private fun releaseCaptureResources(stopProjection: Boolean) {
+        synchronized(lifecycleLock) {
+            running.set(false)
+
+            imageReader?.setOnImageAvailableListener(null, null)
             virtualDisplay?.release()
             virtualDisplay = null
 
-            imageReader?.setOnImageAvailableListener(null, null)
-            imageReader?.surface?.release()
             imageReader?.close()
             imageReader = null
+            packedRgbaBuffer = null
+            argbPixelBuffer = null
 
             if (callbackRegistered) {
-                mediaProjection.unregisterCallback(projectionCallback)
                 callbackRegistered = false
+                runCatching { mediaProjection.unregisterCallback(projectionCallback) }
             }
-            mediaProjection.stop()
+
+            if (stopProjection && !intentionalProjectionStop.get()) {
+                intentionalProjectionStop.set(true)
+            }
+            if (stopProjection) {
+                runCatching { mediaProjection.stop() }
+            }
+
+            captureHandler = null
+            captureThread?.quitSafely()
+            captureThread = null
         }
     }
 
     private fun processFrame(reader: ImageReader, onFrame: (PlatformBitmap) -> Unit) {
-        if (!running) return
-        val image = reader.acquireLatestImage() ?: return
+        if (!running.get()) return
+        val image = runCatching { reader.acquireLatestImage() }.getOrNull() ?: return
         try {
-            val now = System.currentTimeMillis()
-            if (now - lastFrameAt < frameIntervalMs) return
-            lastFrameAt = now
+            if (!running.get()) return
 
-            val bitmap = image.toBitmap()
+            val bitmap = image.toFrameBitmap()
+            if (!running.get()) {
+                bitmap.recycle()
+                return
+            }
+
             val cropped = applyCrop(bitmap)
-            onFrame(PlatformBitmap(cropped))
-            if (cropped !== bitmap) bitmap.recycle()
-        } catch (_: Exception) {
-            // 帧处理失败时跳过
+            var delivered = false
+            try {
+                if (!running.get()) return
+                onFrame(PlatformBitmap(cropped))
+                delivered = true
+            } finally {
+                if (cropped !== bitmap) bitmap.recycle()
+                if (!delivered) cropped.recycle()
+            }
+        } catch (error: Throwable) {
+            val detail = error.message ?: error::class.simpleName ?: "未知错误"
+            intentionalProjectionStop.set(true)
+            releaseCaptureResources(stopProjection = true)
+            reportFailure("屏幕帧处理失败: $detail")
         } finally {
             image.close()
         }
@@ -140,42 +217,76 @@ class ScreenCaptureFrameSource(
         val rect = cropConfig.toPixelRect(bitmap.width, bitmap.height)
         if (rect.x == 0 && rect.y == 0 &&
             rect.width == bitmap.width && rect.height == bitmap.height
-        ) return bitmap
+        ) {
+            return bitmap
+        }
         return Bitmap.createBitmap(bitmap, rect.x, rect.y, rect.width, rect.height)
     }
 
-    private fun Image.toBitmap(): Bitmap {
+    /**
+     * RGBA_8888 ImageReader 常返回带行填充的缓冲区。无填充时直接零拷贝交给
+     * Bitmap；有填充时复用紧凑 ByteBuffer 去掉 row padding，避免每帧创建大数组。
+     */
+    private fun Image.toFrameBitmap(): Bitmap {
         val plane = planes[0]
         val rowStride = plane.rowStride
         val pixelStride = plane.pixelStride
-        val width = this.width
-        val height = this.height
+        val frameWidth = width
+        val frameHeight = height
+        val bitmap = Bitmap.createBitmap(frameWidth, frameHeight, Bitmap.Config.ARGB_8888)
+        val source = plane.buffer
+        source.rewind()
 
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val buffer = plane.buffer
-        buffer.rewind()
-
-        if (pixelStride == 4 && rowStride == width * 4) {
-            bitmap.copyPixelsFromBuffer(buffer)
-        } else {
-            val pixels = IntArray(width * height)
-            val row = ByteArray(rowStride)
-            for (y in 0 until height) {
-                buffer.position(y * rowStride)
-                buffer.get(row, 0, minOf(rowStride, buffer.remaining()))
-                for (x in 0 until width) {
-                    val offset = x * pixelStride
-                    if (offset + 3 >= row.size) continue
-                    val r = row[offset].toInt() and 0xFF
-                    val g = row[offset + 1].toInt() and 0xFF
-                    val b = row[offset + 2].toInt() and 0xFF
-                    val a = row[offset + 3].toInt() and 0xFF
-                    pixels[y * width + x] = (a shl 24) or (r shl 16) or (g shl 8) or b
-                }
-            }
-            bitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+        val tightRowBytes = frameWidth * pixelStride
+        if (pixelStride == 4 && rowStride == tightRowBytes) {
+            bitmap.copyPixelsFromBuffer(source)
+            return bitmap
         }
+
+        if (pixelStride == 4) {
+            val requiredBytes = tightRowBytes * frameHeight
+            val packed = packedRgbaBuffer
+                ?.takeIf { it.capacity() >= requiredBytes }
+                ?: ByteBuffer.allocate(requiredBytes).also { packedRgbaBuffer = it }
+            packed.clear()
+            for (y in 0 until frameHeight) {
+                val rowStart = y * rowStride
+                val available = (source.limit() - rowStart).coerceAtLeast(0)
+                val bytesToCopy = minOf(tightRowBytes, available)
+                if (bytesToCopy <= 0) break
+                val row = source.duplicate()
+                row.position(rowStart)
+                row.limit(rowStart + bytesToCopy)
+                packed.put(row)
+            }
+            packed.flip()
+            bitmap.copyPixelsFromBuffer(packed)
+            return bitmap
+        }
+
+        val requiredPixels = frameWidth * frameHeight
+        val pixels = argbPixelBuffer
+            ?.takeIf { it.size >= requiredPixels }
+            ?: IntArray(requiredPixels).also { argbPixelBuffer = it }
+        for (y in 0 until frameHeight) {
+            for (x in 0 until frameWidth) {
+                val offset = y * rowStride + x * pixelStride
+                if (offset + 3 >= source.limit()) continue
+                val r = source.get(offset).toInt() and 0xFF
+                val g = source.get(offset + 1).toInt() and 0xFF
+                val b = source.get(offset + 2).toInt() and 0xFF
+                val a = source.get(offset + 3).toInt() and 0xFF
+                pixels[y * frameWidth + x] = (a shl 24) or (r shl 16) or (g shl 8) or b
+            }
+        }
+        bitmap.setPixels(pixels, 0, frameWidth, 0, 0, frameWidth, frameHeight)
         return bitmap
+    }
+
+    private fun reportFailure(message: String) {
+        if (failureReported.compareAndSet(false, true)) {
+            failureHandler?.invoke(message)
+        }
     }
 
     private fun getDisplayMetrics(): DisplayMetrics {
