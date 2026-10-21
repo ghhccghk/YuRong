@@ -1,12 +1,14 @@
 package top.ghhccghk.yadea.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -15,10 +17,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import top.ghhccghk.yadea.ota.OtaController
 import top.ghhccghk.yadea.ota.OtaMethod
 import top.ghhccghk.yadea.ota.OtaStage
+import top.ghhccghk.yadea.ota.OtaState
 
 /** OTA 升级页。通道未注入时只展示当前版本与空态。 */
 @Composable
@@ -41,24 +49,41 @@ fun OtaScreen(
         verticalArrangement = Arrangement.spacedBy(dimensions.sectionSpacing),
     ) {
         item {
-            AppPageHeader(
-                title = "OTA 升级",
-                subtitle = "按蓝牙、车联网、Wi-Fi 与记录仪通道分别查看云端升级任务",
-            )
+            OtaHero(state)
         }
         item {
-            if (state.selectedMethod == OtaMethod.Iot) {
-                AppTip(
-                    kind = AppTipKind.Info,
-                    title = "云端任务确认",
-                    message = "车联网升级由云平台向车辆下发。提交后可在车辆或原 App 查看进度，请勿同时发起其他升级。",
-                )
-            } else {
-                AppTip(
-                    kind = AppTipKind.Warning,
-                    title = "${state.selectedMethod.label}存在高风险",
-                    message = "该通道按反编译协议直译，未经过完整真车回归。升级中断、固件不匹配或手机休眠都可能让车辆停在 bootloader。强烈建议优先使用云端 OTA 或原厂软件升级。",
-                )
+            OtaFirmwareCard(state)
+        }
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+            ) {
+                AppButton(
+                    onClick = {
+                        controller.refreshCloudState()
+                        controller.checkForUpdate()
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = state.canCheck,
+                ) {
+                    AppText("检查更新", style = AppDesign.typography.button)
+                }
+                if (state.canInstall) {
+                    AppButton(
+                        onClick = { showRiskConfirm = true },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        AppText(
+                            when {
+                                state.stage == OtaStage.Failed -> "重试升级"
+                                state.selectedMethod == OtaMethod.Iot -> "提交云端升级"
+                                else -> "开始升级"
+                            },
+                            style = AppDesign.typography.button,
+                        )
+                    }
+                }
             }
         }
         item {
@@ -85,27 +110,22 @@ fun OtaScreen(
             }
         }
         item {
-            AppSection(title = "版本信息") {
-                AppListRow("当前版本", value = state.currentVersion, showDivider = true)
-                AppListRow(
-                    "升级方式",
-                    value = state.selectedMethod.label,
-                    showDivider = true,
+            if (state.selectedMethod == OtaMethod.Iot) {
+                AppTip(
+                    kind = AppTipKind.Info,
+                    title = "云端任务确认",
+                    message = "车联网升级由云平台向车辆下发。提交后可在车辆或原 App 查看进度，请勿同时发起其他升级。",
                 )
-                state.firmwareVersions.forEach { module ->
-                    AppListRow(
-                        title = module.label,
-                        value = module.currentVersion.ifBlank { "—" },
-                        summary = module.latestVersion
-                            .takeIf {
-                                !module.installedOnly &&
-                                    it.isNotBlank() &&
-                                    it != module.currentVersion
-                            }
-                            ?.let { "云端最新 $it" },
-                        showDivider = true,
-                    )
-                }
+            } else {
+                AppTip(
+                    kind = AppTipKind.Warning,
+                    title = "${state.selectedMethod.label}存在高风险",
+                    message = "该通道按反编译协议直译，未经过完整真车回归。升级中断、固件不匹配或手机休眠都可能让车辆停在 bootloader。强烈建议优先使用云端 OTA 或原厂软件升级。",
+                )
+            }
+        }
+        item {
+            AppSection(title = "升级详情") {
                 if (state.packageInfo != null || state.firmwareVersions.any { !it.installedOnly }) {
                     AppListRow(
                         title = "可用版本",
@@ -305,39 +325,6 @@ fun OtaScreen(
                     }
                 }
             }
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
-                ) {
-                    AppButton(
-                        onClick = {
-                            controller.refreshCloudState()
-                            controller.checkForUpdate()
-                        },
-                        modifier = Modifier.weight(1f),
-                        enabled = state.canCheck,
-                    ) {
-                        AppText("检查更新", style = AppDesign.typography.button)
-                    }
-                    AppButton(
-                        onClick = {
-                            showRiskConfirm = true
-                        },
-                        modifier = Modifier.weight(1f),
-                        enabled = state.canInstall,
-                    ) {
-                        AppText(
-                            when {
-                                state.stage == OtaStage.Failed -> "重试升级"
-                                state.selectedMethod == OtaMethod.Iot -> "提交云端升级"
-                                else -> "开始升级"
-                            },
-                            style = AppDesign.typography.button,
-                        )
-                    }
-                }
-            }
             if (state.canCancel) {
                 item {
                     AppOutlinedButton(
@@ -372,6 +359,106 @@ fun OtaScreen(
             controller.install()
         },
     )
+}
+
+/**
+ * OTA 页头：参考官方 App 的深色渐变头图，当前版本状态在首屏直接可见。
+ *
+ * 浅色模式使用主色容器作为渐变起点，深色模式降低主色透明度，避免纯色顶栏与
+ * 下方版本列表割裂；两套 UI 风格共用同一套语义 token。
+ */
+@Composable
+private fun OtaHero(state: OtaState) {
+    val colors = AppDesign.colors
+    val dimensions = AppDesign.dimensions
+    val dark = colors.background.luminance() < 0.5f
+    val topColor = if (dark) colors.primary.copy(alpha = 0.52f) else colors.primaryContainer
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(AppDesign.shapes.section)
+            .background(Brush.verticalGradient(listOf(topColor, colors.background)))
+            .padding(
+                horizontal = dimensions.itemHorizontalPadding,
+                vertical = dimensions.itemVerticalPadding + dimensions.controlSpacing,
+            ),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(dimensions.compactSpacing)) {
+            AppText(
+                text = "当前固件版本",
+                style = AppDesign.typography.pageTitle,
+                color = colors.onBackground,
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(dimensions.compactSpacing),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AppText(
+                    text = "●",
+                    style = AppDesign.typography.caption,
+                    color = otaStatusColor(state),
+                )
+                AppText(
+                    text = otaStatusSummary(state),
+                    style = AppDesign.typography.body,
+                    color = colors.onBackground.copy(alpha = 0.76f),
+                )
+            }
+            if (state.currentVersion.isNotBlank() && state.currentVersion != "—") {
+                AppText(
+                    text = "车辆当前版本 ${state.currentVersion}",
+                    style = AppDesign.typography.caption,
+                    color = colors.onBackground.copy(alpha = 0.58f),
+                )
+            }
+        }
+    }
+}
+
+/** 固件模块列表：参考官方 App 的卡片行，模块名与当前版本左右对齐。 */
+@Composable
+private fun OtaFirmwareCard(state: OtaState) {
+    AppCard(modifier = Modifier.fillMaxWidth()) {
+        if (state.firmwareVersions.isEmpty()) {
+            AppListRow(
+                title = "车辆当前版本",
+                value = state.currentVersion.ifBlank { "—" },
+            )
+        } else {
+            state.firmwareVersions.forEachIndexed { index, module ->
+                val updateAvailable = !module.installedOnly &&
+                    module.latestVersion.isNotBlank() &&
+                    module.latestVersion != module.currentVersion
+                AppListRow(
+                    title = module.label,
+                    value = module.currentVersion.ifBlank { "—" },
+                    summary = if (updateAvailable) "可升级至 ${module.latestVersion}" else null,
+                    showDivider = index != state.firmwareVersions.lastIndex,
+                )
+            }
+        }
+    }
+}
+
+private fun otaStatusSummary(state: OtaState): String = when {
+    state.stage == OtaStage.UpToDate -> "当前固件已是最新版本"
+    state.stage == OtaStage.Available -> state.packageInfo?.version
+        ?.takeIf { it.isNotBlank() }
+        ?.let { "发现新版本 $it" }
+        ?: "发现可用更新"
+    !state.message.isNullOrBlank() -> state.message.orEmpty()
+    else -> state.stage.label()
+}
+
+@Composable
+private fun otaStatusColor(state: OtaState): Color = when (state.stage) {
+    OtaStage.UpToDate,
+    OtaStage.Completed,
+    -> AppDesign.colors.onSuccessContainer
+
+    OtaStage.Failed -> AppDesign.colors.error
+    OtaStage.Unavailable -> AppDesign.colors.outline
+    else -> AppDesign.colors.primary
 }
 
 private fun OtaStage.label(): String = when (this) {
