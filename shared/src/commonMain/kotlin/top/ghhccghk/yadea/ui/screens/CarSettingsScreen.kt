@@ -81,9 +81,7 @@ fun CarSettingsScreen(
         item {
             AppOutlinedButton(
                 onClick = { scope.launch { controller.refresh() } },
-                modifier = Modifier.fillMaxWidth().padding(
-                    horizontal = dimensions.pageHorizontalPadding,
-                ),
+                modifier = Modifier.fillMaxWidth(),
                 enabled = controller.cloudAvailable && !state.loading,
             ) {
                 AppText(

@@ -307,9 +307,7 @@ fun OtaScreen(
             }
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(
-                        horizontal = dimensions.pageHorizontalPadding,
-                    ),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
                 ) {
                     AppButton(
@@ -344,9 +342,7 @@ fun OtaScreen(
                 item {
                     AppOutlinedButton(
                         onClick = controller::cancel,
-                        modifier = Modifier.fillMaxWidth().padding(
-                            horizontal = dimensions.pageHorizontalPadding,
-                        ),
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
                         AppText("取消升级", style = AppDesign.typography.button)
                     }

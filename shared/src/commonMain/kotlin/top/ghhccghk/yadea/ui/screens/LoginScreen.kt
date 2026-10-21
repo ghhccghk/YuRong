@@ -193,9 +193,7 @@ fun LoginScreen(
             item {
                 AppButton(
                     onClick = controller::logout,
-                    modifier = Modifier.fillMaxWidth().padding(
-                        horizontal = dimensions.pageHorizontalPadding,
-                    ),
+                    modifier = Modifier.fillMaxWidth(),
                     enabled = !auth.busy,
                 ) {
                     AppText("退出登录", style = AppDesign.typography.button)
@@ -387,9 +385,7 @@ fun LoginScreen(
             }
             item {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(
-                        horizontal = dimensions.pageHorizontalPadding,
-                    ),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(dimensions.compactSpacing),
                 ) {
                     val error = localError ?: auth.error
