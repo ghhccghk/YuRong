@@ -183,6 +183,9 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
                 status = BluetoothGatt.GATT_FAILURE,
                 message = "Bluetooth device $address is unavailable",
             )
+        NetworkLog.write(
+            "BLE connect -> address=$address bond=${device.bondState} type=${device.type}",
+        )
 
         disconnectCurrentGatt()
 
@@ -323,7 +326,8 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
         }
         NetworkLog.write(
             "BLE write -> service=$serviceUuid characteristic=$characteristicUuid " +
-                "len=${data.size} type=${characteristic.writeType} mtu=$negotiatedMtu",
+                "props=${characteristic.properties} len=${data.size} " +
+                "type=${characteristic.writeType} mtu=$negotiatedMtu",
         )
         if (!currentGatt.writeCharacteristic(characteristic)) {
             synchronized(pendingLock) {
