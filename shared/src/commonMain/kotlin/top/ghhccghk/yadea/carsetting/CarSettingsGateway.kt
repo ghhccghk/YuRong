@@ -234,7 +234,27 @@ class YadeaCarSettingsGateway(
             ?.takeIf { JsonSupport.boolean(it, "success") != false }
             ?.let(::soundDataObjects)
             .orEmpty()
-        if (resourcePlain == null && bikePlain == null) return null
+        val configPlain = postFields(
+            path = "vehiclebase/bike-model/selectConfigListByVin",
+            fields = mapOf(
+                "_gateway" to "True",
+                "confIds" to "zdyyx001",
+                "vin" to vin,
+            ),
+            token = token,
+        )
+        val countPlain = postFields(
+            path = "resourcesBike/queryCountSetResourceBike",
+            fields = mapOf(
+                "_gateway" to "True",
+                "type" to "1",
+                "vin" to vin,
+            ),
+            token = token,
+        )
+        if (resourcePlain == null && bikePlain == null && configPlain == null) return null
+        val categoryData = soundCategories(configPlain, bikeItems)
+        val count = countPlain?.let(::soundCount)
         val resourceIds = resources.mapTo(mutableSetOf()) { it.id }
         val selected = bikeItems.firstOrNull {
             (textOrNumber(it, "resourceId") ?: "").let(resourceIds::contains)
@@ -262,10 +282,15 @@ class YadeaCarSettingsGateway(
             } else {
                 resources
             },
+            categories = categoryData.categories,
+            weeklyRemaining = count?.first,
+            weeklyLimit = count?.second,
             selectedResourceId = selectedId,
-            parentConfId = selected?.let { textOrNumber(it, "parentConfId") }.orEmpty(),
-            parentConfName = "自定义音效",
-            sonConfId = selected?.let { textOrNumber(it, "sonConfId") }.orEmpty(),
+            parentConfId = categoryData.parentId
+                .ifBlank { selected?.let { textOrNumber(it, "parentConfId") }.orEmpty() },
+            parentConfName = categoryData.parentName.ifBlank { "自定义音效" },
+            sonConfId = categoryData.categories.firstOrNull()?.sonConfId
+                ?: selected?.let { textOrNumber(it, "sonConfId") }.orEmpty(),
         )
     }
 
@@ -292,11 +317,12 @@ class YadeaCarSettingsGateway(
     override suspend fun applyCustomSound(
         vin: String,
         state: CustomSoundState,
+        category: CustomSoundCategory,
         resource: CustomSoundResource,
     ): Boolean {
         val token = tokenProvider().trim()
         if (token.isBlank() || vin.isBlank()) return false
-        if (state.parentConfId.isBlank() || state.sonConfId.isBlank()) return false
+        if (state.parentConfId.isBlank() || category.sonConfId.isBlank()) return false
         val plain = postFields(
             path = "resourcesBike/setResourceBike",
             fields = mapOf(
@@ -304,7 +330,7 @@ class YadeaCarSettingsGateway(
                 "parentConfId" to state.parentConfId,
                 "parentConfName" to state.parentConfName,
                 "resourceId" to resource.id,
-                "sonConfId" to state.sonConfId,
+                "sonConfId" to category.sonConfId,
                 "sonConfName" to resource.name,
                 "type" to "1",
                 "vin" to vin,
@@ -378,6 +404,77 @@ class YadeaCarSettingsGateway(
             token = token,
         ) ?: return false
         return JsonSupport.boolean(plain, "success") != false
+    }
+
+    private data class SoundCategoryData(
+        val parentId: String = "",
+        val parentName: String = "",
+        val categories: List<CustomSoundCategory> = emptyList(),
+    )
+
+    private fun soundCategories(
+        plain: String?,
+        bikeItems: List<String>,
+    ): SoundCategoryData {
+        val configs = plain
+            ?.takeIf { JsonSupport.boolean(it, "success") != false }
+            ?.let { value ->
+                val direct = JsonSupport.arrayObjects(value, "data")
+                if (direct.isNotEmpty()) {
+                    direct
+                } else {
+                    val data = JsonSupport.objectField(value, "data")
+                    if (data != null && JsonSupport.arrayObjects(data, "sonConfigs").isNotEmpty()) {
+                        listOf(data)
+                    } else {
+                        data?.let {
+                            JsonSupport.arrayObjects(it, "list")
+                                .ifEmpty { JsonSupport.arrayObjects(it, "records") }
+                        }.orEmpty()
+                    }
+                }
+            }
+            .orEmpty()
+        val parent = configs.firstOrNull {
+            textOrNumber(it, "confId") == "zdyyx001"
+        } ?: configs.firstOrNull()
+        if (parent == null) return SoundCategoryData()
+        val parentId = textOrNumber(parent, "confId").orEmpty()
+        val parentName = JsonSupport.string(parent, "confName")
+            .orEmpty()
+            .ifBlank { "自定义音效" }
+        val bikeBySon = bikeItems.groupBy {
+            textOrNumber(it, "sonConfId").orEmpty()
+        }
+        val categories = JsonSupport.arrayObjects(parent, "sonConfigs").mapNotNull { son ->
+            val sonConfId = textOrNumber(son, "confId") ?: return@mapNotNull null
+            val bike = bikeBySon[sonConfId]
+                ?.firstOrNull { boolField(it, "isSelected") }
+                ?: bikeBySon[sonConfId]?.firstOrNull()
+            CustomSoundCategory(
+                sonConfId = sonConfId,
+                name = JsonSupport.string(son, "confName")
+                    .orEmpty()
+                    .ifBlank { "音效" },
+                selectedResourceId = bike?.let { textOrNumber(it, "resourceId") }.orEmpty(),
+                selectedName = bike?.let {
+                    JsonSupport.string(it, "resourceName")
+                        .orEmpty()
+                        .ifBlank { JsonSupport.string(it, "musicName").orEmpty() }
+                }.orEmpty(),
+                sort = intField(son, "sort") ?: 0,
+            )
+        }.sortedBy { it.sort }
+        return SoundCategoryData(
+            parentId = parentId,
+            parentName = parentName,
+            categories = categories,
+        )
+    }
+
+    private fun soundCount(plain: String): Pair<Int?, Int?> {
+        val data = JsonSupport.objectField(plain, "data") ?: plain
+        return intField(data, "count") to intField(data, "total")
     }
 
     private fun parseCustomSoundResources(plain: String): List<CustomSoundResource> =

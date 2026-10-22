@@ -24,6 +24,7 @@ import top.ghhccghk.yadea.carsetting.CarSettingItem
 import top.ghhccghk.yadea.carsetting.CarSettingKind
 import top.ghhccghk.yadea.carsetting.CarSettingsController
 import top.ghhccghk.yadea.carsetting.CustomSoundController
+import top.ghhccghk.yadea.carsetting.CustomSoundCategory
 import top.ghhccghk.yadea.carsetting.CustomSoundResource
 import top.ghhccghk.yadea.vehicle.ContactType
 import top.ghhccghk.yadea.vehicle.EmergencyContactController
@@ -54,6 +55,7 @@ fun CarSettingsScreen(
     }
     var detailItem by remember { mutableStateOf<CarSettingItem?>(null) }
     var showCustomSounds by remember { mutableStateOf(false) }
+    var selectedSoundCategory by remember { mutableStateOf<CustomSoundCategory?>(null) }
     var deleteSoundTarget by remember { mutableStateOf<CustomSoundResource?>(null) }
     var renameSoundTarget by remember { mutableStateOf<CustomSoundResource?>(null) }
     var renameSoundText by remember { mutableStateOf("") }
@@ -199,6 +201,7 @@ fun CarSettingsScreen(
                                 onClick = {
                                     customSoundController.clearMessage()
                                     customSoundController.refresh()
+                                    selectedSoundCategory = null
                                     showCustomSounds = true
                                 },
                             )
@@ -359,6 +362,7 @@ fun CarSettingsScreen(
             show = showCustomSounds,
             onDismissRequest = {
                 showCustomSounds = false
+                selectedSoundCategory = null
                 renameSoundTarget = null
                 customSoundController.clearMessage()
             },
@@ -389,6 +393,49 @@ fun CarSettingsScreen(
                         color = AppDesign.colors.onSurfaceVariant,
                     )
                 }
+                val activeCategory = selectedSoundCategory?.let { selected ->
+                    soundState?.categories
+                        ?.firstOrNull { it.sonConfId == selected.sonConfId }
+                        ?: selected
+                }
+                if (activeCategory == null) {
+                    val remaining = soundState?.weeklyRemaining
+                    val limit = soundState?.weeklyLimit
+                    AppText(
+                        text = if (remaining != null && limit != null) {
+                            "一周可设置${limit}次，剩余${remaining}次"
+                        } else {
+                            "正在查询本周可设置次数…"
+                        },
+                        style = AppDesign.typography.summary,
+                        color = AppDesign.colors.onSurfaceVariant,
+                    )
+                    val categories = soundState?.categories.orEmpty()
+                    if (soundState?.loading != true && categories.isEmpty()) {
+                        AppEmptyState("暂无可配置的自定义音效分类")
+                    }
+                    categories.forEach { category ->
+                        AppListRow(
+                            title = category.name,
+                            summary = "点击选择或更换音效",
+                            value = category.selectedName.ifBlank { "未设置" },
+                            onClick = { selectedSoundCategory = category },
+                        )
+                    }
+                } else {
+                    AppActionPreference(
+                        title = "返回自定义音效",
+                        summary = "返回音效分类列表",
+                        value = "返回",
+                        onClick = {
+                            selectedSoundCategory = null
+                            renameSoundTarget = null
+                        },
+                    )
+                    AppText(
+                        text = activeCategory.name,
+                        style = AppDesign.typography.itemTitle,
+                    )
                 val renameTarget = renameSoundTarget
                 if (renameTarget != null) {
                     AppText(
@@ -429,8 +476,7 @@ fun CarSettingsScreen(
                         AppEmptyState("云端暂无用户自定义音效")
                     }
                     resources.forEach { resource ->
-                        val selected = resource.id == soundState?.selectedResourceId ||
-                            resource.isSelected
+                        val selected = resource.id == activeCategory.selectedResourceId
                         AppListRow(
                             title = resource.name,
                             summary = if (selected) {
@@ -440,7 +486,9 @@ fun CarSettingsScreen(
                             },
                             value = if (selected) "使用中" else "应用",
                             onClick = {
-                                if (!selected) customSoundController.apply(resource)
+                                if (!selected) {
+                                    customSoundController.apply(activeCategory, resource)
+                                }
                             },
                         )
                         Row(
@@ -497,6 +545,7 @@ fun CarSettingsScreen(
                     ) {
                         AppText("添加音效", style = AppDesign.typography.button)
                     }
+                }
                 }
             }
         }

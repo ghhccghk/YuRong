@@ -15,10 +15,22 @@ data class CustomSoundResource(
     val source: Int = 0,
 )
 
+/** `selectConfigListByVin` 下 `zdyyx001` 的一个子配置，对应官方页面的一个音效分类。 */
+data class CustomSoundCategory(
+    val sonConfId: String,
+    val name: String,
+    val selectedResourceId: String = "",
+    val selectedName: String = "",
+    val sort: Int = 0,
+)
+
 /** 自定义音效列表、当前选中项以及应用时需要的云端配置字段。 */
 data class CustomSoundState(
     val enabled: Boolean = false,
     val resources: List<CustomSoundResource> = emptyList(),
+    val categories: List<CustomSoundCategory> = emptyList(),
+    val weeklyRemaining: Int? = null,
+    val weeklyLimit: Int? = null,
     val selectedResourceId: String = "",
     val parentConfId: String = "",
     val parentConfName: String = "自定义音效",
@@ -44,6 +56,7 @@ interface CustomSoundGateway {
     suspend fun applyCustomSound(
         vin: String,
         state: CustomSoundState,
+        category: CustomSoundCategory,
         resource: CustomSoundResource,
     ): Boolean
     suspend fun deleteCustomSound(vin: String, resourceId: String): Boolean
@@ -112,7 +125,7 @@ class CustomSoundController(
         }
     }
 
-    fun apply(resource: CustomSoundResource) {
+    fun apply(category: CustomSoundCategory, resource: CustomSoundResource) {
         val active = gateway ?: return
         val vin = vinProvider().trim()
         if (vin.isBlank() || _state.value.busy) return
@@ -120,12 +133,22 @@ class CustomSoundController(
         _state.value = current.copy(busy = true, message = "正在应用到车辆…")
         scope.launch {
             val success = runCatching {
-                active.applyCustomSound(vin, current, resource)
+                active.applyCustomSound(vin, current, category, resource)
             }.getOrDefault(false)
             _state.value = if (success) {
                 current.copy(
                     enabled = true,
                     selectedResourceId = resource.id,
+                    categories = current.categories.map {
+                        if (it.sonConfId == category.sonConfId) {
+                            it.copy(
+                                selectedResourceId = resource.id,
+                                selectedName = resource.name,
+                            )
+                        } else {
+                            it
+                        }
+                    },
                     resources = current.resources.map {
                         it.copy(isSelected = it.id == resource.id)
                     },
