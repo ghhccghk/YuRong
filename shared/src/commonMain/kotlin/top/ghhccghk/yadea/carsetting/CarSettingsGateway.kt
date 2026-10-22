@@ -759,6 +759,8 @@ object CloudCarSettingMapper {
         "69" -> CarSettingKind.Info("雷达功能分项设置见下方")
         // QuietModeActivity：关闭超速提示，原实现同时下发新旧两个字段。
         "93" -> CarSettingKind.Toggle(false)
+        // GaugeSettingsActivity 是仪表蓝牙配对页，不是可写参数。
+        "71" -> CarSettingKind.Info("请在“连接”页完成仪表蓝牙配对")
         // 边撑自动关机：原 App 只给开关，依赖边撑感应（confId 2）。
         "39" -> CarSettingKind.Toggle(false)
         // 报失模式需要短信验证，统一在“诊断 · 定位与报失”中操作。
@@ -851,7 +853,7 @@ object CloudCarSettingMapper {
     private val ENTRANCE_IDS = setOf(
         "9", "10", "14", "15", "17", "18", "20", "24",
         "25", "27", "31", "33", "41", "47", "48",
-        "61", "71", "72", "73", "77", "81", "86", "88",
+        "61", "72", "73", "77", "81", "86", "88",
         "91", "95", "1005",
     )
     private val SPECIAL_IDS = setOf(
