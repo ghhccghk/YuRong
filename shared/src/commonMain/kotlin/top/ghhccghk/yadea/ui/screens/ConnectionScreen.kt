@@ -378,6 +378,15 @@ fun ConnectionScreen(
                     } else if (bindingState.candidates.isNotEmpty()) {
                         AppEmptyState("扫描结果均已在车库中，请在下方连接已有车辆")
                     }
+                    AppListRow(
+                        title = "已有车辆扫描状态",
+                        value = if (isScanningBle) "正在扫描…" else "未扫描",
+                        summary = if (isScanningBle) {
+                            "正在扫描车库中的已绑定车辆，最多 10 秒"
+                        } else {
+                            "点击下方按钮扫描车库车辆"
+                        },
+                    )
                     AppButton(
                         onClick = { viewModel.scanBle() },
                         modifier = Modifier.fillMaxWidth().padding(
@@ -386,7 +395,13 @@ fun ConnectionScreen(
                         ),
                         containerColor = if (isScanningBle) AppDesign.colors.error else AppDesign.colors.primary,
                     ) {
-                        AppText(if (isScanningBle) "停止扫描" else "扫描已有车辆")
+                        AppText(
+                            if (isScanningBle) {
+                                "正在扫描…（点击停止）"
+                            } else {
+                                "扫描已有车辆"
+                            },
+                        )
                     }
                     val boundBleDevices = bleDevices.filter { device ->
                         profiles.any { it.matches(device) }
