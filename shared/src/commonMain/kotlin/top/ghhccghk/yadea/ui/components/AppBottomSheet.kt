@@ -10,6 +10,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
 /**
@@ -56,13 +57,13 @@ fun AppBottomSheet(
             }
         },
         miuix = {
-            WindowBottomSheet(
+            OverlayBottomSheet(
                 show = show,
                 modifier = modifier,
                 title = title,
                 onDismissRequest = onDismissRequest,
             ) {
-                // Miuix 面板已自带标题栏与内边距，这里只补统一的元素间距。
+                // Miuix 面板已自带标题栏与内边距，这里只统一的元素间距。
                 AppBottomSheetBody(
                     title = null,
                     contentPadding = PaddingValues(vertical = AppDesign.dimensions.compactSpacing),
