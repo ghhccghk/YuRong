@@ -13,6 +13,8 @@ data class BleDevice(
     val supportsToken: Boolean = false,
     val bleProtocolVersion: Int = 0,
     val parkingStatus: Int = -1,
+    /** `1AFF` 厂商段中的真实车辆 MAC，对应原 `BleDevice.mRealMac`。 */
+    val realMac: String = "",
 )
 
 /**

@@ -39,6 +39,17 @@ object BleAdvertisementParser {
                 supportsToken = upper.contains("920B81E7"),
             )
         }
+        val realMac = buildString(17) {
+            for (index in 0 until 6) {
+                if (index > 0) append(':')
+                append(
+                    (data[offset + 6 + index].toInt() and 0xFF)
+                        .toString(16)
+                        .uppercase()
+                        .padStart(2, '0'),
+                )
+            }
+        }
         val flags = data[offset + 0x0D].toInt() and 0xFF
         return BleAdvertisementInfo(
             isScooter = scooter,
@@ -48,6 +59,7 @@ object BleAdvertisementParser {
             supportsBleKey = (flags ushr 3) and 0x01,
             otaProtocolVersion = (data[offset + 0x0C].toInt() ushr 4) and 0x0F,
             softwareArchitecture = data[offset + 0x0C].toInt() and 0x0F,
+            realMac = realMac,
         )
     }
 }
@@ -61,4 +73,5 @@ data class BleAdvertisementInfo(
     val supportsBleKey: Int = 0,
     val otaProtocolVersion: Int = 0,
     val softwareArchitecture: Int = 0,
+    val realMac: String = "",
 )

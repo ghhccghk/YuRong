@@ -70,6 +70,9 @@ class AppViewModel(
 ) {
     val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
+    @Volatile
+    private var connectedDeviceRealMac = ""
+
     private val _debugLog = MutableStateFlow<List<String>>(emptyList())
     val debugLog: StateFlow<List<String>> = _debugLog.asStateFlow()
 
@@ -174,7 +177,9 @@ class AppViewModel(
                     vinProvider = vehicleVinProvider,
                     bikeIdProvider = vehicleBikeIdProvider,
                     currentUserIdProvider = currentUserIdProvider,
-                    vehicleMacProvider = vehicleMacProvider,
+                    vehicleMacProvider = {
+                        connectedDeviceRealMac.ifBlank { vehicleMacProvider() }
+                    },
                     timeProvider = VehicleLocalTimeProvider { getCurrentTime() },
                     onDebug = ::debug,
                 ),
@@ -301,6 +306,10 @@ class AppViewModel(
     fun stopBleScan() { bleAdapter?.stopScan(); _isScanningBle.value = false }
 
     fun connectBle(address: String, name: String, binding: Boolean = false) {
+        connectedDeviceRealMac = bleAdapter?.discoveredDevices?.value
+            ?.firstOrNull { it.address.equals(address, ignoreCase = true) }
+            ?.realMac
+            .orEmpty()
         _bleConnectedName.value = name
         _bleConnectedAddress.value = address
         _bleFailureMessage.value = null

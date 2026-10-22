@@ -135,6 +135,7 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
                     supportsToken = advertised.supportsToken,
                     bleProtocolVersion = advertised.bleProtocolVersion,
                     parkingStatus = advertised.parkingStatus,
+                    realMac = advertised.realMac,
                 )
                 _discoveredDevices.update { list ->
                     if (list.any { it.address == device.address }) list else list + device
@@ -320,6 +321,10 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
         } else {
             BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
         }
+        NetworkLog.write(
+            "BLE write -> service=$serviceUuid characteristic=$characteristicUuid " +
+                "len=${data.size} type=${characteristic.writeType} mtu=$negotiatedMtu",
+        )
         if (!currentGatt.writeCharacteristic(characteristic)) {
             synchronized(pendingLock) {
                 if (pendingWrite === result) pendingWrite = null
@@ -542,6 +547,9 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
             status: Int,
             newState: Int,
         ) {
+            NetworkLog.write(
+                "BLE gatt state=$newState status=$status address=${callbackGatt.device.address}",
+            )
             val currentGatt = gatt
             if (currentGatt != null && currentGatt !== callbackGatt) {
                 runCatching { callbackGatt.close() }
@@ -632,6 +640,10 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
             characteristic: BluetoothGattCharacteristic,
             status: Int,
         ) {
+            NetworkLog.write(
+                "BLE write callback characteristic=${characteristic.uuid} status=$status " +
+                    "type=${characteristic.writeType} mtu=$negotiatedMtu",
+            )
             takePendingWrite()?.complete(status)
         }
 
@@ -644,6 +656,7 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
         }
 
         override fun onMtuChanged(callbackGatt: BluetoothGatt, mtu: Int, status: Int) {
+            NetworkLog.write("BLE mtu callback mtu=$mtu status=$status")
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 negotiatedMtu = mtu
             }
