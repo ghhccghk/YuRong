@@ -37,6 +37,8 @@ import top.ghhccghk.yadea.carsetting.MappedCarSettingWriter
 import top.ghhccghk.yadea.carsetting.CloudCarSettingWriter
 import top.ghhccghk.yadea.carsetting.VehicleSettingCommandSink
 import top.ghhccghk.yadea.carsetting.CarSettingsController
+import top.ghhccghk.yadea.carsetting.CustomSoundController
+import top.ghhccghk.yadea.carsetting.CustomSoundGateway
 import top.ghhccghk.yadea.mirror.FrameSourceFactory
 import top.ghhccghk.yadea.mirror.MediaSourcePicker
 import top.ghhccghk.yadea.mirror.ScreenCaptureAuthorizer
@@ -199,6 +201,16 @@ fun MainScreen(
             vinProvider = { resolvedProfileSource.profile.value?.vin.orEmpty() },
         )
     }
+    val customSoundController = remember(carSettingsGateway, resolvedProfileSource) {
+        (carSettingsGateway as? CustomSoundGateway)?.let { gateway ->
+            CustomSoundController(
+                gateway = gateway,
+                scope = featureScope,
+                vinProvider = { resolvedProfileSource.profile.value?.vin.orEmpty() },
+                modelIdProvider = { resolvedProfileSource.profile.value?.bikeModelId ?: 0L },
+            )
+        }
+    }
     val otaController = remember(otaGateway) {
         OtaController(
             gateway = otaGateway,
@@ -353,6 +365,7 @@ fun MainScreen(
             onOpenExternalUrl = onOpenExternalUrl,
             authController = authController,
             carSettingsController = carSettingsController,
+            customSoundController = customSoundController,
             otaController = otaController,
             vehicleControlController = vehicleControlController,
             vehicleConnectionPreferences = vehicleConnectionPreferences,
@@ -411,6 +424,7 @@ private fun MainScreenContent(
     onOpenExternalUrl: ((String) -> Unit)?,
     authController: AuthController,
     carSettingsController: CarSettingsController,
+    customSoundController: CustomSoundController?,
     otaController: OtaController,
     vehicleControlController: VehicleControlController,
     vehicleConnectionPreferences: top.ghhccghk.yadea.settings.VehicleConnectionPreferences,
@@ -535,6 +549,7 @@ private fun MainScreenContent(
             onOpenExternalUrl = onOpenExternalUrl,
             authController = authController,
             carSettingsController = carSettingsController,
+            customSoundController = customSoundController,
             otaController = otaController,
             vehicleControlController = vehicleControlController,
             vehicleConnectionPreferences = vehicleConnectionPreferences,
@@ -642,6 +657,7 @@ private fun MainDestinationContent(
     onOpenExternalUrl: ((String) -> Unit)?,
     authController: AuthController,
     carSettingsController: CarSettingsController,
+    customSoundController: CustomSoundController?,
     otaController: OtaController,
     vehicleControlController: VehicleControlController,
     vehicleConnectionPreferences: top.ghhccghk.yadea.settings.VehicleConnectionPreferences,
@@ -687,6 +703,7 @@ private fun MainDestinationContent(
                 onOpenIotRenewal = onOpenExternalUrl,
                 authController = authController,
                 carSettingsController = carSettingsController,
+                customSoundController = customSoundController,
                 otaController = otaController,
                 vehicleControlController = vehicleControlController,
                 contentPadding = contentPadding,

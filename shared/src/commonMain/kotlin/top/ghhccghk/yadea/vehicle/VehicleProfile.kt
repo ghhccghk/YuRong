@@ -15,6 +15,8 @@ data class VehicleProfile(
     val vin: String = "",
     /** 云端车辆主键，解绑接口需要 `bikeId`。 */
     val bikeId: Long = 0L,
+    /** 车型主键，自定义音效等资源接口需要 `modelId`。 */
+    val bikeModelId: Long = 0L,
     val modelNo: String = "",
     val modelName: String = "",
     /** 联动款标记；原实现用 `dLinkTag`/车型号判断联动款。 */

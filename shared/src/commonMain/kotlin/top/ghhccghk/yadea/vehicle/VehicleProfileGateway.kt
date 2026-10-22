@@ -83,6 +83,7 @@ class YadeaVehicleProfileGateway(
         return VehicleProfile(
             vin = stringField(objectText, "vin").orEmpty(),
             bikeId = longField(objectText, "bikeId") ?: 0L,
+            bikeModelId = longField(objectText, "bikeModelId") ?: 0L,
             modelNo = stringField(objectText, "modelNo").orEmpty(),
             modelName = stringField(objectText, "modelName").orEmpty(),
             dLinkTag = stringField(objectText, "dLinkTag").orEmpty(),

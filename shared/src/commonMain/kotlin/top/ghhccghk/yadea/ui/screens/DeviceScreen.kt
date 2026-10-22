@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import top.ghhccghk.yadea.auth.AuthController
 import top.ghhccghk.yadea.auth.AuthUser
 import top.ghhccghk.yadea.carsetting.CarSettingsController
+import top.ghhccghk.yadea.carsetting.CustomSoundController
 import top.ghhccghk.yadea.ota.OtaController
 import top.ghhccghk.yadea.vehicle.TtpInfo
 import top.ghhccghk.yadea.vehicle.VehicleInfoFormatter
@@ -64,6 +65,7 @@ internal fun VehicleHubScreen(
     currentUser: AuthUser? = null,
     authController: AuthController,
     carSettingsController: CarSettingsController,
+    customSoundController: CustomSoundController? = null,
     otaController: OtaController,
     vehicleControlController: VehicleControlController,
     contentPadding: PaddingValues,
@@ -135,6 +137,7 @@ internal fun VehicleHubScreen(
                     contentPadding = pagePadding,
                     emergencyContactController = emergencyContactController,
                     onOpenLostMode = { onSectionChange(VehicleSection.Diagnostics) },
+                    customSoundController = customSoundController,
                 )
                 VehicleSection.Ota -> OtaScreen(
                     controller = otaController,

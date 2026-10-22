@@ -9,6 +9,7 @@ import top.ghhccghk.yadea.network.HttpResponse
 import top.ghhccghk.yadea.network.HttpTransport
 import top.ghhccghk.yadea.network.JsonSupport
 import top.ghhccghk.yadea.network.NetworkLog
+import kotlinx.coroutines.delay
 
 /** 云端 `CarSettingBean$BikeConfig` 的 UI 子集。 */
 data class CloudBikeConfig(
@@ -144,7 +145,7 @@ class YadeaCarSettingsGateway(
     private val clientInfoProvider: () -> GatewayClientInfo = { GatewayClientInfo() },
     private val timestampProvider: () -> Long,
     private val baseUrl: String = DEFAULT_BASE_URL,
-) : CarSettingsGateway {
+) : CarSettingsGateway, CustomSoundGateway {
 
     override suspend fun load(vin: String): CloudCarSettings? {
         val token = tokenProvider().trim()
@@ -203,6 +204,242 @@ class YadeaCarSettingsGateway(
         val result = JsonSupport.int(data, "result")
             ?: JsonSupport.string(data, "result")?.toIntOrNull()
         return result == 0
+    }
+
+    override suspend fun loadCustomSoundState(
+        vin: String,
+        modelId: Long,
+    ): CustomSoundState? {
+        val token = tokenProvider().trim()
+        if (token.isBlank() || vin.isBlank()) return null
+        val resourcePlain = postFields(
+            path = "resource/queryResourceList",
+            fields = mapOf(
+                "_gateway" to "True",
+                "modelId" to modelId.toString(),
+                "vin" to vin,
+            ),
+            token = token,
+        )
+        val resources = resourcePlain
+            ?.takeIf { JsonSupport.boolean(it, "success") != false }
+            ?.let(::parseCustomSoundResources)
+            .orEmpty()
+        val bikePlain = postFields(
+            path = "resourceBike/queryResourceBikeList",
+            fields = mapOf("_gateway" to "True", "vin" to vin),
+            token = token,
+        )
+        val bikeItems = bikePlain
+            ?.takeIf { JsonSupport.boolean(it, "success") != false }
+            ?.let(::soundDataObjects)
+            .orEmpty()
+        if (resourcePlain == null && bikePlain == null) return null
+        val resourceIds = resources.mapTo(mutableSetOf()) { it.id }
+        val selected = bikeItems.firstOrNull {
+            (textOrNumber(it, "resourceId") ?: "").let(resourceIds::contains)
+        } ?: bikeItems.firstOrNull {
+            boolField(it, "isSelected") || intField(it, "resourceType") == 1
+        }
+        val selectedId = selected?.let { textOrNumber(it, "resourceId") }.orEmpty()
+        return CustomSoundState(
+            enabled = selected?.let {
+                boolField(it, "isSelected") ||
+                    intField(it, "soundEffectSendType") == 1
+            } ?: resources.any { it.isSelected },
+            resources = if (resources.isEmpty()) {
+                bikeItems.mapNotNull { item ->
+                    val id = textOrNumber(item, "resourceId") ?: return@mapNotNull null
+                    CustomSoundResource(
+                        id = id,
+                        name = JsonSupport.string(item, "resourceName")
+                            .orEmpty()
+                            .ifBlank { JsonSupport.string(item, "musicName").orEmpty() }
+                            .ifBlank { "未命名音效" },
+                        isSelected = boolField(item, "isSelected"),
+                    )
+                }.distinctBy { it.id }
+            } else {
+                resources
+            },
+            selectedResourceId = selectedId,
+            parentConfId = selected?.let { textOrNumber(it, "parentConfId") }.orEmpty(),
+            parentConfName = "自定义音效",
+            sonConfId = selected?.let { textOrNumber(it, "sonConfId") }.orEmpty(),
+        )
+    }
+
+    override suspend fun setCustomSoundEnabled(vin: String, enabled: Boolean): Boolean {
+        val token = tokenProvider().trim()
+        if (token.isBlank() || vin.isBlank()) return false
+        val plain = postFields(
+            path = "protocol/control-vehicle/user_defined_sound_effect",
+            fields = mapOf(
+                "_gateway" to "True",
+                "type" to if (enabled) "1" else "0",
+                "vin" to vin,
+            ),
+            token = token,
+        ) ?: return false
+        if (JsonSupport.boolean(plain, "success") == false) return false
+        return pollSoundResult(
+            token = token,
+            vin = vin,
+            otaSendId = otaSendIdOf(plain),
+        )
+    }
+
+    override suspend fun applyCustomSound(
+        vin: String,
+        state: CustomSoundState,
+        resource: CustomSoundResource,
+    ): Boolean {
+        val token = tokenProvider().trim()
+        if (token.isBlank() || vin.isBlank()) return false
+        if (state.parentConfId.isBlank() || state.sonConfId.isBlank()) return false
+        val plain = postFields(
+            path = "resourcesBike/setResourceBike",
+            fields = mapOf(
+                "_gateway" to "True",
+                "parentConfId" to state.parentConfId,
+                "parentConfName" to state.parentConfName,
+                "resourceId" to resource.id,
+                "sonConfId" to state.sonConfId,
+                "sonConfName" to resource.name,
+                "type" to "1",
+                "vin" to vin,
+            ),
+            token = token,
+        ) ?: return false
+        if (JsonSupport.boolean(plain, "success") == false) return false
+        return pollSoundResult(
+            token = token,
+            vin = vin,
+            otaSendId = otaSendIdOf(plain),
+        )
+    }
+
+    override suspend fun deleteCustomSound(vin: String, resourceId: String): Boolean {
+        val token = tokenProvider().trim()
+        if (token.isBlank() || vin.isBlank() || resourceId.isBlank()) return false
+        val plain = postFields(
+            path = "resource/deleteUserResource",
+            fields = mapOf(
+                "_gateway" to "True",
+                "resourceId" to resourceId,
+                "vin" to vin,
+            ),
+            token = token,
+        ) ?: return false
+        return JsonSupport.boolean(plain, "success") != false
+    }
+
+    override suspend fun renameCustomSound(
+        vin: String,
+        resourceId: String,
+        name: String,
+    ): Boolean {
+        val token = tokenProvider().trim()
+        if (token.isBlank() || vin.isBlank() || resourceId.isBlank() || name.isBlank()) {
+            return false
+        }
+        val plain = postFields(
+            path = "resource/renameUserResource",
+            fields = mapOf(
+                "_gateway" to "True",
+                "resourceId" to resourceId,
+                "resourceName" to name,
+                "vin" to vin,
+            ),
+            token = token,
+        ) ?: return false
+        return JsonSupport.boolean(plain, "success") != false
+    }
+
+    override suspend fun addCustomSound(
+        vin: String,
+        modelId: Long,
+        name: String,
+        resourceUrl: String,
+    ): Boolean {
+        val token = tokenProvider().trim()
+        if (token.isBlank() || vin.isBlank() || name.isBlank() || resourceUrl.isBlank()) {
+            return false
+        }
+        val plain = postFields(
+            path = "resource/addUserResource",
+            fields = mapOf(
+                "_gateway" to "True",
+                "modelId" to modelId.toString(),
+                "resourceName" to name,
+                "resourceUrl" to resourceUrl,
+                "vin" to vin,
+            ),
+            token = token,
+        ) ?: return false
+        return JsonSupport.boolean(plain, "success") != false
+    }
+
+    private fun parseCustomSoundResources(plain: String): List<CustomSoundResource> =
+        soundDataObjects(plain).mapNotNull { item ->
+            val id = textOrNumber(item, "id")
+                ?: textOrNumber(item, "resourceId")
+                ?: return@mapNotNull null
+            CustomSoundResource(
+                id = id,
+                name = JsonSupport.string(item, "resourceName")
+                    .orEmpty()
+                    .ifBlank { "未命名音效" },
+                url = JsonSupport.string(item, "resourceUrl").orEmpty(),
+                isSelected = boolField(item, "isSelected") || boolField(item, "isUsed"),
+                source = intField(item, "source") ?: 0,
+            )
+        }
+
+    /** `data` 既可能是数组，也可能包在 `list/records` 中。 */
+    private fun soundDataObjects(plain: String): List<String> {
+        val direct = JsonSupport.arrayObjects(plain, "data")
+        if (direct.isNotEmpty()) return direct
+        val data = JsonSupport.objectField(plain, "data") ?: return emptyList()
+        return JsonSupport.arrayObjects(data, "list")
+            .ifEmpty { JsonSupport.arrayObjects(data, "records") }
+            .ifEmpty { JsonSupport.arrayObjects(data, "rows") }
+    }
+
+    private fun otaSendIdOf(plain: String): String {
+        val data = JsonSupport.objectField(plain, "data")
+        return listOfNotNull(data, plain)
+            .firstNotNullOfOrNull { textOrNumber(it, "otaSendId") }
+            .orEmpty()
+    }
+
+    private suspend fun pollSoundResult(
+        token: String,
+        vin: String,
+        otaSendId: String,
+    ): Boolean {
+        if (otaSendId.isBlank()) return true
+        repeat(15) { attempt ->
+            if (attempt > 0) delay(1_000L)
+            val plain = postFields(
+                path = "resourcesBike/queryResultSetResourceBike",
+                fields = mapOf(
+                    "_gateway" to "True",
+                    "otaSendId" to otaSendId,
+                    "vin" to vin,
+                ),
+                token = token,
+            ) ?: return@repeat
+            if (JsonSupport.boolean(plain, "success") == false) return false
+            val data = JsonSupport.objectField(plain, "data") ?: plain
+            when (val status = intField(data, "status")) {
+                0 -> return true
+                3 -> return false
+                null -> if (attempt >= 2) return true
+                else -> Unit
+            }
+        }
+        return false
     }
 
     private var timestampOffsetMs: Long = 0L
@@ -759,6 +996,8 @@ object CloudCarSettingMapper {
         "69" -> CarSettingKind.Info("雷达功能分项设置见下方")
         // QuietModeActivity：关闭超速提示，原实现同时下发新旧两个字段。
         "93" -> CarSettingKind.Toggle(false)
+        // CustomSoundEffectListActivity：列表、开关和应用入口在下方管理。
+        "88" -> CarSettingKind.Info("在下方管理自定义音效")
         // GaugeSettingsActivity 是仪表蓝牙配对页，不是可写参数。
         "71" -> CarSettingKind.Info("请在“连接”页完成仪表蓝牙配对")
         // 边撑自动关机：原 App 只给开关，依赖边撑感应（confId 2）。
@@ -853,7 +1092,7 @@ object CloudCarSettingMapper {
     private val ENTRANCE_IDS = setOf(
         "9", "10", "14", "15", "17", "18", "20", "24",
         "25", "27", "31", "33", "41", "47", "48",
-        "61", "72", "73", "77", "81", "86", "88",
+        "61", "72", "73", "77", "81", "86",
         "91", "95", "1005",
     )
     private val SPECIAL_IDS = setOf(
