@@ -35,6 +35,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
+import top.ghhccghk.yadea.network.NetworkLog
 
 /**
  * Android BLE 适配器实现。
@@ -50,6 +51,10 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
     private companion object {
         const val GATT_CONNECT_TIMEOUT_MS = 20_000L
         const val GATT_OPERATION_TIMEOUT_MS = 5_000L
+        const val HANDSHAKE_RANDOM_KEY =
+            "bef8e7e0-9c21-4c9e-b632-bd58c1009f9f"
+        const val HANDSHAKE_AUTH_RESULT =
+            "bef8e7e1-9c21-4c9e-b632-bd58c1009f9f"
     }
 
     private val bluetoothManager =
@@ -343,12 +348,30 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
             BleGattOperation.WriteDescriptor,
         )
         val characteristic = findCharacteristic(currentGatt, serviceUuid, characteristicUuid)
-            ?: return@withLock false
+            ?: run {
+                NetworkLog.write(
+                    "BLE !! setNotification characteristic not found " +
+                        "service=$serviceUuid characteristic=$characteristicUuid",
+                )
+                return@withLock false
+            }
         val descriptor = characteristic.getDescriptor(
             UUID.fromString(BleProtocol.CLIENT_CONFIG_UUID),
-        ) ?: return@withLock false
+        ) ?: run {
+            NetworkLog.write(
+                "BLE !! setNotification CCCD not found " +
+                    "service=$serviceUuid characteristic=$characteristicUuid " +
+                    "properties=${characteristic.properties}",
+            )
+            return@withLock false
+        }
 
         if (!currentGatt.setCharacteristicNotification(characteristic, enable)) {
+            NetworkLog.write(
+                "BLE !! setCharacteristicNotification returned false " +
+                    "service=$serviceUuid characteristic=$characteristicUuid " +
+                    "properties=${characteristic.properties}",
+            )
             return@withLock false
         }
 
@@ -356,13 +379,21 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
         synchronized(pendingLock) {
             pendingDescriptorWrite = result
         }
+        val handshakeCharacteristic =
+            characteristicUuid.equals(HANDSHAKE_RANDOM_KEY, ignoreCase = true) ||
+                characteristicUuid.equals(HANDSHAKE_AUTH_RESULT, ignoreCase = true)
         descriptor.value = when {
             !enable -> BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
+            handshakeCharacteristic -> BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
             characteristic.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0 ->
                 BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
             else -> BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
         }
         if (!currentGatt.writeDescriptor(descriptor)) {
+            NetworkLog.write(
+                "BLE !! writeDescriptor returned false " +
+                    "service=$serviceUuid characteristic=$characteristicUuid",
+            )
             synchronized(pendingLock) {
                 if (pendingDescriptorWrite === result) pendingDescriptorWrite = null
             }
@@ -374,6 +405,10 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
         }
 
         val status = awaitStatus(result, BleGattOperation.WriteDescriptor)
+        NetworkLog.write(
+            "BLE setNotification status=$status service=$serviceUuid " +
+                "characteristic=$characteristicUuid",
+        )
         status == BluetoothGatt.GATT_SUCCESS
     }
 

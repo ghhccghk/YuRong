@@ -47,6 +47,40 @@ class VehicleTokenPairingStep(
         }
 
         val protocol = resolveVehicleNotificationProfile(services)
+        val handshakeService = services.firstOrNull {
+            it.uuid.equals(HANDSHAKE_SERVICE, ignoreCase = true)
+        }
+        if (handshakeService == null) {
+            onDebug(
+                "BLE 鉴权失败：未发现握手服务 $HANDSHAKE_SERVICE；" +
+                    "已发现服务=${services.joinToString { it.uuid }}",
+            )
+            return false
+        }
+        val randomKeyCharacteristic = handshakeService.characteristics.firstOrNull {
+            it.uuid.equals(RANDOM_KEY_CHARACTERISTIC, ignoreCase = true)
+        }
+        if (randomKeyCharacteristic == null) {
+            onDebug(
+                "BLE 鉴权失败：握手服务中没有 RandKey 特征 $RANDOM_KEY_CHARACTERISTIC；" +
+                    "服务特征=${handshakeService.characteristics.joinToString { it.uuid }}",
+            )
+            return false
+        }
+        val authResultCharacteristic = handshakeService.characteristics.firstOrNull {
+            it.uuid.equals(AUTH_RESULT_CHARACTERISTIC, ignoreCase = true)
+        }
+        if (authResultCharacteristic == null) {
+            onDebug(
+                "BLE 鉴权失败：握手服务中没有鉴权结果特征 $AUTH_RESULT_CHARACTERISTIC；" +
+                    "服务特征=${handshakeService.characteristics.joinToString { it.uuid }}",
+            )
+            return false
+        }
+        onDebug(
+            "握手特征：RandKey properties=${randomKeyCharacteristic.properties} " +
+                "authResult properties=${authResultCharacteristic.properties}",
+        )
         return coroutineScope {
             val randomKeyDeferred = async(start = CoroutineStart.UNDISPATCHED) {
                 awaitNotification(
@@ -64,11 +98,17 @@ class VehicleTokenPairingStep(
             }
 
             if (!adapter.setNotification(HANDSHAKE_SERVICE, RANDOM_KEY_CHARACTERISTIC, true)) {
-                onDebug("BLE 鉴权失败：无法订阅 RandKey 通知")
+                onDebug(
+                    "BLE 鉴权失败：无法订阅 RandKey 通知（properties=" +
+                        "${randomKeyCharacteristic.properties}）",
+                )
                 return@coroutineScope false
             }
             if (!adapter.setNotification(HANDSHAKE_SERVICE, AUTH_RESULT_CHARACTERISTIC, true)) {
-                onDebug("BLE 鉴权失败：无法订阅鉴权结果通知")
+                onDebug(
+                    "BLE 鉴权失败：无法订阅鉴权结果通知（properties=" +
+                        "${authResultCharacteristic.properties}）",
+                )
                 return@coroutineScope false
             }
 
