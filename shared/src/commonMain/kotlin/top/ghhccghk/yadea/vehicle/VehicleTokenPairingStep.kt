@@ -120,7 +120,6 @@ class VehicleTokenPairingStep(
                 )
                 return false
             }
-            val accountRoles = loadAccountRolesAndLog()
             val legacyProtocol = resolveLegacyProtocolVersion(randomKey)
             val legacyBlock = VehicleHandshakeFrame.buildLegacyRandomBlock(
                 randomKey = randomKey,
@@ -128,8 +127,6 @@ class VehicleTokenPairingStep(
                 protocolVersion = legacyProtocol,
                 localTime = timeProvider.now(),
                 mode = "10",
-                accountList = accountRoles?.accountList,
-                userNo = accountRoles?.userNo ?: -1,
             )
             if (legacyBlock == null) {
                 onDebug("BLE 鉴权失败：旧握手随机块构造失败")

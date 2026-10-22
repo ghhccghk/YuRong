@@ -177,10 +177,10 @@ object VehicleHandshakeFrame {
     }
 
     /**
-     * `wi.U` / `wi.V` 的旧握手随机块。
+     * `BleBicycleScooterControl.s` 的旧握手随机块。
      *
-     * 旧协议不再生成 Token 帧，而是把 9/14/16 字节随机块直接写入
-     * `bef8e7e0`。账号分支 `V` 会额外带上角色位、用户序号和异或校验。
+     * 旧协议不再生成 Token 帧，而是把 9/14 字节随机块直接写入
+     * `bef8e7e0`。14 字节尾段为 `41 05 01 pairCommand (45 xor pairCommand)`。
      */
     internal fun buildLegacyRandomBlock(
         randomKey: ByteArray,
@@ -188,45 +188,17 @@ object VehicleHandshakeFrame {
         protocolVersion: Int,
         localTime: DateTimeParts,
         mode: String,
-        accountList: IntArray?,
-        userNo: Int,
     ): ByteArray? {
         val base = buildBaseRandomBlock(randomKey, mac, localTime) ?: return null
         if (protocolVersion != 1) return base
 
-        val modeByte = modeValue(mode)
-        val roles = accountList
-        val useAccountBlock =
-            (randomKey.getOrNull(13)?.toInt()?.and(1) == 1) &&
-                roles != null &&
-                roles.size >= 6 &&
-                userNo >= 0
-        if (!useAccountBlock) {
-            return base + byteArrayOf(
-                0x41,
-                0x05,
-                0x03,
-                modeByte.toByte(),
-                (0x45 xor modeByte).toByte(),
-            )
-        }
-
-        val roleX = ((roles[0] and 1) shl 1) or (roles[1] and 1)
-        val roleY =
-            ((roles[2] and 1) shl 7) or
-                ((roles[3] and 1) shl 6) or
-                ((roles[4] and 1) shl 5) or
-                0x10 or
-                (userNo and 0x0F)
-        val check = 0x47 xor modeValue(mode) xor roleX xor roleY
+        val pairCommand = modeValue(mode)
         return base + byteArrayOf(
             0x41,
-            0x07,
+            0x05,
             0x01,
-            modeValue(mode).toByte(),
-            roleX.toByte(),
-            roleY.toByte(),
-            check.toByte(),
+            pairCommand.toByte(),
+            (0x45 xor pairCommand).toByte(),
         )
     }
 
