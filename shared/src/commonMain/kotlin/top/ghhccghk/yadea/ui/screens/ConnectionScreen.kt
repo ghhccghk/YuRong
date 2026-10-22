@@ -406,7 +406,11 @@ fun ConnectionScreen(
                     val boundBleDevices = bleDevices.filter { device ->
                         profiles.any { it.matches(device) }
                     }
-                    if (boundBleDevices.isEmpty()) {
+                    val directProfiles = profiles.filter { profile ->
+                        profile.mac.isNotBlank() &&
+                            boundBleDevices.none { profile.matches(it) }
+                    }
+                    if (boundBleDevices.isEmpty() && directProfiles.isEmpty()) {
                         AppEmptyState(
                             when {
                                 isScanningBle -> "正在扫描车库中的已绑定车辆…"
@@ -435,7 +439,17 @@ fun ConnectionScreen(
                                 device.address,
                             )
                         }
-                        if (visibleBleDevices.isEmpty()) {
+                        val visibleDirectProfiles = directProfiles.filter { profile ->
+                            matchesSearchQuery(
+                                bleQuery,
+                                profile.modelName,
+                                profile.bikeNickName,
+                                profile.vin,
+                                profile.bluetoothName,
+                                profile.mac,
+                            )
+                        }
+                        if (visibleBleDevices.isEmpty() && visibleDirectProfiles.isEmpty()) {
                             AppEmptyState("没有匹配“$bleQuery”的已有车辆")
                         } else {
                             visibleBleDevices.forEachIndexed { index, device ->
@@ -451,6 +465,21 @@ fun ConnectionScreen(
                                         viewModel.connectBle(
                                             device.address,
                                             device.name ?: profile?.bluetoothName.orEmpty(),
+                                        )
+                                    },
+                                )
+                            }
+                            visibleDirectProfiles.forEachIndexed { index, profile ->
+                                AppListRow(
+                                    title = profile.bikeNickName.ifBlank { profile.modelName }
+                                        .ifBlank { "已有车辆" },
+                                    summary = directVehicleSummary(profile),
+                                    value = "直接连接",
+                                    showDivider = index < visibleDirectProfiles.lastIndex,
+                                    onClick = {
+                                        viewModel.connectBle(
+                                            profile.mac.trim(),
+                                            profile.bluetoothName.ifBlank { profile.modelName },
                                         )
                                     },
                                 )
@@ -531,5 +560,14 @@ private fun bleVehicleSummary(device: BleDevice, profile: VehicleProfile?): Stri
         else add("未匹配车库车辆")
         add(bleSignalLabel(device.rssi))
         add(device.address)
+    }.joinToString(" · ")
+}
+
+private fun directVehicleSummary(profile: VehicleProfile): String {
+    val vinSuffix = profile.vin.takeLast(4)
+    return buildList {
+        if (vinSuffix.isNotBlank()) add("车架号后四位: $vinSuffix")
+        add("未发现广播，可直接连接")
+        add(profile.mac)
     }.joinToString(" · ")
 }
