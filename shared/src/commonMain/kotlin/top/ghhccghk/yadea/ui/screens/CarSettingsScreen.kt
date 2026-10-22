@@ -57,6 +57,7 @@ fun CarSettingsScreen(
     }
     var detailItem by remember { mutableStateOf<CarSettingItem?>(null) }
     var showCustomSounds by remember { mutableStateOf(false) }
+    var showCustomKeys by remember { mutableStateOf(false) }
     var selectedSoundCategory by remember { mutableStateOf<CustomSoundCategory?>(null) }
     var deleteSoundTarget by remember { mutableStateOf<CustomSoundResource?>(null) }
     var renameSoundTarget by remember { mutableStateOf<CustomSoundResource?>(null) }
@@ -140,7 +141,12 @@ fun CarSettingsScreen(
             if (items.isEmpty()) continue
             item {
                 AppSection(title = group.title) {
-                    items.sortedWith(compareBy({ it.sort }, { it.title })).forEach { item ->
+                    items
+                        .filterNot {
+                            it.id == "cloud:1005:short" || it.id == "cloud:1005:long"
+                        }
+                        .sortedWith(compareBy({ it.sort }, { it.title }))
+                        .forEach { item ->
                         CarSettingRow(
                             item = item,
                             enabled = controller.available &&
@@ -159,6 +165,8 @@ fun CarSettingsScreen(
                                         selectedSoundCategory = null
                                         showCustomSounds = true
                                     }
+                                } else if (item.configId == "1005") {
+                                    showCustomKeys = true
                                 } else {
                                     detailItem = item
                                 }
@@ -349,6 +357,48 @@ fun CarSettingsScreen(
                     if (customizeTarget?.id in state.pendingIds) "保存中…" else "保存参数",
                     style = AppDesign.typography.button,
                 )
+            }
+        }
+    }
+
+    AppBottomSheet(
+        show = showCustomKeys,
+        onDismissRequest = { showCustomKeys = false },
+        title = "自定义按键",
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+        ) {
+            val keyItems = state.items.filter {
+                it.id == "cloud:1005:short" || it.id == "cloud:1005:long"
+            }
+            if (keyItems.isEmpty()) {
+                AppEmptyState("当前车辆没有下发自定义按键配置")
+            } else {
+                keyItems.forEach { item ->
+                    val choice = item.kind as? CarSettingKind.Choice
+                    if (choice != null) {
+                        AppPopupPreference(
+                            title = if (item.id.endsWith(":short")) "短按功能" else "长按功能",
+                            summary = item.summary,
+                            options = choice.options,
+                            selectedIndex = choice.selectedIndex,
+                            onSelectedIndexChange = { index ->
+                                scope.launch {
+                                    controller.update(item.id) { current ->
+                                        (current as? CarSettingKind.Choice)
+                                            ?.copy(selectedIndex = index)
+                                            ?: current
+                                    }
+                                }
+                            },
+                            enabled = controller.available &&
+                                item.writable &&
+                                item.id !in state.pendingIds,
+                        )
+                    }
+                }
             }
         }
     }
