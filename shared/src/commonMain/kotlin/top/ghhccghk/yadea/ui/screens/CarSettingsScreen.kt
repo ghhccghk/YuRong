@@ -129,9 +129,6 @@ fun CarSettingsScreen(
             .groupBy { it.group }
             .entries
             .sortedWith(compareBy({ it.key.sort }, { it.key.title }))
-        val customSoundEntryId = state.items
-            .firstOrNull { it.configId == "41" || it.configId == "88" }
-            ?.id
         for ((group, items) in grouped) {
             if (items.isEmpty()) continue
             item {
@@ -148,6 +145,13 @@ fun CarSettingsScreen(
                                     customizeItem = item
                                 } else if (item.configId == "8" && onOpenLostMode != null) {
                                     onOpenLostMode()
+                                } else if (item.configId == "41" || item.configId == "88") {
+                                    if (customSoundController != null) {
+                                        customSoundController.clearMessage()
+                                        customSoundController.refresh()
+                                        selectedSoundCategory = null
+                                        showCustomSounds = true
+                                    }
                                 } else {
                                     detailItem = item
                                 }
@@ -190,19 +194,6 @@ fun CarSettingsScreen(
                                     emergencyContactController.clearMessage()
                                     emergencyContactController.load()
                                     showEmergencyContacts = true
-                                },
-                            )
-                        }
-                        if (item.id == customSoundEntryId && customSoundController != null) {
-                            AppActionPreference(
-                                title = "管理自定义音效",
-                                summary = "查看云端音效列表、应用音效、重命名或删除",
-                                value = "打开",
-                                onClick = {
-                                    customSoundController.clearMessage()
-                                    customSoundController.refresh()
-                                    selectedSoundCategory = null
-                                    showCustomSounds = true
                                 },
                             )
                         }

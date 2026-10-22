@@ -1018,7 +1018,7 @@ object CloudCarSettingMapper {
         )
         "40" -> CarSettingKind.Toggle(cloud.boolValue("colorEggSoundEffect") == true)
         // 41/88 在原 App 都进入自定义音效列表页，统一在下方管理。
-        "41" -> CarSettingKind.Info("在下方管理自定义音效")
+        "41" -> CarSettingKind.Info("进入设置")
         "25" -> CarSettingKind.Toggle(cloud.boolValue("passwordUnlockEnable") == true)
         "53" -> CarSettingKind.Toggle(cloud.boolValue("bleApproachPowerOnEnable") == true)
         "10" -> CarSettingKind.Toggle(cloud.boolValue("distanceOn") == true)
@@ -1095,7 +1095,7 @@ object CloudCarSettingMapper {
         // QuietModeActivity：关闭超速提示，原实现同时下发新旧两个字段。
         "93" -> CarSettingKind.Toggle(false)
         // CustomSoundEffectListActivity：列表、开关和应用入口在下方管理。
-        "88" -> CarSettingKind.Info("在下方管理自定义音效")
+        "88" -> CarSettingKind.Info("进入设置")
         // GaugeSettingsActivity 是仪表蓝牙配对页，不是可写参数。
         "71" -> CarSettingKind.Info("请在“连接”页完成仪表蓝牙配对")
         // 边撑自动关机：原 App 只给开关，依赖边撑感应（confId 2）。
