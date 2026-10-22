@@ -54,6 +54,14 @@ object VehicleSettingFrameEncoder {
         // AutoOnOffActivity。
         0x5C -> "FFFFFFFDFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
         0x5D -> "FFFFFFFCFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        // AutoShutDownActivity / BraceAutoShutDownActivity：3/5/10/15 秒。
+        0x55 -> "FF".repeat(18) +
+            hex2(0xF8 + command.parameter.coerceIn(0, 3)) +
+            "FF".repeat(6)
+        // AutoOnOffActivity：近/中/远。
+        0x5E -> "FFFFFF" +
+            hex2(0xE3 + (command.parameter.coerceIn(0, 6) shl 2)) +
+            "FF".repeat(21)
         // ScheduledShutDown2Activity：开关与时间。
         0x7B -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD"
         0x7C -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFC"
@@ -78,9 +86,14 @@ object VehicleSettingFrameEncoder {
         // HelpPromotePlusActivity：自适应推行开关（0xD0）与推行档位（0xD1）。
         0xD0 -> bitfieldSuffix(0x37, command.parameter, 2, 3)
         0xD1 -> bitfieldSuffix(0x38, command.parameter, 0, 2)
-        // CarSettingsPowerRegistry：边撑感应 0x131、座垫感应上电 0x130。
+        // CustomizeKeyActivity：短按 0x131 使用高 4 位，长按 0x130 使用低 4 位。
         0x131 -> bitfieldSuffix(0x1F, command.parameter, 4, 7)
         0x130 -> bitfieldSuffix(0x1F, command.parameter, 0, 3)
+        // TempleInductionActivity：边撑感应。
+        0x0F -> "FFFFFFFFFFDFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        0x10 -> "FFFFFFFFFFCFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        // SeatPowerUpActivity：座垫感应上电。
+        0xFB1 -> bitfieldSuffix(0x0F, command.parameter, 2, 3)
         // CarSettingsSecurityRegistry：倾倒提醒 0x12D。
         0x12D -> bitfieldSuffix(0x41, command.parameter, 2, 3)
         // RadarActivity：FCW / BSD。

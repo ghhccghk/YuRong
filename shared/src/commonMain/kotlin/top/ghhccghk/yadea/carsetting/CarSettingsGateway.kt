@@ -774,24 +774,101 @@ object CloudCarSettingMapper {
             )
         }
         cloud.configs.firstOrNull { it.confId.trim() == "15" }?.let { config ->
-            val minutes = cloud.intValue("shutDownTime")?.coerceIn(0, 60) ?: 2
+            val timeIndex = cloud.intValue("shutDownTime")?.coerceIn(0, 20) ?: 0
             items += CarSettingItem(
                 id = "cloud:15:time",
                 configId = "15",
                 title = "离车定时关机时间",
-                summary = "车辆静止超过设定时间后自动关机；建议不少于 2 分钟",
+                summary = "车辆静止超过设定时间后自动关机",
                 classification = classificationOf("15", config),
                 group = groupOf(config, classificationOf("15", config)),
                 channel = CarSettingChannel.BLE,
-                kind = CarSettingKind.Slider(
-                    value = minutes.toFloat(),
-                    range = 0f..60f,
-                    steps = 59,
-                    unit = " 分钟",
+                kind = CarSettingKind.Choice(
+                    selectedIndex = timeIndex,
+                    options = SHUTDOWN_TIME_OPTIONS,
                 ),
                 writable = config.isAuth != false,
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,
             )
+        }
+        for (autoLockId in listOf("7", "39")) {
+            cloud.configs.firstOrNull { it.confId.trim() == autoLockId }?.let { config ->
+                items += CarSettingItem(
+                    id = "cloud:$autoLockId:time",
+                    configId = autoLockId,
+                    title = "自动锁定时间",
+                    summary = "车辆离开后等待多长时间自动落锁",
+                    classification = classificationOf(autoLockId, config),
+                    group = groupOf(config, classificationOf(autoLockId, config)),
+                    channel = CarSettingChannel.BLE,
+                    kind = CarSettingKind.Choice(
+                        selectedIndex = 0,
+                        options = listOf("3 秒", "5 秒", "10 秒", "15 秒"),
+                    ),
+                    writable = config.isAuth != false,
+                    sort = (config.sort.toIntOrNull() ?: 0) + 1,
+                )
+            }
+        }
+        cloud.configs.firstOrNull { it.confId.trim() == "11" }?.let { config ->
+            val distance = cloud.intValue("bleApproachPowerOnDistance")
+                ?.takeIf { it in 0..2 }
+                ?: 0
+            items += CarSettingItem(
+                id = "cloud:11:distance",
+                configId = "11",
+                title = "自动开关机感应距离",
+                summary = "选择蓝牙接近车辆时的感应距离",
+                classification = classificationOf("11", config),
+                group = groupOf(config, classificationOf("11", config)),
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Choice(
+                    selectedIndex = distance,
+                    options = listOf("近", "中", "远"),
+                ),
+                writable = config.isAuth != false,
+                sort = (config.sort.toIntOrNull() ?: 0) + 1,
+            )
+        }
+        cloud.configs.firstOrNull { it.confId.trim() == "59" }?.let { config ->
+            val timeIndex = cloud.intValue("shutDownTime")?.coerceIn(0, 20) ?: 0
+            items += CarSettingItem(
+                id = "cloud:59:time",
+                configId = "59",
+                title = "定时关机时间",
+                summary = "车辆静止达到设定时间后自动关机",
+                classification = classificationOf("59", config),
+                group = groupOf(config, classificationOf("59", config)),
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Choice(
+                    selectedIndex = timeIndex,
+                    options = SHUTDOWN_TIME_OPTIONS,
+                ),
+                writable = config.isAuth != false,
+                sort = (config.sort.toIntOrNull() ?: 0) + 1,
+            )
+        }
+        cloud.configs.firstOrNull { it.confId.trim() == "1005" }?.let { config ->
+            listOf(
+                "short" to "短按功能",
+                "long" to "长按功能",
+            ).forEachIndexed { index, (key, title) ->
+                items += CarSettingItem(
+                    id = "cloud:1005:$key",
+                    configId = "1005",
+                    title = title,
+                    summary = "选择车把自定义按键对应的功能",
+                    classification = classificationOf("1005", config),
+                    group = groupOf(config, classificationOf("1005", config)),
+                    channel = CarSettingChannel.BLE,
+                    kind = CarSettingKind.Choice(
+                        selectedIndex = KEY_FUNCTION_OPTIONS.lastIndex,
+                        options = KEY_FUNCTION_OPTIONS,
+                    ),
+                    writable = config.isAuth != false,
+                    sort = (config.sort.toIntOrNull() ?: 0) + index + 1,
+                )
+            }
         }
         cloud.configs.firstOrNull { it.confId.trim() == "81" }?.let { config ->
             items += CarSettingItem(
@@ -1096,6 +1173,8 @@ object CloudCarSettingMapper {
         "93" -> CarSettingKind.Toggle(false)
         // CustomSoundEffectListActivity：列表、开关和应用入口在下方管理。
         "88" -> CarSettingKind.Info("进入设置")
+        // CustomizeKeyActivity：短按和长按功能在下方分别设置。
+        "1005" -> CarSettingKind.Info("设置短按和长按功能")
         // GaugeSettingsActivity 是仪表蓝牙配对页，不是可写参数。
         "71" -> CarSettingKind.Info("请在“连接”页完成仪表蓝牙配对")
         // 边撑自动关机：原 App 只给开关，依赖边撑感应（confId 2）。
@@ -1166,6 +1245,23 @@ object CloudCarSettingMapper {
         else -> CarSettingKind.Info("云端设置项，暂未接入写入")
     }
 
+    private val SHUTDOWN_TIME_OPTIONS =
+        listOf("30 秒") + (1..20).map { "$it 分钟" }
+
+    /** 与 CustomizeKeyActivity.getFunctionId 的已确认映射一致。 */
+    private val KEY_FUNCTION_OPTIONS = listOf(
+        "ABS 防抱死",
+        "TCS 车身稳定",
+        "雷达功能",
+        "行车记录仪紧急录制",
+        "行车记录仪抓拍",
+        "长续航/性能模式切换",
+        "氛围灯功能",
+        "坐垫加热功能",
+        "AI 语音助手唤醒",
+        "无定义",
+    )
+
     private val BATTERY_IDS = setOf("9", "47", "48")
     /** 一键开机/蓝牙校准属于蓝牙车钥匙，不能走普通车辆设置命令。 */
     private val BLUETOOTH_KEY_IDS = setOf("1", "66")
@@ -1191,7 +1287,7 @@ object CloudCarSettingMapper {
         "9", "10", "14", "15", "17", "18", "20", "24",
         "25", "27", "31", "33", "41", "47", "48",
         "61", "72", "73", "77", "81", "86",
-        "91", "95", "1005",
+        "91", "95",
     )
     private val SPECIAL_IDS = setOf(
         "special:meter_wallpaper_skin",

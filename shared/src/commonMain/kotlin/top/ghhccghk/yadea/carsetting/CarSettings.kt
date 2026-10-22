@@ -394,8 +394,14 @@ class CarSettingsController(
                     is CarSettingKind.Slider -> item.copy(
                         kind = kind.copy(
                             value = status.extended.vehiclePowerDownTimeStatus
-                                .coerceIn(0, 60)
+                                .coerceIn(0, 20)
                                 .toFloat(),
+                        ),
+                    )
+                    is CarSettingKind.Choice -> item.copy(
+                        kind = kind.copy(
+                            selectedIndex = status.extended.vehiclePowerDownTimeStatus
+                                .coerceIn(0, kind.options.lastIndex.coerceAtLeast(0)),
                         ),
                     )
                     else -> item

@@ -67,15 +67,13 @@ object VehicleSettingCommands {
      */
     fun forConfigId(configId: String, kind: CarSettingKind): VehicleSettingCommand? =
         when (configId) {
-            // 边撑感应、倾倒提醒、座垫上电都使用动态位域值 0/1。
+            // TempleInductionActivity：边撑感应。
             "2" -> toggle(
                 kind = kind,
-                onType = "EDGE_BRACE_INDUCTION_OPEN",
-                offType = "EDGE_BRACE_INDUCTION_CLOSE",
-                onId = 0x131,
-                offId = 0x131,
-                onParameter = 1,
-                offParameter = 0,
+                onType = "SLIDE_BRACE_ON",
+                offType = "SLIDE_BRACE_OFF",
+                onId = 0x0F,
+                offId = 0x10,
             )
             "32" -> toggle(
                 kind = kind,
@@ -99,8 +97,8 @@ object VehicleSettingCommands {
                 kind = kind,
                 onType = "COMMAND_SEAT_POWER_UP",
                 offType = "COMMAND_SEAT_POWER_UP",
-                onId = 0x130,
-                offId = 0x130,
+                onId = 0xFB1,
+                offId = 0xFB1,
                 onParameter = 1,
                 offParameter = 0,
             )
@@ -145,22 +143,38 @@ object VehicleSettingCommands {
                     parameter = slider.value.toInt().coerceIn(15, 120),
                 )
             }
-            // AutoShutDownActivity：离车自动锁。
-            "7" -> toggle(
-                kind = kind,
-                onType = "LEAVE_THE_CAR_AUTO_LOCK_ON",
-                offType = "LEAVE_THE_CAR_AUTO_LOCK_OFF",
-                onId = 0x53,
-                offId = 0x54,
-            )
+            // AutoShutDownActivity：离车自动锁与 3/5/10/15 秒时间。
+            "7" -> when (kind) {
+                is CarSettingKind.Toggle -> toggle(
+                    kind = kind,
+                    onType = "LEAVE_THE_CAR_AUTO_LOCK_ON",
+                    offType = "LEAVE_THE_CAR_AUTO_LOCK_OFF",
+                    onId = 0x53,
+                    offId = 0x54,
+                )
+                is CarSettingKind.Choice -> VehicleSettingCommand(
+                    commandType = "LEAVE_THE_CAR_AUTO_LOCK_TIME",
+                    commandId = 0x55,
+                    parameter = kind.selectedIndex.coerceIn(0, 3),
+                )
+                else -> null
+            }
             // AutoOnOffActivity：自动开关机。
-            "11" -> toggle(
-                kind = kind,
-                onType = "AUTO_TURN_ON_OFF_OPEN",
-                offType = "AUTO_TURN_ON_OFF_CLOSE",
-                onId = 0x5C,
-                offId = 0x5D,
-            )
+            "11" -> when (kind) {
+                is CarSettingKind.Toggle -> toggle(
+                    kind = kind,
+                    onType = "AUTO_TURN_ON_OFF_OPEN",
+                    offType = "AUTO_TURN_ON_OFF_CLOSE",
+                    onId = 0x5C,
+                    offId = 0x5D,
+                )
+                is CarSettingKind.Choice -> VehicleSettingCommand(
+                    commandType = "AUTO_TURN_ON_OFF",
+                    commandId = 0x5E,
+                    parameter = kind.selectedIndex.coerceIn(0, 2),
+                )
+                else -> null
+            }
             // GaugeStyleHandOffActivity：仪表主题。
             "50" -> {
                 val choice = kind as? CarSettingKind.Choice ?: return null
@@ -194,13 +208,21 @@ object VehicleSettingCommands {
                 )
             }
             // ScheduledShutDown2Activity：定时关机。
-            "59" -> toggle(
-                kind = kind,
-                onType = "VEHICLE_MANDATORY_POWER_DOWN_OPEN",
-                offType = "VEHICLE_MANDATORY_POWER_DOWN_CLOSE",
-                onId = 0x7B,
-                offId = 0x7C,
-            )
+            "59" -> when (kind) {
+                is CarSettingKind.Toggle -> toggle(
+                    kind = kind,
+                    onType = "VEHICLE_MANDATORY_POWER_DOWN_OPEN",
+                    offType = "VEHICLE_MANDATORY_POWER_DOWN_CLOSE",
+                    onId = 0x7B,
+                    offId = 0x7C,
+                )
+                is CarSettingKind.Choice -> VehicleSettingCommand(
+                    commandType = "VEHICLE_MANDATORY_POWER_DOWN_TIME",
+                    commandId = 0x7D,
+                    parameter = kind.selectedIndex.coerceIn(0, 20),
+                )
+                else -> null
+            }
             "54" -> {
                 val choice = kind as? CarSettingKind.Choice ?: return null
                 VehicleSettingCommand(
@@ -229,7 +251,12 @@ object VehicleSettingCommands {
                 is CarSettingKind.Slider -> VehicleSettingCommand(
                     commandType = "VEHICLE_MANDATORY_POWER_DOWN_TIME",
                     commandId = 0x7D,
-                    parameter = kind.value.toInt().coerceIn(0, 60),
+                    parameter = kind.value.toInt().coerceIn(0, 20),
+                )
+                is CarSettingKind.Choice -> VehicleSettingCommand(
+                    commandType = "VEHICLE_MANDATORY_POWER_DOWN_TIME",
+                    commandId = 0x7D,
+                    parameter = kind.selectedIndex.coerceIn(0, 20),
                 )
                 else -> null
             }
@@ -271,13 +298,23 @@ object VehicleSettingCommands {
                 )
             }
             // BraceAutoShutDownActivity：边撑自动关机，依赖边撑感应（confId 2）。
-            "39" -> toggle(
-                kind = kind,
-                onType = "LEAVE_THE_CAR_AUTO_LOCK_ON",
-                offType = "LEAVE_THE_CAR_AUTO_LOCK_OFF",
-                onId = 0x53,
-                offId = 0x54,
-            )
+            "39" -> when (kind) {
+                is CarSettingKind.Toggle -> toggle(
+                    kind = kind,
+                    onType = "LEAVE_THE_CAR_AUTO_LOCK_ON",
+                    offType = "LEAVE_THE_CAR_AUTO_LOCK_OFF",
+                    onId = 0x53,
+                    offId = 0x54,
+                )
+                is CarSettingKind.Choice -> VehicleSettingCommand(
+                    commandType = "LEAVE_THE_CAR_AUTO_LOCK_TIME",
+                    commandId = 0x55,
+                    parameter = kind.selectedIndex.coerceIn(0, 3),
+                )
+                else -> null
+            }
+            // CustomizeKeyActivity：默认按短按命令判断可写性，具体条目在 forItem 区分。
+            "1005" -> keyFunctionCommand(kind, short = true)
             "81" -> when (kind) {
                 is CarSettingKind.Toggle -> toggle(
                     kind = kind,
@@ -490,6 +527,8 @@ object VehicleSettingCommands {
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
         when (item.id) {
+            "cloud:1005:short" -> return keyFunctionCommand(item.kind, short = true)
+            "cloud:1005:long" -> return keyFunctionCommand(item.kind, short = false)
             "cloud:69:fcw" -> return toggle(
                 kind = item.kind,
                 onType = "COMMAND_FRONT_COLLISION_OPEN",
@@ -533,6 +572,23 @@ object VehicleSettingCommands {
         }
         forConfigId(item.configId, item.kind)?.let { return it }
         return forLegacyItem(item)
+    }
+
+    private fun keyFunctionCommand(
+        kind: CarSettingKind,
+        short: Boolean,
+    ): VehicleSettingCommand? {
+        val choice = kind as? CarSettingKind.Choice ?: return null
+        val functionId = if (choice.selectedIndex == 9) 14 else choice.selectedIndex
+        return VehicleSettingCommand(
+            commandType = if (short) {
+                "CUSTOMIZE_KEYS_CONFIG_SHORT"
+            } else {
+                "CUSTOMIZE_KEYS_CONFIG_LONG"
+            },
+            commandId = if (short) 0x131 else 0x130,
+            parameter = functionId.coerceIn(0, 15),
+        )
     }
 
     private fun forLegacyItem(item: CarSettingItem): VehicleSettingCommand? = when (item.id) {
