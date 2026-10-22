@@ -189,7 +189,9 @@ object VehicleHandshakeFrame {
         localTime: DateTimeParts,
         mode: String,
     ): ByteArray? {
-        val base = buildBaseRandomBlock(randomKey, mac, localTime) ?: return null
+        // ScooterControl.s 保留前两个 RandKey 字节的 Java byte 有符号值，
+        // 仅第三字节执行 & 0xFF；不能复用 Token 分支的无符号 24 位算法。
+        val base = buildScooterBaseRandomBlock(randomKey, mac, localTime) ?: return null
         if (protocolVersion != 1) return base
 
         val pairCommand = modeValue(mode)
@@ -199,6 +201,42 @@ object VehicleHandshakeFrame {
             0x01,
             pairCommand.toByte(),
             (0x45 xor pairCommand).toByte(),
+        )
+    }
+
+    private fun buildScooterBaseRandomBlock(
+        randomKey: ByteArray,
+        mac: String,
+        localTime: DateTimeParts,
+    ): ByteArray? {
+        if (randomKey.size < 3) return null
+        val macHex = mac.filter { it.isLetterOrDigit() }
+        if (macHex.length < 12) return null
+        val macPrefix = macHex.substring(0, 6).toIntOrNull(16) ?: return null
+        val macSuffix = macHex.substring(6, 12).toIntOrNull(16) ?: return null
+
+        val randomValue =
+            (randomKey[0].toInt() shl 16) +
+                (randomKey[1].toInt() shl 8) +
+                (randomKey[2].toInt() and 0xFF)
+        val timeValue =
+            (localTime.hour.coerceIn(0, 23) shl 16) +
+                (localTime.minute.coerceIn(0, 59) shl 8) +
+                localTime.second.coerceIn(0, 59)
+        val common = randomValue or timeValue
+        val first = macPrefix xor common
+        val second = macSuffix xor common
+
+        return byteArrayOf(
+            (randomValue ushr 16).toByte(),
+            (randomValue ushr 8).toByte(),
+            randomValue.toByte(),
+            (first ushr 16).toByte(),
+            (first ushr 8).toByte(),
+            first.toByte(),
+            (second ushr 16).toByte(),
+            (second ushr 8).toByte(),
+            second.toByte(),
         )
     }
 
