@@ -33,6 +33,8 @@ class VehicleTokenPairingStep(
     private val onDebug: (String) -> Unit = {},
 ) : VehiclePairingStep {
 
+    private var legacyUseNoResponse = false
+
     override suspend fun pair(
         adapter: BleAdapter,
         services: List<BleService>,
@@ -136,15 +138,26 @@ class VehicleTokenPairingStep(
                 "旧握手随机块：protocol=$legacyProtocol len=${legacyBlock.size} " +
                     VehicleHandshakeFrame.toDebugHex(legacyBlock),
             )
-            if (!adapter.writeCharacteristic(
-                    serviceUuid = HANDSHAKE_SERVICE,
-                    characteristicUuid = RANDOM_KEY_CHARACTERISTIC,
-                    data = legacyBlock,
-                    withResponse = true,
-                )
-            ) {
-                onDebug("BLE 鉴权失败：旧握手随机块写入失败")
-                return false
+            val withResponse = !legacyUseNoResponse
+            onDebug("旧握手写入方式：response=$withResponse")
+            try {
+                if (!adapter.writeCharacteristic(
+                        serviceUuid = HANDSHAKE_SERVICE,
+                        characteristicUuid = RANDOM_KEY_CHARACTERISTIC,
+                        data = legacyBlock,
+                        withResponse = withResponse,
+                    )
+                ) {
+                    legacyUseNoResponse = withResponse
+                    onDebug(
+                        if (withResponse) "旧握手写请求失败，下次重连改用 Write Command"
+                        else "BLE 鉴权失败：旧握手随机块写入失败",
+                    )
+                    return false
+                }
+            } catch (error: Throwable) {
+                legacyUseNoResponse = withResponse
+                throw error
             }
             onDebug("旧握手写入成功，鉴权流程完成")
             return true
