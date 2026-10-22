@@ -82,13 +82,6 @@ class VehicleTokenPairingStep(
                 "authResult properties=${authResultCharacteristic.properties}",
         )
         return coroutineScope {
-            val randomKeyDeferred = async(start = CoroutineStart.UNDISPATCHED) {
-                awaitNotification(
-                    adapter = adapter,
-                    serviceUuid = HANDSHAKE_SERVICE,
-                    characteristicUuid = RANDOM_KEY_CHARACTERISTIC,
-                )
-            }
             val responseDeferred = async(start = CoroutineStart.UNDISPATCHED) {
                 awaitNotification(
                     adapter = adapter,
@@ -97,13 +90,6 @@ class VehicleTokenPairingStep(
                 )
             }
 
-            if (!adapter.setNotification(HANDSHAKE_SERVICE, RANDOM_KEY_CHARACTERISTIC, true)) {
-                onDebug(
-                    "BLE 鉴权失败：无法订阅 RandKey 通知（properties=" +
-                        "${randomKeyCharacteristic.properties}）",
-                )
-                return@coroutineScope false
-            }
             if (!adapter.setNotification(HANDSHAKE_SERVICE, AUTH_RESULT_CHARACTERISTIC, true)) {
                 onDebug(
                     "BLE 鉴权失败：无法订阅鉴权结果通知（properties=" +
@@ -112,9 +98,14 @@ class VehicleTokenPairingStep(
                 return@coroutineScope false
             }
 
-            val randomKey = randomKeyDeferred.await()
+            val randomKey = runCatching {
+                adapter.readCharacteristic(HANDSHAKE_SERVICE, RANDOM_KEY_CHARACTERISTIC)
+            }.getOrNull()
             if (randomKey == null) {
-                onDebug("BLE 鉴权失败：读取 RandKey 超时")
+                onDebug(
+                    "BLE 鉴权失败：读取 RandKey 失败（properties=" +
+                        "${randomKeyCharacteristic.properties}）",
+                )
                 return@coroutineScope false
             }
             val authProfile = VehicleAuthProfile.parse(randomKey)

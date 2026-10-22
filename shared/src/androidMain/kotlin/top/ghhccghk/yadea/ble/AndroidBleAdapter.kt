@@ -51,10 +51,6 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
     private companion object {
         const val GATT_CONNECT_TIMEOUT_MS = 20_000L
         const val GATT_OPERATION_TIMEOUT_MS = 5_000L
-        const val HANDSHAKE_RANDOM_KEY =
-            "bef8e7e0-9c21-4c9e-b632-bd58c1009f9f"
-        const val HANDSHAKE_AUTH_RESULT =
-            "bef8e7e1-9c21-4c9e-b632-bd58c1009f9f"
     }
 
     private val bluetoothManager =
@@ -379,12 +375,8 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
         synchronized(pendingLock) {
             pendingDescriptorWrite = result
         }
-        val handshakeCharacteristic =
-            characteristicUuid.equals(HANDSHAKE_RANDOM_KEY, ignoreCase = true) ||
-                characteristicUuid.equals(HANDSHAKE_AUTH_RESULT, ignoreCase = true)
         descriptor.value = when {
             !enable -> BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
-            handshakeCharacteristic -> BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
             characteristic.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0 ->
                 BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
             else -> BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
