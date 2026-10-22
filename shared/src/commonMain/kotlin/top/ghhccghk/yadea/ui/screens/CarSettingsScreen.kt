@@ -127,6 +127,9 @@ fun CarSettingsScreen(
             .groupBy { it.group }
             .entries
             .sortedWith(compareBy({ it.key.sort }, { it.key.title }))
+        val customSoundEntryId = state.items
+            .firstOrNull { it.configId == "41" || it.configId == "88" }
+            ?.id
         for ((group, items) in grouped) {
             if (items.isEmpty()) continue
             item {
@@ -188,7 +191,7 @@ fun CarSettingsScreen(
                                 },
                             )
                         }
-                        if (item.configId == "88" && customSoundController != null) {
+                        if (item.id == customSoundEntryId && customSoundController != null) {
                             AppActionPreference(
                                 title = "管理自定义音效",
                                 summary = "查看云端音效列表、应用音效、重命名或删除",

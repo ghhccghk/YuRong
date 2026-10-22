@@ -920,7 +920,8 @@ object CloudCarSettingMapper {
             unit = " 档",
         )
         "40" -> CarSettingKind.Toggle(cloud.boolValue("colorEggSoundEffect") == true)
-        "41" -> CarSettingKind.Toggle(cloud.boolValue("userDefinedSoundEffect") == true)
+        // 41/88 在原 App 都进入自定义音效列表页，统一在下方管理。
+        "41" -> CarSettingKind.Info("在下方管理自定义音效")
         "25" -> CarSettingKind.Toggle(cloud.boolValue("passwordUnlockEnable") == true)
         "53" -> CarSettingKind.Toggle(cloud.boolValue("bleApproachPowerOnEnable") == true)
         "10" -> CarSettingKind.Toggle(cloud.boolValue("distanceOn") == true)
