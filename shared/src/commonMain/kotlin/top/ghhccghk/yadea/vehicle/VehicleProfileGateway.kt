@@ -91,6 +91,9 @@ class YadeaVehicleProfileGateway(
             backgroundImageUrl = stringField(objectText, "skinPicUrl").orEmpty(),
             vehicleImageUrl = stringField(objectText, "imgUrl").orEmpty(),
             bikeNickName = stringField(objectText, "bikeNickName").orEmpty(),
+            mac = stringField(objectText, "mac").orEmpty(),
+            bluetoothName = stringField(objectText, "bluetoothName").orEmpty(),
+            bluetoothSn = stringField(objectText, "bluetoothSn").orEmpty(),
             remainingMileage = normalizeRangeText(stringField(objectText, "remMileage").orEmpty()),
             iotService = intField(objectText, "iotExpireDays")?.let { days ->
                 VehicleIotServiceInfo(

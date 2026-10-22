@@ -33,6 +33,12 @@ data class VehicleProfile(
     /** `VehicleInfoBean.imgUrl`，车辆本体图。 */
     val vehicleImageUrl: String = "",
     val bikeNickName: String = "",
+    /** 车辆 BLE MAC；扫描已有车辆时用于匹配广播地址。 */
+    val mac: String = "",
+    /** 车辆 BLE 广播名。 */
+    val bluetoothName: String = "",
+    /** 车辆蓝牙 SN，部分车型名称中会包含该值。 */
+    val bluetoothSn: String = "",
     val iotService: VehicleIotServiceInfo? = null,
     /** `VehicleInfoBean.remMileage`，云端最近一次剩余续航。 */
     val remainingMileage: String = "",

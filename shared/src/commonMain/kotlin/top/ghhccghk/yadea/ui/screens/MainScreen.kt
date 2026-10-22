@@ -677,6 +677,7 @@ private fun MainDestinationContent(
                 contentPadding = contentPadding,
                 onSectionChange = onConnectionSectionChange,
                 viewModel = viewModel,
+                profiles = vehicleProfiles,
                 scrollBehavior = scrollBehavior,
                 snackbarHostState = snackbarHostState,
             )
@@ -734,6 +735,7 @@ private fun ConnectionHubScreen(
     section: ConnectionSection,
     onSectionChange: (ConnectionSection) -> Unit,
     viewModel: AppViewModel,
+    profiles: List<VehicleProfile> = emptyList(),
     scrollBehavior: AppScrollBehavior? = null,
     snackbarHostState: AppSnackbarHostState? = null,
     modifier: Modifier = Modifier,
@@ -755,7 +757,12 @@ private fun ConnectionHubScreen(
         )
         Box(modifier = Modifier.weight(1f)) {
             when (section) {
-                ConnectionSection.Device -> ConnectionScreen(viewModel, scrollBehavior, snackbarHostState)
+                ConnectionSection.Device -> ConnectionScreen(
+                    viewModel = viewModel,
+                    profiles = profiles,
+                    scrollBehavior = scrollBehavior,
+                    snackbarHostState = snackbarHostState,
+                )
                 ConnectionSection.Mirror -> MirrorScreen(viewModel, snackbarHostState)
             }
         }

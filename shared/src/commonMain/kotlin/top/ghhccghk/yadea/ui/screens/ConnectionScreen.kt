@@ -19,8 +19,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.ble.BleConnectionState
-import top.ghhccghk.yadea.vehicle.isBindableForVehicle
+import top.ghhccghk.yadea.ble.BleDevice
 import top.ghhccghk.yadea.vehicle.BindingStage
+import top.ghhccghk.yadea.vehicle.VehicleProfile
 import top.ghhccghk.yadea.wifi.P2pStatus
 import top.ghhccghk.yadea.wifi.WifiConnectionState
 
@@ -32,6 +33,7 @@ private enum class ConnectionMode {
 @Composable
 fun ConnectionScreen(
     viewModel: AppViewModel,
+    profiles: List<VehicleProfile> = emptyList(),
     // 顶栏滚动行为由主界面创建后传入，下拉刷新时与 Miuix 顶栏的展开/收起协同。
     scrollBehavior: AppScrollBehavior? = null,
     // 轻量提示状态由主界面创建后传入，用于回报一次性操作的结果。
@@ -46,7 +48,6 @@ fun ConnectionScreen(
     var wifiQuery by remember { mutableStateOf("") }
     var p2pQuery by remember { mutableStateOf("") }
     var bleQuery by remember { mutableStateOf("") }
-    var bindableOnly by remember { mutableStateOf(false) }
 
     val wifiState by viewModel.wifiState.collectAsState()
     val wifiIp by viewModel.wifiIp.collectAsState()
@@ -310,7 +311,7 @@ fun ConnectionScreen(
             }
 
             item {
-                AppSection(title = "BLE 仪表") {
+                AppSection(title = "BLE 车辆") {
                     AppListRow(
                         title = "连接状态",
                         value = when (bleState) {
@@ -320,12 +321,6 @@ fun ConnectionScreen(
                             BleConnectionState.Ready -> "初始化中…"
                             else -> "未连接"
                         },
-                    )
-                    AppSwitchPreference(
-                        checked = bindableOnly,
-                        onCheckedChange = { bindableOnly = it },
-                        title = "仅显示可绑定车辆",
-                        summary = "名称以 YD 开头、踏板车或 Box；仍可通过关闭开关查看全部 BLE 设备",
                     )
                     AppListRow(
                         title = "绑定扫描",
@@ -350,9 +345,12 @@ fun ConnectionScreen(
                     }
                     if (bindingState.candidates.isNotEmpty()) {
                         bindingState.candidates.forEach { device ->
+                            val profile = boundProfileFor(device, profiles)
                             AppListRow(
-                                title = device.name ?: "可绑定车辆",
-                                summary = device.address,
+                                title = profile?.let {
+                                    it.bikeNickName.ifBlank { it.modelName }
+                                }.orEmpty().ifBlank { device.name ?: "可绑定车辆" },
+                                summary = bleVehicleSummary(device, profile),
                                 value = "绑定",
                                 onClick = { viewModel.bindBle(device) },
                             )
@@ -366,44 +364,57 @@ fun ConnectionScreen(
                         ),
                         containerColor = if (isScanningBle) AppDesign.colors.error else AppDesign.colors.primary,
                     ) {
-                        AppText(if (isScanningBle) "停止扫描" else "扫描 BLE")
+                        AppText(if (isScanningBle) "停止扫描" else "扫描已有车辆")
                     }
-                    if (bleDevices.isEmpty()) {
-                        AppEmptyState(if (isScanningBle) "正在扫描附近的 BLE 仪表..." else "暂无 BLE 设备")
+                    val boundBleDevices = bleDevices.filter { device ->
+                        profiles.any { it.matches(device) }
+                    }
+                    if (boundBleDevices.isEmpty()) {
+                        AppEmptyState(
+                            when {
+                                isScanningBle -> "正在扫描车库中的已绑定车辆…"
+                                profiles.isEmpty() -> "车库暂无车辆，请先绑定车辆"
+                                else -> "未发现已绑定车辆，请靠近车辆后重试"
+                            },
+                        )
                     } else {
                         AppSearchBar(
                             query = bleQuery,
                             onQueryChange = { bleQuery = it },
-                            label = "搜索 BLE 设备",
+                            label = "搜索已有车辆",
                             modifier = Modifier.padding(
                                 horizontal = dimensions.itemHorizontalPadding,
                                 vertical = dimensions.compactSpacing,
                             ),
                         )
-                        // BLE 设备可能没有广播名称，因此名称与地址都参与匹配；过滤不影响扫描与连接逻辑。
-                        val visibleBleDevices = bleDevices.filter {
-                            matchesSearchQuery(bleQuery, it.name, it.address)
-                        }.filter {
-                            !bindableOnly || it.isBindableForVehicle(isAll = true, type = 0)
+                        val visibleBleDevices = boundBleDevices.filter { device ->
+                            val profile = boundProfileFor(device, profiles)
+                            matchesSearchQuery(
+                                bleQuery,
+                                profile?.modelName,
+                                profile?.bikeNickName,
+                                profile?.vin,
+                                device.name,
+                                device.address,
+                            )
                         }
                         if (visibleBleDevices.isEmpty()) {
-                            AppEmptyState("没有匹配“$bleQuery”的 BLE 设备")
+                            AppEmptyState("没有匹配“$bleQuery”的已有车辆")
                         } else {
                             visibleBleDevices.forEachIndexed { index, device ->
+                                val profile = boundProfileFor(device, profiles)
                                 AppListRow(
-                                    title = device.name ?: "未知设备",
-                                    summary = device.address,
-                                    value = "${device.rssi} dBm",
+                                    title = profile?.let {
+                                        it.bikeNickName.ifBlank { it.modelName }
+                                    }.orEmpty().ifBlank { device.name ?: "已有车辆" },
+                                    summary = bleVehicleSummary(device, profile),
+                                    value = "连接",
                                     showDivider = index < visibleBleDevices.lastIndex,
                                     onClick = {
-                                        if (bindableOnly) {
-                                            viewModel.bindBle(device)
-                                        } else {
-                                            viewModel.connectBle(
-                                                device.address,
-                                                device.name ?: "未知",
-                                            )
-                                        }
+                                        viewModel.connectBle(
+                                            device.address,
+                                            device.name ?: profile?.bluetoothName.orEmpty(),
+                                        )
                                     },
                                 )
                             }
@@ -433,4 +444,44 @@ fun ConnectionScreen(
             }
         }
     }
+}
+
+private fun boundProfileFor(
+    device: BleDevice,
+    profiles: List<VehicleProfile>,
+): VehicleProfile? = profiles.firstOrNull { it.matches(device) }
+
+private fun VehicleProfile.matches(device: BleDevice): Boolean {
+    val profileMac = mac.bledIdentifier()
+    val deviceMac = device.address.bledIdentifier()
+    if (profileMac.isNotBlank() && profileMac == deviceMac) return true
+    val deviceName = device.name.orEmpty().trim()
+    if (deviceName.isBlank()) return false
+    if (bluetoothName.isNotBlank() && bluetoothName.equals(deviceName, ignoreCase = true)) {
+        return true
+    }
+    return bluetoothSn.isNotBlank() &&
+        deviceName.contains(bluetoothSn, ignoreCase = true)
+}
+
+private fun String.bledIdentifier(): String =
+    filter(Char::isLetterOrDigit).uppercase()
+
+private fun bleSignalLabel(rssi: Int): String {
+    val quality = when {
+        rssi >= -55 -> "强"
+        rssi >= -70 -> "中"
+        else -> "弱"
+    }
+    return "信号$quality · $rssi dBm"
+}
+
+private fun bleVehicleSummary(device: BleDevice, profile: VehicleProfile?): String {
+    val vinSuffix = profile?.vin.orEmpty().takeLast(4)
+    return buildList {
+        if (vinSuffix.isNotBlank()) add("车架号后四位: $vinSuffix")
+        else add("未匹配车库车辆")
+        add(bleSignalLabel(device.rssi))
+        add(device.address)
+    }.joinToString(" · ")
 }
