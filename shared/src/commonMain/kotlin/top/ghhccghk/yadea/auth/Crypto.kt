@@ -102,6 +102,35 @@ object Crypto {
         return out
     }
 
+    /**
+     * 兼容原客户端 `BleAesCipher.encrypt` 的逐块 `Cipher.doFinal` 行为。
+     *
+     * 每个 16 字节块完成后 Cipher 都会重置到初始 IV，因此第 2 块不会链接
+     * 第 1 块密文。它与标准连续 CBC 在超过一个块时结果不同。
+     */
+    fun aesCbcNoPaddingEncryptResetPerBlock(
+        key: ByteArray,
+        iv: ByteArray,
+        plaintext: ByteArray,
+    ): ByteArray {
+        requireAesKey(key)
+        require(iv.size == BLOCK_SIZE) { "AES-CBC IV must be 16 bytes" }
+        require(plaintext.size % BLOCK_SIZE == 0) { "AES-CBC plaintext must be 16-byte aligned" }
+
+        val out = ByteArray(plaintext.size)
+        var offset = 0
+        while (offset < plaintext.size) {
+            val encryptedBlock = aesCbcNoPaddingEncrypt(
+                key = key,
+                iv = iv,
+                plaintext = plaintext.copyOfRange(offset, offset + BLOCK_SIZE),
+            )
+            encryptedBlock.copyInto(out, offset)
+            offset += BLOCK_SIZE
+        }
+        return out
+    }
+
     /** MD5 原始 16 字节摘要。 */
     fun md5(message: ByteArray): ByteArray {
         val bitLength = message.size.toLong() * 8L

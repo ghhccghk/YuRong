@@ -162,7 +162,7 @@ class VehicleTokenPairingStep(
                     VehicleHandshakeFrame.redactedHex(plainFrame, tokenBytes),
             )
             val encryptedFrame = runCatching {
-                Crypto.aesCbcNoPaddingEncrypt(
+                Crypto.aesCbcNoPaddingEncryptResetPerBlock(
                     key = randomKey,
                     iv = randomKey,
                     plaintext = plainFrame,
