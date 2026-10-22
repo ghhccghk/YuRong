@@ -279,7 +279,7 @@ object VehicleHandshakeFrame {
         "20" -> 0x20
         "30" -> 0x30
         "40" -> 0x40
-        else -> 0x07
+        else -> 0x10
     }
 
     private fun Int.toHexByte(): String =
