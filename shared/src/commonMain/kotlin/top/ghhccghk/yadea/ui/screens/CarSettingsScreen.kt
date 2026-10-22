@@ -163,7 +163,9 @@ fun CarSettingsScreen(
                                 }
                             },
                         )
-                        if (item.configId == "24" && emergencyContactController != null) {
+                        if (item.configId in setOf("24", "85") &&
+                            emergencyContactController != null
+                        ) {
                             AppActionPreference(
                                 title = "编辑车主与紧急联系人",
                                 summary = "车主和紧急联系人分别保存；开启提醒前需要至少填写紧急联系人",

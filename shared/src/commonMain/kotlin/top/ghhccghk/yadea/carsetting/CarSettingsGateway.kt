@@ -498,36 +498,38 @@ object CloudCarSettingMapper {
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,
             )
         }
-        cloud.configs.firstOrNull { it.confId.trim() == "64" }?.let { config ->
-            items += CarSettingItem(
-                id = "cloud:64:adaptive",
-                configId = "64",
-                title = "自适应推行",
-                summary = "勾选后无需拧动转把，推行约 5 秒自动进入推行模式",
-                classification = classificationOf("64", config),
-                group = groupOf(config, classificationOf("64", config)),
-                channel = CarSettingChannel.BLE,
-                kind = CarSettingKind.Toggle(false),
-                writable = config.isAuth != false,
-                sort = (config.sort.toIntOrNull() ?: 0) + 1,
-            )
-            items += CarSettingItem(
-                id = "cloud:64:level",
-                configId = "64",
-                title = "推行速度",
-                summary = "设置辅助推行时使用的速度档位",
-                classification = classificationOf("64", config),
-                group = groupOf(config, classificationOf("64", config)),
-                channel = CarSettingChannel.BLE,
-                kind = CarSettingKind.Slider(
-                    value = 2f,
-                    range = 1f..3f,
-                    steps = 1,
-                    unit = " 档",
-                ),
-                writable = config.isAuth != false,
-                sort = (config.sort.toIntOrNull() ?: 0) + 2,
-            )
+        for (pushAssistId in listOf("64", "89")) {
+            cloud.configs.firstOrNull { it.confId.trim() == pushAssistId }?.let { config ->
+                items += CarSettingItem(
+                    id = "cloud:$pushAssistId:adaptive",
+                    configId = pushAssistId,
+                    title = "自适应推行",
+                    summary = "勾选后无需拧动转把，推行约 5 秒自动进入推行模式",
+                    classification = classificationOf(pushAssistId, config),
+                    group = groupOf(config, classificationOf(pushAssistId, config)),
+                    channel = CarSettingChannel.BLE,
+                    kind = CarSettingKind.Toggle(false),
+                    writable = config.isAuth != false,
+                    sort = (config.sort.toIntOrNull() ?: 0) + 1,
+                )
+                items += CarSettingItem(
+                    id = "cloud:$pushAssistId:level",
+                    configId = pushAssistId,
+                    title = "推行速度",
+                    summary = "设置辅助推行时使用的速度档位",
+                    classification = classificationOf(pushAssistId, config),
+                    group = groupOf(config, classificationOf(pushAssistId, config)),
+                    channel = CarSettingChannel.BLE,
+                    kind = CarSettingKind.Slider(
+                        value = 2f,
+                        range = 1f..3f,
+                        steps = 1,
+                        unit = " 档",
+                    ),
+                    writable = config.isAuth != false,
+                    sort = (config.sort.toIntOrNull() ?: 0) + 2,
+                )
+            }
         }
         return items.sortedWith(compareBy({ it.group.sort }, { it.sort }, { it.title }))
     }
@@ -699,9 +701,39 @@ object CloudCarSettingMapper {
             options = listOf("主题 1", "主题 2"),
         )
         // HelpPromotePlusActivity：辅助推行开关；档位和自适应模式在下方追加。
-        "64" -> CarSettingKind.Toggle(false)
+        "64", "89" -> CarSettingKind.Toggle(false)
         // VehicleCustomizeActivity：FREE 模式的四项参数一次下发。
-        "55" -> CarSettingKind.Customize()
+        "55", "92" -> CarSettingKind.Customize()
+        // TopSpeedActivity / MaxSpeedSettingActivity：最高车速。
+        "4", "58" -> {
+            val max = cloud.intValue("bikeSpeedMax")
+                ?.takeIf { it in 15..120 }
+                ?: cloud.intValue("bikeModelTopSpeedMax")?.takeIf { it in 15..120 }
+                ?: 60
+            val current = cloud.intValue("bikeSpeedMax")?.coerceIn(15, max) ?: max
+            CarSettingKind.Slider(
+                value = current.toFloat(),
+                range = 15f..max.toFloat(),
+                steps = (max - 16).coerceAtLeast(0),
+                unit = " km/h",
+            )
+        }
+        // AutoShutDownActivity 与 BraceAutoShutDownActivity 共用离车自动锁命令。
+        "7" -> CarSettingKind.Toggle(
+            cloud.boolValue("bleLeavePowerOffEnable") == true,
+        )
+        "11" -> CarSettingKind.Toggle(false)
+        // GaugeStyleHandOffActivity：仪表主题，参数 0..2。
+        "50" -> CarSettingKind.Choice(
+            selectedIndex = 0,
+            options = listOf("风格 1", "风格 2", "风格 3"),
+        )
+        // ScheduledShutDown2Activity 与 confId 15 使用同一组定时关机命令。
+        "59" -> CarSettingKind.Toggle(
+            cloud.boolValue("vehiclePowerDownStatus") == true,
+        )
+        // SOS 联系人页复用紧急联系人编辑器。
+        "85" -> CarSettingKind.Info("在下方编辑车主与紧急联系人")
         // 边撑自动关机：原 App 只给开关，依赖边撑感应（confId 2）。
         "39" -> CarSettingKind.Toggle(false)
         // 报失模式需要短信验证，统一在“诊断 · 定位与报失”中操作。
@@ -792,10 +824,10 @@ object CloudCarSettingMapper {
         "8", "9", "10", "16", "24", "40", "47", "48", "60", "61", "62", "75", "76", "82", "91",
     )
     private val ENTRANCE_IDS = setOf(
-        "4", "7", "9", "10", "11", "14", "15", "17", "18", "20", "24",
-        "25", "27", "31", "33", "41", "47", "48", "50", "58", "59",
-        "61", "69", "71", "72", "73", "77", "81", "85", "86", "88", "89",
-        "91", "92", "93", "95", "1005",
+        "9", "10", "14", "15", "17", "18", "20", "24",
+        "25", "27", "31", "33", "41", "47", "48",
+        "61", "69", "71", "72", "73", "77", "81", "86", "88",
+        "91", "93", "95", "1005",
     )
     private val SPECIAL_IDS = setOf(
         "special:meter_wallpaper_skin",

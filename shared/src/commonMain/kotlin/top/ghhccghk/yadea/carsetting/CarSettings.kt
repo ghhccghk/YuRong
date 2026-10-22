@@ -320,8 +320,8 @@ class CarSettingsController(
                 "63" -> item.copy(
                     kind = CarSettingKind.Toggle(status.extended.tPowerStatus != 0),
                 )
-                "64" -> when {
-                    item.id == "cloud:64:adaptive" -> item.copy(
+                "64", "89" -> when {
+                    item.id.endsWith(":adaptive") -> item.copy(
                         kind = CarSettingKind.Toggle(
                             status.extended.customDriveSwitchStatus != 0,
                         ),
@@ -337,7 +337,7 @@ class CarSettingsController(
                     }
                     else -> item
                 }
-                "55" -> when (val kind = item.kind) {
+                "55", "92" -> when (val kind = item.kind) {
                     is CarSettingKind.Customize -> item.copy(
                         kind = kind.copy(
                             throttleLevel = status.extended.customizeThrottleSensitivity
@@ -375,7 +375,7 @@ class CarSettingsController(
                             .coerceIn(0, 2),
                     ) ?: item.kind,
                 )
-                "15" -> when (val kind = item.kind) {
+                "15", "59" -> when (val kind = item.kind) {
                     is CarSettingKind.Toggle -> item.copy(
                         kind = kind.copy(
                             checked = status.extended.vehiclePowerDownStatus != 0,

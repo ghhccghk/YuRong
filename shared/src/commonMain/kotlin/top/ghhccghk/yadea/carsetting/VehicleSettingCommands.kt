@@ -136,6 +136,48 @@ object VehicleSettingCommands {
                     VehicleSettingCommand("IMPERIAL_UNIT_MILES", 0x8A)
                 }
             }
+            // TopSpeedActivity / MaxSpeedSettingActivity：最高车速。
+            "4", "58" -> {
+                val slider = kind as? CarSettingKind.Slider ?: return null
+                VehicleSettingCommand(
+                    commandType = "MAX_SPEED_SETTING",
+                    commandId = 0x36,
+                    parameter = slider.value.toInt().coerceIn(15, 120),
+                )
+            }
+            // AutoShutDownActivity：离车自动锁。
+            "7" -> toggle(
+                kind = kind,
+                onType = "LEAVE_THE_CAR_AUTO_LOCK_ON",
+                offType = "LEAVE_THE_CAR_AUTO_LOCK_OFF",
+                onId = 0x53,
+                offId = 0x54,
+            )
+            // AutoOnOffActivity：自动开关机。
+            "11" -> toggle(
+                kind = kind,
+                onType = "AUTO_TURN_ON_OFF_OPEN",
+                offType = "AUTO_TURN_ON_OFF_CLOSE",
+                onId = 0x5C,
+                offId = 0x5D,
+            )
+            // GaugeStyleHandOffActivity：仪表主题。
+            "50" -> {
+                val choice = kind as? CarSettingKind.Choice ?: return null
+                VehicleSettingCommand(
+                    commandType = "COMMAND_BIKE_PANEL_THEME_TYPE",
+                    commandId = 0x3F,
+                    parameter = choice.selectedIndex.coerceIn(0, 2),
+                )
+            }
+            // ScheduledShutDown2Activity：定时关机。
+            "59" -> toggle(
+                kind = kind,
+                onType = "VEHICLE_MANDATORY_POWER_DOWN_OPEN",
+                offType = "VEHICLE_MANDATORY_POWER_DOWN_CLOSE",
+                onId = 0x7B,
+                offId = 0x7C,
+            )
             "54" -> {
                 val choice = kind as? CarSettingKind.Choice ?: return null
                 VehicleSettingCommand(
@@ -176,7 +218,7 @@ object VehicleSettingCommands {
                 offId = 0xA5,
             )
             // HelpPromotePlusActivity：辅助推行开关与推行档位。
-            "64" -> when (kind) {
+            "64", "89" -> when (kind) {
                 is CarSettingKind.Toggle -> toggle(
                     kind = kind,
                     onType = "STROLLER_OPEN",
@@ -192,7 +234,7 @@ object VehicleSettingCommands {
                 else -> null
             }
             // VehicleCustomizeActivity：CUSTOMIZE_SETTING 一次下发四项参数。
-            "55" -> {
+            "55", "92" -> {
                 val customize = kind as? CarSettingKind.Customize ?: return null
                 VehicleSettingCommand(
                     commandType = "CUSTOMIZE_SETTING",
@@ -425,7 +467,7 @@ object VehicleSettingCommands {
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
         // 自适应推行与总开关共用 confId 64，需要按条目 id 区分。
-        if (item.id == "cloud:64:adaptive") {
+        if (item.id.endsWith(":adaptive") && item.configId in setOf("64", "89")) {
             return toggle(
                 kind = item.kind,
                 onType = "COMMAND_CONST_CUSTOM_DRIVE_SWITCH_SETTING",

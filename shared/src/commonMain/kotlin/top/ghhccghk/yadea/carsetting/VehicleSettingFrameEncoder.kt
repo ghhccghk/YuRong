@@ -44,6 +44,21 @@ object VehicleSettingFrameEncoder {
         // AutomaticLightActivity。
         0x25 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFF7FFFFFFFFFFFFFFFFFFFF"
         0x26 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFF3FFFFFFFFFFFFFFFFFFFF"
+        // TopSpeedActivity / MaxSpeedSettingActivity：最高车速。
+        0x36 -> "FF".repeat(4) + hex2(command.parameter.coerceIn(0, 255)) +
+            "FF".repeat(20)
+        // GaugeStyleHandOffActivity：仪表主题 0..2 -> 9F/BF/DF。
+        0x3F -> "FF".repeat(7) +
+            hex2(0x9F + (command.parameter.coerceIn(0, 2) shl 5)) +
+            "FF".repeat(17)
+        // AutoOnOffActivity。
+        0x5C -> "FFFFFFFDFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        0x5D -> "FFFFFFFCFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        // ScheduledShutDown2Activity：开关与时间。
+        0x7B -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD"
+        0x7C -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFC"
+        0x7D -> "FF".repeat(23) +
+            hex2(command.parameter.coerceIn(0, 20) * 4 + 3)
         // TurnSignalActivity。
         0x23 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFDFFFFFFFFFFFFFFFFFFFF"
         0x24 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFCFFFFFFFFFFFFFFFFFFFF"
