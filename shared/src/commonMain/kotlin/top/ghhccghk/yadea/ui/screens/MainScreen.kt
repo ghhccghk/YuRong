@@ -276,6 +276,17 @@ fun MainScreen(
         }
     }
     LaunchedEffect(
+        vehicleProfile?.bikeId,
+        authUiState.session.user?.id,
+        vehicleAccountRoleProvider,
+    ) {
+        val bikeId = vehicleProfile?.bikeId ?: 0L
+        val userId = authUiState.session.user?.id ?: 0L
+        if (bikeId > 0L && userId > 0L) {
+            runCatching { vehicleAccountRoleProvider?.fetch(bikeId, userId) }
+        }
+    }
+    LaunchedEffect(
         vehicleProfile?.vin,
         authUiState.session.token,
         carSettingsGateway,

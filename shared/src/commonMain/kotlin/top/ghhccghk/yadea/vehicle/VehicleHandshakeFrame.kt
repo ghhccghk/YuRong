@@ -20,9 +20,8 @@ data class VehicleAuthProfile(
     val rawFlags: Int = 0,
 ) {
     val supportsTokenHandshake: Boolean
-        // smali 的 s0/E 只要求车端声明 Token 能力且不要求刷写 SecretKey；
-        // v2 标志决定随机块布局，旧版车辆同样可以走 Token 握手。
-        get() = tokenAuth && !requiresFlashKey
+        // wi.j0 只有 Token + V2 + 云端 isAuthToken=true 才进入 E0。
+        get() = tokenAuth && authVersion2 && !requiresFlashKey
 
     companion object {
         fun parse(randomKey: ByteArray): VehicleAuthProfile {
@@ -164,6 +163,78 @@ object VehicleHandshakeFrame {
         localTime: DateTimeParts,
         mode: String,
     ): ByteArray? {
+        val base = buildBaseRandomBlock(randomKey, mac, localTime) ?: return null
+        if (protocolVersion != 1) return base
+
+        val modeByte = modeValue(mode)
+        return base + byteArrayOf(
+            0x41,
+            0x05,
+            0x03,
+            modeByte.toByte(),
+            (0x45 xor modeByte).toByte(),
+        )
+    }
+
+    /**
+     * `wi.U` / `wi.V` 的旧握手随机块。
+     *
+     * 旧协议不再生成 Token 帧，而是把 9/14/16 字节随机块直接写入
+     * `bef8e7e0`。账号分支 `V` 会额外带上角色位、用户序号和异或校验。
+     */
+    internal fun buildLegacyRandomBlock(
+        randomKey: ByteArray,
+        mac: String,
+        protocolVersion: Int,
+        localTime: DateTimeParts,
+        mode: String,
+        accountList: IntArray?,
+        userNo: Int,
+    ): ByteArray? {
+        val base = buildBaseRandomBlock(randomKey, mac, localTime) ?: return null
+        if (protocolVersion != 1) return base
+
+        val modeByte = modeValue(mode)
+        val roles = accountList
+        val useAccountBlock =
+            (randomKey.getOrNull(13)?.toInt()?.and(1) == 1) &&
+                roles != null &&
+                roles.size >= 6 &&
+                userNo >= 0
+        if (!useAccountBlock) {
+            return base + byteArrayOf(
+                0x41,
+                0x05,
+                0x03,
+                modeByte.toByte(),
+                (0x45 xor modeByte).toByte(),
+            )
+        }
+
+        val roleX = ((roles[0] and 1) shl 1) or (roles[1] and 1)
+        val roleY =
+            ((roles[2] and 1) shl 7) or
+                ((roles[3] and 1) shl 6) or
+                ((roles[4] and 1) shl 5) or
+                0x10 or
+                (userNo and 0x0F)
+        val check = 0x47 xor modeValue(mode) xor roleX xor roleY
+        return base + byteArrayOf(
+            0x41,
+            0x07,
+            0x01,
+            modeValue(mode).toByte(),
+            roleX.toByte(),
+            roleY.toByte(),
+            check.toByte(),
+        )
+    }
+
+    private fun buildBaseRandomBlock(
+        randomKey: ByteArray,
+        mac: String,
+        localTime: DateTimeParts,
+    ): ByteArray? {
         if (randomKey.size < 3) return null
         val macHex = mac.filter { it.isLetterOrDigit() }
         if (macHex.length < 12) return null
@@ -193,16 +264,7 @@ object VehicleHandshakeFrame {
             (second ushr 8).toByte(),
             second.toByte(),
         )
-        if (protocolVersion != 1) return base
-
-        val modeByte = modeValue(mode)
-        return base + byteArrayOf(
-            0x41,
-            0x05,
-            0x03,
-            modeByte.toByte(),
-            (0x45 xor modeByte).toByte(),
-        )
+        return base
     }
 
     internal fun modeMask(mode: String): Int = when (mode) {

@@ -37,8 +37,19 @@ class YadeaVehicleAccountRoleGateway(
     private val baseUrl: String = DEFAULT_BASE_URL,
 ) : VehicleAccountRoleProvider {
 
+    private var cachedBikeId = 0L
+    private var cachedUserId = 0L
+    private var cachedRoles: VehicleAccountRoles? = null
+
     override suspend fun fetch(bikeId: Long, currentUserId: Long): VehicleAccountRoles? {
         if (bikeId <= 0L || currentUserId <= 0L) return null
+        if (
+            cachedRoles != null &&
+            cachedBikeId == bikeId &&
+            cachedUserId == currentUserId
+        ) {
+            return cachedRoles
+        }
         val token = tokenProvider().trim()
         if (token.isBlank()) return null
 
@@ -89,7 +100,11 @@ class YadeaVehicleAccountRoleGateway(
             accountList[5 - accountOrder] = 1
         }
         if (currentUserNo < 0) return null
-        return VehicleAccountRoles(accountList = accountList, userNo = currentUserNo)
+        return VehicleAccountRoles(accountList = accountList, userNo = currentUserNo).also {
+            cachedBikeId = bikeId
+            cachedUserId = currentUserId
+            cachedRoles = it
+        }
     }
 
     companion object {

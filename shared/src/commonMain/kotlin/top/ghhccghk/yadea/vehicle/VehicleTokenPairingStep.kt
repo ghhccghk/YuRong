@@ -12,14 +12,11 @@ import top.ghhccghk.yadea.ble.BleService
 import top.ghhccghk.yadea.mirror.DateTimeParts
 
 /**
- * 真实车辆 Token 握手。
+ * 真实车辆 BLE 握手。
  *
- * 流程与 smali `wi.Q0/B0/E0` 对齐：
- * 1. 订阅 `bef8e7e0` 等待车端 RandKey；
- * 2. 订阅 `bef8e7e1` 等待鉴权结果；
- * 3. 读取 `iot-auth/ble/token` 的 `dkInfo`；
- * 4. 生成 32 字节握手帧写入 `bef8e7e0`；
- * 5. 结果码 `0` 才允许连接进入初始化任务。
+ * 流程与 smali `wi.Q0/j0` 对齐，先读取 RandKey 的鉴权版本：
+ * - V2：订阅 `bef8e7e1`，取云端 `dkInfo` 后写入加密 Token 帧；
+ * - 旧版：直接写入 `wi.Z0` 的 9/14/16 字节随机块，不等待鉴权通知。
  *
  * 刷写 SecretKey 分支依赖 `secret-key/get` 与额外加密流程，当前明确拒绝，
  * 不会用空密钥或猜测帧继续连接。
@@ -106,12 +103,56 @@ class VehicleTokenPairingStep(
                 "version=${authProfile.authVersion} " +
                 "flags=0x${authProfile.rawFlags.toString(16).padStart(2, '0')}",
         )
-        if (!authProfile.supportsTokenHandshake) {
-            onDebug("BLE 鉴权失败：该车辆要求旧握手或 SecretKey 刷写流程")
-            return false
-        }
         if (randomKey.size != 16) {
             onDebug("BLE 鉴权失败：Token 握手要求 16 字节 RandKey，实际 ${randomKey.size} 字节")
+            return false
+        }
+
+        val accountRoles = loadAccountRoles()
+        onDebug(
+            if (accountRoles == null) {
+                "握手账号参数：未获取到，回退 FF FF"
+            } else {
+                "握手账号参数：userNo=${accountRoles.userNo} " +
+                    "roles=${accountRoles.accountList.joinToString("")}"
+            },
+        )
+
+        if (!authProfile.authVersion2) {
+            val legacyProtocol = resolveLegacyProtocolVersion(randomKey)
+            val legacyBlock = VehicleHandshakeFrame.buildLegacyRandomBlock(
+                randomKey = randomKey,
+                mac = mac,
+                protocolVersion = legacyProtocol,
+                localTime = timeProvider.now(),
+                mode = "10",
+                accountList = accountRoles?.accountList,
+                userNo = accountRoles?.userNo ?: -1,
+            )
+            if (legacyBlock == null) {
+                onDebug("BLE 鉴权失败：旧握手随机块构造失败")
+                return false
+            }
+            onDebug(
+                "旧握手随机块：protocol=$legacyProtocol len=${legacyBlock.size} " +
+                    VehicleHandshakeFrame.toDebugHex(legacyBlock),
+            )
+            if (!adapter.writeCharacteristic(
+                    serviceUuid = HANDSHAKE_SERVICE,
+                    characteristicUuid = RANDOM_KEY_CHARACTERISTIC,
+                    data = legacyBlock,
+                    withResponse = true,
+                )
+            ) {
+                onDebug("BLE 鉴权失败：旧握手随机块写入失败")
+                return false
+            }
+            onDebug("旧握手写入成功，鉴权流程完成")
+            return true
+        }
+
+        if (!authProfile.supportsTokenHandshake) {
+            onDebug("BLE 鉴权失败：该车辆要求 SecretKey 刷写流程")
             return false
         }
 
@@ -138,26 +179,6 @@ class VehicleTokenPairingStep(
                     )
                     return@coroutineScope false
                 }
-
-                val accountRoles = accountRoleProvider?.let { provider ->
-                    runCatching {
-                        provider.fetch(
-                            bikeId = bikeIdProvider(),
-                            currentUserId = currentUserIdProvider(),
-                        )
-                    }.getOrElse {
-                        onDebug("BLE 账号角色获取失败：${it.message ?: it::class.simpleName}")
-                        null
-                    }
-                }
-                onDebug(
-                    if (accountRoles == null) {
-                        "握手账号参数：未获取到，回退 FF FF"
-                    } else {
-                        "握手账号参数：userNo=${accountRoles.userNo} " +
-                            "roles=${accountRoles.accountList.joinToString("")}"
-                    },
-                )
 
                 val token = provider.fetch(
                     mac = mac,
@@ -235,6 +256,28 @@ class VehicleTokenPairingStep(
                 responseDeferred.cancelAndJoin()
             }
         }
+    }
+
+    private suspend fun loadAccountRoles(): VehicleAccountRoles? =
+        accountRoleProvider?.let { provider ->
+            runCatching {
+                provider.fetch(
+                    bikeId = bikeIdProvider(),
+                    currentUserId = currentUserIdProvider(),
+                )
+            }.getOrElse {
+                onDebug("BLE 账号角色获取失败：${it.message ?: it::class.simpleName}")
+                null
+            }
+        }
+
+    private fun resolveLegacyProtocolVersion(randomKey: ByteArray): Int {
+        if (randomKey.size <= 10) return 0xF1
+        val byte9 = randomKey[9].toInt() and 0xFF
+        val byte10 = randomKey[10].toInt() and 0xFF
+        if (byte9 == 0xFF || byte10 == 0xFF) return 0xF1
+        if (byte9 == 0x41 && byte10 == 0x05) return 0xF1
+        return 1
     }
 
     companion object {
