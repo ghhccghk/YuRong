@@ -324,7 +324,12 @@ fun ConnectionScreen(
                     )
                     AppListRow(
                         title = "绑定扫描",
-                        value = bindingState.stage.name,
+                        value = bindingStageLabel(
+                            bindingState.stage,
+                            bindingState.candidates.count { device ->
+                                profiles.none { it.matches(device) }
+                            },
+                        ),
                         summary = bindingState.message,
                     )
                     AppOutlinedButton(
@@ -343,18 +348,35 @@ fun ConnectionScreen(
                             },
                         )
                     }
-                    if (bindingState.candidates.isNotEmpty()) {
-                        bindingState.candidates.forEach { device ->
+                    val bindableCandidates = bindingState.candidates.filterNot { device ->
+                        profiles.any { it.matches(device) }
+                    }
+                    if (bindableCandidates.isNotEmpty()) {
+                        bindableCandidates.forEach { device ->
                             val profile = boundProfileFor(device, profiles)
                             AppListRow(
                                 title = profile?.let {
                                     it.bikeNickName.ifBlank { it.modelName }
                                 }.orEmpty().ifBlank { device.name ?: "可绑定车辆" },
                                 summary = bleVehicleSummary(device, profile),
-                                value = "绑定",
-                                onClick = { viewModel.bindBle(device) },
+                                value = if (profile != null) "连接" else "未入库",
+                                onClick = profile?.let {
+                                    {
+                                        viewModel.connectBle(
+                                            device.address,
+                                            device.name ?: it.bluetoothName,
+                                        )
+                                    }
+                                },
                             )
                         }
+                        if (bindableCandidates.any { boundProfileFor(it, profiles) == null }) {
+                            AppEmptyState(
+                                "未匹配车库的车辆需先通过 VIN/密码添加，不能直接绑定",
+                            )
+                        }
+                    } else if (bindingState.candidates.isNotEmpty()) {
+                        AppEmptyState("扫描结果均已在车库中，请在下方连接已有车辆")
                     }
                     AppButton(
                         onClick = { viewModel.scanBle() },
@@ -450,6 +472,17 @@ private fun boundProfileFor(
     device: BleDevice,
     profiles: List<VehicleProfile>,
 ): VehicleProfile? = profiles.firstOrNull { it.matches(device) }
+
+private fun bindingStageLabel(stage: BindingStage, count: Int): String = when (stage) {
+    BindingStage.IDLE -> "未开始"
+    BindingStage.SCANNING -> "扫描中…"
+    BindingStage.FOUND -> if (count > 0) "发现 $count 辆" else "无新车辆"
+    BindingStage.CONNECTING -> "连接中…"
+    BindingStage.PAIRING -> "配对中…"
+    BindingStage.BOUND -> "已绑定"
+    BindingStage.FAILED -> "扫描失败"
+    BindingStage.CANCELLED -> "已取消"
+}
 
 private fun VehicleProfile.matches(device: BleDevice): Boolean {
     val profileMac = mac.bledIdentifier()
