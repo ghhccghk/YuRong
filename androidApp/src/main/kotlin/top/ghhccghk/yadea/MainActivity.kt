@@ -43,6 +43,7 @@ import top.ghhccghk.yadea.vehicle.YadeaVehicleProfileGateway
 import top.ghhccghk.yadea.vehicle.YadeaVehicleCloudStatusGateway
 import top.ghhccghk.yadea.vehicle.YadeaVehicleBindingGateway
 import top.ghhccghk.yadea.vehicle.YadeaVehicleBleTokenGateway
+import top.ghhccghk.yadea.vehicle.YadeaVehicleAccountRoleGateway
 import top.ghhccghk.yadea.vehicle.YadeaVehicleFaultGateway
 import top.ghhccghk.yadea.vehicle.YadeaLostModeGateway
 import top.ghhccghk.yadea.vehicle.EmergencyContactController
@@ -154,6 +155,13 @@ class MainActivity : ComponentActivity() {
         )
         val httpTransport = createHttpTransport()
         val vehicleBleTokenGateway = YadeaVehicleBleTokenGateway(
+            transport = httpTransport,
+            tokenProvider = { appPreferences.readAuth().token },
+            deviceIdProvider = deviceIdProvider,
+            clientInfoProvider = { clientInfo },
+            timestampProvider = { System.currentTimeMillis() },
+        )
+        val vehicleAccountRoleGateway = YadeaVehicleAccountRoleGateway(
             transport = httpTransport,
             tokenProvider = { appPreferences.readAuth().token },
             deviceIdProvider = deviceIdProvider,
@@ -288,6 +296,7 @@ class MainActivity : ComponentActivity() {
             MainScreen(
                 bleAdapter = vehicleBleAdapter,
                 bleTokenProvider = vehicleBleTokenGateway,
+                vehicleAccountRoleProvider = vehicleAccountRoleGateway,
                 vehicleControlSink = AndroidVehicleControlSink(vehicleBleAdapter),
                 vehicleStatusSource = vehicleStatus,
                 vehicleProfileSource = vehicleProfileSource,

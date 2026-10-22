@@ -39,6 +39,7 @@ import top.ghhccghk.yadea.vehicle.BindingFlow
 import top.ghhccghk.yadea.vehicle.BindingState
 import top.ghhccghk.yadea.vehicle.PublicState
 import top.ghhccghk.yadea.vehicle.VehicleBleTokenProvider
+import top.ghhccghk.yadea.vehicle.VehicleAccountRoleProvider
 import top.ghhccghk.yadea.vehicle.VehicleBleConstants
 import top.ghhccghk.yadea.vehicle.VehicleConnectionCoordinator
 import top.ghhccghk.yadea.vehicle.VehicleLocalTimeProvider
@@ -57,7 +58,10 @@ class AppViewModel(
     private val screenCaptureAuthorizer: ScreenCaptureAuthorizer? = null,
     private val mediaSourcePicker: MediaSourcePicker? = null,
     private val bleTokenProvider: VehicleBleTokenProvider? = null,
+    private val vehicleAccountRoleProvider: VehicleAccountRoleProvider? = null,
     private val vehicleVinProvider: () -> String = { "" },
+    private val vehicleBikeIdProvider: () -> Long = { 0L },
+    private val currentUserIdProvider: () -> Long = { 0L },
     private val settingCommandSink: VehicleSettingCommandSink? = null,
     private val vehicleStatusProvider: () -> TtpInfo? = { null },
     private val onVehicleConnectionEstablished: (mac: String, name: String, binding: Boolean) -> Unit =
@@ -165,7 +169,10 @@ class AppViewModel(
                 clock = Clock { top.ghhccghk.yadea.currentMonotonicMillis() },
                 pairingStep = VehicleTokenPairingStep(
                     tokenProvider = bleTokenProvider,
+                    accountRoleProvider = vehicleAccountRoleProvider,
                     vinProvider = vehicleVinProvider,
+                    bikeIdProvider = vehicleBikeIdProvider,
+                    currentUserIdProvider = currentUserIdProvider,
                     timeProvider = VehicleLocalTimeProvider { getCurrentTime() },
                     onDebug = ::debug,
                 ),

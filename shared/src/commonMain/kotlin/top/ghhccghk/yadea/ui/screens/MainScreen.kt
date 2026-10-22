@@ -58,6 +58,7 @@ import top.ghhccghk.yadea.vehicle.LostModeGateway
 import top.ghhccghk.yadea.vehicle.VehicleBindingController
 import top.ghhccghk.yadea.vehicle.VehicleProfileSource
 import top.ghhccghk.yadea.vehicle.VehicleBleTokenProvider
+import top.ghhccghk.yadea.vehicle.VehicleAccountRoleProvider
 import top.ghhccghk.yadea.vehicle.VehicleControlController
 import top.ghhccghk.yadea.vehicle.VehicleControlSink
 import top.ghhccghk.yadea.vehicle.VehicleStatusSource
@@ -97,6 +98,7 @@ fun MainScreen(
     wifiManager: WifiConnectionManager? = null,
     bleAdapter: BleAdapter? = null,
     bleTokenProvider: VehicleBleTokenProvider? = null,
+    vehicleAccountRoleProvider: VehicleAccountRoleProvider? = null,
     vehicleControlSink: VehicleControlSink? = null,
     p2pManager: WifiP2pManager? = null,
     frameSourceFactory: FrameSourceFactory? = null,
@@ -131,7 +133,7 @@ fun MainScreen(
     var vehicleConnectionPreferences by remember {
         mutableStateOf(resolvedPreferences.readVehicleConnection())
     }
-    val viewModel = remember(bleTokenProvider, vehicleProfileSource) {
+    val viewModel = remember(bleTokenProvider, vehicleAccountRoleProvider, vehicleProfileSource) {
         AppViewModel(
             wifiManager = wifiManager,
             bleAdapter = bleAdapter,
@@ -141,7 +143,12 @@ fun MainScreen(
             screenCaptureAuthorizer = screenCaptureAuthorizer,
             mediaSourcePicker = mediaSourcePicker,
             bleTokenProvider = bleTokenProvider,
+            vehicleAccountRoleProvider = vehicleAccountRoleProvider,
             vehicleVinProvider = { vehicleProfileSource?.profile?.value?.vin.orEmpty() },
+            vehicleBikeIdProvider = { vehicleProfileSource?.profile?.value?.bikeId ?: 0L },
+            currentUserIdProvider = {
+                resolvedPreferences.readAuth().user?.id ?: 0L
+            },
             settingCommandSink = carSettingCommandSink,
             vehicleStatusProvider = { vehicleStatusSource?.status?.value },
             onVehicleConnectionEstablished = { mac, name, binding ->

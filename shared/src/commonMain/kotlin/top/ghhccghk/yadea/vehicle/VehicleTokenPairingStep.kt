@@ -2,6 +2,7 @@ package top.ghhccghk.yadea.vehicle
 
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
@@ -25,7 +26,10 @@ import top.ghhccghk.yadea.mirror.DateTimeParts
  */
 class VehicleTokenPairingStep(
     private val tokenProvider: VehicleBleTokenProvider?,
+    private val accountRoleProvider: VehicleAccountRoleProvider? = null,
     private val vinProvider: () -> String,
+    private val bikeIdProvider: () -> Long = { 0L },
+    private val currentUserIdProvider: () -> Long = { 0L },
     private val timeProvider: VehicleLocalTimeProvider,
     private val notificationTimeoutMs: Long = 5_000L,
     private val onDebug: (String) -> Unit = {},
@@ -82,130 +86,155 @@ class VehicleTokenPairingStep(
             "握手特征：RandKey properties=${randomKeyCharacteristic.properties} " +
                 "authResult properties=${authResultCharacteristic.properties}",
         )
+        val randomKey = runCatching {
+            adapter.readCharacteristic(HANDSHAKE_SERVICE, RANDOM_KEY_CHARACTERISTIC)
+        }.getOrNull()
+        if (randomKey == null) {
+            onDebug(
+                "BLE 鉴权失败：读取 RandKey 失败（properties=" +
+                    "${randomKeyCharacteristic.properties}）",
+            )
+            return false
+        }
+        val authProfile = VehicleAuthProfile.parse(randomKey)
+        onDebug(
+            "RandKey 鉴权能力：len=${randomKey.size} " +
+                "fingerprint=${Crypto.md5Hex(randomKey).take(12)} " +
+                "token=${authProfile.tokenAuth} " +
+                "v2=${authProfile.authVersion2} " +
+                "flashKey=${authProfile.requiresFlashKey} " +
+                "version=${authProfile.authVersion} " +
+                "flags=0x${authProfile.rawFlags.toString(16).padStart(2, '0')}",
+        )
+        if (!authProfile.supportsTokenHandshake) {
+            onDebug("BLE 鉴权失败：该车辆要求旧握手或 SecretKey 刷写流程")
+            return false
+        }
+        if (randomKey.size != 16) {
+            onDebug("BLE 鉴权失败：Token 握手要求 16 字节 RandKey，实际 ${randomKey.size} 字节")
+            return false
+        }
+
         return coroutineScope {
             val responseDeferred = async(start = CoroutineStart.UNDISPATCHED) {
-                awaitNotification(
-                    adapter = adapter,
-                    serviceUuid = HANDSHAKE_SERVICE,
-                    characteristicUuid = AUTH_RESULT_CHARACTERISTIC,
-                )
+                adapter.notifications.first { notification ->
+                    notification.serviceUuid.equals(HANDSHAKE_SERVICE, ignoreCase = true) &&
+                        notification.characteristicUuid.equals(
+                            AUTH_RESULT_CHARACTERISTIC,
+                            ignoreCase = true,
+                        )
+                }.data
             }
+            try {
+                if (!adapter.setNotification(
+                        HANDSHAKE_SERVICE,
+                        AUTH_RESULT_CHARACTERISTIC,
+                        true,
+                    )
+                ) {
+                    onDebug(
+                        "BLE 鉴权失败：无法订阅鉴权结果通知（properties=" +
+                            "${authResultCharacteristic.properties}）",
+                    )
+                    return@coroutineScope false
+                }
 
-            if (!adapter.setNotification(HANDSHAKE_SERVICE, AUTH_RESULT_CHARACTERISTIC, true)) {
+                val accountRoles = accountRoleProvider?.let { provider ->
+                    runCatching {
+                        provider.fetch(
+                            bikeId = bikeIdProvider(),
+                            currentUserId = currentUserIdProvider(),
+                        )
+                    }.getOrElse {
+                        onDebug("BLE 账号角色获取失败：${it.message ?: it::class.simpleName}")
+                        null
+                    }
+                }
                 onDebug(
-                    "BLE 鉴权失败：无法订阅鉴权结果通知（properties=" +
-                        "${authResultCharacteristic.properties}）",
+                    if (accountRoles == null) {
+                        "握手账号参数：未获取到，回退 FF FF"
+                    } else {
+                        "握手账号参数：userNo=${accountRoles.userNo} " +
+                            "roles=${accountRoles.accountList.joinToString("")}"
+                    },
                 )
-                return@coroutineScope false
-            }
 
-            val randomKey = runCatching {
-                adapter.readCharacteristic(HANDSHAKE_SERVICE, RANDOM_KEY_CHARACTERISTIC)
-            }.getOrNull()
-            if (randomKey == null) {
+                val token = provider.fetch(
+                    mac = mac,
+                    vin = vin,
+                    refresh = false,
+                )
+                if (token == null) {
+                    onDebug("BLE 鉴权失败：云端未返回 dkInfo")
+                    return@coroutineScope false
+                }
+
+                runCatching { adapter.requestMtu(VehicleTimeouts.REQUESTED_MTU) }
+                    .onFailure { onDebug("请求 MTU 失败，继续尝试握手：${it.message}") }
+
+                val plainFrame = VehicleHandshakeFrame.build(
+                    token = token.dkInfo,
+                    randomKey = randomKey,
+                    mac = mac,
+                    protocolVersion = protocol.protocolVersion,
+                    localTime = timeProvider.now(),
+                    networkAvailable = true,
+                    accountList = accountRoles?.accountList,
+                    userNo = accountRoles?.userNo ?: -1,
+                )
+                if (plainFrame == null) {
+                    onDebug("BLE 鉴权失败：握手帧构造失败")
+                    return@coroutineScope false
+                }
+                val tokenBytes = token.dkInfo.trim()
+                    .removePrefix("0x")
+                    .removePrefix("0X")
+                    .length / 2
                 onDebug(
-                    "BLE 鉴权失败：读取 RandKey 失败（properties=" +
-                        "${randomKeyCharacteristic.properties}）",
+                    "握手明文：len=${plainFrame.size} " +
+                        VehicleHandshakeFrame.redactedHex(plainFrame, tokenBytes),
                 )
-                return@coroutineScope false
-            }
-            val authProfile = VehicleAuthProfile.parse(randomKey)
-            onDebug(
-                "RandKey 鉴权能力：len=${randomKey.size} " +
-                    "fingerprint=${Crypto.md5Hex(randomKey).take(12)} " +
-                    "token=${authProfile.tokenAuth} " +
-                    "v2=${authProfile.authVersion2} " +
-                    "flashKey=${authProfile.requiresFlashKey} " +
-                    "version=${authProfile.authVersion} " +
-                    "flags=0x${authProfile.rawFlags.toString(16).padStart(2, '0')}",
-            )
-            if (!authProfile.supportsTokenHandshake) {
-                onDebug("BLE 鉴权失败：该车辆要求旧握手或 SecretKey 刷写流程")
-                return@coroutineScope false
-            }
-            if (randomKey.size != 16) {
-                onDebug("BLE 鉴权失败：Token 握手要求 16 字节 RandKey，实际 ${randomKey.size} 字节")
-                return@coroutineScope false
-            }
-
-            val token = provider.fetch(
-                mac = mac,
-                vin = vin,
-                refresh = false,
-            )
-            if (token == null) {
-                onDebug("BLE 鉴权失败：云端未返回 dkInfo")
-                return@coroutineScope false
-            }
-
-            runCatching { adapter.requestMtu(VehicleTimeouts.REQUESTED_MTU) }
-                .onFailure { onDebug("请求 MTU 失败，继续尝试握手：${it.message}") }
-
-            val plainFrame = VehicleHandshakeFrame.build(
-                token = token.dkInfo,
-                randomKey = randomKey,
-                mac = mac,
-                protocolVersion = protocol.protocolVersion,
-                localTime = timeProvider.now(),
-                networkAvailable = true,
-            )
-            if (plainFrame == null) {
-                onDebug("BLE 鉴权失败：握手帧构造失败")
-                return@coroutineScope false
-            }
-            val tokenBytes = token.dkInfo.trim()
-                .removePrefix("0x")
-                .removePrefix("0X")
-                .length / 2
-            onDebug(
-                "握手明文：len=${plainFrame.size} " +
-                    VehicleHandshakeFrame.redactedHex(plainFrame, tokenBytes),
-            )
-            val encryptedFrame = runCatching {
-                Crypto.aesCbcNoPaddingEncryptResetPerBlock(
-                    key = randomKey,
-                    iv = randomKey,
-                    plaintext = plainFrame,
+                val encryptedFrame = runCatching {
+                    Crypto.aesCbcNoPaddingEncryptResetPerBlock(
+                        key = randomKey,
+                        iv = randomKey,
+                        plaintext = plainFrame,
+                    )
+                }.getOrElse {
+                    onDebug("BLE 鉴权失败：握手帧加密异常 ${it.message ?: it::class.simpleName}")
+                    return@coroutineScope false
+                }
+                onDebug(
+                    "握手密文：len=${encryptedFrame.size} " +
+                        VehicleHandshakeFrame.toDebugHex(encryptedFrame),
                 )
-            }.getOrElse {
-                onDebug("BLE 鉴权失败：握手帧加密异常 ${it.message ?: it::class.simpleName}")
-                return@coroutineScope false
-            }
-            onDebug(
-                "握手密文：len=${encryptedFrame.size} " +
-                    VehicleHandshakeFrame.toDebugHex(encryptedFrame),
-            )
-            if (!adapter.writeCharacteristic(
-                    serviceUuid = HANDSHAKE_SERVICE,
-                    characteristicUuid = RANDOM_KEY_CHARACTERISTIC,
-                    data = encryptedFrame,
-                    withResponse = true,
-                )
-            ) {
-                onDebug("BLE 鉴权失败：握手帧写入失败")
-                return@coroutineScope false
-            }
+                if (!adapter.writeCharacteristic(
+                        serviceUuid = HANDSHAKE_SERVICE,
+                        characteristicUuid = RANDOM_KEY_CHARACTERISTIC,
+                        data = encryptedFrame,
+                        withResponse = true,
+                    )
+                ) {
+                    onDebug("BLE 鉴权失败：握手帧写入失败")
+                    return@coroutineScope false
+                }
 
-            val responseBytes = responseDeferred.await()
-            if (responseBytes == null) {
-                onDebug("BLE 鉴权失败：等待车端鉴权结果超时")
-                return@coroutineScope false
+                val responseBytes = withTimeoutOrNull(notificationTimeoutMs) {
+                    responseDeferred.await()
+                }
+                if (responseBytes == null) {
+                    onDebug("BLE 鉴权失败：等待车端鉴权结果超时")
+                    return@coroutineScope false
+                }
+                val response = VehicleHandshakeResponse.parse(responseBytes)
+                onDebug(
+                    "BLE 鉴权结果：result=${response.result} remaining=${response.remainingUses}",
+                )
+                response.success
+            } finally {
+                responseDeferred.cancelAndJoin()
             }
-            val response = VehicleHandshakeResponse.parse(responseBytes)
-            onDebug("BLE 鉴权结果：result=${response.result} remaining=${response.remainingUses}")
-            response.success
         }
-    }
-
-    private suspend fun awaitNotification(
-        adapter: BleAdapter,
-        serviceUuid: String,
-        characteristicUuid: String,
-    ): ByteArray? = withTimeoutOrNull(notificationTimeoutMs) {
-        adapter.notifications.first { notification ->
-            notification.serviceUuid.equals(serviceUuid, ignoreCase = true) &&
-                notification.characteristicUuid.equals(characteristicUuid, ignoreCase = true)
-        }.data
     }
 
     companion object {
