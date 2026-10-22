@@ -112,17 +112,15 @@ class VehicleTokenPairingStep(
             return false
         }
 
-        val accountRoles = loadAccountRoles()
-        onDebug(
-            if (accountRoles == null) {
-                "握手账号参数：未获取到，回退 FF FF"
-            } else {
-                "握手账号参数：userNo=${accountRoles.userNo} " +
-                    "roles=${accountRoles.accountList.joinToString("")}"
-            },
-        )
-
         if (!authProfile.authVersion2) {
+            if (!adapter.setNotification(HANDSHAKE_SERVICE, AUTH_RESULT_CHARACTERISTIC, true)) {
+                onDebug(
+                    "BLE 鉴权失败：旧握手无法开启鉴权结果通知（properties=" +
+                        "${authResultCharacteristic.properties}）",
+                )
+                return false
+            }
+            val accountRoles = loadAccountRolesAndLog()
             val legacyProtocol = resolveLegacyProtocolVersion(randomKey)
             val legacyBlock = VehicleHandshakeFrame.buildLegacyRandomBlock(
                 randomKey = randomKey,
@@ -183,6 +181,7 @@ class VehicleTokenPairingStep(
                     )
                     return@coroutineScope false
                 }
+                val accountRoles = loadAccountRolesAndLog()
 
                 val token = provider.fetch(
                     mac = handshakeMac,
@@ -262,8 +261,8 @@ class VehicleTokenPairingStep(
         }
     }
 
-    private suspend fun loadAccountRoles(): VehicleAccountRoles? =
-        accountRoleProvider?.let { provider ->
+    private suspend fun loadAccountRolesAndLog(): VehicleAccountRoles? {
+        val roles = accountRoleProvider?.let { provider ->
             runCatching {
                 provider.fetch(
                     bikeId = bikeIdProvider(),
@@ -274,6 +273,16 @@ class VehicleTokenPairingStep(
                 null
             }
         }
+        onDebug(
+            if (roles == null) {
+                "握手账号参数：未获取到，回退 FF FF"
+            } else {
+                "握手账号参数：userNo=${roles.userNo} " +
+                    "roles=${roles.accountList.joinToString("")}"
+            },
+        )
+        return roles
+    }
 
     private fun resolveLegacyProtocolVersion(randomKey: ByteArray): Int {
         if (randomKey.size <= 10) return 0xF1
