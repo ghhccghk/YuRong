@@ -90,6 +90,8 @@ object VehicleHandshakeFrame {
         networkAvailable: Boolean,
         mode: String = DEFAULT_MODE,
         isFactory: Boolean = false,
+        accountList: IntArray? = null,
+        userNo: Int = -1,
     ): ByteArray? {
         val randomBlock = buildRandomBlock(
             randomKey = randomKey,
@@ -112,14 +114,35 @@ object VehicleHandshakeFrame {
         } else {
             DEFAULT_PAD
         }
+        /*
+         * wi.E 只有在 s0(randomKey) 为真时才使用 X/Y，否则两者都是 FF：
+         * RandKey[13] bit0=1、账号角色数组已写入且当前用户序号有效。
+         */
+        val accountFlags = if (
+            (randomKey.getOrNull(13)?.toInt()?.and(1) == 1) &&
+            (accountList?.size ?: 0) >= 6 &&
+            userNo >= 0
+        ) {
+            val roles = accountList!!
+            val x = 0xFC or
+                ((roles[0] and 1) shl 1) or
+                (roles[1] and 1)
+            val y = (userNo and 0x0F) or
+                ((roles[5] and 1) shl 4) or
+                ((roles[4] and 1) shl 5) or
+                ((roles[3] and 1) shl 6) or
+                ((roles[2] and 1) shl 7)
+            x.toHexByte() + y.toHexByte()
+        } else {
+            DEFAULT_PAD + DEFAULT_PAD
+        }
         val raw = buildString {
             append(tokenHex)
             append(MARKER)
             append(tail)
             append(b0)
             append(randomSlice)
-            append(DEFAULT_PAD)
-            append(DEFAULT_PAD)
+            append(accountFlags)
             append("FFFF")
         }
         val decoded = raw.hexToBytes() ?: return null
@@ -199,4 +222,21 @@ object VehicleHandshakeFrame {
 
     private fun Int.toHexByte(): String =
         (this and 0xFF).toString(16).uppercase().padStart(2, '0')
+
+    /** 诊断日志中隐藏 Token 区域，保留后续握手参数。 */
+    fun redactedHex(frame: ByteArray, tokenBytes: Int): String = buildString {
+        frame.forEachIndexed { index, byte ->
+            if (index < tokenBytes) {
+                append("**")
+            } else {
+                append((byte.toInt() and 0xFF).toString(16).uppercase().padStart(2, '0'))
+            }
+        }
+    }
+
+    fun toDebugHex(bytes: ByteArray): String = buildString {
+        bytes.forEach { byte ->
+            append((byte.toInt() and 0xFF).toString(16).uppercase().padStart(2, '0'))
+        }
+    }
 }

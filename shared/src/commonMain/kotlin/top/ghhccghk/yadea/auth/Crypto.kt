@@ -46,6 +46,62 @@ object Crypto {
         return ByteArray(BLOCK_SIZE) { state[it].toByte() }
     }
 
+    /**
+     * AES-128/CBC/NoPadding。
+     *
+     * 对应原客户端 `BleAesCipher`：RandKey 同时作为 16 字节 key 与 IV。
+     */
+    fun aesCbcNoPaddingEncrypt(key: ByteArray, iv: ByteArray, plaintext: ByteArray): ByteArray {
+        requireAesKey(key)
+        require(iv.size == BLOCK_SIZE) { "AES-CBC IV must be 16 bytes" }
+        require(plaintext.size % BLOCK_SIZE == 0) { "AES-CBC plaintext must be 16-byte aligned" }
+
+        val schedule = expandKey(key)
+        val out = ByteArray(plaintext.size)
+        val state = IntArray(BLOCK_SIZE)
+        var previous = iv.copyOf()
+        var offset = 0
+        while (offset < plaintext.size) {
+            for (i in 0 until BLOCK_SIZE) {
+                state[i] = (plaintext[offset + i].toInt() and 0xFF) xor
+                    (previous[i].toInt() and 0xFF)
+            }
+            encryptBlock(state, schedule)
+            previous = ByteArray(BLOCK_SIZE) { state[it].toByte() }
+            previous.copyInto(out, offset)
+            offset += BLOCK_SIZE
+        }
+        return out
+    }
+
+    /** AES-128/CBC/NoPadding，解密结果保留原有块尾字节。 */
+    fun aesCbcNoPaddingDecrypt(key: ByteArray, iv: ByteArray, ciphertext: ByteArray): ByteArray {
+        requireAesKey(key)
+        require(iv.size == BLOCK_SIZE) { "AES-CBC IV must be 16 bytes" }
+        require(ciphertext.isNotEmpty() && ciphertext.size % BLOCK_SIZE == 0) {
+            "AES-CBC ciphertext must be non-empty and 16-byte aligned"
+        }
+
+        val schedule = expandKey(key)
+        val out = ByteArray(ciphertext.size)
+        val state = IntArray(BLOCK_SIZE)
+        var previous = iv.copyOf()
+        var offset = 0
+        while (offset < ciphertext.size) {
+            val cipherBlock = ciphertext.copyOfRange(offset, offset + BLOCK_SIZE)
+            for (i in 0 until BLOCK_SIZE) state[i] = cipherBlock[i].toInt() and 0xFF
+            decryptBlock(state, schedule)
+            for (i in 0 until BLOCK_SIZE) {
+                out[offset + i] = (
+                    state[i] xor (previous[i].toInt() and 0xFF)
+                    ).toByte()
+            }
+            previous = cipherBlock
+            offset += BLOCK_SIZE
+        }
+        return out
+    }
+
     /** MD5 原始 16 字节摘要。 */
     fun md5(message: ByteArray): ByteArray {
         val bitLength = message.size.toLong() * 8L
