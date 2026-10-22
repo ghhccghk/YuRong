@@ -99,6 +99,7 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
 
     override val isAvailable: Boolean get() = bluetoothAdapter != null
     override val isEnabled: Boolean get() = bluetoothAdapter?.isEnabled == true
+    override val capabilities: BleCapabilities = BleCapabilities.Android
 
     override fun startScan(serviceUuids: List<String>, timeoutMs: Long) {
         val scanner = leScanner ?: return

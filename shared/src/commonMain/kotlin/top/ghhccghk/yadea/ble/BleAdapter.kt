@@ -21,6 +21,14 @@ interface BleAdapter {
     /** 蓝牙是否已开启 */
     val isEnabled: Boolean
 
+    /** 平台 BLE 能力；默认不声明任何未经验证的能力。 */
+    val capabilities: BleCapabilities
+        get() = BleCapabilities.Unsupported
+
+    /** 平台授权状态；默认 Unknown，不能当作已授权。 */
+    val permissionState: BlePermissionState
+        get() = BlePermissionState.Unknown
+
     /** 当前连接状态 */
     val connectionState: StateFlow<BleConnectionState>
 
