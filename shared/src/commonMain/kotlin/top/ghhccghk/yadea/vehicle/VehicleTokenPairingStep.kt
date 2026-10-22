@@ -113,7 +113,8 @@ class VehicleTokenPairingStep(
                 "RandKey 鉴权能力：token=${authProfile.tokenAuth} " +
                     "v2=${authProfile.authVersion2} " +
                     "flashKey=${authProfile.requiresFlashKey} " +
-                    "version=${authProfile.authVersion}",
+                    "version=${authProfile.authVersion} " +
+                    "flags=0x${authProfile.rawFlags.toString(16)}",
             )
             if (!authProfile.supportsTokenHandshake) {
                 onDebug("BLE 鉴权失败：该车辆要求旧握手或 SecretKey 刷写流程")

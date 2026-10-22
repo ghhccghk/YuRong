@@ -17,9 +17,12 @@ data class VehicleAuthProfile(
     val requiresFlashKey: Boolean,
     val authVersion2: Boolean,
     val authVersion: Int,
+    val rawFlags: Int = 0,
 ) {
     val supportsTokenHandshake: Boolean
-        get() = tokenAuth && authVersion2 && !requiresFlashKey
+        // smali 的 s0/E 只要求车端声明 Token 能力且不要求刷写 SecretKey；
+        // v2 标志决定随机块布局，旧版车辆同样可以走 Token 握手。
+        get() = tokenAuth && !requiresFlashKey
 
     companion object {
         fun parse(randomKey: ByteArray): VehicleAuthProfile {
@@ -29,6 +32,7 @@ data class VehicleAuthProfile(
                     requiresFlashKey = true,
                     authVersion2 = false,
                     authVersion = -1,
+                    rawFlags = 0,
                 )
             }
             val flags = randomKey[13].toInt() and 0xFF
@@ -37,6 +41,7 @@ data class VehicleAuthProfile(
                 requiresFlashKey = flags and 0x40 == 0,
                 authVersion2 = (flags ushr 4) and 0x03 == 0x01,
                 authVersion = (flags ushr 2) and 0x0F,
+                rawFlags = flags,
             )
         }
     }
