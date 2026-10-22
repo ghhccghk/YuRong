@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -26,6 +27,7 @@ import top.ghhccghk.yadea.carsetting.CarSettingsController
 import top.ghhccghk.yadea.carsetting.CustomSoundController
 import top.ghhccghk.yadea.carsetting.CustomSoundCategory
 import top.ghhccghk.yadea.carsetting.CustomSoundResource
+import top.ghhccghk.yadea.carsetting.createSoundPreviewPlayer
 import top.ghhccghk.yadea.vehicle.ContactType
 import top.ghhccghk.yadea.vehicle.EmergencyContactController
 
@@ -61,6 +63,11 @@ fun CarSettingsScreen(
     var renameSoundText by remember { mutableStateOf("") }
     var newSoundName by remember { mutableStateOf("") }
     var newSoundUrl by remember { mutableStateOf("") }
+    var playingSoundId by remember { mutableStateOf<String?>(null) }
+    val soundPreviewPlayer = remember { createSoundPreviewPlayer() }
+    DisposableEffect(soundPreviewPlayer) {
+        onDispose { soundPreviewPlayer.release() }
+    }
     var showEmergencyContacts by remember { mutableStateOf(false) }
     var ownerName by remember { mutableStateOf("") }
     var ownerMobile by remember { mutableStateOf("") }
@@ -384,159 +391,194 @@ fun CarSettingsScreen(
                         color = AppDesign.colors.onSurfaceVariant,
                     )
                 }
-                val activeCategory = selectedSoundCategory?.let { selected ->
-                    soundState?.categories
-                        ?.firstOrNull { it.sonConfId == selected.sonConfId }
-                        ?: selected
+                val remaining = soundState?.weeklyRemaining
+                val limit = soundState?.weeklyLimit
+                AppText(
+                    text = if (remaining != null && limit != null) {
+                        "一周可设置${limit}次，剩余${remaining}次"
+                    } else {
+                        "正在查询本周可设置次数…"
+                    },
+                    style = AppDesign.typography.summary,
+                    color = AppDesign.colors.onSurfaceVariant,
+                )
+                val categories = soundState?.categories.orEmpty()
+                if (soundState?.loading != true && categories.isEmpty()) {
+                    AppEmptyState("暂无可配置的自定义音效分类")
                 }
-                if (activeCategory == null) {
-                    val remaining = soundState?.weeklyRemaining
-                    val limit = soundState?.weeklyLimit
-                    AppText(
-                        text = if (remaining != null && limit != null) {
-                            "一周可设置${limit}次，剩余${remaining}次"
-                        } else {
-                            "正在查询本周可设置次数…"
-                        },
-                        style = AppDesign.typography.summary,
-                        color = AppDesign.colors.onSurfaceVariant,
+                categories.forEach { category ->
+                    AppListRow(
+                        title = category.name,
+                        summary = "点击选择或更换音效",
+                        value = category.selectedName.ifBlank { "未设置" },
+                        onClick = { selectedSoundCategory = category },
                     )
-                    val categories = soundState?.categories.orEmpty()
-                    if (soundState?.loading != true && categories.isEmpty()) {
-                        AppEmptyState("暂无可配置的自定义音效分类")
-                    }
-                    categories.forEach { category ->
-                        AppListRow(
-                            title = category.name,
-                            summary = "点击选择或更换音效",
-                            value = category.selectedName.ifBlank { "未设置" },
-                            onClick = { selectedSoundCategory = category },
+                }
+            }
+        }
+
+        val pickerCategory = selectedSoundCategory?.let { selected ->
+            soundState?.categories
+                ?.firstOrNull { it.sonConfId == selected.sonConfId }
+                ?: selected
+        }
+        AppBottomSheet(
+            show = showCustomSounds && pickerCategory != null,
+            onDismissRequest = {
+                selectedSoundCategory = null
+                renameSoundTarget = null
+                soundPreviewPlayer.stop()
+                playingSoundId = null
+            },
+            title = pickerCategory?.name ?: "选择音效",
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+            ) {
+                pickerCategory?.let { category ->
+                    val renameTarget = renameSoundTarget
+                    if (renameTarget != null) {
+                        AppText(
+                            text = "重命名「${renameTarget.name}」",
+                            style = AppDesign.typography.itemTitle,
                         )
-                    }
-                } else {
-                    AppActionPreference(
-                        title = "返回自定义音效",
-                        summary = "返回音效分类列表",
-                        value = "返回",
-                        onClick = {
-                            selectedSoundCategory = null
-                            renameSoundTarget = null
-                        },
-                    )
-                    AppText(
-                        text = activeCategory.name,
-                        style = AppDesign.typography.itemTitle,
-                    )
-                val renameTarget = renameSoundTarget
-                if (renameTarget != null) {
-                    AppText(
-                        text = "重命名「${renameTarget.name}」",
-                        style = AppDesign.typography.itemTitle,
-                    )
-                    AppTextField(
-                        value = renameSoundText,
-                        onValueChange = { renameSoundText = it.take(30) },
-                        label = "音效名称",
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !soundBusy,
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
-                    ) {
-                        AppOutlinedButton(
-                            onClick = { renameSoundTarget = null },
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            AppText("取消", style = AppDesign.typography.button)
-                        }
-                        AppOutlinedButton(
-                            onClick = {
-                                customSoundController.rename(renameTarget, renameSoundText)
-                                renameSoundTarget = null
-                            },
-                            modifier = Modifier.weight(1f),
-                            enabled = renameSoundText.isNotBlank() && !soundBusy,
-                        ) {
-                            AppText("保存名称", style = AppDesign.typography.button)
-                        }
-                    }
-                } else {
-                    val resources = soundState?.resources.orEmpty()
-                    if (soundState?.loading != true && resources.isEmpty()) {
-                        AppEmptyState("云端暂无用户自定义音效")
-                    }
-                    resources.forEach { resource ->
-                        val selected = resource.id == activeCategory.selectedResourceId
-                        AppListRow(
-                            title = resource.name,
-                            summary = if (selected) {
-                                "当前车辆正在使用"
-                            } else {
-                                "点击应用到车辆"
-                            },
-                            value = if (selected) "使用中" else "应用",
-                            onClick = {
-                                if (!selected) {
-                                    customSoundController.apply(activeCategory, resource)
-                                }
-                            },
+                        AppTextField(
+                            value = renameSoundText,
+                            onValueChange = { renameSoundText = it.take(30) },
+                            label = "音效名称",
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !soundBusy,
                         )
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
                         ) {
                             AppOutlinedButton(
-                                onClick = {
-                                    renameSoundTarget = resource
-                                    renameSoundText = resource.name
-                                },
+                                onClick = { renameSoundTarget = null },
                                 modifier = Modifier.weight(1f),
-                                enabled = !soundBusy,
                             ) {
-                                AppText("重命名", style = AppDesign.typography.button)
+                                AppText("取消", style = AppDesign.typography.button)
                             }
                             AppOutlinedButton(
-                                onClick = { deleteSoundTarget = resource },
+                                onClick = {
+                                    customSoundController.rename(renameTarget, renameSoundText)
+                                    renameSoundTarget = null
+                                },
                                 modifier = Modifier.weight(1f),
-                                enabled = !soundBusy,
+                                enabled = renameSoundText.isNotBlank() && !soundBusy,
                             ) {
-                                AppText("删除", style = AppDesign.typography.button)
+                                AppText("保存名称", style = AppDesign.typography.button)
                             }
                         }
+                    } else {
+                        val resources = soundState?.resources.orEmpty()
+                        if (soundState?.loading != true && resources.isEmpty()) {
+                            AppEmptyState("云端暂无可用音效")
+                        }
+                        resources.forEach { resource ->
+                            val selected = resource.id == category.selectedResourceId
+                            AppListRow(
+                                title = resource.name,
+                                summary = if (selected) {
+                                    "当前分类正在使用"
+                                } else {
+                                    "点击应用到「${category.name}」"
+                                },
+                                value = if (selected) "使用中" else "应用",
+                                onClick = {
+                                    if (!selected) {
+                                        soundPreviewPlayer.stop()
+                                        playingSoundId = null
+                                        customSoundController.apply(category, resource)
+                                    }
+                                },
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(
+                                    dimensions.controlSpacing,
+                                ),
+                            ) {
+                                if (soundPreviewPlayer.isAvailable) {
+                                    AppOutlinedButton(
+                                        onClick = {
+                                            if (playingSoundId == resource.id) {
+                                                soundPreviewPlayer.stop()
+                                                playingSoundId = null
+                                            } else {
+                                                playingSoundId = resource.id
+                                                soundPreviewPlayer.play(resource.url) {
+                                                    playingSoundId = null
+                                                }
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        enabled = !soundBusy && resource.url.isNotBlank(),
+                                    ) {
+                                        AppText(
+                                            if (playingSoundId == resource.id) "停止" else "试听",
+                                            style = AppDesign.typography.button,
+                                        )
+                                    }
+                                }
+                                AppOutlinedButton(
+                                    onClick = {
+                                        soundPreviewPlayer.stop()
+                                        playingSoundId = null
+                                        renameSoundTarget = resource
+                                        renameSoundText = resource.name
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = !soundBusy,
+                                ) {
+                                    AppText("重命名", style = AppDesign.typography.button)
+                                }
+                                AppOutlinedButton(
+                                    onClick = {
+                                        soundPreviewPlayer.stop()
+                                        playingSoundId = null
+                                        deleteSoundTarget = resource
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = !soundBusy,
+                                ) {
+                                    AppText("删除", style = AppDesign.typography.button)
+                                }
+                            }
+                        }
+                        AppText(
+                            text = "添加已有音频链接",
+                            style = AppDesign.typography.itemTitle,
+                        )
+                        AppTextField(
+                            value = newSoundName,
+                            onValueChange = { newSoundName = it.take(30) },
+                            label = "音效名称",
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !soundBusy,
+                        )
+                        AppTextField(
+                            value = newSoundUrl,
+                            onValueChange = { newSoundUrl = it },
+                            label = "音频资源 URL",
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !soundBusy,
+                        )
+                        AppOutlinedButton(
+                            onClick = {
+                                customSoundController.addFromUrl(newSoundName, newSoundUrl)
+                                newSoundName = ""
+                                newSoundUrl = ""
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = newSoundName.isNotBlank() &&
+                                newSoundUrl.isNotBlank() &&
+                                !soundBusy,
+                        ) {
+                            AppText("添加音效", style = AppDesign.typography.button)
+                        }
                     }
-                    AppText(
-                        text = "添加已有音频链接",
-                        style = AppDesign.typography.itemTitle,
-                    )
-                    AppTextField(
-                        value = newSoundName,
-                        onValueChange = { newSoundName = it.take(30) },
-                        label = "音效名称",
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !soundBusy,
-                    )
-                    AppTextField(
-                        value = newSoundUrl,
-                        onValueChange = { newSoundUrl = it },
-                        label = "音频资源 URL",
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !soundBusy,
-                    )
-                    AppOutlinedButton(
-                        onClick = {
-                            customSoundController.addFromUrl(newSoundName, newSoundUrl)
-                            newSoundName = ""
-                            newSoundUrl = ""
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = newSoundName.isNotBlank() &&
-                            newSoundUrl.isNotBlank() &&
-                            !soundBusy,
-                    ) {
-                        AppText("添加音效", style = AppDesign.typography.button)
-                    }
-                }
                 }
             }
         }
