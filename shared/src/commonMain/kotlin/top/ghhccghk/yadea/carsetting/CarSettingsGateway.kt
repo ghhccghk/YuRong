@@ -870,6 +870,42 @@ object CloudCarSettingMapper {
                 )
             }
         }
+        // 原 App 的 RideControlRegistry 将 1005 作为本地固定入口；
+        // 部分车型的 bikeConfigVos 不下发它，仍应展示短按/长按设置。
+        if (cloud.configs.none { it.confId.trim() == "1005" }) {
+            val classification = CarSettingClassification.RIDE_CONTROL
+            val group = CarSettingGroup("1002", classification.label, 1002)
+            items += CarSettingItem(
+                id = "local:1005",
+                configId = "1005",
+                title = "自定义按键",
+                summary = "分别设置车把按键的短按和长按功能",
+                classification = classification,
+                group = group,
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Info("进入设置"),
+                writable = false,
+                sort = 95,
+            )
+            listOf("short" to "短按功能", "long" to "长按功能")
+                .forEachIndexed { index, (key, title) ->
+                    items += CarSettingItem(
+                        id = "cloud:1005:$key",
+                        configId = "1005",
+                        title = title,
+                        summary = "选择车把自定义按键对应的功能",
+                        classification = classification,
+                        group = group,
+                        channel = CarSettingChannel.BLE,
+                        kind = CarSettingKind.Choice(
+                            selectedIndex = KEY_FUNCTION_OPTIONS.lastIndex,
+                            options = KEY_FUNCTION_OPTIONS,
+                        ),
+                        writable = true,
+                        sort = 96 + index,
+                    )
+                }
+        }
         cloud.configs.firstOrNull { it.confId.trim() == "81" }?.let { config ->
             items += CarSettingItem(
                 id = "cloud:81:time",
