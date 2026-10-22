@@ -27,6 +27,7 @@ class VehicleTokenPairingStep(
     private val vinProvider: () -> String,
     private val bikeIdProvider: () -> Long = { 0L },
     private val currentUserIdProvider: () -> Long = { 0L },
+    private val vehicleMacProvider: () -> String = { "" },
     private val timeProvider: VehicleLocalTimeProvider,
     private val notificationTimeoutMs: Long = 5_000L,
     private val onDebug: (String) -> Unit = {},
@@ -38,6 +39,8 @@ class VehicleTokenPairingStep(
         mac: String,
     ): Boolean {
         val vin = vinProvider().trim()
+        val connectionMac = mac.trim()
+        val handshakeMac = vehicleMacProvider().trim().ifBlank { connectionMac }
         if (vin.isBlank()) {
             onDebug("BLE 鉴权失败：当前账号没有绑定车辆 VIN")
             return false
@@ -47,6 +50,7 @@ class VehicleTokenPairingStep(
             onDebug("BLE 鉴权失败：Token 网络层未接入")
             return false
         }
+        onDebug("握手 MAC：connection=$connectionMac handshake=$handshakeMac")
 
         val protocol = resolveVehicleNotificationProfile(services)
         val handshakeService = services.firstOrNull {
@@ -122,7 +126,7 @@ class VehicleTokenPairingStep(
             val legacyProtocol = resolveLegacyProtocolVersion(randomKey)
             val legacyBlock = VehicleHandshakeFrame.buildLegacyRandomBlock(
                 randomKey = randomKey,
-                mac = mac,
+                mac = handshakeMac,
                 protocolVersion = legacyProtocol,
                 localTime = timeProvider.now(),
                 mode = "10",
@@ -181,7 +185,7 @@ class VehicleTokenPairingStep(
                 }
 
                 val token = provider.fetch(
-                    mac = mac,
+                    mac = handshakeMac,
                     vin = vin,
                     refresh = false,
                 )
@@ -196,7 +200,7 @@ class VehicleTokenPairingStep(
                 val plainFrame = VehicleHandshakeFrame.build(
                     token = token.dkInfo,
                     randomKey = randomKey,
-                    mac = mac,
+                    mac = handshakeMac,
                     protocolVersion = protocol.protocolVersion,
                     localTime = timeProvider.now(),
                     networkAvailable = true,

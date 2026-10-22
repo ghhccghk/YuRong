@@ -62,6 +62,7 @@ class AppViewModel(
     private val vehicleVinProvider: () -> String = { "" },
     private val vehicleBikeIdProvider: () -> Long = { 0L },
     private val currentUserIdProvider: () -> Long = { 0L },
+    private val vehicleMacProvider: () -> String = { "" },
     private val settingCommandSink: VehicleSettingCommandSink? = null,
     private val vehicleStatusProvider: () -> TtpInfo? = { null },
     private val onVehicleConnectionEstablished: (mac: String, name: String, binding: Boolean) -> Unit =
@@ -173,6 +174,7 @@ class AppViewModel(
                     vinProvider = vehicleVinProvider,
                     bikeIdProvider = vehicleBikeIdProvider,
                     currentUserIdProvider = currentUserIdProvider,
+                    vehicleMacProvider = vehicleMacProvider,
                     timeProvider = VehicleLocalTimeProvider { getCurrentTime() },
                     onDebug = ::debug,
                 ),

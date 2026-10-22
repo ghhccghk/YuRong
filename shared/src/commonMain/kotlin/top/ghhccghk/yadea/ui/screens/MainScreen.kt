@@ -149,6 +149,7 @@ fun MainScreen(
             currentUserIdProvider = {
                 resolvedPreferences.readAuth().user?.id ?: 0L
             },
+            vehicleMacProvider = { vehicleProfileSource?.profile?.value?.mac.orEmpty() },
             settingCommandSink = carSettingCommandSink,
             vehicleStatusProvider = { vehicleStatusSource?.status?.value },
             onVehicleConnectionEstablished = { mac, name, binding ->
