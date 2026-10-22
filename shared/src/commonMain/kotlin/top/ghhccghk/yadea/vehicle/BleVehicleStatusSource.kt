@@ -32,6 +32,11 @@ class BleVehicleStatusSource(
 
     private val collectJob: Job = scope.launch {
         adapter.notifications.collect { notification ->
+            NetworkLog.write(
+                "BLE notification service=${notification.serviceUuid} " +
+                    "characteristic=${notification.characteristicUuid} " +
+                    "len=${notification.data.size} hex=${notification.data.toHex()}",
+            )
             if (!VehicleBleConstants.isVehicleNotification(
                     notification.serviceUuid,
                     notification.characteristicUuid,

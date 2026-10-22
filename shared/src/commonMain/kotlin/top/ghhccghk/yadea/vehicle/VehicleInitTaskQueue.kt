@@ -158,6 +158,9 @@ class VehicleInitTaskQueue(
         }
 
         execute(VehicleInitTaskName.ENABLE_BLUETOOTH_NOTIFICATION) {
+            runCatching { adapter.requestMtu(VehicleTimeouts.REQUESTED_MTU) }
+                .onSuccess { onDebug("状态通知 MTU 协商成功：$it") }
+                .onFailure { onDebug("状态通知 MTU 协商失败，继续：${it.message}") }
             val statusNotificationEnabled = adapter.setNotification(
                 serviceUuid = profile.serviceUuid,
                 characteristicUuid = profile.notifyCharacteristicUuid,
