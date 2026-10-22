@@ -1,4 +1,4 @@
-rootProject.name = "touping"
+rootProject.name = "御戎"
 
 pluginManagement {
     repositories {
