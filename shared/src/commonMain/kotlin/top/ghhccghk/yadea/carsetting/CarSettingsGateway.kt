@@ -531,6 +531,27 @@ object CloudCarSettingMapper {
                 )
             }
         }
+        cloud.configs.firstOrNull { it.confId.trim() == "69" }?.let { config ->
+            val radarItems = listOf(
+                Triple("fcw", "前向碰撞预警 (FCW)", "前方车辆或障碍物接近时提醒"),
+                Triple("rcw", "后向碰撞预警 (RCW)", "后方车辆接近时提醒"),
+                Triple("bsd", "盲区监测 (BSD)", "侧后方盲区有车辆时提醒"),
+            )
+            radarItems.forEachIndexed { index, (key, title, summary) ->
+                items += CarSettingItem(
+                    id = "cloud:69:$key",
+                    configId = "69",
+                    title = title,
+                    summary = summary,
+                    classification = classificationOf("69", config),
+                    group = groupOf(config, classificationOf("69", config)),
+                    channel = CarSettingChannel.BLE,
+                    kind = CarSettingKind.Toggle(false),
+                    writable = config.isAuth != false,
+                    sort = (config.sort.toIntOrNull() ?: 0) + index + 1,
+                )
+            }
+        }
         return items.sortedWith(compareBy({ it.group.sort }, { it.sort }, { it.title }))
     }
 
@@ -734,6 +755,10 @@ object CloudCarSettingMapper {
         )
         // SOS 联系人页复用紧急联系人编辑器。
         "85" -> CarSettingKind.Info("在下方编辑车主与紧急联系人")
+        // RadarActivity：雷达分项在下方追加。
+        "69" -> CarSettingKind.Info("雷达功能分项设置见下方")
+        // QuietModeActivity：关闭超速提示，原实现同时下发新旧两个字段。
+        "93" -> CarSettingKind.Toggle(false)
         // 边撑自动关机：原 App 只给开关，依赖边撑感应（confId 2）。
         "39" -> CarSettingKind.Toggle(false)
         // 报失模式需要短信验证，统一在“诊断 · 定位与报失”中操作。
@@ -826,8 +851,8 @@ object CloudCarSettingMapper {
     private val ENTRANCE_IDS = setOf(
         "9", "10", "14", "15", "17", "18", "20", "24",
         "25", "27", "31", "33", "41", "47", "48",
-        "61", "69", "71", "72", "73", "77", "81", "86", "88",
-        "91", "93", "95", "1005",
+        "61", "71", "72", "73", "77", "81", "86", "88",
+        "91", "95", "1005",
     )
     private val SPECIAL_IDS = setOf(
         "special:meter_wallpaper_skin",

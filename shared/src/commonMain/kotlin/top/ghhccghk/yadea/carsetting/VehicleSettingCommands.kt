@@ -170,6 +170,29 @@ object VehicleSettingCommands {
                     parameter = choice.selectedIndex.coerceIn(0, 2),
                 )
             }
+            // RadarActivity：具体分项由 forItem 按条目 id 区分。
+            "69" -> toggle(
+                kind = kind,
+                onType = "COMMAND_FRONT_COLLISION_OPEN",
+                offType = "COMMAND_FRONT_COLLISION_CLOSE",
+                onId = 0x13A,
+                offId = 0x13A,
+                onParameter = 1,
+                offParameter = 0,
+            )
+            // QuietModeActivity：新旧两个超速提示字段一次下发。
+            "93" -> {
+                val toggle = kind as? CarSettingKind.Toggle ?: return null
+                VehicleSettingCommand(
+                    commandType = "COMMAND_DISABLE_OVERSPEED_ALERT",
+                    commandId = 0x141,
+                    parameters = if (toggle.checked) {
+                        listOf(0, 2)
+                    } else {
+                        listOf(1, 1)
+                    },
+                )
+            }
             // ScheduledShutDown2Activity：定时关机。
             "59" -> toggle(
                 kind = kind,
@@ -466,6 +489,35 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        when (item.id) {
+            "cloud:69:fcw" -> return toggle(
+                kind = item.kind,
+                onType = "COMMAND_FRONT_COLLISION_OPEN",
+                offType = "COMMAND_FRONT_COLLISION_CLOSE",
+                onId = 0x13A,
+                offId = 0x13A,
+                onParameter = 1,
+                offParameter = 0,
+            )
+            "cloud:69:rcw" -> return toggle(
+                kind = item.kind,
+                onType = "COMMAND_RADAR_RCW",
+                offType = "COMMAND_RADAR_RCW",
+                onId = 0x12D,
+                offId = 0x12D,
+                onParameter = 1,
+                offParameter = 0,
+            )
+            "cloud:69:bsd" -> return toggle(
+                kind = item.kind,
+                onType = "COMMAND_RADAR_BSD",
+                offType = "COMMAND_RADAR_BSD",
+                onId = 0x12E,
+                offId = 0x12E,
+                onParameter = 1,
+                offParameter = 0,
+            )
+        }
         // 自适应推行与总开关共用 confId 64，需要按条目 id 区分。
         if (item.id.endsWith(":adaptive") && item.configId in setOf("64", "89")) {
             return toggle(

@@ -350,6 +350,16 @@ class CarSettingsController(
                     )
                     else -> item
                 }
+                "69" -> item.copy(
+                    kind = CarSettingKind.Toggle(
+                        when (item.id) {
+                            "cloud:69:fcw" -> status.extended.frontCollisionWarning
+                            "cloud:69:rcw" -> status.extended.rcwRadarSwitch
+                            "cloud:69:bsd" -> status.extended.bsdRadar
+                            else -> 0
+                        } != 0,
+                    ),
+                )
                 "2" -> item.copy(
                     kind = CarSettingKind.Toggle(status.extended.sideBraceStatus != 0),
                 )

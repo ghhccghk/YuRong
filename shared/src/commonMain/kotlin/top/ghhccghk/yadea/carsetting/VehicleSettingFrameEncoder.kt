@@ -83,6 +83,9 @@ object VehicleSettingFrameEncoder {
         0x130 -> bitfieldSuffix(0x1F, command.parameter, 0, 3)
         // CarSettingsSecurityRegistry：倾倒提醒 0x12D。
         0x12D -> bitfieldSuffix(0x41, command.parameter, 2, 3)
+        // RadarActivity：FCW / BSD。
+        0x13A -> bitfieldSuffix(0x0F, command.parameter, 4, 5)
+        0x12E -> bitfieldSuffix(0x41, command.parameter, 4, 5)
         // T_POWER：0x6A 开、0x69 关。
         0x6A -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF3FFFFFFFFFFF"
         0x69 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF1FFFFFFFFFFF"
@@ -118,6 +121,14 @@ object VehicleSettingFrameEncoder {
             first = applyBits(first, params[2], 6, 7)
             val second = applyBits(0xFF, params[3], 0, 1)
             "FF".repeat(76) + hex2(first) + hex2(second)
+        }
+        // QuietModeActivity：byte1 = old_overspeed_alert，byte4 = new_overspeed_alert。
+        0x141 -> {
+            val params = command.parameters
+            if (params.size < 2) return null
+            val old = applyBits(0xFF, params[0], 0, 1)
+            val new = applyBits(0xFF, params[1], 0, 1)
+            "FF" + hex2(old) + "FFFF" + hex2(new) + "FFFFFF"
         }
         // ChargingPowerActivity：瓦数除以 50 写入最后一字节。
         0xCA -> {
