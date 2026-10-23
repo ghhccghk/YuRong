@@ -8,9 +8,8 @@ import top.ghhccghk.yadea.vehicle.hexToBytes
  * 车辆设置命令的 BLE 帧编码。
  *
  * 移植自 `BleBicycleCommandManager.generateBleCommand(commandId, param, 1)`
- * 中本项目已映射的命令分支。版本前缀使用原 App 运行时值：
- * `bleCommSmartVersion=01`、`bleCommBigVersion=00`、
- * `appSmartVersion=08`、`appBigVersion=08`、`bikeBondType=001`、`appType=000`。
+ * 中本项目已映射的命令分支。版本前缀使用原 App 运行时值
+ * `01000101`，后接设备当前协商的 `bond` 字节（`C8`）。
  *
  * 若后续读取到车辆协商版本，可把 [versionPrefix] 参数扩展为动态值。
  */
@@ -67,6 +66,20 @@ object VehicleSettingFrameEncoder {
         0x5E -> "FFFFFF" +
             hex2(0xE3 + (command.parameter.coerceIn(0, 6) shl 2)) +
             "FF".repeat(21)
+        // SpeedUnitActivity / ConfigSettingActivity：km/h / mph。
+        0x89 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF3FFFFFFFFF"
+        0x8A -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7FFFFFFFFF"
+        // VoltagePlatformActivity：参数 0..6 映射到帧尾 1F/3F/5F/7F/9F/BF/DF。
+        0xC6 -> when (command.parameter) {
+            0 -> "FF".repeat(44) + "1F"
+            1 -> "FF".repeat(44) + "3F"
+            2 -> "FF".repeat(44) + "5F"
+            3 -> "FF".repeat(44) + "7F"
+            4 -> "FF".repeat(44) + "9F"
+            5 -> "FF".repeat(44) + "BF"
+            6 -> "FF".repeat(44) + "DF"
+            else -> return null
+        }
         // ScheduledShutDown2Activity：开关与时间。
         0x7B -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD"
         0x7C -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFC"
