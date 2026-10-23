@@ -31,10 +31,12 @@ class VehicleConnectionCoordinator(
     private val scope: CoroutineScope,
     private val clock: Clock,
     private val bikeBondTypeHexProvider: () -> String = { "C8" },
+    private val bleProtocolVersionProvider: () -> Int = { 0 },
     private val initTaskQueue: VehicleInitTaskQueue =
         VehicleInitTaskQueue(
             adapter = adapter,
             bikeBondTypeHexProvider = bikeBondTypeHexProvider,
+            bleProtocolVersionProvider = bleProtocolVersionProvider,
         ),
     private val pairingStep: VehiclePairingStep = GattLinkPairingStep,
     private val pause: suspend (Long) -> Unit = { delay(it) },
@@ -263,7 +265,11 @@ class VehicleConnectionCoordinator(
      * 1 秒后重新注册状态通知，再等待 500ms 发送 `0x34` 激活查询。
      */
     private suspend fun activateStatusNotifications() {
-        val profile = resolveVehicleNotificationProfile(discoveredServices)
+        val bleProtocolVersion = bleProtocolVersionProvider()
+        val profile = resolveVehicleNotificationProfile(
+            services = discoveredServices,
+            bleProtocolVersion = bleProtocolVersion,
+        )
         pause(VehicleTimeouts.POST_AUTH_STATUS_RESUBSCRIBE_MS)
         val resubscribed = runCatching {
             adapter.setNotification(
@@ -291,7 +297,8 @@ class VehicleConnectionCoordinator(
         }.getOrDefault(false)
         onDebug(
             "状态激活查询：${if (sent) "已发送" else "失败"} " +
-                "len=${frame.size} bond=${bikeBondTypeHexProvider()}",
+                "len=${frame.size} bond=${bikeBondTypeHexProvider()} " +
+                "protocol=$bleProtocolVersion",
         )
     }
 }

@@ -28,6 +28,7 @@ class VehicleTokenPairingStep(
     private val bikeIdProvider: () -> Long = { 0L },
     private val currentUserIdProvider: () -> Long = { 0L },
     private val vehicleMacProvider: () -> String = { "" },
+    private val bleProtocolVersionProvider: () -> Int = { 0 },
     private val timeProvider: VehicleLocalTimeProvider,
     private val notificationTimeoutMs: Long = 5_000L,
     private val onDebug: (String) -> Unit = {},
@@ -58,7 +59,10 @@ class VehicleTokenPairingStep(
         }
         onDebug("握手 MAC：connection=$connectionMac handshake=$handshakeMac")
 
-        val protocol = resolveVehicleNotificationProfile(services)
+        val protocol = resolveVehicleNotificationProfile(
+            services = services,
+            bleProtocolVersion = bleProtocolVersionProvider(),
+        )
         val handshakeService = services.firstOrNull {
             it.uuid.equals(HANDSHAKE_SERVICE, ignoreCase = true)
         }
