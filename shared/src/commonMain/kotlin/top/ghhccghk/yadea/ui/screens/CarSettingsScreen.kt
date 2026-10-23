@@ -132,6 +132,16 @@ fun CarSettingsScreen(
             scope.launch { controller.update(item.id, transform) }
         }
     }
+    val capacitySwitchOn = (state.items + state.missingCloudItems)
+        .firstOrNull { it.id == "cloud:60:enable" }
+        ?.kind
+        .let { (it as? CarSettingKind.Toggle)?.checked == true }
+    val settingControlEnabled: (CarSettingItem) -> Boolean = { item ->
+        controller.available &&
+            item.writable &&
+            item.id !in state.pendingIds &&
+            (item.id != "cloud:60:level" || capacitySwitchOn)
+    }
     val availableClassifications = CarSettingClassification.entries.filter { classification ->
         state.items.any { it.classification == classification } ||
             (showMissingCloudFeatures && state.missingCloudItems.any {
@@ -231,9 +241,7 @@ fun CarSettingsScreen(
                     selectedMissingCloudItems.forEach { item ->
                         CarSettingRow(
                             item = item,
-                            enabled = controller.available &&
-                                item.writable &&
-                                item.id !in state.pendingIds,
+                            enabled = settingControlEnabled(item),
                             pending = item.id in state.pendingIds,
                             onOpenDetail = {
                                 detailItem = item
@@ -256,15 +264,15 @@ fun CarSettingsScreen(
                 AppSection(title = group.title) {
                     items
                         .filterNot {
-                            it.id == "cloud:1005:short" || it.id == "cloud:1005:long"
+                            it.id == "cloud:1005:short" ||
+                                it.id == "cloud:1005:long" ||
+                                it.id == "cloud:60"
                         }
                         .sortedWith(compareBy({ it.sort }, { it.title }))
                         .forEach { item ->
                         CarSettingRow(
                             item = item,
-                            enabled = controller.available &&
-                                item.writable &&
-                                item.id !in state.pendingIds,
+                            enabled = settingControlEnabled(item),
                             pending = item.id in state.pendingIds,
                             onOpenDetail = {
                                 if (item.kind is CarSettingKind.Customize) {
