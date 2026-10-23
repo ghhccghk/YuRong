@@ -288,6 +288,13 @@ class MainActivity : ComponentActivity() {
         val permissionChecker = AndroidPermissionChecker(this)
         val screenCaptureAuthorizer: ScreenCaptureAuthorizer = AndroidScreenCaptureAuthorizer(this)
         val mediaSourcePicker: MediaSourcePicker = AndroidMediaSourcePicker(this)
+        val vehicleControlSink = AndroidVehicleControlSink(
+            adapter = vehicleBleAdapter,
+            bikeBondTypeHexProvider = {
+                vehicleProfileSource.profile.value?.bikeBondTypeHex ?: "C8"
+            },
+        )
+        val carSettingCommandSink = AndroidVehicleSettingCommandSink(vehicleBleAdapter)
 
         setContent {
             val vehicleProfilesRefreshing by profileController.refreshing.collectAsState()
@@ -297,15 +304,10 @@ class MainActivity : ComponentActivity() {
                 bleAdapter = vehicleBleAdapter,
                 bleTokenProvider = vehicleBleTokenGateway,
                 vehicleAccountRoleProvider = vehicleAccountRoleGateway,
-                vehicleControlSink = AndroidVehicleControlSink(
-                    adapter = vehicleBleAdapter,
-                    bikeBondTypeHexProvider = {
-                        vehicleProfileSource.profile.value?.bikeBondTypeHex ?: "C8"
-                    },
-                ),
+                vehicleControlSink = vehicleControlSink,
                 vehicleStatusSource = vehicleStatus,
                 vehicleProfileSource = vehicleProfileSource,
-                carSettingCommandSink = AndroidVehicleSettingCommandSink(vehicleBleAdapter),
+                carSettingCommandSink = carSettingCommandSink,
                 authGateway = authGateway,
                 otaGateway = otaGateway,
                 carSettingsGateway = carSettingsGateway,

@@ -80,9 +80,9 @@ object VehicleInfoFormatter {
                 else -> EMPTY
             },
             powerLabel = when (info.onOffStatus) {
-                0 -> "已关机"
-                1 -> "已开机"
-                else -> intOrDash(info.onOffStatus)
+                in 0..7 -> "已开机"
+                in 8..16 -> "已关机"
+                else -> EMPTY
             },
             speedLabel = unit(info.currentSpeedValue, "km/h", decimals = 1),
             batteryLabel = unit(info.totalBatterySoc, "%", decimals = 0),

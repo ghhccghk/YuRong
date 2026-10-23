@@ -190,15 +190,22 @@ fun MainScreen(
     }
     val authUiState by authController.state.collectAsState()
     val vehicleVinProvider = { resolvedProfileSource.profile.value?.vin.orEmpty() }
-    val resolvedCarSettingWriter = carSettingWriter ?: run {
-        val bleWriter = carSettingCommandSink?.let(::MappedCarSettingWriter)
-        carSettingsGateway?.let { gateway ->
-            CloudCarSettingWriter(
-                gateway = gateway,
-                vinProvider = vehicleVinProvider,
-                bleFallback = bleWriter,
-            )
-        } ?: bleWriter
+    val resolvedCarSettingWriter = remember(
+        carSettingWriter,
+        carSettingCommandSink,
+        carSettingsGateway,
+        resolvedProfileSource,
+    ) {
+        carSettingWriter ?: run {
+            val bleWriter = carSettingCommandSink?.let(::MappedCarSettingWriter)
+            carSettingsGateway?.let { gateway ->
+                CloudCarSettingWriter(
+                    gateway = gateway,
+                    vinProvider = vehicleVinProvider,
+                    bleFallback = bleWriter,
+                )
+            } ?: bleWriter
+        }
     }
     val carSettingsController = remember(
         resolvedCarSettingWriter,
@@ -291,6 +298,7 @@ fun MainScreen(
         }
     }
     LaunchedEffect(
+        carSettingsController,
         vehicleProfile?.vin,
         authUiState.session.token,
         carSettingsGateway,
