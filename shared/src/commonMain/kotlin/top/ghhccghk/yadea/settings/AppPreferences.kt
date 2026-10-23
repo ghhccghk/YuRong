@@ -14,6 +14,8 @@ import top.ghhccghk.yadea.ui.AppInterfaceScale
 import top.ghhccghk.yadea.ui.AppPaletteStyle
 import top.ghhccghk.yadea.ui.AppThemeMode
 import top.ghhccghk.yadea.ui.UiThemeStyle
+import top.ghhccghk.yadea.vehicle.CachedVehicleStatus
+import top.ghhccghk.yadea.vehicle.VehicleStatusCache
 
 object AppPreferenceKeys {
     // 设置结构版本。新增设置项时递增，并同步补上迁移逻辑与测试。
@@ -24,7 +26,8 @@ object AppPreferenceKeys {
     // 5 -> 6：新增 blur_enabled（Miuix 是否启用官方 miuix-blur 背景模糊）。
     // 6 -> 7：新增 usr_token / usr_info / login_id（登录态）。
     // 7 -> 8：新增车辆上次连接、自动连接、前台服务与绑定 VIN。
-    const val SCHEMA_VERSION = 8
+    // 8 -> 9：新增最近一次完整 BLE 车辆状态缓存（按 VIN 恢复）。
+    const val SCHEMA_VERSION = 9
 
     val schemaVersion = PreferenceKey.int("app_settings_schema_version", SCHEMA_VERSION)
     val uiStyle = PreferenceKey.string("ui_style", UiThemeStyle.Miuix.storageName)
@@ -62,6 +65,8 @@ object AppPreferenceKeys {
     val vehicleAutoConnect = PreferenceKey.boolean("vehicle_auto_connect", false)
     val vehicleForegroundService = PreferenceKey.boolean("vehicle_foreground_service", true)
     val vehicleBoundVin = PreferenceKey.string("vehicle_bound_vin", "")
+    val vehicleStatusVin = PreferenceKey.string("vehicle_status_vin", "")
+    val vehicleStatusPacket = PreferenceKey.string("vehicle_status_packet", "")
 
     val vehicleKeys: List<PreferenceKey<*>> = listOf(
         vehicleLastMac,
@@ -69,6 +74,8 @@ object AppPreferenceKeys {
         vehicleAutoConnect,
         vehicleForegroundService,
         vehicleBoundVin,
+        vehicleStatusVin,
+        vehicleStatusPacket,
     )
 
     val all: List<PreferenceKey<*>> = listOf(
@@ -100,7 +107,7 @@ data class VehicleConnectionPreferences(
 class AppPreferences(
     private val store: PreferenceStore,
     private val secretStore: SecretStore? = null,
-) {
+) : VehicleStatusCache {
     fun read(): AppAppearance = decode(
         uiStyle = store.read(AppPreferenceKeys.uiStyle),
         themeMode = store.read(AppPreferenceKeys.themeMode),
@@ -277,6 +284,23 @@ class AppPreferences(
             foregroundService = store.read(AppPreferenceKeys.vehicleForegroundService),
             boundVin = store.read(AppPreferenceKeys.vehicleBoundVin),
         )
+
+    override fun readVehicleStatus(): CachedVehicleStatus? {
+        val vin = store.read(AppPreferenceKeys.vehicleStatusVin).trim()
+        val packetHex = store.read(AppPreferenceKeys.vehicleStatusPacket).trim()
+        if (vin.isBlank() || packetHex.isBlank()) return null
+        return CachedVehicleStatus(vin = vin, packetHex = packetHex)
+    }
+
+    override suspend fun writeVehicleStatus(status: CachedVehicleStatus) {
+        writeTyped(AppPreferenceKeys.vehicleStatusVin, status.vin)
+        writeTyped(AppPreferenceKeys.vehicleStatusPacket, status.packetHex)
+    }
+
+    override suspend fun clearVehicleStatus() {
+        store.delete(AppPreferenceKeys.vehicleStatusVin)
+        store.delete(AppPreferenceKeys.vehicleStatusPacket)
+    }
 
     suspend fun writeLastVehicle(
         mac: String,

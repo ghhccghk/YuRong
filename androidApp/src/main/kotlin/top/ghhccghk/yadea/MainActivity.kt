@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.lsposed.hiddenapibypass.HiddenApiBypass
@@ -101,8 +102,6 @@ class MainActivity : ComponentActivity() {
         val p2pManager = AndroidWifiP2pManager(this)
         val wifiConnectionManager = AndroidWifiConnectionManager(this)
         val vehicleBleAdapter = AndroidVehicleBleSession.get(this).also { bleAdapter = it }
-        val vehicleStatus = BleVehicleStatusSource(vehicleBleAdapter, lifecycleScope)
-            .also { vehicleStatusSource = it }
         val appPreferences = AppPreferences(
             store = SharedPreferencesPreferenceStore(this),
             secretStore = AndroidSecretStore(this),
@@ -169,6 +168,12 @@ class MainActivity : ComponentActivity() {
             timestampProvider = { System.currentTimeMillis() },
         )
         val vehicleProfileSource = MutableVehicleProfileSource()
+        val vehicleStatus = BleVehicleStatusSource(
+            adapter = vehicleBleAdapter,
+            scope = lifecycleScope,
+            cache = appPreferences,
+            vinFlow = vehicleProfileSource.profile.map { it?.vin.orEmpty() },
+        ).also { vehicleStatusSource = it }
         val profileController = VehicleProfileController(
             source = vehicleProfileSource,
             gateway = YadeaVehicleProfileGateway(
