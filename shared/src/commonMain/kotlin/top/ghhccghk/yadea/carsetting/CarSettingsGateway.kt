@@ -1003,37 +1003,29 @@ object CloudCarSettingMapper {
         return items.sortedWith(compareBy({ it.group.sort }, { it.sort }, { it.title }))
     }
 
-    /**
-     * 找出云端已经下发、但 [toItems] 没有生成设置控件的功能。
-     *
-     * 以 `confId` 做差集，后续新增隐藏或待接入功能时无需在页面里维护硬编码列表。
-     */
-    fun toUndisplayedFeatures(
+    /** 本地功能目录减去本次云端 `bikeConfigVos`，得到云端没有下发的已知功能。 */
+    fun toMissingCloudFeatures(
         cloud: CloudCarSettings,
-        displayedItems: List<CarSettingItem>,
-    ): List<UndisplayedCarSettingFeature> {
-        val displayedConfigIds = displayedItems
-            .mapTo(mutableSetOf()) { it.configId.trim() }
-        return cloud.configs
-            .mapNotNull { config ->
-                val confId = config.confId.trim()
-                if (confId.isBlank() || confId in displayedConfigIds) return@mapNotNull null
-                val classification = classificationOf(confId, config)
-                val title = titleOf(config)
-                UndisplayedCarSettingFeature(
-                    configId = confId,
+    ): List<MissingCloudCarSettingFeature> {
+        val issuedConfigIds = cloud.configs
+            .mapTo(mutableSetOf()) { it.confId.trim() }
+        return TITLES
+            .asSequence()
+            .filter { (configId) -> configId.all(Char::isDigit) }
+            .filterNot { (configId) -> configId in issuedConfigIds }
+            .map { (configId, title) ->
+                val classification = classificationOf(configId)
+                MissingCloudCarSettingFeature(
+                    configId = configId,
                     title = title,
-                    summary = summaryOf(config, title),
-                    groupTitle = config.parentName.trim().ifBlank { classification.label },
-                    reason = when (confId) {
-                        "95" -> "当前版本暂未接入微信互联控制"
-                        else -> "当前版本尚未生成设置控件"
-                    },
-                    sort = config.sort.toIntOrNull() ?: 0,
+                    summary = "该功能存在于本地已知功能目录，但本次云端配置没有返回。",
+                    groupTitle = classification.label,
+                    reason = "可能受车型、账号权限或实验条件限制",
+                    sort = configId.toIntOrNull() ?: Int.MAX_VALUE,
                 )
             }
-            .distinctBy { it.configId }
             .sortedWith(compareBy({ it.sort }, { it.title }))
+            .toList()
     }
 
     private fun titleOf(config: CloudBikeConfig): String =
@@ -1132,7 +1124,12 @@ object CloudCarSettingMapper {
         if (config.isUserLabFun || config.izLab == 0 || confId.startsWith("special:footer_lab")) {
             return CarSettingClassification.LABORATORY
         }
-        return when (confId) {
+        return classificationOf(confId)
+    }
+
+    private fun classificationOf(confId: String): CarSettingClassification =
+        when (confId) {
+            in BLUETOOTH_KEY_IDS -> CarSettingClassification.POWER
             in BATTERY_IDS -> CarSettingClassification.BATTERY
             in LIGHT_IDS -> CarSettingClassification.LIGHT
             in POWER_IDS -> CarSettingClassification.POWER
@@ -1141,7 +1138,6 @@ object CloudCarSettingMapper {
             in SECURITY_IDS -> CarSettingClassification.SECURITY
             else -> CarSettingClassification.OTHER
         }
-    }
 
     private fun channelOf(confId: String): CarSettingChannel = when {
         confId in BLUETOOTH_KEY_IDS -> CarSettingChannel.BLE_KEY
@@ -1332,7 +1328,7 @@ object CloudCarSettingMapper {
         "无定义",
     )
 
-    private val BATTERY_IDS = setOf("9", "47", "48")
+    private val BATTERY_IDS = setOf("9", "47", "48", "54")
     /** 一键开机/蓝牙校准属于蓝牙车钥匙，不能走普通车辆设置命令。 */
     private val BLUETOOTH_KEY_IDS = setOf("1", "66")
     private val LIGHT_IDS = setOf(
@@ -1368,6 +1364,7 @@ object CloudCarSettingMapper {
     )
 
     private val TITLES = mapOf(
+        "1" to "一键开机",
         "2" to "边撑",
         "3" to "携出助力",
         "4" to "档位设置",
@@ -1410,6 +1407,7 @@ object CloudCarSettingMapper {
         "51" to "仪表时间同步",
         "52" to "感应解锁",
         "53" to "支架供电",
+        "54" to "电压设置",
         "55" to "自定义骑行",
         "58" to "档位设置",
         "59" to "报警锁",
@@ -1442,6 +1440,7 @@ object CloudCarSettingMapper {
         "94" to "档位记忆",
         "95" to "微信互联",
         "1005" to "自定义按键",
+        "66" to "自动校准",
         "special:meter_wallpaper_skin" to "壁纸皮肤设置",
         "special:meter_gauge_sync" to "车辆信息同步",
         "special:footer_intelligence" to "用户智能识别",

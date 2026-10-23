@@ -78,7 +78,7 @@ fun CarSettingsScreen(
     var ownerMobile by remember { mutableStateOf("") }
     var emergencyName by remember { mutableStateOf("") }
     var emergencyMobile by remember { mutableStateOf("") }
-    var showUndisplayedFeatures by remember { mutableStateOf(false) }
+    var showMissingCloudFeatures by remember { mutableStateOf(false) }
     var copiedConfigJson by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
 
@@ -96,9 +96,9 @@ fun CarSettingsScreen(
             copiedConfigJson = false
         }
     }
-    LaunchedEffect(state.undisplayedFeatures) {
-        if (state.undisplayedFeatures.isEmpty()) {
-            showUndisplayedFeatures = false
+    LaunchedEffect(state.missingCloudFeatures) {
+        if (state.missingCloudFeatures.isEmpty()) {
+            showMissingCloudFeatures = false
         }
     }
 
@@ -158,21 +158,21 @@ fun CarSettingsScreen(
                         )
                     }
                     AppText(
-                        text = "复制云端返回的原始车辆配置，包含未生成设置控件的功能。",
+                        text = "复制云端本次返回的原始配置 JSON，便于核对未下发功能。",
                         style = AppDesign.typography.summary,
                         color = AppDesign.colors.onSurfaceVariant,
                     )
                 }
                 AppSwitchPreference(
-                    checked = showUndisplayedFeatures,
-                    onCheckedChange = { showUndisplayedFeatures = it },
-                    title = "显示未展示功能",
+                    checked = showMissingCloudFeatures,
+                    onCheckedChange = { showMissingCloudFeatures = it },
+                    title = "显示云端未下发功能",
                     summary = when {
                         state.loading -> "正在加载云端配置"
-                        state.undisplayedFeatures.isEmpty() -> "当前云端配置没有未展示功能"
-                        else -> "显示 ${state.undisplayedFeatures.size} 个云端已下发但未生成控件的功能"
+                        state.missingCloudFeatures.isEmpty() -> "本地已知功能均已由云端下发"
+                        else -> "显示 ${state.missingCloudFeatures.size} 个本地已知但本次未下发的功能"
                     },
-                    enabled = state.undisplayedFeatures.isNotEmpty(),
+                    enabled = state.missingCloudFeatures.isNotEmpty(),
                 )
             }
         }
@@ -198,10 +198,10 @@ fun CarSettingsScreen(
                 }
             }
         }
-        if (showUndisplayedFeatures && state.undisplayedFeatures.isNotEmpty()) {
+        if (showMissingCloudFeatures && state.missingCloudFeatures.isNotEmpty()) {
             item {
-                AppSection(title = "未展示功能") {
-                    state.undisplayedFeatures.forEachIndexed { index, feature ->
+                AppSection(title = "云端未下发功能") {
+                    state.missingCloudFeatures.forEachIndexed { index, feature ->
                         AppListRow(
                             title = feature.title,
                             summary = buildString {
@@ -214,7 +214,7 @@ fun CarSettingsScreen(
                                 append(feature.groupTitle)
                             },
                             value = "#${feature.configId}",
-                            showDivider = index < state.undisplayedFeatures.lastIndex,
+                            showDivider = index < state.missingCloudFeatures.lastIndex,
                         )
                     }
                 }
