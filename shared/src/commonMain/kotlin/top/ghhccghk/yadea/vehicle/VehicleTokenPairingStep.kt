@@ -118,6 +118,8 @@ class VehicleTokenPairingStep(
             return false
         }
 
+        val accountRoles = loadAccountRolesAndLog()
+
         if (!authProfile.authVersion2) {
             if (!adapter.setNotification(HANDSHAKE_SERVICE, AUTH_RESULT_CHARACTERISTIC, true)) {
                 onDebug(
@@ -133,6 +135,8 @@ class VehicleTokenPairingStep(
                 protocolVersion = legacyProtocol,
                 localTime = timeProvider.now(),
                 mode = "10",
+                accountList = accountRoles?.accountList,
+                userNo = accountRoles?.userNo ?: -1,
             )
             if (legacyBlock == null) {
                 onDebug("BLE 鉴权失败：旧握手随机块构造失败")
@@ -195,8 +199,6 @@ class VehicleTokenPairingStep(
                     )
                     return@coroutineScope false
                 }
-                val accountRoles = loadAccountRolesAndLog()
-
                 val token = provider.fetch(
                     mac = handshakeMac,
                     vin = vin,

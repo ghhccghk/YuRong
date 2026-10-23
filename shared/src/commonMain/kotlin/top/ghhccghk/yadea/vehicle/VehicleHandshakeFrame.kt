@@ -188,6 +188,8 @@ object VehicleHandshakeFrame {
         protocolVersion: Int,
         localTime: DateTimeParts,
         mode: String,
+        accountList: IntArray? = null,
+        userNo: Int = -1,
     ): ByteArray? {
         // ScooterControl.s 保留前两个 RandKey 字节的 Java byte 有符号值，
         // 仅第三字节执行 & 0xFF；不能复用 Token 分支的无符号 24 位算法。
@@ -195,6 +197,40 @@ object VehicleHandshakeFrame {
         if (protocolVersion != 1) return base
 
         val pairCommand = modeValue(mode)
+        if (
+            randomKey.size > 0x0D &&
+            (randomKey[0x0D].toInt() and 0x01) == 1 &&
+            accountList != null &&
+            accountList.size >= 6 &&
+            userNo >= 0
+        ) {
+            val userBits = (userNo and 0x0F).toString(2).padStart(4, '0')
+            val firstRoleBits = "000000" +
+                accountList[0].coerceIn(0, 1) +
+                accountList[1].coerceIn(0, 1) +
+                userBits
+            val secondRoleBits = buildString(8) {
+                append(accountList[2].coerceIn(0, 1))
+                append(accountList[3].coerceIn(0, 1))
+                append(accountList[4].coerceIn(0, 1))
+                append('1')
+                append(userBits)
+            }
+            val firstRole = firstRoleBits.toInt(2)
+            val secondRole = secondRoleBits.toInt(2)
+            val check = 0x47 xor pairCommand xor firstRole xor secondRole
+            return base + byteArrayOf(
+                0x41,
+                0x05,
+                0x01,
+                pairCommand.toByte(),
+                firstRole.toByte(),
+                secondRole.toByte(),
+                check.toByte(),
+            )
+        }
+
+        // 没有账号角色缓存时走 `wi.U` 的短块分支。
         return base + byteArrayOf(
             0x41,
             0x05,
