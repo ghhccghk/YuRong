@@ -66,9 +66,19 @@ object VehicleSettingFrameEncoder {
         0x5E -> "FFFFFF" +
             hex2(0xE3 + (command.parameter.coerceIn(0, 6) shl 2)) +
             "FF".repeat(21)
+        // DelayLightActivity / BackLightActivity：延时大灯开关与 5/10/15/30 秒时间。
+        0x83 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFF"
+        0x84 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE7FFFFFFFFFFFF"
+        0x85 -> {
+            val index = command.parameter.takeIf { it in 0..3 } ?: 7
+            "FF".repeat(18) + hex2(0x1F + (index shl 5)) + "FF".repeat(6)
+        }
         // SpeedUnitActivity / ConfigSettingActivity：km/h / mph。
         0x89 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF3FFFFFFFFF"
         0x8A -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7FFFFFFFFF"
+        // ArmedModeActivity：关机不设防 / 关机自动设防。
+        0x8D -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF3FFFFFFFFFFFFFFF"
+        0x8E -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7FFFFFFFFFFFFFFF"
         // VoltagePlatformActivity：参数 0..6 映射到帧尾 1F/3F/5F/7F/9F/BF/DF。
         0xC6 -> when (command.parameter) {
             0 -> "FF".repeat(44) + "1F"
@@ -143,6 +153,9 @@ object VehicleSettingFrameEncoder {
         // HelpPromotePlusActivity：STROLLER_OPEN / STROLLER_CLOSE。
         0xA8 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD"
         0xA9 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFC"
+        // ShowInstrumentEnduranceActivity：显示 / 隐藏仪表剩余里程。
+        0xA4 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDFFFFFFFFFFFFFFFFFFFFFFFF"
+        0xA5 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFCFFFFFFFFFFFFFFFFFFFFFFFF"
         // ReversingFunctionActivity：倒车模式。
         0xA6 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEF"
         0xA7 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE7"
@@ -179,6 +192,18 @@ object VehicleSettingFrameEncoder {
         0x3C -> "FFFFFFFFFFFF" +
             hex2(0x8F + (command.parameter.coerceIn(0, 7) shl 4)) +
             "FF".repeat(18)
+        // BleMeterTimeSyncActivity：parameter 0=关，1=开。
+        0xC1 -> when (command.parameter) {
+            0 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFCFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            1 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            else -> return null
+        }
+        // FeelLightSettingActivity：parameter 0=开，1=关。
+        0xC3 -> when (command.parameter) {
+            0 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF3FFFFFFFFFFFFFFFF"
+            1 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7FFFFFFFFFFFFFFFF"
+            else -> return null
+        }
         // COMMAND_OPEN_WIFI_P2P_NEW：固定位域值 2，帧尾 FB。
         0xFD -> "FF".repeat(22) + "FB" + "FF".repeat(3)
         0x3D -> "FFFFFFFFFFFFFF" +

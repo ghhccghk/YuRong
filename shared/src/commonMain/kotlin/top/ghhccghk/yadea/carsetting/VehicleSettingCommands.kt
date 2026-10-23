@@ -360,8 +360,8 @@ object VehicleSettingCommands {
                 offType = "COMMAND_FEEL_LIGHT_SETTING_STATE",
                 onId = 0xC3,
                 offId = 0xC3,
-                onParameter = 1,
-                offParameter = 0,
+                onParameter = 0,
+                offParameter = 1,
             )
             "51" -> toggle(
                 kind = kind,
