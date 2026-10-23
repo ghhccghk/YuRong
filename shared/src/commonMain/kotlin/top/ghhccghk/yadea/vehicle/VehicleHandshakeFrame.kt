@@ -191,28 +191,36 @@ object VehicleHandshakeFrame {
         accountList: IntArray? = null,
         userNo: Int = -1,
     ): ByteArray? {
-        // ScooterControl.s 保留前两个 RandKey 字节的 Java byte 有符号值，
-        // 仅第三字节执行 & 0xFF；不能复用 Token 分支的无符号 24 位算法。
-        val base = buildScooterBaseRandomBlock(randomKey, mac, localTime) ?: return null
+        val useAccountBlock =
+            randomKey.size > 0x0D &&
+                (randomKey[0x0D].toInt() and 0x01) == 1 &&
+                accountList != null &&
+                accountList.size >= 6 &&
+                userNo >= 0
+
+        // wi.Z0 先调用 wi.U；RandKey[13] bit0 为 1 且账号角色有效时，
+        // O0 会改用 wi.V。两条分支生成的前 9 字节不同，不能复用。
+        val base = if (useAccountBlock) {
+            buildScooterAccountRandomBlock(randomKey, mac, localTime)
+        } else {
+            // wi.U 保留前两个 RandKey 字节的 Java byte 有符号值，
+            // 仅第三字节执行 & 0xFF；不能复用 Token 分支的无符号 24 位算法。
+            buildScooterBaseRandomBlock(randomKey, mac, localTime)
+        } ?: return null
         if (protocolVersion != 1) return base
 
         val pairCommand = modeValue(mode)
-        if (
-            randomKey.size > 0x0D &&
-            (randomKey[0x0D].toInt() and 0x01) == 1 &&
-            accountList != null &&
-            accountList.size >= 6 &&
-            userNo >= 0
-        ) {
+        if (useAccountBlock) {
+            val roles = accountList
             val userBits = (userNo and 0x0F).toString(2).padStart(4, '0')
             val firstRoleBits = "000000" +
-                accountList[0].coerceIn(0, 1) +
-                accountList[1].coerceIn(0, 1) +
+                roles[0].coerceIn(0, 1) +
+                roles[1].coerceIn(0, 1) +
                 userBits
             val secondRoleBits = buildString(8) {
-                append(accountList[2].coerceIn(0, 1))
-                append(accountList[3].coerceIn(0, 1))
-                append(accountList[4].coerceIn(0, 1))
+                append(roles[2].coerceIn(0, 1))
+                append(roles[3].coerceIn(0, 1))
+                append(roles[4].coerceIn(0, 1))
                 append('1')
                 append(userBits)
             }
@@ -221,7 +229,7 @@ object VehicleHandshakeFrame {
             val check = 0x47 xor pairCommand xor firstRole xor secondRole
             return base + byteArrayOf(
                 0x41,
-                0x05,
+                0x07,
                 0x01,
                 pairCommand.toByte(),
                 firstRole.toByte(),
@@ -237,6 +245,48 @@ object VehicleHandshakeFrame {
             0x01,
             pairCommand.toByte(),
             (0x45 xor pairCommand).toByte(),
+        )
+    }
+
+    /**
+     * `wi.V` 的账号分支。
+     *
+     * 与 `wi.U` 不同，前三字节输出 `randomValue or timeValue`，MAC 前后三段也都
+     * 与该公共值异或；完整分组长 16 字节，尾段由调用方追加。
+     */
+    private fun buildScooterAccountRandomBlock(
+        randomKey: ByteArray,
+        mac: String,
+        localTime: DateTimeParts,
+    ): ByteArray? {
+        if (randomKey.size < 3) return null
+        val macHex = mac.filter { it.isLetterOrDigit() }
+        if (macHex.length < 12) return null
+        val macPrefix = macHex.substring(0, 6).toIntOrNull(16) ?: return null
+        val macSuffix = macHex.substring(6, 12).toIntOrNull(16) ?: return null
+
+        val randomValue =
+            ((randomKey[0].toInt() and 0xFF) shl 16) or
+                ((randomKey[1].toInt() and 0xFF) shl 8) or
+                (randomKey[2].toInt() and 0xFF)
+        val timeValue =
+            (localTime.hour.coerceIn(0, 23) shl 16) or
+                (localTime.minute.coerceIn(0, 59) shl 8) or
+                localTime.second.coerceIn(0, 59)
+        val common = randomValue or timeValue
+        val first = macPrefix xor common
+        val second = macSuffix xor common
+
+        return byteArrayOf(
+            (common ushr 16).toByte(),
+            (common ushr 8).toByte(),
+            common.toByte(),
+            (first ushr 16).toByte(),
+            (first ushr 8).toByte(),
+            first.toByte(),
+            (second ushr 16).toByte(),
+            (second ushr 8).toByte(),
+            second.toByte(),
         )
     }
 
