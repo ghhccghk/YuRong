@@ -15,12 +15,28 @@ internal object VehicleStatusQueryEncoder {
 
     private const val VERSION_PREFIX = "01000101C8"
     private const val QUERY_DEFAULT_FILL_BYTES = 25
+    private const val ACTIVATION_COMMAND_FILL_BYTES = 52
 
     fun encode(protocolVersion: Int): ByteArray? {
         if (protocolVersion != 1) return byteArrayOf(0xFF.toByte())
         return VehicleFrame.build(
             orderId = VehicleFrame.ORDER_ID,
             hexPayload = VERSION_PREFIX + "FF".repeat(QUERY_DEFAULT_FILL_BYTES),
+        )?.hexToBytes()
+    }
+
+    /**
+     * 对应握手成功后的 `BleControlManager.E(device, 0x34)`。
+     *
+     * `wi.M(device, 0x34, -1)` 最终调用
+     * `generateBleCommand(0x34, -1, 1)`，命中 `uj.c(0x34, -1, 6, 7)`，
+     * 生成 57 字节载荷和 64 字节完整帧。
+     */
+    fun encodeActivation(protocolVersion: Int): ByteArray? {
+        if (protocolVersion != 1) return null
+        return VehicleFrame.build(
+            orderId = VehicleFrame.ORDER_ID,
+            hexPayload = VERSION_PREFIX + "FF".repeat(ACTIVATION_COMMAND_FILL_BYTES),
         )?.hexToBytes()
     }
 }

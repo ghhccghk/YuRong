@@ -248,9 +248,44 @@ class VehicleConnectionCoordinator(
         report?.let {
             _deviceInfo.value = it.deviceInfo
             onDebug("初始化任务完成：${it.successfulCount}/${it.results.size}")
+            activateStatusNotifications()
         }
         _publicState.value = PublicState.CONNECTED
         onDebug("车辆连接可用")
+    }
+
+    /**
+     * 复现原 `BleBicycleConnect.toPairCar` 握手成功后的延时状态激活流程：
+     * 1 秒后重新注册状态通知，再等待 500ms 发送 `0x34` 激活查询。
+     */
+    private suspend fun activateStatusNotifications() {
+        val profile = resolveVehicleNotificationProfile(discoveredServices)
+        pause(VehicleTimeouts.POST_AUTH_STATUS_RESUBSCRIBE_MS)
+        val resubscribed = runCatching {
+            adapter.setNotification(
+                serviceUuid = profile.serviceUuid,
+                characteristicUuid = profile.notifyCharacteristicUuid,
+                enable = true,
+            )
+        }.getOrDefault(false)
+        onDebug("握手后状态通知重订阅：${if (resubscribed) "成功" else "失败"}")
+        if (!resubscribed) return
+
+        val frame = VehicleStatusQueryEncoder.encodeActivation(profile.protocolVersion)
+            ?: return
+        pause(VehicleTimeouts.POST_AUTH_STATUS_ACTIVATION_MS)
+        val sent = runCatching {
+            adapter.writeCharacteristic(
+                serviceUuid = profile.serviceUuid,
+                characteristicUuid = profile.queryCharacteristicUuid,
+                data = frame,
+                withResponse = true,
+            )
+        }.getOrDefault(false)
+        onDebug(
+            "状态激活查询：${if (sent) "已发送" else "失败"} " +
+                "len=${frame.size}",
+        )
     }
 }
 

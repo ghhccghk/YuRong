@@ -386,10 +386,17 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
         }
         descriptor.value = when {
             !enable -> BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
+            characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0 ->
+                BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
             characteristic.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0 ->
                 BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
             else -> BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
         }
+        NetworkLog.write(
+            "BLE setNotification begin service=$serviceUuid " +
+                "characteristic=$characteristicUuid properties=${characteristic.properties} " +
+                "cccd=${descriptor.value.joinToString("") { "%02X".format(it) }}",
+        )
         if (!currentGatt.writeDescriptor(descriptor)) {
             NetworkLog.write(
                 "BLE !! writeDescriptor returned false " +

@@ -58,6 +58,10 @@ object VehicleTimeouts {
     const val TASK_MAX_RETRIES = 2
     const val TASK_RETRY_INTERVAL_MS = 200L
     const val TASK_SUCCESS_INTERVAL_MS = 50L
+    /** `toPairCar` 在握手成功后 1000ms 重新注册状态通知。 */
+    const val POST_AUTH_STATUS_RESUBSCRIBE_MS = 1_000L
+    /** `toPairCar` 在重新注册后 500ms 发送 `0x34` 状态激活查询。 */
+    const val POST_AUTH_STATUS_ACTIVATION_MS = 500L
     const val REQUESTED_MTU = 512
     const val MTU_MIN = 24
     const val MTU_MAX = 512
