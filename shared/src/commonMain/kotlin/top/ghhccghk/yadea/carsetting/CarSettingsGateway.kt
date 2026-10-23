@@ -716,6 +716,42 @@ object CloudCarSettingMapper {
                 sort = (config.sort.toIntOrNull() ?: 0) - 1,
             )
         }
+        cloud.configs.firstOrNull { it.confId.trim() == "60" }?.let { config ->
+            val classification = CarSettingClassification.BATTERY
+            val group = groupOf(config, classification)
+            val sort = config.sort.toIntOrNull() ?: 0
+            val capacityIndex = BatteryCapacityOptions.valuesAh
+                .indexOf(cloud.intValue("capacity"))
+                .takeIf { it >= 0 }
+                ?: BatteryCapacityOptions.labels.lastIndex
+            items += CarSettingItem(
+                id = "cloud:60:enable",
+                configId = "60",
+                title = "电池容量开关",
+                summary = "开启后可选择车辆电池容量；关闭后容量档位不可编辑",
+                classification = classification,
+                group = group,
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Toggle(false),
+                writable = config.isAuth != false,
+                sort = sort + 1,
+            )
+            items += CarSettingItem(
+                id = "cloud:60:level",
+                configId = "60",
+                title = "电池容量",
+                summary = "选择与车辆实际电池容量一致的档位",
+                classification = classification,
+                group = group,
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Choice(
+                    selectedIndex = capacityIndex,
+                    options = BatteryCapacityOptions.labels,
+                ),
+                writable = config.isAuth != false,
+                sort = sort + 2,
+            )
+        }
         cloud.configs.firstOrNull { it.confId.trim() == "10" }?.let { config ->
             val distance = cloud.intValue("distance")?.coerceIn(50, 1_000) ?: 200
             items += CarSettingItem(
@@ -1018,7 +1054,48 @@ object CloudCarSettingMapper {
             .asSequence()
             .filter { (configId) -> configId.all(Char::isDigit) }
             .filterNot { (configId) -> configId in issuedConfigIds }
-            .map { (configId, title) ->
+            .flatMap { (configId, title) ->
+                if (configId == "60") {
+                    val classification = CarSettingClassification.BATTERY
+                    val group = CarSettingGroup(
+                        id = "missing:${classification.name}",
+                        title = classification.label,
+                        sort = classification.ordinal,
+                    )
+                    val capacityIndex = BatteryCapacityOptions.valuesAh
+                        .indexOf(cloud.intValue("capacity"))
+                        .takeIf { it >= 0 }
+                        ?: BatteryCapacityOptions.labels.lastIndex
+                    return@flatMap sequenceOf(
+                        CarSettingItem(
+                            id = "cloud:60:enable",
+                            configId = "60",
+                            title = "电池容量开关",
+                            summary = "云端本次未下发；可实验性设置电池容量功能",
+                            classification = classification,
+                            group = group,
+                            channel = CarSettingChannel.BLE,
+                            kind = CarSettingKind.Toggle(false),
+                            writable = true,
+                            sort = 60,
+                        ),
+                        CarSettingItem(
+                            id = "cloud:60:level",
+                            configId = "60",
+                            title = "电池容量",
+                            summary = "云端本次未下发；可选 13/15/22/25/32/38Ah",
+                            classification = classification,
+                            group = group,
+                            channel = CarSettingChannel.BLE,
+                            kind = CarSettingKind.Choice(
+                                selectedIndex = capacityIndex,
+                                options = BatteryCapacityOptions.labels,
+                            ),
+                            writable = true,
+                            sort = 61,
+                        ),
+                    )
+                }
                 val classification = classificationOf(configId)
                 val kind = kindOf(configId, cloud)
                 val writable = configId !in BLUETOOTH_KEY_IDS &&
@@ -1026,25 +1103,27 @@ object CloudCarSettingMapper {
                         VehicleSettingCommands.supports(configId, kind) ||
                             CloudCarSettingUpdateBuilder.supports(configId, kind)
                         )
-                CarSettingItem(
-                    id = "missing:$configId",
-                    configId = configId,
-                    title = title,
-                    summary = if (writable) {
-                        "云端本次未下发；可实验性设置，车辆可能不支持该功能"
-                    } else {
-                        "云端本次未下发；暂无可确认的写入命令"
-                    },
-                    classification = classification,
-                    group = CarSettingGroup(
-                        id = "missing:${classification.name}",
-                        title = classification.label,
-                        sort = classification.ordinal,
+                sequenceOf(
+                    CarSettingItem(
+                        id = "missing:$configId",
+                        configId = configId,
+                        title = title,
+                        summary = if (writable) {
+                            "云端本次未下发；可实验性设置，车辆可能不支持该功能"
+                        } else {
+                            "云端本次未下发；暂无可确认的写入命令"
+                        },
+                        classification = classification,
+                        group = CarSettingGroup(
+                            id = "missing:${classification.name}",
+                            title = classification.label,
+                            sort = classification.ordinal,
+                        ),
+                        channel = channelOf(configId),
+                        kind = kind,
+                        writable = writable,
+                        sort = configId.toIntOrNull() ?: Int.MAX_VALUE,
                     ),
-                    channel = channelOf(configId),
-                    kind = kind,
-                    writable = writable,
-                    sort = configId.toIntOrNull() ?: Int.MAX_VALUE,
                 )
             }
             .sortedWith(compareBy({ it.group.sort }, { it.sort }, { it.title }))
@@ -1174,7 +1253,8 @@ object CloudCarSettingMapper {
         in BLUETOOTH_KEY_IDS -> CarSettingKind.Info("请在原 App 的车钥匙模块中设置")
         "13" -> CarSettingKind.Toggle(cloud.boolValue("alarmSoundEnable") == true)
         "16" -> CarSettingKind.Toggle(cloud.boolValue("dumpAlarm") == true)
-        "3" -> CarSettingKind.Toggle(cloud.boolValue("resistanceOn") == true)
+        // 携出助力没有云端回读字段，初值保守为关闭。
+        "3" -> CarSettingKind.Toggle(false)
         "17" -> CarSettingKind.Toggle(cloud.boolValue("resistanceOn") == true)
         "18" -> CarSettingKind.Slider(
             value = 1f,
@@ -1264,8 +1344,8 @@ object CloudCarSettingMapper {
         "88" -> CarSettingKind.Info("进入设置")
         // CustomizeKeyActivity：短按和长按功能在下方分别设置。
         "1005" -> CarSettingKind.Info("设置短按和长按功能")
-        // GaugeSettingsActivity 是仪表蓝牙配对页，不是可写参数。
-        "71" -> CarSettingKind.Info("请在“连接”页完成仪表蓝牙配对")
+        // GaugeSettingsActivity 是仪表蓝牙配对与同步页，不是可写参数。
+        "71" -> CarSettingKind.Entrance("请到“连接”页配对仪表")
         // 边撑自动关机：原 App 只给开关，依赖边撑感应（confId 2）。
         "39" -> CarSettingKind.Toggle(false)
         // 报失模式需要短信验证，统一在“诊断 · 定位与报失”中操作。
@@ -1304,6 +1384,8 @@ object CloudCarSettingMapper {
         "43", "44" ->
             CarSettingKind.Info("状态由车辆回读")
         "42" -> CarSettingKind.Toggle(false)
+        // 倒车模式与婴儿车模式由车辆 TTP 状态回填。
+        "43", "44" -> CarSettingKind.Toggle(false)
         "51" -> CarSettingKind.Toggle(false)
         "47" -> {
             // ChargingPowerActivity：200..1000W，50W 步进；最大值按云端/车型上限 1000W。
@@ -1330,6 +1412,8 @@ object CloudCarSettingMapper {
                 unit = "%",
             )
         }
+        // CapacitySettingActivity：电池容量功能拆成开关与固定容量档位。
+        "60" -> CarSettingKind.Info("可分别设置电池容量开关和容量档位")
         in ENTRANCE_IDS, in SPECIAL_IDS -> CarSettingKind.Entrance()
         else -> CarSettingKind.Info("云端设置项，暂未接入写入")
     }

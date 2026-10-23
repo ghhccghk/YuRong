@@ -35,6 +35,12 @@ enum class CarSettingChannel(val label: String) {
     LOCAL("本机"),
 }
 
+/** 原 App 电池容量设置页固定提供的容量档位。 */
+internal object BatteryCapacityOptions {
+    val valuesAh = listOf(13, 15, 22, 25, 32, 38)
+    val labels = valuesAh.map { "${it}Ah" }
+}
+
 sealed interface CarSettingKind {
     data class Toggle(val checked: Boolean) : CarSettingKind
     data class Choice(val selectedIndex: Int, val options: List<String>) : CarSettingKind
@@ -430,6 +436,28 @@ class CarSettingsController(
                         status.extended.remainingMileageDebugStatus != 0,
                     ),
                 )
+                "43" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.reversingState != 0),
+                )
+                "44" -> item.copy(
+                    kind = CarSettingKind.Toggle(status.extended.helpCarState != 0),
+                )
+                "60" -> when {
+                    item.id.endsWith(":enable") -> item.copy(
+                        kind = CarSettingKind.Toggle(status.extended.capacitySwitchStatus != 0),
+                    )
+                    item.kind is CarSettingKind.Choice -> {
+                        val kind = item.kind
+                        val index = BatteryCapacityOptions.valuesAh
+                            .indexOf(status.extended.capacitySettingStatus)
+                        if (index >= 0) {
+                            item.copy(kind = kind.copy(selectedIndex = index))
+                        } else {
+                            item
+                        }
+                    }
+                    else -> item
+                }
                 "81" -> when (val kind = item.kind) {
                     is CarSettingKind.Toggle -> item.copy(
                         kind = kind.copy(checked = status.extended.withGoHomeStatus != 0),

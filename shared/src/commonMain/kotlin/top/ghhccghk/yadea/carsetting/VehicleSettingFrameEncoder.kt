@@ -29,6 +29,9 @@ object VehicleSettingFrameEncoder {
     }
 
     private fun suffixOf(command: VehicleSettingCommand): String? = when (command.commandId) {
+        // SeatCushionSensorActivity：携出助力。
+        0x11 -> "FFFFFFFFFF7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        0x12 -> "FFFFFFFFFF3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
         0x53 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDFFFFFFFFFFFFFFF"
         0x54 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFCFFFFFFFFFFFFFFF"
         0x62 -> "FFFFFFFFFFFFFFFF7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
@@ -127,6 +130,13 @@ object VehicleSettingFrameEncoder {
         // HelpPromotePlusActivity：STROLLER_OPEN / STROLLER_CLOSE。
         0xA8 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD"
         0xA9 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFC"
+        // ReversingFunctionActivity：倒车模式。
+        0xA6 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEF"
+        0xA7 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE7"
+        // CapacitySettingActivity：开关位于字节 0x34 的 bit6-7。
+        0xD4 -> bitfieldSuffix(0x34, command.parameter, 6, 7)
+        // CapacitySettingActivity：容量值直接写入字节 0x36。
+        0xCD -> "F".repeat(98) + hex2(command.parameter)
         // VehicleCustomizeActivity：0x51 打包三项，0x52 放 TCS。
         0xC8 -> {
             val params = command.parameters

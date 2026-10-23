@@ -75,6 +75,14 @@ object VehicleSettingCommands {
                 onId = 0x0F,
                 offId = 0x10,
             )
+            // SeatCushionSensorActivity：携出助力。
+            "3" -> toggle(
+                kind = kind,
+                onType = "CARRY_OUT_OPEN",
+                offType = "CARRY_OUT_CLOSE",
+                onId = 0x11,
+                offId = 0x12,
+            )
             "32" -> toggle(
                 kind = kind,
                 onType = "TILT_WARNING_OPEN",
@@ -266,6 +274,22 @@ object VehicleSettingCommands {
                 offType = "DISPLAY_REMAINING_MILEAGE_CLOSE",
                 onId = 0xA4,
                 offId = 0xA5,
+            )
+            // ReversingFunctionActivity：倒车模式。
+            "43" -> toggle(
+                kind = kind,
+                onType = "REVERSING_OPEN",
+                offType = "REVERSING_CLOSE",
+                onId = 0xA6,
+                offId = 0xA7,
+            )
+            // HelpPromoteActivity：婴儿车模式。
+            "44" -> toggle(
+                kind = kind,
+                onType = "STROLLER_OPEN",
+                offType = "STROLLER_CLOSE",
+                onId = 0xA8,
+                offId = 0xA9,
             )
             // HelpPromotePlusActivity：辅助推行开关与推行档位。
             "64", "89" -> when (kind) {
@@ -501,6 +525,26 @@ object VehicleSettingCommands {
                     parameter = percent,
                 )
             }
+            // CapacitySettingActivity：电池容量开关与固定 13/15/22/25/32/38Ah 档位。
+            "60" -> when (kind) {
+                is CarSettingKind.Toggle -> toggle(
+                    kind = kind,
+                    onType = "COMMAND_CONST_CAPACITY_SWITCH_SETTING",
+                    offType = "COMMAND_CONST_CAPACITY_SWITCH_SETTING",
+                    onId = 0xD4,
+                    offId = 0xD4,
+                    onParameter = 1,
+                    offParameter = 0,
+                )
+                is CarSettingKind.Choice -> VehicleSettingCommand(
+                    commandType = "COMMAND_CONST_CAPACITY_SETTING",
+                    commandId = 0xCD,
+                    parameter = BatteryCapacityOptions.valuesAh
+                        .getOrNull(kind.selectedIndex)
+                        ?: BatteryCapacityOptions.valuesAh.last(),
+                )
+                else -> null
+            }
             // ChargingPowerActivity：开关走 0xC9，瓦数滑杆走 0xCA。
             "47" -> when (kind) {
                 is CarSettingKind.Toggle -> toggle(
@@ -527,6 +571,25 @@ object VehicleSettingCommands {
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
         when (item.id) {
+            "cloud:60:enable" -> return toggle(
+                kind = item.kind,
+                onType = "COMMAND_CONST_CAPACITY_SWITCH_SETTING",
+                offType = "COMMAND_CONST_CAPACITY_SWITCH_SETTING",
+                onId = 0xD4,
+                offId = 0xD4,
+                onParameter = 1,
+                offParameter = 0,
+            )
+            "cloud:60:level" -> {
+                val choice = item.kind as? CarSettingKind.Choice ?: return null
+                return VehicleSettingCommand(
+                    commandType = "COMMAND_CONST_CAPACITY_SETTING",
+                    commandId = 0xCD,
+                    parameter = BatteryCapacityOptions.valuesAh
+                        .getOrNull(choice.selectedIndex)
+                        ?: BatteryCapacityOptions.valuesAh.last(),
+                )
+            }
             "cloud:1005:short" -> return keyFunctionCommand(item.kind, short = true)
             "cloud:1005:long" -> return keyFunctionCommand(item.kind, short = false)
             "cloud:69:fcw" -> return toggle(
