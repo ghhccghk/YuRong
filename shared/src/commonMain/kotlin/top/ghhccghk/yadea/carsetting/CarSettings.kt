@@ -267,6 +267,11 @@ class CarSettingsController(
             pendingIds = latest.pendingIds - id,
             message = null,
         )
+        if (statusGateway != null && cloudUpdate && !isMissingCloudItem) {
+            if (!refresh()) {
+                _state.value = _state.value.copy(message = "设置已保存，但云端配置刷新失败")
+            }
+        }
         return true
     }
 
