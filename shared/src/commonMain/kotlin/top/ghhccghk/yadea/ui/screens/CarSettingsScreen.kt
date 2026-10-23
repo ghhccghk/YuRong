@@ -24,6 +24,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import top.ghhccghk.yadea.carsetting.CarSettingChannel
 import top.ghhccghk.yadea.carsetting.CarSettingItem
 import top.ghhccghk.yadea.carsetting.CarSettingKind
 import top.ghhccghk.yadea.carsetting.CarSettingsController
@@ -79,6 +80,7 @@ fun CarSettingsScreen(
     var emergencyName by remember { mutableStateOf("") }
     var emergencyMobile by remember { mutableStateOf("") }
     var showMissingCloudFeatures by remember { mutableStateOf(false) }
+    var showChannelHelp by remember { mutableStateOf(false) }
     var copiedConfigJson by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
 
@@ -126,7 +128,6 @@ fun CarSettingsScreen(
             scope.launch { controller.update(item.id, transform) }
         }
     }
-
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = contentPadding,
@@ -151,6 +152,16 @@ fun CarSettingsScreen(
                 AppText(
                     if (state.loading) "正在加载…" else "刷新云端设置",
                     style = AppDesign.typography.button,
+                )
+            }
+        }
+        item {
+            AppSection(title = "设置通道") {
+                AppActionPreference(
+                    title = "本机、蓝牙、车联网",
+                    summary = "本机＝App 内处理 · 蓝牙＝连接车辆后生效 · 车联网＝云端下发",
+                    value = "说明",
+                    onClick = { showChannelHelp = true },
                 )
             }
         }
@@ -848,6 +859,18 @@ fun CarSettingsScreen(
             }
         }
     }
+
+    AppAlertDialog(
+        show = showChannelHelp,
+        title = "设置通道说明",
+        message = CarSettingChannel.entries.joinToString("\n\n") {
+            "${it.label}：${it.description}"
+        },
+        dismissText = null,
+        confirmText = "知道了",
+        onDismissRequest = { showChannelHelp = false },
+        onConfirm = { showChannelHelp = false },
+    )
 }
 
 private val SAFETY_CONFIRM_IDS = setOf("37", "38")

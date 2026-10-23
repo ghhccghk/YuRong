@@ -27,12 +27,30 @@ data class CarSettingGroup(
 private fun CarSettingClassification.asGroup(): CarSettingGroup =
     CarSettingGroup(name, label, ordinal)
 
-enum class CarSettingChannel(val label: String) {
-    BLE("蓝牙"),
-    BLE_KEY("蓝牙车钥匙"),
-    IOT("车联网"),
-    BOTH("蓝牙 + 车联网"),
-    LOCAL("本机"),
+enum class CarSettingChannel(
+    val label: String,
+    val description: String,
+) {
+    BLE(
+        label = "蓝牙",
+        description = "手机与车辆蓝牙连接后直接下发，需要靠近车辆并保持连接，状态通常能实时回读。",
+    ),
+    BLE_KEY(
+        label = "蓝牙车钥匙",
+        description = "由蓝牙车钥匙功能处理，需要车辆连接和相应鉴权，部分操作仍需进入原钥匙流程。",
+    ),
+    IOT(
+        label = "车联网",
+        description = "通过车联网云平台下发，不要求手机靠近，但车辆必须在线，生效可能有延迟。",
+    ),
+    BOTH(
+        label = "蓝牙 + 车联网",
+        description = "可能通过蓝牙或车联网写入，实际使用哪个通道取决于当前连接和功能实现。",
+    ),
+    LOCAL(
+        label = "本机",
+        description = "设置或操作在当前 App 内完成，或会打开 App 子页面，不直接作为车辆参数下发。",
+    ),
 }
 
 /** 原 App 电池容量设置页固定提供的容量档位。 */
