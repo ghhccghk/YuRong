@@ -1003,10 +1003,15 @@ object CloudCarSettingMapper {
         return items.sortedWith(compareBy({ it.group.sort }, { it.sort }, { it.title }))
     }
 
-    /** 本地功能目录减去本次云端 `bikeConfigVos`，得到云端没有下发的已知功能。 */
-    fun toMissingCloudFeatures(
+    /**
+     * 本地功能目录减去本次云端 `bikeConfigVos`，生成云端未下发功能。
+     *
+     * 只有已有确认命令映射的非蓝牙车钥匙功能会标记为可写；其余保持只读，
+     * 避免因为云端没有下发就向车辆发送不确定命令。
+     */
+    fun toMissingCloudItems(
         cloud: CloudCarSettings,
-    ): List<MissingCloudCarSettingFeature> {
+    ): List<CarSettingItem> {
         val issuedConfigIds = cloud.configs
             .mapTo(mutableSetOf()) { it.confId.trim() }
         return TITLES
@@ -1015,16 +1020,34 @@ object CloudCarSettingMapper {
             .filterNot { (configId) -> configId in issuedConfigIds }
             .map { (configId, title) ->
                 val classification = classificationOf(configId)
-                MissingCloudCarSettingFeature(
+                val kind = kindOf(configId, cloud)
+                val writable = configId !in BLUETOOTH_KEY_IDS &&
+                    (
+                        VehicleSettingCommands.supports(configId, kind) ||
+                            CloudCarSettingUpdateBuilder.supports(configId, kind)
+                        )
+                CarSettingItem(
+                    id = "missing:$configId",
                     configId = configId,
                     title = title,
-                    summary = "该功能存在于本地已知功能目录，但本次云端配置没有返回。",
-                    groupTitle = classification.label,
-                    reason = "可能受车型、账号权限或实验条件限制",
+                    summary = if (writable) {
+                        "云端本次未下发；可实验性设置，车辆可能不支持该功能"
+                    } else {
+                        "云端本次未下发；暂无可确认的写入命令"
+                    },
+                    classification = classification,
+                    group = CarSettingGroup(
+                        id = "missing:${classification.name}",
+                        title = classification.label,
+                        sort = classification.ordinal,
+                    ),
+                    channel = channelOf(configId),
+                    kind = kind,
+                    writable = writable,
                     sort = configId.toIntOrNull() ?: Int.MAX_VALUE,
                 )
             }
-            .sortedWith(compareBy({ it.sort }, { it.title }))
+            .sortedWith(compareBy({ it.group.sort }, { it.sort }, { it.title }))
             .toList()
     }
 

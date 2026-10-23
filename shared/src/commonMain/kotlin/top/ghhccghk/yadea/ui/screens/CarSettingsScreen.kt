@@ -96,9 +96,34 @@ fun CarSettingsScreen(
             copiedConfigJson = false
         }
     }
-    LaunchedEffect(state.missingCloudFeatures) {
-        if (state.missingCloudFeatures.isEmpty()) {
+    LaunchedEffect(state.missingCloudItems) {
+        if (state.missingCloudItems.isEmpty()) {
             showMissingCloudFeatures = false
+        }
+    }
+    val submitSettingUpdate:
+        (CarSettingItem, (CarSettingKind) -> CarSettingKind) -> Unit = { item, transform ->
+        val next = transform(item.kind)
+        if (next is CarSettingKind.Toggle &&
+            !next.checked &&
+            item.configId in SAFETY_CONFIRM_IDS
+        ) {
+            confirmDisable = item
+        } else if (next is CarSettingKind.Toggle &&
+            next.checked &&
+            item.configId == "39"
+        ) {
+            val braceOn = (state.items + state.missingCloudItems).any {
+                it.configId == "2" &&
+                    (it.kind as? CarSettingKind.Toggle)?.checked == true
+            }
+            if (braceOn) {
+                scope.launch { controller.update(item.id, transform) }
+            } else {
+                confirmBraceDependency = item
+            }
+        } else {
+            scope.launch { controller.update(item.id, transform) }
         }
     }
 
@@ -169,10 +194,10 @@ fun CarSettingsScreen(
                     title = "显示云端未下发功能",
                     summary = when {
                         state.loading -> "正在加载云端配置"
-                        state.missingCloudFeatures.isEmpty() -> "本地已知功能均已由云端下发"
-                        else -> "显示 ${state.missingCloudFeatures.size} 个本地已知但本次未下发的功能"
+                        state.missingCloudItems.isEmpty() -> "本地已知功能均已由云端下发"
+                        else -> "显示 ${state.missingCloudItems.size} 个本地已知但本次未下发的功能"
                     },
-                    enabled = state.missingCloudFeatures.isNotEmpty(),
+                    enabled = state.missingCloudItems.isNotEmpty(),
                 )
             }
         }
@@ -198,23 +223,31 @@ fun CarSettingsScreen(
                 }
             }
         }
-        if (showMissingCloudFeatures && state.missingCloudFeatures.isNotEmpty()) {
+        if (showMissingCloudFeatures && state.missingCloudItems.isNotEmpty()) {
             item {
                 AppSection(title = "云端未下发功能") {
-                    state.missingCloudFeatures.forEachIndexed { index, feature ->
-                        AppListRow(
-                            title = feature.title,
-                            summary = buildString {
-                                append(feature.reason)
-                                if (feature.summary.isNotBlank()) {
-                                    append(" · ")
-                                    append(feature.summary)
-                                }
-                                append(" · ")
-                                append(feature.groupTitle)
+                    AppText(
+                        text = "这些功能没有由云端下发。带控件的项目属于实验性设置，可能不受当前车型支持。",
+                        style = AppDesign.typography.summary,
+                        color = AppDesign.colors.onSurfaceVariant,
+                        modifier = Modifier.padding(
+                            horizontal = dimensions.itemHorizontalPadding,
+                            vertical = dimensions.itemVerticalPadding,
+                        ),
+                    )
+                    state.missingCloudItems.forEach { item ->
+                        CarSettingRow(
+                            item = item,
+                            enabled = controller.available &&
+                                item.writable &&
+                                item.id !in state.pendingIds,
+                            pending = item.id in state.pendingIds,
+                            onOpenDetail = {
+                                detailItem = item
                             },
-                            value = "#${feature.configId}",
-                            showDivider = index < state.missingCloudFeatures.lastIndex,
+                            onUpdate = { transform ->
+                                submitSettingUpdate(item, transform)
+                            },
                         )
                     }
                 }
@@ -259,30 +292,7 @@ fun CarSettingsScreen(
                                 }
                             },
                             onUpdate = { transform ->
-                                val next = transform(item.kind)
-                                if (next is CarSettingKind.Toggle &&
-                                    !next.checked &&
-                                    item.configId in SAFETY_CONFIRM_IDS
-                                ) {
-                                    confirmDisable = item
-                                } else if (next is CarSettingKind.Toggle &&
-                                    next.checked &&
-                                    item.configId == "39"
-                                ) {
-                                    val braceOn = state.items.any {
-                                        it.configId == "2" &&
-                                            (it.kind as? CarSettingKind.Toggle)?.checked == true
-                                    }
-                                    if (braceOn) {
-                                        scope.launch {
-                                            controller.update(item.id, transform)
-                                        }
-                                    } else {
-                                        confirmBraceDependency = item
-                                    }
-                                } else {
-                                    scope.launch { controller.update(item.id, transform) }
-                                }
+                                submitSettingUpdate(item, transform)
                             },
                         )
                         if (item.configId in setOf("24", "85") &&
@@ -345,7 +355,8 @@ fun CarSettingsScreen(
             confirmBraceDependency = null
             braceTarget?.let { item ->
                 scope.launch {
-                    val brace = state.items.firstOrNull { it.configId == "2" }
+                    val brace = (state.items + state.missingCloudItems)
+                        .firstOrNull { it.configId == "2" }
                     val braceOn =
                         (brace?.kind as? CarSettingKind.Toggle)?.checked == true
                     if (brace != null && !braceOn) {

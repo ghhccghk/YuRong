@@ -78,19 +78,10 @@ data class CarSettingItem(
     val configId: String = id,
 )
 
-/** 本地已知、但本次云端配置没有下发的功能。 */
-data class MissingCloudCarSettingFeature(
-    val configId: String,
-    val title: String,
-    val summary: String,
-    val groupTitle: String,
-    val reason: String,
-    val sort: Int = 0,
-)
-
 data class CarSettingsState(
     val items: List<CarSettingItem> = emptyList(),
-    val missingCloudFeatures: List<MissingCloudCarSettingFeature> = emptyList(),
+    /** 本地已知、但本次云端没有下发的设置；仅用于控制页调试与实验性操作。 */
+    val missingCloudItems: List<CarSettingItem> = emptyList(),
     val rawConfigJson: String = "",
     val pendingIds: Set<String> = emptySet(),
     val message: String? = null,
@@ -160,10 +151,10 @@ class CarSettingsController(
             return false
         }
         val items = CloudCarSettingMapper.toItems(cloud)
-        val missingCloudFeatures = CloudCarSettingMapper.toMissingCloudFeatures(cloud)
+        val missingCloudItems = CloudCarSettingMapper.toMissingCloudItems(cloud)
         _state.value = _state.value.copy(
             items = items,
-            missingCloudFeatures = missingCloudFeatures,
+            missingCloudItems = missingCloudItems,
             rawConfigJson = cloud.rawJson,
             pendingIds = emptySet(),
             loading = false,
@@ -175,7 +166,17 @@ class CarSettingsController(
 
     suspend fun update(id: String, transform: (CarSettingKind) -> CarSettingKind): Boolean {
         val current = _state.value
-        val item = current.items.firstOrNull { it.id == id } ?: return false
+        val regularItem = current.items.firstOrNull { it.id == id }
+        val missingItem = current.missingCloudItems.firstOrNull { it.id == id }
+        val item = regularItem ?: missingItem ?: return false
+        val isMissingCloudItem = regularItem == null
+        fun CarSettingsState.withItem(target: CarSettingItem): CarSettingsState =
+            if (isMissingCloudItem) {
+                copy(missingCloudItems = missingCloudItems.replace(target))
+            } else {
+                copy(items = items.replace(target))
+            }
+
         if (!item.writable) {
             _state.value = current.copy(message = "该设置项当前不可写")
             return false
@@ -188,11 +189,12 @@ class CarSettingsController(
         if (id in current.pendingIds) return false
 
         val optimistic = item.copy(kind = transform(item.kind))
-        _state.value = current.copy(
-            items = current.items.replace(optimistic),
-            pendingIds = current.pendingIds + id,
-            message = null,
-        )
+        _state.value = current
+            .withItem(optimistic)
+            .copy(
+                pendingIds = current.pendingIds + id,
+                message = null,
+            )
 
         if (optimistic.kind is CarSettingKind.Toggle && debounceMs > 0) {
             delay(debounceMs)
@@ -200,11 +202,12 @@ class CarSettingsController(
         val success = runCatching { activeWriter.write(optimistic) }.getOrDefault(false)
         val latest = _state.value
         if (!success) {
-            _state.value = latest.copy(
-                items = latest.items.replace(item),
-                pendingIds = latest.pendingIds - id,
-                message = "设置保存失败，已恢复原值",
-            )
+            _state.value = latest
+                .withItem(item)
+                .copy(
+                    pendingIds = latest.pendingIds - id,
+                    message = "设置保存失败，已恢复原值",
+                )
             return false
         }
 
@@ -213,7 +216,7 @@ class CarSettingsController(
             kind = optimistic.kind,
         )
         val statusGateway = gateway
-        if (statusGateway != null && cloudUpdate) {
+        if (statusGateway != null && cloudUpdate && !isMissingCloudItem) {
             var confirmed: Boolean? = null
             for (attempt in 0 until statusPollAttempts) {
                 delay(statusPollIntervalMs)
@@ -222,15 +225,16 @@ class CarSettingsController(
                 if (confirmed != null) break
             }
             if (confirmed != true) {
-                _state.value = latest.copy(
-                    items = latest.items.replace(item),
-                    pendingIds = latest.pendingIds - id,
-                    message = if (confirmed == false) {
-                        "车辆未确认设置，已恢复原值"
-                    } else {
-                        "设置状态确认超时，已恢复原值"
-                    },
-                )
+                _state.value = latest
+                    .withItem(item)
+                    .copy(
+                        pendingIds = latest.pendingIds - id,
+                        message = if (confirmed == false) {
+                            "车辆未确认设置，已恢复原值"
+                        } else {
+                            "设置状态确认超时，已恢复原值"
+                        },
+                    )
                 return false
             }
         }
@@ -253,7 +257,7 @@ class CarSettingsController(
     fun updateVehicleStatus(status: TtpInfo?) {
         val current = _state.value
         if (status == null || current.items.isEmpty()) return
-        val updated = current.items.map { item ->
+        fun applyStatus(source: List<CarSettingItem>): List<CarSettingItem> = source.map { item ->
             if (item.id in current.pendingIds) return@map item
             when (item.configId) {
                 "37" -> item.copy(
@@ -481,7 +485,10 @@ class CarSettingsController(
                 else -> item
             }
         }
-        _state.value = current.copy(items = updated)
+        _state.value = current.copy(
+            items = applyStatus(current.items),
+            missingCloudItems = applyStatus(current.missingCloudItems),
+        )
     }
 
     private fun List<CarSettingItem>.replace(item: CarSettingItem): List<CarSettingItem> =
