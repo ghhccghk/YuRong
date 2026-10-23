@@ -327,7 +327,8 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
         NetworkLog.write(
             "BLE write -> service=$serviceUuid characteristic=$characteristicUuid " +
                 "props=${characteristic.properties} len=${data.size} " +
-                "type=${characteristic.writeType} mtu=$negotiatedMtu",
+                "type=${characteristic.writeType} mtu=$negotiatedMtu " +
+                "data=${data.joinToString("") { "%02X".format(it) }}",
         )
         if (!currentGatt.writeCharacteristic(characteristic)) {
             synchronized(pendingLock) {
