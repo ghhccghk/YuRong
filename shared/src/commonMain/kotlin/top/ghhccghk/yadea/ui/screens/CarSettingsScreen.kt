@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -25,6 +27,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.carsetting.CarSettingChannel
+import top.ghhccghk.yadea.carsetting.CarSettingClassification
 import top.ghhccghk.yadea.carsetting.CarSettingItem
 import top.ghhccghk.yadea.carsetting.CarSettingKind
 import top.ghhccghk.yadea.carsetting.CarSettingsController
@@ -81,6 +84,7 @@ fun CarSettingsScreen(
     var emergencyMobile by remember { mutableStateOf("") }
     var showMissingCloudFeatures by remember { mutableStateOf(false) }
     var showChannelHelp by remember { mutableStateOf(false) }
+    var selectedClassification by remember { mutableStateOf(CarSettingClassification.SECURITY) }
     var copiedConfigJson by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
 
@@ -128,6 +132,22 @@ fun CarSettingsScreen(
             scope.launch { controller.update(item.id, transform) }
         }
     }
+    val availableClassifications = CarSettingClassification.entries.filter { classification ->
+        state.items.any { it.classification == classification } ||
+            (showMissingCloudFeatures && state.missingCloudItems.any {
+                it.classification == classification
+            })
+    }
+    val activeClassification = selectedClassification
+        .takeIf { it in availableClassifications }
+        ?: availableClassifications.firstOrNull()
+    val selectedItems = activeClassification?.let { classification ->
+        state.items.filter { it.classification == classification }
+    }.orEmpty()
+    val selectedMissingCloudItems = activeClassification?.let { classification ->
+        state.missingCloudItems.filter { it.classification == classification }
+    }.orEmpty()
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = contentPadding,
@@ -155,61 +175,23 @@ fun CarSettingsScreen(
                 )
             }
         }
-        item {
-            AppSection(title = "设置通道") {
-                AppActionPreference(
-                    title = "本机、蓝牙、车联网",
-                    summary = "本机＝App 内处理 · 蓝牙＝连接车辆后生效 · 车联网＝云端下发",
-                    value = "说明",
-                    onClick = { showChannelHelp = true },
-                )
-            }
-        }
-        item {
-            AppSection(title = "配置与诊断") {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(
-                            horizontal = dimensions.itemHorizontalPadding,
-                            vertical = dimensions.itemVerticalPadding,
-                        ),
-                    verticalArrangement = Arrangement.spacedBy(dimensions.compactSpacing),
+        if (availableClassifications.isNotEmpty()) {
+            item {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(dimensions.compactSpacing),
                 ) {
-                    AppOutlinedButton(
-                        onClick = {
-                            clipboardManager.setText(AnnotatedString(state.rawConfigJson))
-                            copiedConfigJson = true
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = state.rawConfigJson.isNotBlank(),
-                    ) {
-                        AppText(
-                            if (copiedConfigJson) {
-                                "已复制到剪贴板"
-                            } else {
-                                "复制当前配置 JSON"
-                            },
-                            style = AppDesign.typography.button,
+                    items(
+                        items = availableClassifications,
+                        key = { it.name },
+                    ) { classification ->
+                        AppFilterChip(
+                            selected = classification == activeClassification,
+                            onClick = { selectedClassification = classification },
+                            label = classification.label,
                         )
                     }
-                    AppText(
-                        text = "复制云端本次返回的原始配置 JSON，便于核对未下发功能。",
-                        style = AppDesign.typography.summary,
-                        color = AppDesign.colors.onSurfaceVariant,
-                    )
                 }
-                AppSwitchPreference(
-                    checked = showMissingCloudFeatures,
-                    onCheckedChange = { showMissingCloudFeatures = it },
-                    title = "显示云端未下发功能",
-                    summary = when {
-                        state.loading -> "正在加载云端配置"
-                        state.missingCloudItems.isEmpty() -> "本地已知功能均已由云端下发"
-                        else -> "显示 ${state.missingCloudItems.size} 个本地已知但本次未下发的功能"
-                    },
-                    enabled = state.missingCloudItems.isNotEmpty(),
-                )
             }
         }
         if (state.loading) {
@@ -234,7 +216,7 @@ fun CarSettingsScreen(
                 }
             }
         }
-        if (showMissingCloudFeatures && state.missingCloudItems.isNotEmpty()) {
+        if (showMissingCloudFeatures && selectedMissingCloudItems.isNotEmpty()) {
             item {
                 AppSection(title = "云端未下发功能") {
                     AppText(
@@ -246,7 +228,7 @@ fun CarSettingsScreen(
                             vertical = dimensions.itemVerticalPadding,
                         ),
                     )
-                    state.missingCloudItems.forEach { item ->
+                    selectedMissingCloudItems.forEach { item ->
                         CarSettingRow(
                             item = item,
                             enabled = controller.available &&
@@ -264,7 +246,7 @@ fun CarSettingsScreen(
                 }
             }
         }
-        val grouped = state.items
+        val grouped = selectedItems
             .groupBy { it.group }
             .entries
             .sortedWith(compareBy({ it.key.sort }, { it.key.title }))
@@ -322,6 +304,59 @@ fun CarSettingsScreen(
                         }
                     }
                 }
+            }
+        }
+        item {
+            AppSection(title = "设置通道与诊断") {
+                AppActionPreference(
+                    title = "本机、蓝牙、车联网",
+                    summary = "本机＝App 内处理 · 蓝牙＝连接车辆后生效 · 车联网＝云端下发",
+                    value = "说明",
+                    onClick = { showChannelHelp = true },
+                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = dimensions.itemHorizontalPadding,
+                            vertical = dimensions.itemVerticalPadding,
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(dimensions.compactSpacing),
+                ) {
+                    AppOutlinedButton(
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(state.rawConfigJson))
+                            copiedConfigJson = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = state.rawConfigJson.isNotBlank(),
+                    ) {
+                        AppText(
+                            if (copiedConfigJson) {
+                                "已复制到剪贴板"
+                            } else {
+                                "复制当前配置 JSON"
+                            },
+                            style = AppDesign.typography.button,
+                        )
+                    }
+                    AppText(
+                        text = "复制云端本次返回的原始配置 JSON，便于核对未下发功能。",
+                        style = AppDesign.typography.summary,
+                        color = AppDesign.colors.onSurfaceVariant,
+                    )
+                }
+                AppSwitchPreference(
+                    checked = showMissingCloudFeatures,
+                    onCheckedChange = { showMissingCloudFeatures = it },
+                    title = "显示云端未下发功能",
+                    summary = when {
+                        state.loading -> "正在加载云端配置"
+                        state.missingCloudItems.isEmpty() -> "本地已知功能均已由云端下发"
+                        else -> "显示 ${state.missingCloudItems.size} 个本地已知但本次未下发的功能"
+                    },
+                    enabled = state.missingCloudItems.isNotEmpty(),
+                )
             }
         }
         if (!state.loading && state.items.isEmpty()) {
@@ -385,9 +420,51 @@ fun CarSettingsScreen(
         onDismissRequest = { confirmBraceDependency = null },
     )
 
+    val sliderTarget = detailItem?.takeIf { it.kind is CarSettingKind.Slider }
+    AppBottomSheet(
+        show = sliderTarget != null,
+        onDismissRequest = { detailItem = null },
+        title = sliderTarget?.title.orEmpty(),
+    ) {
+        val slider = sliderTarget?.kind as? CarSettingKind.Slider
+        if (sliderTarget != null && slider != null) {
+            var draft by remember(sliderTarget.id, slider.value) {
+                mutableStateOf(slider.value)
+            }
+            AppSliderPreference(
+                title = sliderTarget.title,
+                summary = sliderTarget.summary,
+                value = draft,
+                onValueChange = { raw ->
+                    val minimum = slider.minimumNonZero
+                    draft = if (minimum != null && raw > 0f && raw < minimum) {
+                        if (raw < minimum / 2f) 0f else minimum
+                    } else {
+                        raw
+                    }
+                },
+                onValueChangeFinished = {
+                    submitSettingUpdate(sliderTarget) { current ->
+                        (current as? CarSettingKind.Slider)?.copy(value = draft) ?: current
+                    }
+                },
+                valueRange = slider.range,
+                steps = slider.steps,
+                valueText = if (slider.minimumNonZero != null && draft == 0f) {
+                    "不限速"
+                } else {
+                    formatSettingValue(draft, slider.unit)
+                },
+                enabled = controller.available &&
+                    sliderTarget.writable &&
+                    sliderTarget.id !in state.pendingIds,
+            )
+        }
+    }
+
     val detailTarget = detailItem
     AppAlertDialog(
-        show = detailTarget != null,
+        show = detailTarget != null && detailTarget.kind !is CarSettingKind.Slider,
         title = detailTarget?.title.orEmpty(),
         message = buildString {
             append(detailTarget?.summary.orEmpty())
@@ -913,33 +990,17 @@ private fun CarSettingRow(
             },
             enabled = enabled,
         )
-        is CarSettingKind.Slider -> {
-            var draft by remember(item.id, kind.value) { mutableStateOf(kind.value) }
-            val minNonZero = kind.minimumNonZero
-            AppSliderPreference(
-                title = item.title,
-                summary = summary,
-                value = draft,
-                onValueChange = { raw ->
-                    draft = if (minNonZero != null && raw > 0f && raw < minNonZero) {
-                        if (raw < minNonZero / 2f) 0f else minNonZero
-                    } else {
-                        raw
-                    }
-                },
-                onValueChangeFinished = {
-                    onUpdate { (it as? CarSettingKind.Slider)?.copy(value = draft) ?: it }
-                },
-                valueRange = kind.range,
-                steps = kind.steps,
-                valueText = if (minNonZero != null && draft == 0f) {
-                    "不限速"
-                } else {
-                    formatSettingValue(draft, kind.unit)
-                },
-                enabled = enabled,
-            )
-        }
+        is CarSettingKind.Slider -> AppActionPreference(
+            title = item.title,
+            summary = summary,
+            value = if (kind.minimumNonZero != null && kind.value == 0f) {
+                "不限速"
+            } else {
+                formatSettingValue(kind.value, kind.unit)
+            },
+            enabled = enabled,
+            onClick = onOpenDetail,
+        )
         is CarSettingKind.Info -> AppListRow(
             title = item.title,
             summary = item.summary,
