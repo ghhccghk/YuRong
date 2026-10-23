@@ -23,7 +23,6 @@ import kotlin.concurrent.Volatile
 import top.ghhccghk.yadea.ble.BleAdapter
 import top.ghhccghk.yadea.ble.BleConnectionState
 import top.ghhccghk.yadea.ble.BleDevice
-import top.ghhccghk.yadea.ble.BleProtocol
 import top.ghhccghk.yadea.mirror.*
 import top.ghhccghk.yadea.carsetting.VehicleSettingCommand
 import top.ghhccghk.yadea.carsetting.VehicleSettingCommandSink
@@ -40,7 +39,6 @@ import top.ghhccghk.yadea.vehicle.BindingState
 import top.ghhccghk.yadea.vehicle.PublicState
 import top.ghhccghk.yadea.vehicle.VehicleBleTokenProvider
 import top.ghhccghk.yadea.vehicle.VehicleAccountRoleProvider
-import top.ghhccghk.yadea.vehicle.VehicleBleConstants
 import top.ghhccghk.yadea.vehicle.VehicleConnectionCoordinator
 import top.ghhccghk.yadea.vehicle.VehicleLocalTimeProvider
 import top.ghhccghk.yadea.vehicle.VehicleTokenPairingStep
@@ -111,6 +109,7 @@ class AppViewModel(
     val bindingState: StateFlow<BindingState> = _bindingState.asStateFlow()
     private var pendingBinding = false
     private var bindingScanJob: Job? = null
+    private var bleConnectJob: Job? = null
     private val _bleFailureMessage = MutableStateFlow<String?>(null)
     val bleFailureMessage: StateFlow<String?> = _bleFailureMessage.asStateFlow()
     private var vehicleConnection: VehicleConnectionCoordinator? = null
@@ -302,46 +301,71 @@ class AppViewModel(
         }
         scope.launch {
             _isScanningBle.value = true
-            // 同时扫描投屏仪表与整车服务；车辆页依赖整车 b360/b362 通道。
-            bleAdapter?.startScan(
-                listOf(BleProtocol.SERVICE_UUID, VehicleBleConstants.SERVICE_MAIN),
-                10_000,
-            )
+            // 原 App 扫描不设置服务过滤；1AFF 广播中的协议版本决定后续状态通道。
+            bleAdapter?.startScan(emptyList(), 10_000)
         }
     }
 
     fun stopBleScan() { bleAdapter?.stopScan(); _isScanningBle.value = false }
 
     fun connectBle(address: String, name: String, binding: Boolean = false) {
-        val discoveredDevice = bleAdapter?.discoveredDevices?.value
-            ?.firstOrNull { it.address.equals(address, ignoreCase = true) }
-        connectedDeviceRealMac = discoveredDevice?.realMac.orEmpty()
-        connectedDeviceBleProtocolVersion = discoveredDevice?.bleProtocolVersion ?: 0
-        debug(
-            "连接车辆广播参数：bleProtocolVersion=$connectedDeviceBleProtocolVersion " +
-                "parkingStatus=${discoveredDevice?.parkingStatus ?: -1}",
-        )
+        bleConnectJob?.cancel()
         _bleConnectedName.value = name
         _bleConnectedAddress.value = address
         _bleFailureMessage.value = null
         pendingBinding = binding
-        if (binding) {
-            _bindingState.value = BindingFlow.reduce(
-                _bindingState.value,
-                BindingEvent.ConnectionStarted,
+        bleConnectJob = scope.launch {
+            val discoveredDevice = resolveVehicleAdvertisement(address)
+            connectedDeviceRealMac = discoveredDevice?.realMac.orEmpty()
+            connectedDeviceBleProtocolVersion = discoveredDevice?.bleProtocolVersion ?: 0
+            debug(
+                "连接车辆广播参数：bleProtocolVersion=$connectedDeviceBleProtocolVersion " +
+                    "parkingStatus=${discoveredDevice?.parkingStatus ?: -1}",
             )
+            if (binding) {
+                _bindingState.value = BindingFlow.reduce(
+                    _bindingState.value,
+                    BindingEvent.ConnectionStarted,
+                )
+            }
+            val coordinator = vehicleConnection
+            if (coordinator == null) {
+                _bleFailureMessage.value = "当前平台未提供 BLE 适配器"
+                _bleState.value = BleConnectionState.Failed
+                return@launch
+            }
+            coordinator.connect(address, name)
         }
-        val coordinator = vehicleConnection
-        if (coordinator == null) {
-            _bleFailureMessage.value = "当前平台未提供 BLE 适配器"
-            _bleState.value = BleConnectionState.Failed
-            return
+    }
+
+    /**
+     * 自动连接上次车辆时通常没有扫描缓存，此时短暂无过滤扫描一次，
+     * 以取得 `1AFF` 广播中的 BLE 协议版本；超时后仍允许直接连接。
+     */
+    private suspend fun resolveVehicleAdvertisement(address: String): BleDevice? {
+        val adapter = bleAdapter ?: return null
+        val cached = adapter.discoveredDevices.value
+            .firstOrNull { it.address.equals(address, ignoreCase = true) }
+        if (cached != null) return cached
+
+        _isScanningBle.value = true
+        return try {
+            adapter.startScan(emptyList(), 3_000)
+            withTimeoutOrNull(3_000L) {
+                adapter.discoveredDevices.first { devices ->
+                    devices.any { it.address.equals(address, ignoreCase = true) }
+                }.firstOrNull { it.address.equals(address, ignoreCase = true) }
+            }
+        } finally {
+            adapter.stopScan()
+            _isScanningBle.value = false
         }
-        coordinator.connect(address, name)
     }
 
     fun disconnectBle() {
         scope.launch {
+            bleConnectJob?.cancel()
+            bleConnectJob = null
             bindingScanJob?.cancel()
             bindingScanJob = null
             vehicleConnection?.disconnect()
