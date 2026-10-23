@@ -6,15 +6,34 @@ import top.ghhccghk.yadea.vehicle.VehicleControlCommand
 import top.ghhccghk.yadea.vehicle.VehicleControlProtocol
 import top.ghhccghk.yadea.vehicle.VehicleControlSink
 
-/** 把车辆经典命令的裸载荷写入 b360/b362。 */
+/**
+ * 控车写入通道。
+ *
+ * 原 App 在协议版本 1 下写入 `e7810bd2/bef8e821`，并在
+ * `BleBicycleCommandManager` 内封装完整车辆帧；版本不匹配时才
+ * 回退到旧协议特征和 3 字节裸命令。
+ */
 class AndroidVehicleControlSink(
     private val adapter: BleAdapter,
 ) : VehicleControlSink {
-    override suspend fun send(command: VehicleControlCommand): Boolean =
-        adapter.writeCharacteristic(
-            serviceUuid = VehicleBleConstants.SERVICE_MAIN,
-            characteristicUuid = VehicleBleConstants.CHAR_MAIN,
-            data = VehicleControlProtocol.payload(command),
-            withResponse = true,
-        )
+    override suspend fun send(command: VehicleControlCommand): Boolean {
+        val protocolV1 = runCatching {
+            adapter.writeCharacteristic(
+                serviceUuid = VehicleBleConstants.SERVICE_NOTIFY_V1,
+                characteristicUuid = VehicleBleConstants.CHAR_STATUS_QUERY_V1,
+                data = VehicleControlProtocol.encode(command, protocolVersion = 1),
+                withResponse = true,
+            )
+        }.getOrDefault(false)
+        if (protocolV1) return true
+
+        return runCatching {
+            adapter.writeCharacteristic(
+                serviceUuid = VehicleBleConstants.SERVICE_NOTIFY_OTHER,
+                characteristicUuid = VehicleBleConstants.CHAR_STATUS_QUERY_OTHER,
+                data = VehicleControlProtocol.payload(command),
+                withResponse = true,
+            )
+        }.getOrDefault(false)
+    }
 }

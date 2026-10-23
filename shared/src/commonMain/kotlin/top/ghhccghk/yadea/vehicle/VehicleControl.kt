@@ -10,30 +10,62 @@ import kotlinx.coroutines.launch
 enum class VehicleControlCommand(
     val label: String,
     val description: String,
+    val commandId: Int,
     val dangerous: Boolean = false,
 ) {
-    UNLOCK("开锁", "解除车辆防盗锁"),
-    LOCK("锁车", "开启防盗锁"),
-    POWER_ON("开机", "接通车辆电源"),
-    POWER_OFF("关机", "关闭车辆电源"),
-    FIND("寻车", "鸣笛提示车辆位置"),
-    DETECT("检测", "触发车辆自检"),
-    ODO_RESET("ODO 清零", "清零总里程，不可撤销", dangerous = true),
-    CUSHION("坐垫", "控制坐垫开关"),
+    UNLOCK("开锁", "解除车辆防盗锁", 0x04),
+    LOCK("锁车", "开启防盗锁", 0x06),
+    POWER_ON("开机", "接通车辆电源", 0x08),
+    POWER_OFF("关机", "关闭车辆电源", 0x07),
+    FIND("寻车", "鸣笛提示车辆位置", 0x03),
+    DETECT("检测", "触发车辆自检", 0x05),
+    ODO_RESET("ODO 清零", "清零总里程，不可撤销", 0x31, dangerous = true),
+    CUSHION("坐垫", "控制坐垫开关", 0x09),
 }
 
-/** 车辆经典命令使用裸载荷，直接写入 b360/b362。 */
+/**
+ * 车辆经典命令编码。
+ *
+ * 协议版本 1 使用 `5944 + 3E + LEN + PAYLOAD + CHECK + 4B4A` 完整帧；
+ * 其他协议版本保留 smali 返回的 3 字节裸命令。
+ */
 object VehicleControlProtocol {
-    fun payload(command: VehicleControlCommand): ByteArray = when (command) {
-        VehicleControlCommand.UNLOCK -> ClassicCommands.UNLOCK
-        VehicleControlCommand.LOCK -> ClassicCommands.LOCK
-        VehicleControlCommand.POWER_ON -> ClassicCommands.ON
-        VehicleControlCommand.POWER_OFF -> ClassicCommands.OFF
-        VehicleControlCommand.FIND -> ClassicCommands.WHISTLE
-        VehicleControlCommand.DETECT -> ClassicCommands.DETECT
-        VehicleControlCommand.ODO_RESET -> ClassicCommands.ODO_RESET
-        VehicleControlCommand.CUSHION -> ClassicCommands.CUSHION
-    }.copyOf()
+    private const val VERSION_PREFIX = "01000101C8"
+
+    fun payload(command: VehicleControlCommand): ByteArray =
+        ClassicCommands.byCommandId(command.commandId)?.copyOf()
+            ?: error("Unsupported vehicle command: ${command.commandId}")
+
+    /**
+     * 按 `BleBicycleCommandManager.generateBleCommand(commandId, -1, protocolVersion)`
+     * 的已确认分支编码。
+     */
+    fun encode(command: VehicleControlCommand, protocolVersion: Int): ByteArray {
+        if (protocolVersion != 1) return payload(command)
+        return VehicleFrame.build(
+            orderId = VehicleFrame.ORDER_ID,
+            hexPayload = VERSION_PREFIX + protocolV1Suffix(command),
+        )?.hexToBytes() ?: error("Failed to encode vehicle command: ${command.commandId}")
+    }
+
+    private fun protocolV1Suffix(command: VehicleControlCommand): String = when (command) {
+        VehicleControlCommand.UNLOCK ->
+            "FFFF01FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        VehicleControlCommand.LOCK ->
+            "FFFF04FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        VehicleControlCommand.POWER_ON ->
+            "FFFF06FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        VehicleControlCommand.POWER_OFF ->
+            "FFFF05FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        VehicleControlCommand.FIND ->
+            "FFFF00FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        VehicleControlCommand.DETECT ->
+            "FFFDFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        VehicleControlCommand.ODO_RESET ->
+            "FFFFFFFFFFFFFFFFFFFFFFFFFFFFDFFFFFFFFFFFFFFFFFFFFF"
+        VehicleControlCommand.CUSHION ->
+            "FFFF07FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+    }
 }
 
 interface VehicleControlSink {
