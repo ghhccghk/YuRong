@@ -695,12 +695,22 @@ class AndroidBleAdapter(private val context: Context) : BleAdapter {
         characteristic: BluetoothGattCharacteristic,
         value: ByteArray?,
     ) {
-        val serviceUuid = characteristic.service?.uuid?.toString() ?: return
+        val data = value ?: return
+        val serviceUuid = characteristic.service?.uuid?.toString()
+            ?: gatt?.services?.firstOrNull { service ->
+                service.characteristics.any { it.uuid == characteristic.uuid }
+            }?.uuid?.toString()
+            ?: "unknown"
+        NetworkLog.write(
+            "BLE characteristic changed service=$serviceUuid " +
+                "characteristic=${characteristic.uuid} len=${data.size} " +
+                "data=${data.joinToString("") { "%02X".format(it) }}",
+        )
         _notifications.tryEmit(
             BleNotification(
                 serviceUuid = serviceUuid,
                 characteristicUuid = characteristic.uuid.toString(),
-                data = value ?: return,
+                data = data,
             ),
         )
     }
