@@ -48,15 +48,9 @@ data class VehicleNotificationProfile(
  */
 internal fun resolveVehicleNotificationProfile(
     services: List<BleService>,
-    bleProtocolVersion: Int = 0,
 ): VehicleNotificationProfile {
     val uuids = services.map { it.uuid.lowercase() }.toSet()
-    val useV1 = when {
-        bleProtocolVersion == 1 -> true
-        bleProtocolVersion > 0 -> false
-        else -> VehicleBleConstants.SERVICE_NOTIFY_V1.lowercase() in uuids
-    }
-    return if (useV1) {
+    return if (VehicleBleConstants.SERVICE_NOTIFY_V1.lowercase() in uuids) {
         VehicleNotificationProfile(
             protocolVersion = 1,
             serviceUuid = VehicleBleConstants.SERVICE_NOTIFY_V1,
@@ -82,7 +76,6 @@ internal fun resolveVehicleNotificationProfile(
 class VehicleInitTaskQueue(
     private val adapter: BleAdapter,
     private val bikeBondTypeHexProvider: () -> String = { "C8" },
-    private val bleProtocolVersionProvider: () -> Int = { 0 },
     private val pause: suspend (Long) -> Unit = { delay(it) },
     private val onDebug: (String) -> Unit = {},
 ) {
@@ -90,10 +83,9 @@ class VehicleInitTaskQueue(
     suspend fun run(
         services: List<BleService>,
     ): VehicleInitTaskReport {
-        val bleProtocolVersion = bleProtocolVersionProvider()
-        val profile = resolveVehicleNotificationProfile(services, bleProtocolVersion)
+        val profile = resolveVehicleNotificationProfile(services)
         onDebug(
-            "状态通知通道：protocol=$bleProtocolVersion " +
+            "状态通知通道：protocol=${profile.protocolVersion} " +
                 "service=${profile.serviceUuid}",
         )
         val results = mutableListOf<VehicleInitTaskResult>()

@@ -73,7 +73,7 @@ class AppViewModel(
     private var connectedDeviceRealMac = ""
 
     @Volatile
-    private var connectedDeviceBleProtocolVersion = 0
+    private var connectedDeviceAdvertisedProtocolVersion = 0
 
     private val _debugLog = MutableStateFlow<List<String>>(emptyList())
     val debugLog: StateFlow<List<String>> = _debugLog.asStateFlow()
@@ -175,7 +175,6 @@ class AppViewModel(
                 scope = scope,
                 clock = Clock { top.ghhccghk.yadea.currentMonotonicMillis() },
                 bikeBondTypeHexProvider = bikeBondTypeHexProvider,
-                bleProtocolVersionProvider = { connectedDeviceBleProtocolVersion },
                 pairingStep = VehicleTokenPairingStep(
                     tokenProvider = bleTokenProvider,
                     accountRoleProvider = vehicleAccountRoleProvider,
@@ -185,7 +184,6 @@ class AppViewModel(
                     vehicleMacProvider = {
                         connectedDeviceRealMac.ifBlank { vehicleMacProvider() }
                     },
-                    bleProtocolVersionProvider = { connectedDeviceBleProtocolVersion },
                     timeProvider = VehicleLocalTimeProvider { getCurrentTime() },
                     onDebug = ::debug,
                 ),
@@ -317,9 +315,11 @@ class AppViewModel(
         bleConnectJob = scope.launch {
             val discoveredDevice = resolveVehicleAdvertisement(address)
             connectedDeviceRealMac = discoveredDevice?.realMac.orEmpty()
-            connectedDeviceBleProtocolVersion = discoveredDevice?.bleProtocolVersion ?: 0
+            connectedDeviceAdvertisedProtocolVersion =
+                discoveredDevice?.bleProtocolVersion ?: 0
             debug(
-                "连接车辆广播参数：bleProtocolVersion=$connectedDeviceBleProtocolVersion " +
+                "连接车辆广播参数：" +
+                    "advertisedProtocolVersion=$connectedDeviceAdvertisedProtocolVersion " +
                     "parkingStatus=${discoveredDevice?.parkingStatus ?: -1}",
             )
             if (binding) {
