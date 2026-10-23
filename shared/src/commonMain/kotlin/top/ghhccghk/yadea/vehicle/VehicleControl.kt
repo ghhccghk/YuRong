@@ -30,7 +30,7 @@ enum class VehicleControlCommand(
  * 其他协议版本保留 smali 返回的 3 字节裸命令。
  */
 object VehicleControlProtocol {
-    private const val VERSION_PREFIX = "01000101C8"
+    private const val VERSION_PREFIX = "01000101"
 
     fun payload(command: VehicleControlCommand): ByteArray =
         ClassicCommands.byCommandId(command.commandId)?.copyOf()
@@ -40,13 +40,22 @@ object VehicleControlProtocol {
      * 按 `BleBicycleCommandManager.generateBleCommand(commandId, -1, protocolVersion)`
      * 的已确认分支编码。
      */
-    fun encode(command: VehicleControlCommand, protocolVersion: Int): ByteArray {
+    fun encode(
+        command: VehicleControlCommand,
+        protocolVersion: Int,
+        bikeBondTypeHex: String = "C8",
+    ): ByteArray {
         if (protocolVersion != 1) return payload(command)
         return VehicleFrame.build(
             orderId = VehicleFrame.ORDER_ID,
-            hexPayload = VERSION_PREFIX + protocolV1Suffix(command),
+            hexPayload = VERSION_PREFIX +
+                normalizeBondType(bikeBondTypeHex) +
+                protocolV1Suffix(command),
         )?.hexToBytes() ?: error("Failed to encode vehicle command: ${command.commandId}")
     }
+
+    private fun normalizeBondType(value: String): String =
+        value.trim().uppercase().takeIf { it.length == 2 } ?: "C8"
 
     private fun protocolV1Suffix(command: VehicleControlCommand): String = when (command) {
         VehicleControlCommand.UNLOCK ->

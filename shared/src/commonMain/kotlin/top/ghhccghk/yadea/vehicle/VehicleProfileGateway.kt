@@ -90,6 +90,7 @@ class YadeaVehicleProfileGateway(
             experimental = textOrNumber(objectText, "experimental").orEmpty(),
             backgroundImageUrl = stringField(objectText, "skinPicUrl").orEmpty(),
             vehicleImageUrl = stringField(objectText, "imgUrl").orEmpty(),
+            primaryUser = JsonSupport.boolean(objectText, "primaryUser"),
             bikeNickName = stringField(objectText, "bikeNickName").orEmpty(),
             mac = stringField(objectText, "mac").orEmpty(),
             bluetoothName = stringField(objectText, "bluetoothName").orEmpty(),

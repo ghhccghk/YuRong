@@ -63,6 +63,7 @@ class AppViewModel(
     private val vehicleBikeIdProvider: () -> Long = { 0L },
     private val currentUserIdProvider: () -> Long = { 0L },
     private val vehicleMacProvider: () -> String = { "" },
+    private val bikeBondTypeHexProvider: () -> String = { "C8" },
     private val settingCommandSink: VehicleSettingCommandSink? = null,
     private val vehicleStatusProvider: () -> TtpInfo? = { null },
     private val onVehicleConnectionEstablished: (mac: String, name: String, binding: Boolean) -> Unit =
@@ -171,6 +172,7 @@ class AppViewModel(
                 adapter = bleAdapter,
                 scope = scope,
                 clock = Clock { top.ghhccghk.yadea.currentMonotonicMillis() },
+                bikeBondTypeHexProvider = bikeBondTypeHexProvider,
                 pairingStep = VehicleTokenPairingStep(
                     tokenProvider = bleTokenProvider,
                     accountRoleProvider = vehicleAccountRoleProvider,

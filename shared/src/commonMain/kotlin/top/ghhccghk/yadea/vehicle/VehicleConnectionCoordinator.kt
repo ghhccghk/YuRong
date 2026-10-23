@@ -30,8 +30,12 @@ class VehicleConnectionCoordinator(
     private val adapter: BleAdapter,
     private val scope: CoroutineScope,
     private val clock: Clock,
+    private val bikeBondTypeHexProvider: () -> String = { "C8" },
     private val initTaskQueue: VehicleInitTaskQueue =
-        VehicleInitTaskQueue(adapter),
+        VehicleInitTaskQueue(
+            adapter = adapter,
+            bikeBondTypeHexProvider = bikeBondTypeHexProvider,
+        ),
     private val pairingStep: VehiclePairingStep = GattLinkPairingStep,
     private val pause: suspend (Long) -> Unit = { delay(it) },
     private val onDebug: (String) -> Unit = {},
@@ -271,7 +275,10 @@ class VehicleConnectionCoordinator(
         onDebug("握手后状态通知重订阅：${if (resubscribed) "成功" else "失败"}")
         if (!resubscribed) return
 
-        val frame = VehicleStatusQueryEncoder.encodeActivation(profile.protocolVersion)
+        val frame = VehicleStatusQueryEncoder.encodeActivation(
+            protocolVersion = profile.protocolVersion,
+            bikeBondTypeHex = bikeBondTypeHexProvider(),
+        )
             ?: return
         pause(VehicleTimeouts.POST_AUTH_STATUS_ACTIVATION_MS)
         val sent = runCatching {
@@ -284,7 +291,7 @@ class VehicleConnectionCoordinator(
         }.getOrDefault(false)
         onDebug(
             "状态激活查询：${if (sent) "已发送" else "失败"} " +
-                "len=${frame.size}",
+                "len=${frame.size} bond=${bikeBondTypeHexProvider()}",
         )
     }
 }

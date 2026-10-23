@@ -150,6 +150,9 @@ fun MainScreen(
                 resolvedPreferences.readAuth().user?.id ?: 0L
             },
             vehicleMacProvider = { vehicleProfileSource?.profile?.value?.mac.orEmpty() },
+            bikeBondTypeHexProvider = {
+                vehicleProfileSource?.profile?.value?.bikeBondTypeHex ?: "C8"
+            },
             settingCommandSink = carSettingCommandSink,
             vehicleStatusProvider = { vehicleStatusSource?.status?.value },
             onVehicleConnectionEstablished = { mac, name, binding ->

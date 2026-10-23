@@ -15,13 +15,18 @@ import top.ghhccghk.yadea.vehicle.VehicleControlSink
  */
 class AndroidVehicleControlSink(
     private val adapter: BleAdapter,
+    private val bikeBondTypeHexProvider: () -> String = { "C8" },
 ) : VehicleControlSink {
     override suspend fun send(command: VehicleControlCommand): Boolean {
         val protocolV1 = runCatching {
             adapter.writeCharacteristic(
                 serviceUuid = VehicleBleConstants.SERVICE_NOTIFY_V1,
                 characteristicUuid = VehicleBleConstants.CHAR_STATUS_QUERY_V1,
-                data = VehicleControlProtocol.encode(command, protocolVersion = 1),
+                data = VehicleControlProtocol.encode(
+                    command = command,
+                    protocolVersion = 1,
+                    bikeBondTypeHex = bikeBondTypeHexProvider(),
+                ),
                 withResponse = true,
             )
         }.getOrDefault(false)

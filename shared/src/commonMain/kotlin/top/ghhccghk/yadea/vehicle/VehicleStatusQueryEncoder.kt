@@ -13,16 +13,18 @@ package top.ghhccghk.yadea.vehicle
  */
 internal object VehicleStatusQueryEncoder {
 
-    private const val VERSION_PREFIX = "01000101C8"
+    private const val VERSION_PREFIX = "01000101"
     private const val QUERY_DEFAULT_FILL_BYTES = 25
     private const val ACTIVATION_0X34_SUFFIX =
         "FFFF0DFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
 
-    fun encode(protocolVersion: Int): ByteArray? {
+    fun encode(protocolVersion: Int, bikeBondTypeHex: String = "C8"): ByteArray? {
         if (protocolVersion != 1) return byteArrayOf(0xFF.toByte())
         return VehicleFrame.build(
             orderId = VehicleFrame.ORDER_ID,
-            hexPayload = VERSION_PREFIX + "FF".repeat(QUERY_DEFAULT_FILL_BYTES),
+            hexPayload = VERSION_PREFIX +
+                normalizeBondType(bikeBondTypeHex) +
+                "FF".repeat(QUERY_DEFAULT_FILL_BYTES),
         )?.hexToBytes()
     }
 
@@ -33,11 +35,16 @@ internal object VehicleStatusQueryEncoder {
      * `generateBleCommand(0x34, -1, 1)`，命中 `pswitch_d22`，
      * 追加 25 字节固定掩码，组帧后为 37 字节。
      */
-    fun encodeActivation(protocolVersion: Int): ByteArray? {
+    fun encodeActivation(protocolVersion: Int, bikeBondTypeHex: String = "C8"): ByteArray? {
         if (protocolVersion != 1) return null
         return VehicleFrame.build(
             orderId = VehicleFrame.ORDER_ID,
-            hexPayload = VERSION_PREFIX + ACTIVATION_0X34_SUFFIX,
+            hexPayload = VERSION_PREFIX +
+                normalizeBondType(bikeBondTypeHex) +
+                ACTIVATION_0X34_SUFFIX,
         )?.hexToBytes()
     }
+
+    private fun normalizeBondType(value: String): String =
+        value.trim().uppercase().takeIf { it.length == 2 } ?: "C8"
 }

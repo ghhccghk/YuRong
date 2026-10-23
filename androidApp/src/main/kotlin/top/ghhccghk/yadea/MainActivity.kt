@@ -297,7 +297,12 @@ class MainActivity : ComponentActivity() {
                 bleAdapter = vehicleBleAdapter,
                 bleTokenProvider = vehicleBleTokenGateway,
                 vehicleAccountRoleProvider = vehicleAccountRoleGateway,
-                vehicleControlSink = AndroidVehicleControlSink(vehicleBleAdapter),
+                vehicleControlSink = AndroidVehicleControlSink(
+                    adapter = vehicleBleAdapter,
+                    bikeBondTypeHexProvider = {
+                        vehicleProfileSource.profile.value?.bikeBondTypeHex ?: "C8"
+                    },
+                ),
                 vehicleStatusSource = vehicleStatus,
                 vehicleProfileSource = vehicleProfileSource,
                 carSettingCommandSink = AndroidVehicleSettingCommandSink(vehicleBleAdapter),

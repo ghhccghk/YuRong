@@ -75,6 +75,7 @@ internal fun resolveVehicleNotificationProfile(
  */
 class VehicleInitTaskQueue(
     private val adapter: BleAdapter,
+    private val bikeBondTypeHexProvider: () -> String = { "C8" },
     private val pause: suspend (Long) -> Unit = { delay(it) },
     private val onDebug: (String) -> Unit = {},
 ) {
@@ -183,7 +184,10 @@ class VehicleInitTaskQueue(
         }
 
         execute(VehicleInitTaskName.QUERY_VEHICLE_STATUS) {
-            val frame = VehicleStatusQueryEncoder.encode(profile.protocolVersion)
+            val frame = VehicleStatusQueryEncoder.encode(
+                protocolVersion = profile.protocolVersion,
+                bikeBondTypeHex = bikeBondTypeHexProvider(),
+            )
                 ?: return@execute null
             if (adapter.writeCharacteristic(
                     serviceUuid = profile.serviceUuid,

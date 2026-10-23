@@ -32,6 +32,8 @@ data class VehicleProfile(
     val backgroundImageUrl: String = "",
     /** `VehicleInfoBean.imgUrl`，车辆本体图。 */
     val vehicleImageUrl: String = "",
+    /** 当前登录账号是否为车辆主用户。 */
+    val primaryUser: Boolean? = null,
     val bikeNickName: String = "",
     /** 车辆 BLE MAC；扫描已有车辆时用于匹配广播地址。 */
     val mac: String = "",
@@ -45,6 +47,16 @@ data class VehicleProfile(
 ) {
     val isLinkedModel: Boolean
         get() = dLinkTag.isNotBlank()
+
+    /**
+     * `BleBicycleCommandManager.bikeBondType` 的协议前缀。
+     *
+     * 原 `VehicleService` 对主账号使用外部码 `"10"`，映射为 `"001"`，
+     * 生成 `"11" + "001" + "000" = C8`；非主账号使用 `"20"`，
+     * 映射为 `"010"`，生成 `D0`。
+     */
+    val bikeBondTypeHex: String
+        get() = if (primaryUser == false) "D0" else "C8"
 }
 
 /**
