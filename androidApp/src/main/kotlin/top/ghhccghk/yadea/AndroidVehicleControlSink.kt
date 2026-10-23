@@ -27,7 +27,7 @@ class AndroidVehicleControlSink(
                     protocolVersion = 1,
                     bikeBondTypeHex = bikeBondTypeHexProvider(),
                 ),
-                withResponse = true,
+                withResponse = false,
             )
         }.getOrDefault(false)
         if (protocolV1) return true
@@ -37,7 +37,7 @@ class AndroidVehicleControlSink(
                 serviceUuid = VehicleBleConstants.SERVICE_NOTIFY_OTHER,
                 characteristicUuid = VehicleBleConstants.CHAR_STATUS_QUERY_OTHER,
                 data = VehicleControlProtocol.payload(command),
-                withResponse = true,
+                withResponse = false,
             )
         }.getOrDefault(false)
     }

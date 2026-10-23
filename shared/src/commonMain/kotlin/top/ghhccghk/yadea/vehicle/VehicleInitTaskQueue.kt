@@ -197,7 +197,9 @@ class VehicleInitTaskQueue(
                     serviceUuid = profile.serviceUuid,
                     characteristicUuid = profile.queryCharacteristicUuid,
                     data = frame,
-                    withResponse = true,
+                    // e821 同时声明 WRITE 与 WRITE_NO_RESPONSE；原 App 保留
+                    // Android 默认的 WRITE_TYPE_NO_RESPONSE。
+                    withResponse = false,
                 )
             ) {
                 "sent"

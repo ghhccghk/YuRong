@@ -286,7 +286,7 @@ class VehicleConnectionCoordinator(
                 serviceUuid = profile.serviceUuid,
                 characteristicUuid = profile.queryCharacteristicUuid,
                 data = frame,
-                withResponse = true,
+                withResponse = false,
             )
         }.getOrDefault(false)
         onDebug(
