@@ -32,9 +32,13 @@ enum class VehicleControlCommand(
 object VehicleControlProtocol {
     private const val VERSION_PREFIX = VehicleBleProtocolVersion.ORIGINAL_APP_PREFIX
 
-    fun payload(command: VehicleControlCommand): ByteArray =
-        ClassicCommands.byCommandId(command.commandId)?.copyOf()
+    fun payload(command: VehicleControlCommand): ByteArray {
+        if (command == VehicleControlCommand.DETECT) {
+            error("车辆自检应走云端接口，不能编码为 BLE 控车命令")
+        }
+        return ClassicCommands.byCommandId(command.commandId)?.copyOf()
             ?: error("Unsupported vehicle command: ${command.commandId}")
+    }
 
     /**
      * 按 `BleBicycleCommandManager.generateBleCommand(commandId, -1, protocolVersion)`
@@ -63,13 +67,17 @@ object VehicleControlProtocol {
         VehicleControlCommand.LOCK ->
             "FFFF04FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
         VehicleControlCommand.POWER_ON ->
-            "FFFF06FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-        VehicleControlCommand.POWER_OFF ->
-            "FFFF05FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-        VehicleControlCommand.FIND ->
+            // 原 App `BicycleControlHelper` 的 `START`：command=3。
             "FFFF00FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-        VehicleControlCommand.DETECT ->
+        VehicleControlCommand.POWER_OFF ->
+            // 原 App `BicycleControlHelper` 的 `STOP`：command=2。
+            "FFFF03FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        VehicleControlCommand.FIND ->
+            // 原 App `BicycleControlHelper` 的 `FIND`：command=5。
             "FFFDFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        VehicleControlCommand.DETECT ->
+            // 原 App 的 DETECT 走 `bikeFaultSingle/selfInspection`，不是 BLE 控车帧。
+            error("车辆自检应走云端接口，不能编码为 BLE 控车命令")
         VehicleControlCommand.ODO_RESET ->
             "FFFFFFFFFFFFFFFFFFFFFFFFFFFFDFFFFFFFFFFFFFFFFFFFFF"
         VehicleControlCommand.CUSHION ->

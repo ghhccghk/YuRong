@@ -231,4 +231,21 @@ class VehicleFrameTest {
         assertNull(ClassicCommands.byCommandId(0x4C))
         assertNull(ClassicCommands.byCommandId(0x00))
     }
+
+    @Test
+    fun vehicleControlProtocol_matchesBicycleControlHelperCommands() {
+        fun commandByte(command: VehicleControlCommand, address: String): String =
+            VehicleControlProtocol.encode(
+                command = command,
+                protocolVersion = 1,
+                bikeBondTypeHex = address,
+            ).toHex().substring(22, 24)
+
+        assertEquals("00", commandByte(VehicleControlCommand.POWER_ON, "C8"))
+        assertEquals("03", commandByte(VehicleControlCommand.POWER_OFF, "C8"))
+        assertEquals("01", commandByte(VehicleControlCommand.UNLOCK, "C8"))
+        assertEquals("04", commandByte(VehicleControlCommand.LOCK, "C8"))
+        assertEquals("FD", commandByte(VehicleControlCommand.FIND, "C8"))
+        assertEquals("07", commandByte(VehicleControlCommand.CUSHION, "C8"))
+    }
 }
