@@ -78,8 +78,20 @@ data class CarSettingItem(
     val configId: String = id,
 )
 
+/** 云端已下发、但当前版本没有生成设置控件的功能。 */
+data class UndisplayedCarSettingFeature(
+    val configId: String,
+    val title: String,
+    val summary: String,
+    val groupTitle: String,
+    val reason: String,
+    val sort: Int = 0,
+)
+
 data class CarSettingsState(
     val items: List<CarSettingItem> = emptyList(),
+    val undisplayedFeatures: List<UndisplayedCarSettingFeature> = emptyList(),
+    val rawConfigJson: String = "",
     val pendingIds: Set<String> = emptySet(),
     val message: String? = null,
     val loading: Boolean = false,
@@ -148,8 +160,11 @@ class CarSettingsController(
             return false
         }
         val items = CloudCarSettingMapper.toItems(cloud)
+        val undisplayedFeatures = CloudCarSettingMapper.toUndisplayedFeatures(cloud, items)
         _state.value = _state.value.copy(
             items = items,
+            undisplayedFeatures = undisplayedFeatures,
+            rawConfigJson = cloud.rawJson,
             pendingIds = emptySet(),
             loading = false,
             loadedFromCloud = true,

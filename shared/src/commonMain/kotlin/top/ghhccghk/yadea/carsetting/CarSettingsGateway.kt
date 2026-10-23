@@ -35,6 +35,7 @@ data class CloudBikeConfig(
 data class CloudCarSettings(
     val configs: List<CloudBikeConfig>,
     val values: Map<String, String>,
+    val rawJson: String = "",
 ) {
     fun intValue(key: String): Int? = values[key]?.toDoubleOrNull()?.toInt()
 
@@ -163,7 +164,7 @@ class YadeaCarSettingsGateway(
         val values = VALUE_KEYS.mapNotNull { key ->
             readValue(data, key)?.let { key to it }
         }.toMap()
-        return CloudCarSettings(configs = configs, values = values)
+        return CloudCarSettings(configs = configs, values = values, rawJson = data)
     }
 
     override suspend fun update(vin: String, update: CloudCarSettingUpdate): Boolean {
@@ -1000,6 +1001,39 @@ object CloudCarSettingMapper {
             }
         }
         return items.sortedWith(compareBy({ it.group.sort }, { it.sort }, { it.title }))
+    }
+
+    /**
+     * 找出云端已经下发、但 [toItems] 没有生成设置控件的功能。
+     *
+     * 以 `confId` 做差集，后续新增隐藏或待接入功能时无需在页面里维护硬编码列表。
+     */
+    fun toUndisplayedFeatures(
+        cloud: CloudCarSettings,
+        displayedItems: List<CarSettingItem>,
+    ): List<UndisplayedCarSettingFeature> {
+        val displayedConfigIds = displayedItems
+            .mapTo(mutableSetOf()) { it.configId.trim() }
+        return cloud.configs
+            .mapNotNull { config ->
+                val confId = config.confId.trim()
+                if (confId.isBlank() || confId in displayedConfigIds) return@mapNotNull null
+                val classification = classificationOf(confId, config)
+                val title = titleOf(config)
+                UndisplayedCarSettingFeature(
+                    configId = confId,
+                    title = title,
+                    summary = summaryOf(config, title),
+                    groupTitle = config.parentName.trim().ifBlank { classification.label },
+                    reason = when (confId) {
+                        "95" -> "当前版本暂未接入微信互联控制"
+                        else -> "当前版本尚未生成设置控件"
+                    },
+                    sort = config.sort.toIntOrNull() ?: 0,
+                )
+            }
+            .distinctBy { it.configId }
+            .sortedWith(compareBy({ it.sort }, { it.title }))
     }
 
     private fun titleOf(config: CloudBikeConfig): String =

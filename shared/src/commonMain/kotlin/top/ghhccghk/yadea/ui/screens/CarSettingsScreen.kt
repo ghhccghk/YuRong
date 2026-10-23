@@ -19,7 +19,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.carsetting.CarSettingItem
 import top.ghhccghk.yadea.carsetting.CarSettingKind
@@ -32,6 +35,7 @@ import top.ghhccghk.yadea.vehicle.ContactType
 import top.ghhccghk.yadea.vehicle.EmergencyContactController
 
 /** 车辆设置页。业务状态由 [CarSettingsController] 提供，页面只负责语义渲染。 */
+@Suppress("DEPRECATION")
 @Composable
 fun CarSettingsScreen(
     controller: CarSettingsController,
@@ -74,6 +78,9 @@ fun CarSettingsScreen(
     var ownerMobile by remember { mutableStateOf("") }
     var emergencyName by remember { mutableStateOf("") }
     var emergencyMobile by remember { mutableStateOf("") }
+    var showUndisplayedFeatures by remember { mutableStateOf(false) }
+    var copiedConfigJson by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
 
     LaunchedEffect(contactState?.contacts) {
         contactState?.contacts?.let { contacts ->
@@ -81,6 +88,17 @@ fun CarSettingsScreen(
             ownerMobile = contacts.ownerMobile
             emergencyName = contacts.emergencyName
             emergencyMobile = contacts.emergencyMobile
+        }
+    }
+    LaunchedEffect(copiedConfigJson) {
+        if (copiedConfigJson) {
+            delay(2_000)
+            copiedConfigJson = false
+        }
+    }
+    LaunchedEffect(state.undisplayedFeatures) {
+        if (state.undisplayedFeatures.isEmpty()) {
+            showUndisplayedFeatures = false
         }
     }
 
@@ -111,6 +129,53 @@ fun CarSettingsScreen(
                 )
             }
         }
+        item {
+            AppSection(title = "配置与诊断") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = dimensions.itemHorizontalPadding,
+                            vertical = dimensions.itemVerticalPadding,
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(dimensions.compactSpacing),
+                ) {
+                    AppOutlinedButton(
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(state.rawConfigJson))
+                            copiedConfigJson = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = state.rawConfigJson.isNotBlank(),
+                    ) {
+                        AppText(
+                            if (copiedConfigJson) {
+                                "已复制到剪贴板"
+                            } else {
+                                "复制当前配置 JSON"
+                            },
+                            style = AppDesign.typography.button,
+                        )
+                    }
+                    AppText(
+                        text = "复制云端返回的原始车辆配置，包含未生成设置控件的功能。",
+                        style = AppDesign.typography.summary,
+                        color = AppDesign.colors.onSurfaceVariant,
+                    )
+                }
+                AppSwitchPreference(
+                    checked = showUndisplayedFeatures,
+                    onCheckedChange = { showUndisplayedFeatures = it },
+                    title = "显示未展示功能",
+                    summary = when {
+                        state.loading -> "正在加载云端配置"
+                        state.undisplayedFeatures.isEmpty() -> "当前云端配置没有未展示功能"
+                        else -> "显示 ${state.undisplayedFeatures.size} 个云端已下发但未生成控件的功能"
+                    },
+                    enabled = state.undisplayedFeatures.isNotEmpty(),
+                )
+            }
+        }
         if (state.loading) {
             item {
                 AppSection {
@@ -130,6 +195,28 @@ fun CarSettingsScreen(
                             vertical = dimensions.itemVerticalPadding,
                         ),
                     )
+                }
+            }
+        }
+        if (showUndisplayedFeatures && state.undisplayedFeatures.isNotEmpty()) {
+            item {
+                AppSection(title = "未展示功能") {
+                    state.undisplayedFeatures.forEachIndexed { index, feature ->
+                        AppListRow(
+                            title = feature.title,
+                            summary = buildString {
+                                append(feature.reason)
+                                if (feature.summary.isNotBlank()) {
+                                    append(" · ")
+                                    append(feature.summary)
+                                }
+                                append(" · ")
+                                append(feature.groupTitle)
+                            },
+                            value = "#${feature.configId}",
+                            showDivider = index < state.undisplayedFeatures.lastIndex,
+                        )
+                    }
                 }
             }
         }
