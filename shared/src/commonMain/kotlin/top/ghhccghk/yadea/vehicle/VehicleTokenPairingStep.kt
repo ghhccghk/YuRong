@@ -37,7 +37,7 @@ class VehicleTokenPairingStep(
      * 旧协议首次连接先用 Write Without Response，避免部分车端把首个
      * Write Request 直接断开；失败后的下一次连接再切换为 Write Request。
      */
-    private var legacyUseNoResponse = true
+    private var legacyUseNoResponse = false
 
     override suspend fun pair(
         adapter: BleAdapter,
