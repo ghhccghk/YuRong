@@ -30,7 +30,7 @@ enum class VehicleControlCommand(
  * 其他协议版本保留 smali 返回的 3 字节裸命令。
  */
 object VehicleControlProtocol {
-    private const val VERSION_PREFIX = "01000101"
+    private const val VERSION_PREFIX = VehicleBleProtocolVersion.ORIGINAL_APP_PREFIX
 
     fun payload(command: VehicleControlCommand): ByteArray =
         ClassicCommands.byCommandId(command.commandId)?.copyOf()

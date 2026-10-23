@@ -1,21 +1,23 @@
 package top.ghhccghk.yadea.carsetting
 
 import top.ghhccghk.yadea.vehicle.VehicleFrame
+import top.ghhccghk.yadea.vehicle.VehicleBleProtocolVersion
 import top.ghhccghk.yadea.vehicle.hexToBytes
 
 /**
  * 车辆设置命令的 BLE 帧编码。
  *
  * 移植自 `BleBicycleCommandManager.generateBleCommand(commandId, param, 1)`
- * 中本项目已映射的命令分支。版本前缀使用原类构造函数默认值：
+ * 中本项目已映射的命令分支。版本前缀使用原 App 运行时值：
  * `bleCommSmartVersion=01`、`bleCommBigVersion=00`、
- * `appSmartVersion=01`、`appBigVersion=01`、`bikeBondType=111`、`appType=000`。
+ * `appSmartVersion=08`、`appBigVersion=08`、`bikeBondType=001`、`appType=000`。
  *
  * 若后续读取到车辆协商版本，可把 [versionPrefix] 参数扩展为动态值。
  */
 object VehicleSettingFrameEncoder {
 
-    private const val DEFAULT_VERSION_PREFIX = "01000101F8"
+    private const val DEFAULT_VERSION_PREFIX =
+        VehicleBleProtocolVersion.ORIGINAL_APP_PREFIX + "C8"
 
     fun encode(
         command: VehicleSettingCommand,

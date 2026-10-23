@@ -13,7 +13,7 @@ package top.ghhccghk.yadea.vehicle
  */
 internal object VehicleStatusQueryEncoder {
 
-    private const val VERSION_PREFIX = "01000101"
+    private const val VERSION_PREFIX = VehicleBleProtocolVersion.ORIGINAL_APP_PREFIX
     private const val QUERY_DEFAULT_FILL_BYTES = 25
     private const val ACTIVATION_0X34_SUFFIX =
         "FFFF0DFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
