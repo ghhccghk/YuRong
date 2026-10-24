@@ -86,6 +86,8 @@ class YadeaVehicleProfileGateway(
             bikeModelId = longField(objectText, "bikeModelId") ?: 0L,
             modelNo = stringField(objectText, "modelNo").orEmpty(),
             modelName = stringField(objectText, "modelName").orEmpty(),
+            seriesCode = textOrNumber(objectText, "seriesCode").orEmpty(),
+            seriesName = textOrNumber(objectText, "seriesName").orEmpty(),
             dLinkTag = stringField(objectText, "dLinkTag").orEmpty(),
             experimental = textOrNumber(objectText, "experimental").orEmpty(),
             backgroundImageUrl = stringField(objectText, "skinPicUrl").orEmpty(),

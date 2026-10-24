@@ -19,6 +19,10 @@ data class VehicleProfile(
     val bikeModelId: Long = 0L,
     val modelNo: String = "",
     val modelName: String = "",
+    /** `VehicleInfoBean.seriesCode`，对应云端请求头 `bike-series-code`。 */
+    val seriesCode: String = "",
+    /** `VehicleInfoBean.seriesName`，用于展示车辆系列。 */
+    val seriesName: String = "",
     /** 联动款标记；原实现用 `dLinkTag`/车型号判断联动款。 */
     val dLinkTag: String = "",
     /**

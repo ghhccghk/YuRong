@@ -17,6 +17,8 @@ class VehicleProfileGatewayTest {
             {"success":true,"data":[{
               "vin":"YD001",
               "modelNo":"LINK-01",
+              "seriesCode":"3",
+              "seriesName":"冠能",
               "dLinkTag":"1",
               "bikeNickName":"小雅",
               "imgUrl":"https://cdn/normal.png",
@@ -47,6 +49,8 @@ class VehicleProfileGatewayTest {
         val profile = gateway.load()
         assertNotNull(profile)
         assertEquals("YD001", profile!!.vin)
+        assertEquals("3", profile.seriesCode)
+        assertEquals("冠能", profile.seriesName)
         assertEquals("https://cdn/linked.png", profile.backgroundImageUrl)
         assertEquals("https://cdn/normal.png", profile.vehicleImageUrl)
         assertTrue(profile.isLinkedModel)

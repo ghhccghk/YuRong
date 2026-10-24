@@ -138,36 +138,40 @@ class MainActivity : ComponentActivity() {
         val deviceIdProvider = {
             appPreferences.readAuth().loginId.ifBlank { bootstrapDeviceId }
         }
+        val vehicleProfileSource = MutableVehicleProfileSource()
         val packageInfo = packageManager.getPackageInfo(packageName, 0)
-        val clientInfo = GatewayClientInfo(
-            appVersion = packageInfo.versionName.orEmpty(),
-            appVersionNum = packageInfo.versionCode.toString(),
-            appMarket = applicationInfo.metaData
-                ?.getString("BUGLY_APP_CHANNEL")
-                .orEmpty()
-                .ifBlank { "Yadea" },
-            appVersionType = "1",
-            deviceBrand = Build.BRAND,
-            phoneModel = Build.MODEL,
-            // CarType.SERIES_4.key；没有云端车辆系列时原客户端也回退到该值。
-            bikeSeriesCode = "4",
-        )
+        val clientInfoProvider = {
+            GatewayClientInfo(
+                appVersion = packageInfo.versionName.orEmpty(),
+                appVersionNum = packageInfo.versionCode.toString(),
+                appMarket = applicationInfo.metaData
+                    ?.getString("BUGLY_APP_CHANNEL")
+                    .orEmpty()
+                    .ifBlank { "Yadea" },
+                appVersionType = "1",
+                deviceBrand = Build.BRAND,
+                phoneModel = Build.MODEL,
+                // 原 App 按当前车辆系列的 seriesCode 发送；车辆资料尚未加载时回退 SERIES_4。
+                bikeSeriesCode = vehicleProfileSource.profile.value?.seriesCode
+                    ?.takeIf { it.isNotBlank() }
+                    ?: "4",
+            )
+        }
         val httpTransport = createHttpTransport()
         val vehicleBleTokenGateway = YadeaVehicleBleTokenGateway(
             transport = httpTransport,
             tokenProvider = { appPreferences.readAuth().token },
             deviceIdProvider = deviceIdProvider,
-            clientInfoProvider = { clientInfo },
+            clientInfoProvider = clientInfoProvider,
             timestampProvider = { System.currentTimeMillis() },
         )
         val vehicleAccountRoleGateway = YadeaVehicleAccountRoleGateway(
             transport = httpTransport,
             tokenProvider = { appPreferences.readAuth().token },
             deviceIdProvider = deviceIdProvider,
-            clientInfoProvider = { clientInfo },
+            clientInfoProvider = clientInfoProvider,
             timestampProvider = { System.currentTimeMillis() },
         )
-        val vehicleProfileSource = MutableVehicleProfileSource()
         val vehicleStatus = BleVehicleStatusSource(
             adapter = vehicleBleAdapter,
             scope = lifecycleScope,
@@ -180,7 +184,7 @@ class MainActivity : ComponentActivity() {
                 transport = httpTransport,
                 tokenProvider = { appPreferences.readAuth().token },
                 loginIdProvider = deviceIdProvider,
-                clientInfoProvider = { clientInfo },
+                clientInfoProvider = clientInfoProvider,
                 timestampProvider = { System.currentTimeMillis() },
             ),
             scope = lifecycleScope,
@@ -190,7 +194,7 @@ class MainActivity : ComponentActivity() {
                 transport = httpTransport,
                 tokenProvider = { appPreferences.readAuth().token },
                 loginIdProvider = deviceIdProvider,
-                clientInfoProvider = { clientInfo },
+                clientInfoProvider = clientInfoProvider,
                 timestampProvider = { System.currentTimeMillis() },
             ),
             scope = lifecycleScope,
@@ -199,14 +203,14 @@ class MainActivity : ComponentActivity() {
             transport = httpTransport,
             tokenProvider = { appPreferences.readAuth().token },
             deviceIdProvider = deviceIdProvider,
-            clientInfoProvider = { clientInfo },
+            clientInfoProvider = clientInfoProvider,
             timestampProvider = { System.currentTimeMillis() },
         )
         val lostModeGateway = YadeaLostModeGateway(
             transport = httpTransport,
             tokenProvider = { appPreferences.readAuth().token },
             deviceIdProvider = deviceIdProvider,
-            clientInfoProvider = { clientInfo },
+            clientInfoProvider = clientInfoProvider,
             timestampProvider = { System.currentTimeMillis() },
         )
         val vehicleBindingController = VehicleBindingController(
@@ -214,7 +218,7 @@ class MainActivity : ComponentActivity() {
                 transport = httpTransport,
                 tokenProvider = { appPreferences.readAuth().token },
                 deviceIdProvider = deviceIdProvider,
-                clientInfoProvider = { clientInfo },
+                clientInfoProvider = clientInfoProvider,
                 timestampProvider = { System.currentTimeMillis() },
             ),
             scope = lifecycleScope,
@@ -225,7 +229,7 @@ class MainActivity : ComponentActivity() {
                 transport = httpTransport,
                 tokenProvider = { appPreferences.readAuth().token },
                 deviceIdProvider = deviceIdProvider,
-                clientInfoProvider = { clientInfo },
+                clientInfoProvider = clientInfoProvider,
                 timestampProvider = { System.currentTimeMillis() },
             ),
             vinProvider = { vehicleProfileSource.profile.value?.vin.orEmpty() },
@@ -235,7 +239,7 @@ class MainActivity : ComponentActivity() {
             transport = httpTransport,
             timestampProvider = { System.currentTimeMillis() },
             deviceIdProvider = deviceIdProvider,
-            clientInfoProvider = { clientInfo },
+            clientInfoProvider = clientInfoProvider,
             sessionTokenProvider = { appPreferences.readAuth().token },
         )
         val otaGateway = YadeaOtaGateway(
@@ -244,7 +248,7 @@ class MainActivity : ComponentActivity() {
             tokenProvider = { appPreferences.readAuth().token },
             loginIdProvider = deviceIdProvider,
             timestampProvider = { System.currentTimeMillis() },
-            clientInfoProvider = { clientInfo },
+            clientInfoProvider = clientInfoProvider,
             bleAdapter = vehicleBleAdapter,
             wifiOtaInstaller = WifiOtaInstaller(
                 p2pManager = p2pManager,
@@ -286,7 +290,7 @@ class MainActivity : ComponentActivity() {
             transport = httpTransport,
             tokenProvider = { appPreferences.readAuth().token },
             deviceIdProvider = deviceIdProvider,
-            clientInfoProvider = { clientInfo },
+            clientInfoProvider = clientInfoProvider,
             timestampProvider = { System.currentTimeMillis() },
         )
         val frameSourceFactory = AndroidFrameSourceFactory(this, this)
