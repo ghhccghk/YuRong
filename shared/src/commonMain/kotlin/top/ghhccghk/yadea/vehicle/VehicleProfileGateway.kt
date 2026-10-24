@@ -89,6 +89,7 @@ class YadeaVehicleProfileGateway(
             seriesCode = textOrNumber(objectText, "seriesCode").orEmpty(),
             seriesName = textOrNumber(objectText, "seriesName").orEmpty(),
             dLinkTag = stringField(objectText, "dLinkTag").orEmpty(),
+            configIds = configIdList(objectText, "configIds"),
             experimental = textOrNumber(objectText, "experimental").orEmpty(),
             backgroundImageUrl = stringField(objectText, "skinPicUrl").orEmpty(),
             vehicleImageUrl = stringField(objectText, "imgUrl").orEmpty(),
@@ -207,12 +208,76 @@ private fun intField(json: String, key: String): Int? {
     return match.groupValues[1].toIntOrNull()
 }
 
-    private fun textOrNumber(json: String, key: String): String? =
-        stringField(json, key)
-            ?: Regex("\"${Regex.escape(key)}\"\\s*:\\s*(-?\\d+)")
+private fun configIdList(json: String, key: String): List<String> {
+    val keyPattern = Regex.escape(key)
+    val arrayText = rawArrayValue(json, key)
+        ?.removeSurrounding("[", "]")
+    val values = if (arrayText != null) {
+        Regex("\"((?:\\\\.|[^\"\\\\])*)\"|(-?\\d+)")
+            .findAll(arrayText)
+            .map { match ->
+                match.groupValues[1].takeIf { it.isNotEmpty() }
+                    ?.let(::unescapeJson)
+                    ?: match.groupValues[2]
+            }
+            .toList()
+    } else {
+        val encoded = stringField(json, key)
+            ?: Regex("\"$keyPattern\"\\s*:\\s*(-?\\d+)")
                 .find(json)
                 ?.groupValues
                 ?.get(1)
+            ?: return emptyList()
+        encoded
+            .trim()
+            .removeSurrounding("[", "]")
+            .split(',', '，', ';', '；', '|', ' ', '\n', '\r', '\t')
+    }
+    return values
+        .map { it.trim().trim('"', '\'') }
+        .filter { it.isNotEmpty() }
+        .distinct()
+}
+
+private fun rawArrayValue(json: String, key: String): String? {
+    val keyIndex = json.indexOf("\"$key\"")
+    if (keyIndex < 0) return null
+    val colonIndex = json.indexOf(':', keyIndex + key.length + 2)
+    if (colonIndex < 0) return null
+    var start = colonIndex + 1
+    while (start < json.length && json[start].isWhitespace()) start++
+    if (start >= json.length || json[start] != '[') return null
+    var depth = 0
+    var inString = false
+    var escaped = false
+    for (index in start until json.length) {
+        val char = json[index]
+        if (inString) {
+            when {
+                escaped -> escaped = false
+                char == '\\' -> escaped = true
+                char == '"' -> inString = false
+            }
+        } else {
+            when (char) {
+                '"' -> inString = true
+                '[' -> depth++
+                ']' -> {
+                    depth--
+                    if (depth == 0) return json.substring(start, index + 1)
+                }
+            }
+        }
+    }
+    return null
+}
+
+private fun textOrNumber(json: String, key: String): String? =
+    stringField(json, key)
+        ?: Regex("\"${Regex.escape(key)}\"\\s*:\\s*(-?\\d+)")
+            .find(json)
+            ?.groupValues
+            ?.get(1)
 
 private fun longField(json: String, key: String): Long? {
     val match = Regex("\"${Regex.escape(key)}\"\\s*:\\s*(-?\\d+)").find(json)

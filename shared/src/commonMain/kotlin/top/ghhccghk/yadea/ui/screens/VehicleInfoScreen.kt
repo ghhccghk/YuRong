@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import top.ghhccghk.yadea.carsetting.CloudCarSettingMapper
 import top.ghhccghk.yadea.vehicle.TtpInfo
 import top.ghhccghk.yadea.vehicle.VehicleInfoFormatter
 import top.ghhccghk.yadea.vehicle.VehicleInfoUiModel
@@ -78,6 +79,11 @@ fun VehicleInfoScreen(
                 rangeLabel = rangeLabel,
                 batteryLabel = batteryLabel,
             )
+        }
+        if (profile?.configIds?.isNotEmpty() == true) {
+            item {
+                CloudConfigIdsSection(profile.configIds)
+            }
         }
         if (profile == null && (onRefresh != null || profileErrorMessage != null)) {
             item {
@@ -240,6 +246,25 @@ fun VehicleInfoScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CloudConfigIdsSection(configIds: List<String>) {
+    AppSection(title = "云端已开通功能") {
+        configIds.forEachIndexed { index, configId ->
+            val title = CloudCarSettingMapper.titleForConfigId(configId)
+            AppListRow(
+                title = title ?: "未收录功能",
+                summary = if (title == null) {
+                    "该配置 ID 暂未在本地功能表中找到对应名称。"
+                } else {
+                    null
+                },
+                value = "ID $configId",
+                showDivider = index != configIds.lastIndex,
+            )
         }
     }
 }

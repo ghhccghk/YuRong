@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import top.ghhccghk.yadea.carsetting.CloudCarSettingMapper
 import top.ghhccghk.yadea.network.HttpRequest
 import top.ghhccghk.yadea.network.HttpResponse
 import top.ghhccghk.yadea.network.HttpTransport
@@ -91,6 +92,28 @@ class VehicleProfileGatewayTest {
         assertEquals(2, profiles.size)
         assertEquals("V1", profiles[0].vin)
         assertEquals("V2", profiles[1].vin)
+    }
+
+    @Test
+    fun gatewayParsesConfigIdsFromArrayAndDelimitedString() = runBlocking {
+        val body = """
+            {"data":[
+              {"vin":"V1","configIds":["1",24," 37 "]},
+              {"vin":"V2","configIds":"41, 88，1005"}
+            ]}
+        """.trimIndent()
+        val gateway = YadeaVehicleProfileGateway(
+            transport = object : HttpTransport {
+                override suspend fun execute(request: HttpRequest) = HttpResponse(200, body)
+            },
+            tokenProvider = { "t" },
+        )
+
+        val profiles = gateway.loadAll()
+        assertEquals(listOf("1", "24", "37"), profiles[0].configIds)
+        assertEquals(listOf("41", "88", "1005"), profiles[1].configIds)
+        assertEquals("一键开机", CloudCarSettingMapper.titleForConfigId("1"))
+        assertEquals(null, CloudCarSettingMapper.titleForConfigId("9999"))
     }
 
     @Test

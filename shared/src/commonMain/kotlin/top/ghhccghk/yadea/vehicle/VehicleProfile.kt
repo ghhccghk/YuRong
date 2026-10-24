@@ -26,6 +26,14 @@ data class VehicleProfile(
     /** 联动款标记；原实现用 `dLinkTag`/车型号判断联动款。 */
     val dLinkTag: String = "",
     /**
+     * `queryBindingBike` 响应中的 `configIds`。
+     *
+     * 原 App 未把该字段声明进 `VehicleInfoBean`，但设置页使用相同 ID
+     * 与 `BikeConfig.confId` 比较。这里只表示云端已下发/已开通的功能配置，
+     * 不代表对应开关当前一定处于开启状态。
+     */
+    val configIds: List<String> = emptyList(),
+    /**
      * `VehicleInfoBean.experimental`。
      *
      * OTA、升级任务确认和任务标记接口都会原样提交这个字段；缺失时为空白，
