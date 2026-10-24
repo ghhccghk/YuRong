@@ -107,6 +107,9 @@
 - 平台不支持 BLE 时必须使用明确的 `UnsupportedBleAdapter` / `BleCapabilities` / `BleErrors` 表达，不得实现假装成功的空适配器。
 - Android、JVM、iOS、JS、Wasm 的适配器必须保持同一接口语义；新增能力先补 `BleCapabilities`，再接入平台实现。
 - 车辆帧编码、OTA、Wi-Fi 投屏和自定义音效传输不得因 UI 重构被顺手修改。
+- 投屏视频源必须遵守车辆协商帧率；解码落后时应丢弃过期播放槽，不得连续补发旧帧。
+- Android 视频源按 `content/file` 与 `http/https/rtsp` 分流数据源；不得把网络 URL 一律交给只适合本地 ContentProvider 的路径。
+- 没有视频帧源实现的平台必须在 `FrameSourceCapability` 中明确禁用视频模式，公共 UI 和协议层不得写平台分支。
 
 ## 主题配置与持久化
 

@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.roundToInt
+import kotlin.math.max
 import top.ghhccghk.yadea.mirror.FrameCropConfig
 import top.ghhccghk.yadea.mirror.FrameSource
 import top.ghhccghk.yadea.mirror.PlatformBitmap
@@ -19,6 +20,7 @@ private const val PAUSE_POLL_INTERVAL_MS = 50L
 private const val UNKNOWN_SOURCE_FRAME_INTERVAL_MS = 100L
 private const val MIN_SOURCE_FRAME_INTERVAL_MS = 1L
 private const val MAX_SOURCE_FRAME_INTERVAL_MS = 1_000L
+private const val DEFAULT_TARGET_FPS = 30
 
 /**
  * Android 视频/网络流帧源。
@@ -50,6 +52,9 @@ class VideoFrameSource(
     private var failureHandler: ((String) -> Unit)? = null
 
     @Volatile
+    private var targetFps: Int = DEFAULT_TARGET_FPS
+
+    @Volatile
     private var durationUs = 0L
 
     @Volatile
@@ -79,6 +84,10 @@ class VideoFrameSource(
 
     override fun onFailure(handler: (String) -> Unit) {
         failureHandler = handler
+    }
+
+    override fun updateTargetFps(fps: Int) {
+        if (fps > 0) targetFps = fps.coerceAtMost(60)
     }
 
     override suspend fun start(onFrame: (PlatformBitmap) -> Unit) {
@@ -172,7 +181,7 @@ class VideoFrameSource(
         onFrame: (PlatformBitmap) -> Unit,
     ) {
         try {
-            retriever.setDataSource(context, uri)
+            setDataSource(retriever)
             val sourceDurationUs = retriever
                 .extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                 ?.toLongOrNull()
@@ -185,7 +194,7 @@ class VideoFrameSource(
                 .extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
                 ?.toIntOrNull() ?: 0
             val (scaledWidth, scaledHeight) = scaledSize(sourceWidth, sourceHeight)
-            var sourceFrameIntervalUs = resolveSourceFrameIntervalUs(retriever, sourceDurationUs)
+            val sourceFrameIntervalUs = resolveSourceFrameIntervalUs(retriever, sourceDurationUs)
 
             synchronized(lifecycleLock) {
                 if (!isCurrent(generation)) return
@@ -233,10 +242,16 @@ class VideoFrameSource(
                     }
                 }
 
-                val intervalMs = TimeUnit.MICROSECONDS.toMillis(
-                    sourceFrameIntervalUs.coerceAtLeast(1L)
-                ).coerceIn(MIN_SOURCE_FRAME_INTERVAL_MS, MAX_SOURCE_FRAME_INTERVAL_MS)
+                val intervalMs = effectiveFrameIntervalMs(sourceFrameIntervalUs)
                 nextRetrievalAtMs += intervalMs
+
+                // MediaMetadataRetriever may decode slower than the requested cadence.
+                // Skip missed playback slots instead of issuing a burst of old frames.
+                val now = SystemClock.elapsedRealtime()
+                if (nextRetrievalAtMs < now) {
+                    val missedSlots = (now - nextRetrievalAtMs + intervalMs - 1L) / intervalMs
+                    nextRetrievalAtMs += missedSlots * intervalMs
+                }
             }
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
@@ -258,6 +273,28 @@ class VideoFrameSource(
                 }
             }
         }
+    }
+
+    private fun setDataSource(retriever: MediaMetadataRetriever) {
+        when (uri.scheme?.lowercase()) {
+            "http", "https", "rtsp" ->
+                retriever.setDataSource(uri.toString(), emptyMap())
+            "content", "file", "android.resource" ->
+                retriever.setDataSource(context, uri)
+            null ->
+                retriever.setDataSource(uri.toString())
+            else ->
+                retriever.setDataSource(context, uri)
+        }
+    }
+
+    private fun effectiveFrameIntervalMs(sourceFrameIntervalUs: Long): Long {
+        val sourceIntervalMs = TimeUnit.MICROSECONDS.toMillis(
+            sourceFrameIntervalUs.coerceAtLeast(1L),
+        )
+        val targetIntervalMs = (1_000L / targetFps.coerceAtLeast(1)).coerceAtLeast(1L)
+        return max(sourceIntervalMs, targetIntervalMs)
+            .coerceIn(MIN_SOURCE_FRAME_INTERVAL_MS, MAX_SOURCE_FRAME_INTERVAL_MS)
     }
 
     private fun frameAt(
@@ -310,7 +347,7 @@ class VideoFrameSource(
         }
 
         // Only used when the media exposes neither capture rate nor frame count.
-        // Subsequent frame timestamps replace this estimate as soon as available.
+        // The engine's negotiated FPS can lower this cadence further.
         return TimeUnit.MILLISECONDS.toMicros(UNKNOWN_SOURCE_FRAME_INTERVAL_MS)
     }
 
