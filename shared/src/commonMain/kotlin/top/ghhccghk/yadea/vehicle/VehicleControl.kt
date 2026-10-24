@@ -67,8 +67,8 @@ object VehicleControlProtocol {
         VehicleControlCommand.LOCK ->
             "FFFF04FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
         VehicleControlCommand.POWER_ON ->
-            // 原 App `BicycleControlHelper` 的 `START`：command=3。
-            "FFFF00FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            // 原 App `BicycleControlHelper` 的 `START`：command=1。
+            "FFFF02FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
         VehicleControlCommand.POWER_OFF ->
             // 原 App `BicycleControlHelper` 的 `STOP`：command=2。
             "FFFF03FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"

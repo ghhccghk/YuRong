@@ -241,7 +241,7 @@ class VehicleFrameTest {
                 bikeBondTypeHex = address,
             ).toHex().substring(22, 24)
 
-        assertEquals("00", commandByte(VehicleControlCommand.POWER_ON, "C8"))
+        assertEquals("02", commandByte(VehicleControlCommand.POWER_ON, "C8"))
         assertEquals("03", commandByte(VehicleControlCommand.POWER_OFF, "C8"))
         assertEquals("01", commandByte(VehicleControlCommand.UNLOCK, "C8"))
         assertEquals("04", commandByte(VehicleControlCommand.LOCK, "C8"))
