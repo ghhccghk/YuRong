@@ -88,6 +88,15 @@ internal fun VehicleHubScreen(
         )
         Box(modifier = Modifier.weight(1f)) {
             val pagePadding = appPagePadding(PaddingValues())
+            val cloudControlAvailable = profile?.vin?.isNotBlank() == true &&
+                vehicleCloudStatus?.onlineState == true &&
+                profile.iotService?.isExpired != true
+            val cloudControlUnavailableReason = when {
+                profile?.vin.isNullOrBlank() -> "尚未获取到云端车辆资料"
+                profile.iotService?.isExpired == true -> "车联网服务已到期"
+                vehicleCloudStatus?.onlineState == true -> ""
+                else -> "车辆车联网当前离线或状态未知"
+            }
             when (section) {
                 VehicleSection.Info -> VehicleInfoScreen(
                     status = status,
@@ -105,6 +114,12 @@ internal fun VehicleHubScreen(
                 VehicleSection.Control -> VehicleControlScreen(
                     controller = vehicleControlController,
                     connected = connected,
+                    cloudAvailable = cloudControlAvailable,
+                    cloudUnavailableReason = cloudControlUnavailableReason,
+                    onRefreshCloudStatus = {
+                        profile?.vin?.takeIf { it.isNotBlank() }
+                            ?.let { onRefreshVehicleCloudStatus?.invoke(it) }
+                    },
                     contentPadding = pagePadding,
                 )
                 VehicleSection.Diagnostics -> VehicleDiagnosticsScreen(

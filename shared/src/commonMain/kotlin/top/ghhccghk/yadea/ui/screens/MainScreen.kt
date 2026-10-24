@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -61,6 +62,7 @@ import top.ghhccghk.yadea.vehicle.VehicleBleTokenProvider
 import top.ghhccghk.yadea.vehicle.VehicleAccountRoleProvider
 import top.ghhccghk.yadea.vehicle.VehicleControlController
 import top.ghhccghk.yadea.vehicle.VehicleControlSink
+import top.ghhccghk.yadea.vehicle.VehicleCloudControlSink
 import top.ghhccghk.yadea.vehicle.VehicleStatusSource
 import top.ghhccghk.yadea.vehicle.EmergencyContactController
 import top.ghhccghk.yadea.wifi.WifiConnectionManager
@@ -100,6 +102,7 @@ fun MainScreen(
     bleTokenProvider: VehicleBleTokenProvider? = null,
     vehicleAccountRoleProvider: VehicleAccountRoleProvider? = null,
     vehicleControlSink: VehicleControlSink? = null,
+    vehicleCloudControlSink: VehicleCloudControlSink? = null,
     p2pManager: WifiP2pManager? = null,
     frameSourceFactory: FrameSourceFactory? = null,
     permissionChecker: PermissionChecker? = null,
@@ -251,11 +254,23 @@ fun MainScreen(
             },
         )
     }
-    val vehicleControlController = remember(vehicleControlSink, resolvedVehicleSource) {
+    val latestCloudStatus by rememberUpdatedState(vehicleCloudStatus)
+    val latestVehicleProfile by rememberUpdatedState(vehicleProfile)
+    val vehicleControlController = remember(
+        vehicleControlSink,
+        vehicleCloudControlSink,
+        resolvedVehicleSource,
+    ) {
         VehicleControlController(
             sink = vehicleControlSink,
             connectedProvider = { resolvedVehicleSource.connected.value },
             scope = featureScope,
+            cloudSink = vehicleCloudControlSink,
+            cloudOnlineProvider = { latestCloudStatus?.onlineState == true },
+            vinProvider = { latestVehicleProfile?.vin.orEmpty() },
+            onCloudCommandSent = { vin ->
+                onRefreshVehicleCloudStatus?.invoke(vin)
+            },
         )
     }
     DisposableEffect(

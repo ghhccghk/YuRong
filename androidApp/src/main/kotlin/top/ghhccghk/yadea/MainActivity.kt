@@ -39,6 +39,7 @@ import top.ghhccghk.yadea.vehicle.BleVehicleStatusSource
 import top.ghhccghk.yadea.vehicle.MutableVehicleProfileSource
 import top.ghhccghk.yadea.vehicle.VehicleProfileController
 import top.ghhccghk.yadea.vehicle.VehicleCloudStatusController
+import top.ghhccghk.yadea.vehicle.YadeaVehicleCloudControlGateway
 import top.ghhccghk.yadea.vehicle.VehicleBindingController
 import top.ghhccghk.yadea.vehicle.YadeaVehicleProfileGateway
 import top.ghhccghk.yadea.vehicle.YadeaVehicleCloudStatusGateway
@@ -303,6 +304,13 @@ class MainActivity : ComponentActivity() {
                 vehicleProfileSource.profile.value?.bikeBondTypeHex ?: "C8"
             },
         )
+        val vehicleCloudControlSink = YadeaVehicleCloudControlGateway(
+            transport = httpTransport,
+            tokenProvider = { appPreferences.readAuth().token },
+            deviceIdProvider = deviceIdProvider,
+            clientInfoProvider = clientInfoProvider,
+            timestampProvider = { System.currentTimeMillis() },
+        )
         val carSettingCommandSink = AndroidVehicleSettingCommandSink(vehicleBleAdapter)
 
         setContent {
@@ -314,6 +322,7 @@ class MainActivity : ComponentActivity() {
                 bleTokenProvider = vehicleBleTokenGateway,
                 vehicleAccountRoleProvider = vehicleAccountRoleGateway,
                 vehicleControlSink = vehicleControlSink,
+                vehicleCloudControlSink = vehicleCloudControlSink,
                 vehicleStatusSource = vehicleStatus,
                 vehicleProfileSource = vehicleProfileSource,
                 carSettingCommandSink = carSettingCommandSink,

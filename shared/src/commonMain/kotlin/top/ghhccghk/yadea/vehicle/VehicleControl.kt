@@ -11,10 +11,11 @@ enum class VehicleControlCommand(
     val label: String,
     val description: String,
     val commandId: Int,
+    val cloudControlId: String? = null,
     val dangerous: Boolean = false,
 ) {
-    UNLOCK("开锁", "解除车辆防盗锁", 0x04),
-    LOCK("锁车", "开启防盗锁", 0x06),
+    UNLOCK("开锁", "解除车辆防盗锁", 0x04, cloudControlId = "RELEASE_FORTIFY"),
+    LOCK("锁车", "开启防盗锁", 0x06, cloudControlId = "FORTIFY"),
     POWER_ON("开机", "接通车辆电源", 0x08),
     POWER_OFF("关机", "关闭车辆电源", 0x07),
     FIND("寻车", "鸣笛提示车辆位置", 0x03),
@@ -89,8 +90,26 @@ interface VehicleControlSink {
     suspend fun send(command: VehicleControlCommand): Boolean
 }
 
+enum class VehicleControlChannel(val label: String) {
+    BLE("蓝牙"),
+    CLOUD("车联网"),
+}
+
+data class VehicleCloudControlResult(
+    val success: Boolean,
+    val message: String = "",
+)
+
+interface VehicleCloudControlSink {
+    suspend fun send(
+        vin: String,
+        command: VehicleControlCommand,
+    ): VehicleCloudControlResult
+}
+
 data class VehicleControlState(
     val busyCommand: VehicleControlCommand? = null,
+    val busyChannel: VehicleControlChannel? = null,
     val message: String? = null,
 )
 
@@ -103,33 +122,92 @@ class VehicleControlController(
     private val sink: VehicleControlSink?,
     private val connectedProvider: () -> Boolean,
     private val scope: CoroutineScope,
+    private val cloudSink: VehicleCloudControlSink? = null,
+    private val cloudOnlineProvider: () -> Boolean = { false },
+    private val vinProvider: () -> String = { "" },
+    private val onCloudCommandSent: (String) -> Unit = {},
 ) {
     private val _state = MutableStateFlow(VehicleControlState())
     val state: StateFlow<VehicleControlState> = _state.asStateFlow()
 
     private var job: Job? = null
 
-    fun send(command: VehicleControlCommand) {
+    fun send(
+        command: VehicleControlCommand,
+        channel: VehicleControlChannel = VehicleControlChannel.BLE,
+    ) {
         if (job?.isActive == true) return
-        val activeSink = sink
-        if (activeSink == null) {
-            _state.value = VehicleControlState(message = "车辆控制通道未接入")
-            return
-        }
-        if (!connectedProvider()) {
-            _state.value = VehicleControlState(message = "请先连接车辆")
-            return
+        val activeSink = when (channel) {
+            VehicleControlChannel.BLE -> {
+                if (sink == null) {
+                    _state.value = VehicleControlState(message = "蓝牙控制通道未接入")
+                    return
+                }
+                if (!connectedProvider()) {
+                    _state.value = VehicleControlState(message = "请先连接车辆蓝牙")
+                    return
+                }
+                sink
+            }
+
+            VehicleControlChannel.CLOUD -> {
+                if (cloudSink == null) {
+                    _state.value = VehicleControlState(message = "车联网控制通道未接入")
+                    return
+                }
+                if (command.cloudControlId == null) {
+                    _state.value = VehicleControlState(
+                        message = "${command.label}暂不支持车联网下发",
+                    )
+                    return
+                }
+                if (!cloudOnlineProvider()) {
+                    _state.value = VehicleControlState(message = "车辆当前不在线，无法使用车联网")
+                    return
+                }
+                if (vinProvider().isBlank()) {
+                    _state.value = VehicleControlState(message = "缺少车辆 VIN")
+                    return
+                }
+                null
+            }
         }
         job = scope.launch {
-            _state.value = VehicleControlState(busyCommand = command)
-            val success = runCatching { activeSink.send(command) }.getOrDefault(false)
             _state.value = VehicleControlState(
-                message = if (success) {
-                    "${command.label}指令已发送，等待车辆状态回报"
-                } else {
-                    "${command.label}发送失败"
-                },
+                busyCommand = command,
+                busyChannel = channel,
             )
+            when (channel) {
+                VehicleControlChannel.BLE -> {
+                    val success = runCatching {
+                        requireNotNull(activeSink).send(command)
+                    }.getOrDefault(false)
+                    _state.value = VehicleControlState(
+                        message = if (success) {
+                            "${command.label}指令已通过蓝牙发送，等待车辆状态回报"
+                        } else {
+                            "${command.label}蓝牙发送失败"
+                        },
+                    )
+                }
+
+                VehicleControlChannel.CLOUD -> {
+                    val vin = vinProvider().trim()
+                    val result = runCatching {
+                        requireNotNull(cloudSink).send(vin, command)
+                    }.getOrElse {
+                        VehicleCloudControlResult(false, it.message.orEmpty())
+                    }
+                    _state.value = VehicleControlState(
+                        message = if (result.success) {
+                            onCloudCommandSent(vin)
+                            "${command.label}指令已通过车联网下发，等待车辆状态更新"
+                        } else {
+                            result.message.ifBlank { "${command.label}车联网下发失败" }
+                        },
+                    )
+                }
+            }
         }
     }
 
