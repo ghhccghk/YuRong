@@ -97,17 +97,17 @@ fun VehicleInfoScreen(
                 batteryLabel = batteryLabel,
             )
         }
-        if (profile?.configIds?.isNotEmpty() == true) {
-            item {
-                CloudConfigIdsSection(
-                    configIds = profile.configIds,
-                    knownExpanded = knownConfigsExpanded,
-                    unknownExpanded = unknownConfigsExpanded,
-                    onKnownExpandedChange = { knownConfigsExpanded = it },
-                    onUnknownExpandedChange = { unknownConfigsExpanded = it },
-                )
-            }
-        }
+//        if (profile?.configIds?.isNotEmpty() == true) {
+//            item {
+//                CloudConfigIdsSection(
+//                    configIds = profile.configIds,
+//                    knownExpanded = knownConfigsExpanded,
+//                    unknownExpanded = unknownConfigsExpanded,
+//                    onKnownExpandedChange = { knownConfigsExpanded = it },
+//                    onUnknownExpandedChange = { unknownConfigsExpanded = it },
+//                )
+//            }
+//        }
         if (profile == null && (onRefresh != null || profileErrorMessage != null)) {
             item {
                 AppSection(title = "云端车辆资料") {
@@ -424,7 +424,7 @@ private fun VehicleHeroCard(
                     modifier = Modifier.padding(top = dimensions.compactSpacing),
                 )
                 AppText(
-                    text = "续航 $rangeLabel",
+                    text = "续航:$rangeLabel 电量:$batteryLabel 车速:${model.speedLabel} ",
                     style = AppDesign.typography.body,
                     color = foreground,
                 )
@@ -439,20 +439,6 @@ private fun VehicleHeroCard(
                 )
             } else {
                 Box(modifier = Modifier.fillMaxWidth().height(190.dp))
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom,
-            ) {
-                MetricBlock("车速", model.speedLabel, foreground, Modifier.weight(1f))
-                MetricBlock("电量", batteryLabel, foreground, Modifier.weight(1f))
-                MetricBlock(
-                    "续航",
-                    rangeLabel,
-                    foreground,
-                    Modifier.weight(1f),
-                )
             }
         }
     }
