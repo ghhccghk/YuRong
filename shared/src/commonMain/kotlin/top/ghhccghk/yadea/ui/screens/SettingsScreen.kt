@@ -42,6 +42,9 @@ fun SettingsScreen(
     onAppearanceChange: (AppAppearance) -> Unit,
     vehicleAutoConnect: Boolean = false,
     vehicleForegroundService: Boolean = true,
+    cloudThemeColorOverride: Int? = null,
+    detectedCloudThemeColorType: Int? = null,
+    onCloudThemeColorOverrideChange: (Int?) -> Unit = {},
     onVehicleAutoConnectChange: (Boolean) -> Unit = {},
     onVehicleForegroundServiceChange: (Boolean) -> Unit = {},
     systemAccentColor: Color? = null,
@@ -132,6 +135,12 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(dimensions.sectionSpacing),
                     ) {
+                        SettingsVehicleThemeSection(
+                            colorOverride = cloudThemeColorOverride,
+                            detectedColorType = detectedCloudThemeColorType,
+                            onColorOverrideChange = onCloudThemeColorOverrideChange,
+                            haptics = haptics,
+                        )
                         SettingsVehicleSection(
                             vehicleAutoConnect = vehicleAutoConnect,
                             vehicleForegroundService = vehicleForegroundService,
@@ -161,6 +170,42 @@ fun SettingsScreen(
                 },
             )
         }
+    }
+}
+
+@Composable
+private fun SettingsVehicleThemeSection(
+    colorOverride: Int?,
+    detectedColorType: Int?,
+    onColorOverrideChange: (Int?) -> Unit,
+    haptics: AppHaptics,
+) {
+    val options = listOf(
+        "跟随云端",
+        "金色 · 冯·莱卡恩",
+        "橙色 · 邦布",
+        "粉色 · 艾莲·乔",
+    )
+    val selectedIndex = colorOverride?.coerceIn(1, 3) ?: 0
+    AppSection(title = "绝区零联动主题") {
+        AppPopupPreference(
+            title = "车辆联动角色",
+            leadingIcon = MiuixIcons.Theme,
+            summary = when {
+                colorOverride != null ->
+                    "本机外观覆盖，不会修改云端车辆主题"
+                detectedColorType != null ->
+                    "跟随云端：${zzzThemeLabel(detectedColorType)}"
+                else ->
+                    "跟随云端；尚未获取到车辆的联动主题"
+            },
+            options = options,
+            selectedIndex = selectedIndex,
+            onSelectedIndexChange = { index ->
+                haptics.perform(AppHapticKind.SegmentTick)
+                onColorOverrideChange(index.takeIf { it in 1..3 })
+            },
+        )
     }
 }
 
@@ -514,6 +559,13 @@ private val AppThemeMode.label: String
         AppThemeMode.Light -> "浅色"
         AppThemeMode.Dark -> "深色"
     }
+
+private fun zzzThemeLabel(colorType: Int?): String = when (colorType) {
+    1 -> "冯·莱卡恩"
+    2 -> "邦布"
+    3 -> "艾莲·乔"
+    else -> "未识别角色"
+}
 
 /** 颜色来源的显示名称，顺序与 [AppColorSource.entries] 一致。 */
 private val AppColorSource.label: String

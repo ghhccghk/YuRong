@@ -38,4 +38,17 @@ class VehicleCloudThemeCacheTest {
         assertNull(preferences.readVehicleCloudTheme("VIN-1"))
         assertEquals("AA:BB", preferences.readVehicleConnection().lastMac)
     }
+
+    @Test
+    fun colorTypeOverrideRoundTripsAndCanFollowCloudAgain() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        val preferences = AppPreferences(store)
+
+        preferences.writeVehicleCloudThemeColorOverride(3)
+        assertEquals(3, preferences.readVehicleCloudThemeColorOverride())
+
+        preferences.writeVehicleCloudThemeColorOverride(null)
+        assertNull(preferences.readVehicleCloudThemeColorOverride())
+        assertEquals(AppPreferenceKeys.SCHEMA_VERSION, store.read(AppPreferenceKeys.schemaVersion))
+    }
 }

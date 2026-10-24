@@ -36,6 +36,14 @@ data class VehicleCloudTheme(
         get() = hasBannerVehicleBgImg ||
             (gameThemeColorType?.let { it in CUSTOM_GAME_THEME_COLOR_TYPES } == true)
 
+    val displayName: String
+        get() = when (gameThemeColorType) {
+            1 -> "绝区零联动 · Lycaon / 冯·莱卡恩"
+            2 -> "绝区零联动 · Bangboo / 邦布"
+            3 -> "绝区零联动 · Ellen Joe / 艾莲·乔"
+            else -> if (isCustomized) "绝区零联动车辆" else "标准主题"
+        }
+
     /**
      * 原 App 的动态主题按 GmeThemeType 选择本地样式，再由样式中的
      * `bannerVehicleBgImg.icon.url` 提供车图背景。
@@ -44,6 +52,15 @@ data class VehicleCloudTheme(
         val style = VehicleDynamicThemeStyle.fromColorType(gameThemeColorType) ?: return ""
         return if (darkTheme) style.bannerDarkUrl else style.bannerLightUrl
     }
+}
+
+fun VehicleCloudTheme?.withColorTypeOverride(colorType: Int?): VehicleCloudTheme? {
+    if (colorType == null || colorType !in CUSTOM_GAME_THEME_COLOR_TYPES) return this
+    val base = this ?: VehicleCloudTheme()
+    return base.copy(
+        hasBannerVehicleBgImg = true,
+        gameThemeColorType = colorType,
+    )
 }
 
 internal enum class VehicleDynamicThemeStyle(

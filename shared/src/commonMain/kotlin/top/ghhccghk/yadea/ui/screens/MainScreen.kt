@@ -54,6 +54,7 @@ import top.ghhccghk.yadea.vehicle.VehicleProfile
 import top.ghhccghk.yadea.vehicle.VehicleCloudTheme
 import top.ghhccghk.yadea.vehicle.VehicleCloudThemeSource
 import top.ghhccghk.yadea.vehicle.VehicleCloudStatus
+import top.ghhccghk.yadea.vehicle.withColorTypeOverride
 import top.ghhccghk.yadea.vehicle.VehicleFaultController
 import top.ghhccghk.yadea.vehicle.VehicleFaultGateway
 import top.ghhccghk.yadea.vehicle.LostModeController
@@ -140,6 +141,9 @@ fun MainScreen(
     var vehicleConnectionPreferences by remember {
         mutableStateOf(resolvedPreferences.readVehicleConnection())
     }
+    var vehicleCloudThemeColorOverride by remember {
+        mutableStateOf(resolvedPreferences.readVehicleCloudThemeColorOverride())
+    }
     val viewModel = remember(bleTokenProvider, vehicleAccountRoleProvider, vehicleProfileSource) {
         AppViewModel(
             wifiManager = wifiManager,
@@ -194,6 +198,12 @@ fun MainScreen(
     val vehicleProfiles by resolvedProfileSource.profiles.collectAsState()
     val vehicleCloudTheme by vehicleCloudThemeSource?.theme?.collectAsState()
         ?: remember { mutableStateOf<VehicleCloudTheme?>(null) }
+    val effectiveVehicleCloudTheme = remember(
+        vehicleCloudTheme,
+        vehicleCloudThemeColorOverride,
+    ) {
+        vehicleCloudTheme.withColorTypeOverride(vehicleCloudThemeColorOverride)
+    }
     val authController = remember(resolvedPreferences, authGateway) {
         AuthController(AuthSession(resolvedPreferences), authGateway, featureScope)
     }
@@ -410,7 +420,14 @@ fun MainScreen(
             vehicleStatus = vehicleStatus,
             vehicleConnected = vehicleConnected,
             vehicleProfile = vehicleProfile,
-            vehicleCloudTheme = vehicleCloudTheme,
+            vehicleCloudTheme = effectiveVehicleCloudTheme,
+            vehicleCloudThemeColorOverride = vehicleCloudThemeColorOverride,
+            onVehicleCloudThemeColorOverrideChange = { colorType ->
+                vehicleCloudThemeColorOverride = colorType
+                featureScope.launch {
+                    resolvedPreferences.writeVehicleCloudThemeColorOverride(colorType)
+                }
+            },
             vehicleProfiles = vehicleProfiles,
             onSelectVehicle = resolvedProfileSource::select,
             onRefreshVehicleProfile = onRefreshVehicleProfile,
@@ -471,6 +488,8 @@ private fun MainScreenContent(
     vehicleConnected: Boolean,
     vehicleProfile: VehicleProfile?,
     vehicleCloudTheme: VehicleCloudTheme?,
+    vehicleCloudThemeColorOverride: Int?,
+    onVehicleCloudThemeColorOverrideChange: (Int?) -> Unit,
     vehicleProfiles: List<VehicleProfile>,
     onSelectVehicle: (String) -> Unit,
     onRefreshVehicleProfile: (() -> Unit)?,
@@ -597,6 +616,9 @@ private fun MainScreenContent(
                 bleState == BleConnectionState.Connected,
             vehicleProfile = vehicleProfile,
             vehicleCloudTheme = vehicleCloudTheme,
+            vehicleCloudThemeColorOverride = vehicleCloudThemeColorOverride,
+            onVehicleCloudThemeColorOverrideChange =
+                onVehicleCloudThemeColorOverrideChange,
             vehicleProfiles = vehicleProfiles,
             onSelectVehicle = onSelectVehicle,
             onRefreshVehicleProfile = onRefreshVehicleProfile,
@@ -706,6 +728,8 @@ private fun MainDestinationContent(
     vehicleConnected: Boolean,
     vehicleProfile: VehicleProfile?,
     vehicleCloudTheme: VehicleCloudTheme?,
+    vehicleCloudThemeColorOverride: Int?,
+    onVehicleCloudThemeColorOverrideChange: (Int?) -> Unit,
     vehicleProfiles: List<VehicleProfile>,
     onSelectVehicle: (String) -> Unit,
     onRefreshVehicleProfile: (() -> Unit)?,
@@ -783,6 +807,9 @@ private fun MainDestinationContent(
                 onAppearanceChange = onAppearanceChange,
                 vehicleAutoConnect = vehicleConnectionPreferences.autoConnect,
                 vehicleForegroundService = vehicleConnectionPreferences.foregroundService,
+                cloudThemeColorOverride = vehicleCloudThemeColorOverride,
+                detectedCloudThemeColorType = vehicleCloudTheme?.gameThemeColorType,
+                onCloudThemeColorOverrideChange = onVehicleCloudThemeColorOverrideChange,
                 onVehicleAutoConnectChange = onVehicleAutoConnectChange,
                 onVehicleForegroundServiceChange = onVehicleForegroundServiceChange,
                 systemAccentColor = systemAccentColor,

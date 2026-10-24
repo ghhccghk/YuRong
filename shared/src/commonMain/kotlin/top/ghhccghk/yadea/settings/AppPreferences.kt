@@ -31,7 +31,8 @@ object AppPreferenceKeys {
     // 8 -> 9：新增最近一次完整 BLE 车辆状态缓存（按 VIN 恢复）。
     // 9 -> 10：新增当前 VIN 的云端主题背景与定制款标记缓存。
     // 10 -> 11：缓存动态主题 colorType，用于选择 bannerVehicleBgImg 亮/暗背景。
-    const val SCHEMA_VERSION = 11
+    // 11 -> 12：新增绝区零联动主题的本地 colorType 覆盖。
+    const val SCHEMA_VERSION = 12
 
     val schemaVersion = PreferenceKey.int("app_settings_schema_version", SCHEMA_VERSION)
     val uiStyle = PreferenceKey.string("ui_style", UiThemeStyle.Miuix.storageName)
@@ -79,6 +80,8 @@ object AppPreferenceKeys {
         PreferenceKey.boolean("vehicle_cloud_theme_has_banner_bg", false)
     val vehicleCloudThemeGameThemeColorType =
         PreferenceKey.int("vehicle_cloud_theme_game_color_type", 0)
+    val vehicleCloudThemeColorOverride =
+        PreferenceKey.int("vehicle_cloud_theme_color_override", 0)
 
     val vehicleKeys: List<PreferenceKey<*>> = listOf(
         vehicleLastMac,
@@ -356,6 +359,26 @@ class AppPreferences(
         store.delete(AppPreferenceKeys.vehicleCloudThemeType)
         store.delete(AppPreferenceKeys.vehicleCloudThemeHasBannerBackground)
         store.delete(AppPreferenceKeys.vehicleCloudThemeGameThemeColorType)
+    }
+
+    /**
+     * `0` 表示跟随云端 `bikeGameThemeVOList.colorType`；`1..3` 是本机外观覆盖。
+     */
+    fun readVehicleCloudThemeColorOverride(): Int? =
+        store.read(AppPreferenceKeys.vehicleCloudThemeColorOverride)
+            .takeIf { it in 1..3 }
+
+    suspend fun writeVehicleCloudThemeColorOverride(colorType: Int?): PreferenceWriteResult {
+        val normalized = colorType?.takeIf { it in 1..3 } ?: 0
+        val writes = listOf(
+            AppPreferenceKeys.vehicleCloudThemeColorOverride to normalized,
+            AppPreferenceKeys.schemaVersion to AppPreferenceKeys.SCHEMA_VERSION,
+        )
+        for ((key, value) in writes) {
+            val result = writeTyped(key, value)
+            if (result != PreferenceWriteResult.Success) return result
+        }
+        return PreferenceWriteResult.Success
     }
 
     suspend fun writeLastVehicle(

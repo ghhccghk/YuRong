@@ -362,24 +362,18 @@ private fun VehicleHeroCard(
     val backgroundImageUrl = dynamicBackgroundUrl.ifBlank {
         cloudTheme?.loveCarImageUrl.orEmpty()
     }
-    val background = if (customized) {
-        AppDesign.colors.primaryContainer
+    val background = AppDesign.colors.page
+    val foreground = if (dynamicBackgroundUrl.isNotBlank() && darkTheme) {
+        Color.White
     } else {
-        AppDesign.colors.surfaceContainerHighest
-    }
-    val foreground = if (customized) {
-        if (dynamicBackgroundUrl.isNotBlank() && darkTheme) {
-            Color.White
-        } else {
-            AppDesign.colors.onPrimaryContainer
-        }
-    } else {
-        AppDesign.colors.onSurfaceContainerHighest
+        AppDesign.colors.onSurface
     }
     val subtitle = if (profile == null) {
         model.connectionLabel
     } else {
-        "${model.connectionLabel} · ${if (customized) "定制主题" else "标准主题"}"
+        val themeLabel = cloudTheme?.displayName
+            ?: if (customized) "绝区零联动车辆" else "标准主题"
+        "${model.connectionLabel} · $themeLabel"
     }
     val vehicleImageUrl = profile?.backgroundImageUrl
         ?.takeIf { it.isNotBlank() }

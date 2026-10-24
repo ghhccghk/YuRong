@@ -52,6 +52,7 @@ class VehicleCloudThemeTest {
         assertTrue(theme.isCustomized)
         assertEquals(3, theme.themeType)
         assertEquals(3, theme.gameThemeColorType)
+        assertEquals("绝区零联动 · Ellen Joe / 艾莲·乔", theme.displayName)
         assertEquals(
             "https://tsposs.yadeaiot.com.cn/carh5img/app-icon/gameTheme/" +
                 "vehicle_bg_pink_dark.png",
@@ -79,5 +80,18 @@ class VehicleCloudThemeTest {
         assertTrue(theme.loveCarImageUrl.isNotBlank())
         assertFalse(theme.isCustomized)
         assertEquals("", theme.bannerVehicleBgImgUrl(darkTheme = true))
+    }
+
+    @Test
+    fun localOverrideSelectsRequestedCollaborationCharacter() {
+        val theme = VehicleCloudTheme(
+            vin = "VIN-1",
+            loveCarImageUrl = "https://cdn/love-car.png",
+            gameThemeColorType = 1,
+            hasBannerVehicleBgImg = true,
+        ).withColorTypeOverride(2)
+
+        assertEquals(2, theme?.gameThemeColorType)
+        assertEquals("绝区零联动 · Bangboo / 邦布", theme?.displayName)
     }
 }
