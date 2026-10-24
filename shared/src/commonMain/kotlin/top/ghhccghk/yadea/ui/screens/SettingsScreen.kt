@@ -190,22 +190,22 @@ private fun SettingsVehicleThemeSection(
 ) {
     val options = listOf(
         "跟随云端",
-        "金色 · 冯·莱卡恩",
-        "橙色 · 邦布",
-        "粉色 · 艾莲·乔",
+        "冯·莱卡恩",
+        "快人一布",
+        "艾莲·乔",
     )
     val selectedIndex = colorOverride?.coerceIn(1, 3) ?: 0
-    AppSection(title = "绝区零联动主题") {
+    AppSection(title = "绝区零联动主题背景") {
         AppPopupPreference(
             title = "车辆联动角色",
             leadingIcon = MiuixIcons.Theme,
             summary = when {
                 colorOverride != null ->
-                    "本机外观覆盖，不会修改云端车辆主题"
+                    "本机外观覆盖，不会修改云端车辆主题背景"
                 detectedColorType != null ->
                     "跟随云端：${zzzThemeLabel(detectedColorType)}"
                 else ->
-                    "跟随云端；尚未获取到车辆的联动主题"
+                    "跟随云端；尚未获取到车辆的联动主题背景"
             },
             options = options,
             selectedIndex = selectedIndex,
@@ -261,7 +261,7 @@ private fun SettingsStyleSection(
             title = "界面风格",
             // 前置图标只做视觉引导，语义由标题承担。
             leadingIcon = MiuixIcons.Theme,
-            summary = "Miuix 为 HyperOS 风格，Material 3 保留原生 Material 设计",
+            summary = "Miuix 为 HyperOS 风格，Material 3 为 Material 3 设计",
             options = uiStyleOptions,
             selectedIndex = UiThemeStyle.entries.indexOf(appearance.uiStyle),
             onSelectedIndexChange = { index ->
@@ -464,7 +464,7 @@ private fun SettingsColorSourceSection(
         }
         if (!vehicleBackgroundAvailable) {
             AppListRow(
-                title = "爱车背景",
+                title = "车辆背景色",
                 leadingIcon = MiuixIcons.Image,
                 summary = "当前车辆没有可用背景图，暂时不能从背景提取主色",
             )
@@ -570,7 +570,7 @@ private fun SettingsDarkEnhancementSection(
                 haptics.toggle(it)
                 onAppearanceChange(appearance.copy(amoledDarkEnabled = it))
             },
-            title = "AMOLED 纯黑",
+            title = "OLED 纯黑",
             // 前置图标只做视觉引导，语义由标题承担。
             leadingIcon = MiuixIcons.Background,
             summary = "仅暗色模式生效，Material 3 与 Miuix 的页面底色都会压成纯黑",
