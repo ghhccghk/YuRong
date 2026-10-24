@@ -30,9 +30,60 @@ data class VehicleCloudTheme(
     val loveCarImageUrl: String = "",
     val themeType: Int = 0,
     val hasBannerVehicleBgImg: Boolean = false,
+    val gameThemeColorType: Int? = null,
 ) {
     val isCustomized: Boolean
-        get() = hasBannerVehicleBgImg
+        get() = hasBannerVehicleBgImg ||
+            (gameThemeColorType?.let { it in CUSTOM_GAME_THEME_COLOR_TYPES } == true)
+
+    /**
+     * 原 App 的动态主题按 GmeThemeType 选择本地样式，再由样式中的
+     * `bannerVehicleBgImg.icon.url` 提供车图背景。
+     */
+    fun bannerVehicleBgImgUrl(darkTheme: Boolean): String {
+        val style = VehicleDynamicThemeStyle.fromColorType(gameThemeColorType) ?: return ""
+        return if (darkTheme) style.bannerDarkUrl else style.bannerLightUrl
+    }
+}
+
+internal enum class VehicleDynamicThemeStyle(
+    val colorType: Int,
+    val bannerLightUrl: String,
+    val bannerDarkUrl: String,
+) {
+    GOLD(
+        colorType = 1,
+        bannerLightUrl =
+            "https://tsposs.yadeaiot.com.cn/carh5img/app-icon/gameTheme/" +
+                "vehicle_bg_gold_light.png",
+        bannerDarkUrl =
+            "https://tsposs.yadeaiot.com.cn/carh5img/app-icon/gameTheme/" +
+                "vehicle_bg_gold_dark.png",
+    ),
+    YELLOW(
+        colorType = 2,
+        bannerLightUrl =
+            "https://tsposs.yadeaiot.com.cn/carh5img/app-icon/gameTheme/" +
+                "vehicle_bg_orange_light.png",
+        bannerDarkUrl =
+            "https://tsposs.yadeaiot.com.cn/carh5img/app-icon/gameTheme/" +
+                "vehicle_bg_orange_dark.png",
+    ),
+    PINK(
+        colorType = 3,
+        bannerLightUrl =
+            "https://tsposs.yadeaiot.com.cn/carh5img/app-icon/gameTheme/" +
+                "vehicle_bg_pink_light.png",
+        bannerDarkUrl =
+            "https://tsposs.yadeaiot.com.cn/carh5img/app-icon/gameTheme/" +
+                "vehicle_bg_pink_dark.png",
+    ),
+    ;
+
+    companion object {
+        fun fromColorType(colorType: Int?): VehicleDynamicThemeStyle? =
+            entries.firstOrNull { it.colorType == colorType }
+    }
 }
 
 interface VehicleCloudThemeGateway {
@@ -159,13 +210,14 @@ internal fun parseVehicleCloudTheme(
 ): VehicleCloudTheme {
     val currentGameTheme = JsonSupport.arrayObjects(themeConfigJson, "bikeGameThemeVOList")
         .firstOrNull { JsonSupport.string(it, "vin") == vin }
-    val hasBannerVehicleBgImg = JsonSupport.int(currentGameTheme.orEmpty(), "colorType")
-        ?.let { it in CUSTOM_GAME_THEME_COLOR_TYPES }
-        ?: false
+    val gameThemeColorType = JsonSupport.int(currentGameTheme.orEmpty(), "colorType")
+        ?.takeIf { it in CUSTOM_GAME_THEME_COLOR_TYPES }
+    val hasBannerVehicleBgImg = gameThemeColorType != null
     val userApplyTheme = JsonSupport.objectField(themeConfigJson, "userApplyThemeVo")
         ?: return VehicleCloudTheme(
             vin = vin,
             hasBannerVehicleBgImg = hasBannerVehicleBgImg,
+            gameThemeColorType = gameThemeColorType,
         )
     val rawThemeType = JsonSupport.int(userApplyTheme, "themeType") ?: 0
     val normalizedThemeType = if (rawThemeType == 1 || rawThemeType == 2) 0 else rawThemeType
@@ -181,6 +233,7 @@ internal fun parseVehicleCloudTheme(
         loveCarImageUrl = loveCarImageUrl,
         themeType = normalizedThemeType,
         hasBannerVehicleBgImg = hasBannerVehicleBgImg,
+        gameThemeColorType = gameThemeColorType,
     )
 }
 

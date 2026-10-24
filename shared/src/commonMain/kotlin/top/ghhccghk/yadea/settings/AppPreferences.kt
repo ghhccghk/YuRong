@@ -30,7 +30,8 @@ object AppPreferenceKeys {
     // 7 -> 8：新增车辆上次连接、自动连接、前台服务与绑定 VIN。
     // 8 -> 9：新增最近一次完整 BLE 车辆状态缓存（按 VIN 恢复）。
     // 9 -> 10：新增当前 VIN 的云端主题背景与定制款标记缓存。
-    const val SCHEMA_VERSION = 10
+    // 10 -> 11：缓存动态主题 colorType，用于选择 bannerVehicleBgImg 亮/暗背景。
+    const val SCHEMA_VERSION = 11
 
     val schemaVersion = PreferenceKey.int("app_settings_schema_version", SCHEMA_VERSION)
     val uiStyle = PreferenceKey.string("ui_style", UiThemeStyle.Miuix.storageName)
@@ -76,6 +77,8 @@ object AppPreferenceKeys {
     val vehicleCloudThemeType = PreferenceKey.int("vehicle_cloud_theme_type", 0)
     val vehicleCloudThemeHasBannerBackground =
         PreferenceKey.boolean("vehicle_cloud_theme_has_banner_bg", false)
+    val vehicleCloudThemeGameThemeColorType =
+        PreferenceKey.int("vehicle_cloud_theme_game_color_type", 0)
 
     val vehicleKeys: List<PreferenceKey<*>> = listOf(
         vehicleLastMac,
@@ -89,6 +92,7 @@ object AppPreferenceKeys {
         vehicleCloudThemeLoveCarImageUrl,
         vehicleCloudThemeType,
         vehicleCloudThemeHasBannerBackground,
+        vehicleCloudThemeGameThemeColorType,
     )
 
     val all: List<PreferenceKey<*>> = listOf(
@@ -324,6 +328,9 @@ class AppPreferences(
             themeType = store.read(AppPreferenceKeys.vehicleCloudThemeType),
             hasBannerVehicleBgImg =
                 store.read(AppPreferenceKeys.vehicleCloudThemeHasBannerBackground),
+            gameThemeColorType = store.read(
+                AppPreferenceKeys.vehicleCloudThemeGameThemeColorType,
+            ).takeIf { it in 1..3 },
         )
     }
 
@@ -334,6 +341,8 @@ class AppPreferences(
             AppPreferenceKeys.vehicleCloudThemeType to theme.themeType,
             AppPreferenceKeys.vehicleCloudThemeHasBannerBackground to
                 theme.hasBannerVehicleBgImg,
+            AppPreferenceKeys.vehicleCloudThemeGameThemeColorType to
+                (theme.gameThemeColorType ?: 0),
             AppPreferenceKeys.schemaVersion to AppPreferenceKeys.SCHEMA_VERSION,
         )
         for ((key, value) in writes) {
@@ -346,6 +355,7 @@ class AppPreferences(
         store.delete(AppPreferenceKeys.vehicleCloudThemeLoveCarImageUrl)
         store.delete(AppPreferenceKeys.vehicleCloudThemeType)
         store.delete(AppPreferenceKeys.vehicleCloudThemeHasBannerBackground)
+        store.delete(AppPreferenceKeys.vehicleCloudThemeGameThemeColorType)
     }
 
     suspend fun writeLastVehicle(

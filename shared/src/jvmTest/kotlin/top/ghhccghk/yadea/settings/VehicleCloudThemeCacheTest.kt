@@ -16,6 +16,7 @@ class VehicleCloudThemeCacheTest {
             loveCarImageUrl = "https://cdn/love-car.png",
             themeType = 0,
             hasBannerVehicleBgImg = true,
+            gameThemeColorType = 3,
         )
 
         preferences.writeVehicleCloudTheme(theme)

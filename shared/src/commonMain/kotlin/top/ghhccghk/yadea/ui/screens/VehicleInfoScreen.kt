@@ -20,7 +20,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import top.ghhccghk.yadea.carsetting.CloudCarSettingMapper
 import top.ghhccghk.yadea.vehicle.TtpInfo
@@ -354,23 +355,24 @@ private fun VehicleHeroCard(
 ) {
     val dimensions = AppDesign.dimensions
     val customized = cloudTheme?.isCustomized ?: (profile?.isLinkedModel == true)
+    val darkTheme = AppDesign.colors.page.luminance() < 0.5f
+    val dynamicBackgroundUrl = cloudTheme
+        ?.bannerVehicleBgImgUrl(darkTheme)
+        .orEmpty()
+    val backgroundImageUrl = dynamicBackgroundUrl.ifBlank {
+        cloudTheme?.loveCarImageUrl.orEmpty()
+    }
     val background = if (customized) {
-        Brush.linearGradient(
-            listOf(
-                AppDesign.colors.primaryContainer,
-                AppDesign.colors.secondaryContainer,
-            ),
-        )
+        AppDesign.colors.primaryContainer
     } else {
-        Brush.linearGradient(
-            listOf(
-                AppDesign.colors.surfaceContainerHighest,
-                AppDesign.colors.surfaceVariant,
-            ),
-        )
+        AppDesign.colors.surfaceContainerHighest
     }
     val foreground = if (customized) {
-        AppDesign.colors.onPrimaryContainer
+        if (dynamicBackgroundUrl.isNotBlank() && darkTheme) {
+            Color.White
+        } else {
+            AppDesign.colors.onPrimaryContainer
+        }
     } else {
         AppDesign.colors.onSurfaceContainerHighest
     }
@@ -379,7 +381,6 @@ private fun VehicleHeroCard(
     } else {
         "${model.connectionLabel} · ${if (customized) "定制主题" else "标准主题"}"
     }
-    val cloudBackgroundUrl = cloudTheme?.loveCarImageUrl.orEmpty()
     val vehicleImageUrl = profile?.backgroundImageUrl
         ?.takeIf { it.isNotBlank() }
         ?: profile?.vehicleImageUrl.orEmpty()
@@ -390,8 +391,8 @@ private fun VehicleHeroCard(
             .clip(AppDesign.shapes.section)
             .background(background),
     ) {
-        if (cloudBackgroundUrl.isNotBlank() && vehicleBackgroundContent != null) {
-            vehicleBackgroundContent(cloudBackgroundUrl, Modifier.matchParentSize())
+        if (backgroundImageUrl.isNotBlank() && vehicleBackgroundContent != null) {
+            vehicleBackgroundContent(backgroundImageUrl, Modifier.matchParentSize())
             Box(
                 modifier = Modifier
                     .matchParentSize()

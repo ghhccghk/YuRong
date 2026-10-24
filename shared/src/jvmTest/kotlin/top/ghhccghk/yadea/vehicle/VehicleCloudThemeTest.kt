@@ -51,6 +51,12 @@ class VehicleCloudThemeTest {
 
         assertTrue(theme.isCustomized)
         assertEquals(3, theme.themeType)
+        assertEquals(3, theme.gameThemeColorType)
+        assertEquals(
+            "https://tsposs.yadeaiot.com.cn/carh5img/app-icon/gameTheme/" +
+                "vehicle_bg_pink_dark.png",
+            theme.bannerVehicleBgImgUrl(darkTheme = true),
+        )
     }
 
     @Test
@@ -72,5 +78,6 @@ class VehicleCloudThemeTest {
 
         assertTrue(theme.loveCarImageUrl.isNotBlank())
         assertFalse(theme.isCustomized)
+        assertEquals("", theme.bannerVehicleBgImgUrl(darkTheme = true))
     }
 }

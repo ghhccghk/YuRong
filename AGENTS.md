@@ -96,6 +96,8 @@
 - `range1` 只接受 `2/3/1/5/4`；`range2=0` 是未选中图，`range2=1` 是选中图，不能混用为车辆背景。
 - 车辆本体图按原 `VehicleInfoBean.getVehicleImage()` 使用 `skinPicUrl`，为空时回退 `imgUrl`。不得再把 `skinPicUrl` 当车辆页全屏背景。
 - 是否定制款以当前 VIN 的动态主题配置是否包含 `bannerVehicleBgImg` 为准；不得用 `loveCarImgUrl`、`dLinkTag` 或车型号单独推断。
+- `bikeGameThemeVOList.colorType` 映射原动态主题：`1=金色/LKN`、`2=黄色/BB`、`3=粉色/AL`，背景取对应资产中的 `bannerVehicleBgImg.icon.url`，并按亮/暗主题选择变体。
+- 车辆页背景优先级固定为动态主题 `bannerVehicleBgImg` → 云端 `loveCarImgUrl` → 纯色兜底；不要用装饰性渐变替代缺失背景。
 - 云端主题按 VIN 缓存；切换车辆时必须先切到对应 VIN 的缓存，再异步刷新，禁止短暂沿用上一辆车背景。
 
 ## BLE 与平台适配
