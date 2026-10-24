@@ -15,6 +15,8 @@ import top.ghhccghk.yadea.ui.AppPaletteStyle
 import top.ghhccghk.yadea.ui.AppThemeMode
 import top.ghhccghk.yadea.ui.UiThemeStyle
 import top.ghhccghk.yadea.vehicle.CachedVehicleStatus
+import top.ghhccghk.yadea.vehicle.VehicleCloudTheme
+import top.ghhccghk.yadea.vehicle.VehicleCloudThemeCache
 import top.ghhccghk.yadea.vehicle.VehicleStatusCache
 
 object AppPreferenceKeys {
@@ -27,7 +29,8 @@ object AppPreferenceKeys {
     // 6 -> 7：新增 usr_token / usr_info / login_id（登录态）。
     // 7 -> 8：新增车辆上次连接、自动连接、前台服务与绑定 VIN。
     // 8 -> 9：新增最近一次完整 BLE 车辆状态缓存（按 VIN 恢复）。
-    const val SCHEMA_VERSION = 9
+    // 9 -> 10：新增当前 VIN 的云端主题背景与定制款标记缓存。
+    const val SCHEMA_VERSION = 10
 
     val schemaVersion = PreferenceKey.int("app_settings_schema_version", SCHEMA_VERSION)
     val uiStyle = PreferenceKey.string("ui_style", UiThemeStyle.Miuix.storageName)
@@ -67,6 +70,12 @@ object AppPreferenceKeys {
     val vehicleBoundVin = PreferenceKey.string("vehicle_bound_vin", "")
     val vehicleStatusVin = PreferenceKey.string("vehicle_status_vin", "")
     val vehicleStatusPacket = PreferenceKey.string("vehicle_status_packet", "")
+    val vehicleCloudThemeVin = PreferenceKey.string("vehicle_cloud_theme_vin", "")
+    val vehicleCloudThemeLoveCarImageUrl =
+        PreferenceKey.string("vehicle_cloud_theme_love_car_image_url", "")
+    val vehicleCloudThemeType = PreferenceKey.int("vehicle_cloud_theme_type", 0)
+    val vehicleCloudThemeHasBannerBackground =
+        PreferenceKey.boolean("vehicle_cloud_theme_has_banner_bg", false)
 
     val vehicleKeys: List<PreferenceKey<*>> = listOf(
         vehicleLastMac,
@@ -76,6 +85,10 @@ object AppPreferenceKeys {
         vehicleBoundVin,
         vehicleStatusVin,
         vehicleStatusPacket,
+        vehicleCloudThemeVin,
+        vehicleCloudThemeLoveCarImageUrl,
+        vehicleCloudThemeType,
+        vehicleCloudThemeHasBannerBackground,
     )
 
     val all: List<PreferenceKey<*>> = listOf(
@@ -107,7 +120,7 @@ data class VehicleConnectionPreferences(
 class AppPreferences(
     private val store: PreferenceStore,
     private val secretStore: SecretStore? = null,
-) : VehicleStatusCache {
+) : VehicleStatusCache, VehicleCloudThemeCache {
     fun read(): AppAppearance = decode(
         uiStyle = store.read(AppPreferenceKeys.uiStyle),
         themeMode = store.read(AppPreferenceKeys.themeMode),
@@ -300,6 +313,39 @@ class AppPreferences(
     override suspend fun clearVehicleStatus() {
         store.delete(AppPreferenceKeys.vehicleStatusVin)
         store.delete(AppPreferenceKeys.vehicleStatusPacket)
+    }
+
+    override fun readVehicleCloudTheme(vin: String): VehicleCloudTheme? {
+        val cachedVin = store.read(AppPreferenceKeys.vehicleCloudThemeVin).trim()
+        if (cachedVin.isBlank() || cachedVin != vin.trim()) return null
+        return VehicleCloudTheme(
+            vin = cachedVin,
+            loveCarImageUrl = store.read(AppPreferenceKeys.vehicleCloudThemeLoveCarImageUrl),
+            themeType = store.read(AppPreferenceKeys.vehicleCloudThemeType),
+            hasBannerVehicleBgImg =
+                store.read(AppPreferenceKeys.vehicleCloudThemeHasBannerBackground),
+        )
+    }
+
+    override suspend fun writeVehicleCloudTheme(theme: VehicleCloudTheme) {
+        val writes = listOf(
+            AppPreferenceKeys.vehicleCloudThemeVin to theme.vin,
+            AppPreferenceKeys.vehicleCloudThemeLoveCarImageUrl to theme.loveCarImageUrl,
+            AppPreferenceKeys.vehicleCloudThemeType to theme.themeType,
+            AppPreferenceKeys.vehicleCloudThemeHasBannerBackground to
+                theme.hasBannerVehicleBgImg,
+            AppPreferenceKeys.schemaVersion to AppPreferenceKeys.SCHEMA_VERSION,
+        )
+        for ((key, value) in writes) {
+            writeTyped(key, value)
+        }
+    }
+
+    override suspend fun clearVehicleCloudTheme() {
+        store.delete(AppPreferenceKeys.vehicleCloudThemeVin)
+        store.delete(AppPreferenceKeys.vehicleCloudThemeLoveCarImageUrl)
+        store.delete(AppPreferenceKeys.vehicleCloudThemeType)
+        store.delete(AppPreferenceKeys.vehicleCloudThemeHasBannerBackground)
     }
 
     suspend fun writeLastVehicle(

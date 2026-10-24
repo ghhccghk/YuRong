@@ -36,7 +36,9 @@ import top.ghhccghk.yadea.ota.WifiOtaInstaller
 import top.ghhccghk.yadea.ui.MainScreen
 import top.ghhccghk.yadea.ui.initAndroidFileLogger
 import top.ghhccghk.yadea.vehicle.BleVehicleStatusSource
+import top.ghhccghk.yadea.vehicle.MutableVehicleCloudThemeSource
 import top.ghhccghk.yadea.vehicle.MutableVehicleProfileSource
+import top.ghhccghk.yadea.vehicle.VehicleCloudThemeController
 import top.ghhccghk.yadea.vehicle.VehicleProfileController
 import top.ghhccghk.yadea.vehicle.VehicleCloudStatusController
 import top.ghhccghk.yadea.vehicle.YadeaVehicleCloudControlGateway
@@ -47,6 +49,7 @@ import top.ghhccghk.yadea.vehicle.YadeaVehicleBindingGateway
 import top.ghhccghk.yadea.vehicle.YadeaVehicleBleTokenGateway
 import top.ghhccghk.yadea.vehicle.YadeaVehicleAccountRoleGateway
 import top.ghhccghk.yadea.vehicle.YadeaVehicleFaultGateway
+import top.ghhccghk.yadea.vehicle.YadeaVehicleCloudThemeGateway
 import top.ghhccghk.yadea.vehicle.YadeaLostModeGateway
 import top.ghhccghk.yadea.vehicle.EmergencyContactController
 import top.ghhccghk.yadea.vehicle.YadeaEmergencyContactGateway
@@ -140,6 +143,7 @@ class MainActivity : ComponentActivity() {
             appPreferences.readAuth().loginId.ifBlank { bootstrapDeviceId }
         }
         val vehicleProfileSource = MutableVehicleProfileSource()
+        val vehicleCloudThemeSource = MutableVehicleCloudThemeSource()
         val packageInfo = packageManager.getPackageInfo(packageName, 0)
         val clientInfoProvider = {
             GatewayClientInfo(
@@ -189,6 +193,18 @@ class MainActivity : ComponentActivity() {
                 timestampProvider = { System.currentTimeMillis() },
             ),
             scope = lifecycleScope,
+        )
+        val cloudThemeController = VehicleCloudThemeController(
+            source = vehicleCloudThemeSource,
+            gateway = YadeaVehicleCloudThemeGateway(
+                transport = httpTransport,
+                tokenProvider = { appPreferences.readAuth().token },
+                deviceIdProvider = deviceIdProvider,
+                clientInfoProvider = clientInfoProvider,
+                timestampProvider = { System.currentTimeMillis() },
+            ),
+            scope = lifecycleScope,
+            cache = appPreferences,
         )
         val cloudStatusController = VehicleCloudStatusController(
             gateway = YadeaVehicleCloudStatusGateway(
@@ -313,6 +329,15 @@ class MainActivity : ComponentActivity() {
         )
         val carSettingCommandSink = AndroidVehicleSettingCommandSink(vehicleBleAdapter)
 
+        fun refreshCloudTheme() {
+            val profile = vehicleProfileSource.profile.value ?: return
+            cloudThemeController.refresh(
+                vin = profile.vin,
+                modelNo = profile.modelNo,
+                seriesCode = profile.seriesCode,
+            )
+        }
+
         setContent {
             val vehicleProfilesRefreshing by profileController.refreshing.collectAsState()
             val vehicleProfilesError by profileController.lastError.collectAsState()
@@ -325,6 +350,7 @@ class MainActivity : ComponentActivity() {
                 vehicleCloudControlSink = vehicleCloudControlSink,
                 vehicleStatusSource = vehicleStatus,
                 vehicleProfileSource = vehicleProfileSource,
+                vehicleCloudThemeSource = vehicleCloudThemeSource,
                 carSettingCommandSink = carSettingCommandSink,
                 authGateway = authGateway,
                 otaGateway = otaGateway,
@@ -340,7 +366,11 @@ class MainActivity : ComponentActivity() {
                         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                     }
                 },
-                onRefreshVehicleProfile = profileController::refresh,
+                onRefreshVehicleProfile = {
+                    profileController.refresh()
+                    refreshCloudTheme()
+                },
+                onRefreshVehicleCloudTheme = ::refreshCloudTheme,
                 vehicleProfilesRefreshing = vehicleProfilesRefreshing,
                 vehicleProfilesError = vehicleProfilesError,
                 vehicleCloudStatus = vehicleCloudStatus,

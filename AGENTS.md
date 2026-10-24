@@ -47,6 +47,7 @@
 | `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/VehicleSettingFrameEncoder.kt` | 已确认的 BLE 设置帧编码 |
 | `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/CustomSoundGateway.kt` | 自定义音效列表、应用、开关、资源管理 |
 | `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/SoundPreviewPlayer.kt` | 自定义音效试听的跨平台接口 |
+| `shared/src/commonMain/kotlin/top/ghhccghk/yadea/vehicle/VehicleCloudTheme.kt` | 云端主题读取、`loveCarImgUrl` 映射、按 VIN 缓存与定制款判定 |
 
 新增可复用 Composable 时：
 
@@ -87,6 +88,15 @@
 - 用户资源列表、重命名、删除、添加分别使用 `resource/queryResourceList`、`resource/renameUserResource`、`resource/deleteUserResource`、`resource/addUserResource`。
 - 试听通过 `SoundPreviewPlayer`；Android 使用 `MediaPlayer`，其他平台当前明确为不可用，UI 应隐藏试听按钮，不能假装播放成功。
 - 本地音频上传链路已确认为 `oss/generateSignUrl/v2`（`fileType=12`）→ `PUT signedUrl` → `resource/addUserResource`。当前 `HttpTransport` 只支持字符串请求体，未完成二进制上传前不得移除“添加已有音频 URL”的可用入口。
+
+## 云端主题
+
+- 用户当前主题来自 `user/theme/queryUserApplyThemeAndVariedTheme`，使用 POST、网关签名，业务字段为 `cityCode`、`vin`、`modelNo`、`seriesCode`。
+- 车辆页云端背景只取 `userApplyThemeVo.themeImageVos` 中 `range1=1 && range2=2` 的 `pictureUrl`，对应 `ThemeConfigCard.loveCarImgUrl`。
+- `range1` 只接受 `2/3/1/5/4`；`range2=0` 是未选中图，`range2=1` 是选中图，不能混用为车辆背景。
+- 车辆本体图按原 `VehicleInfoBean.getVehicleImage()` 使用 `skinPicUrl`，为空时回退 `imgUrl`。不得再把 `skinPicUrl` 当车辆页全屏背景。
+- 是否定制款以当前 VIN 的动态主题配置是否包含 `bannerVehicleBgImg` 为准；不得用 `loveCarImgUrl`、`dLinkTag` 或车型号单独推断。
+- 云端主题按 VIN 缓存；切换车辆时必须先切到对应 VIN 的缓存，再异步刷新，禁止短暂沿用上一辆车背景。
 
 ## BLE 与平台适配
 

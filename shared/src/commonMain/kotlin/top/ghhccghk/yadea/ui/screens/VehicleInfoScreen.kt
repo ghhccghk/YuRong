@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,12 +21,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.unit.dp
 import top.ghhccghk.yadea.carsetting.CloudCarSettingMapper
 import top.ghhccghk.yadea.vehicle.TtpInfo
 import top.ghhccghk.yadea.vehicle.VehicleInfoFormatter
 import top.ghhccghk.yadea.vehicle.VehicleInfoUiModel
 import top.ghhccghk.yadea.vehicle.IotRenewalLinks
 import top.ghhccghk.yadea.vehicle.VehicleProfile
+import top.ghhccghk.yadea.vehicle.VehicleCloudTheme
 import top.ghhccghk.yadea.vehicle.VehicleCloudStatus
 
 /**
@@ -39,6 +43,7 @@ fun VehicleInfoScreen(
     connected: Boolean,
     contentPadding: PaddingValues,
     profile: VehicleProfile? = null,
+    cloudTheme: VehicleCloudTheme? = null,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)? = null,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)? = null,
     onOpenIotRenewal: ((String) -> Unit)? = null,
@@ -84,6 +89,7 @@ fun VehicleInfoScreen(
             VehicleHeroCard(
                 model = model,
                 profile = profile,
+                cloudTheme = cloudTheme,
                 vehicleBackgroundContent = vehicleBackgroundContent,
                 vehicleImageContent = vehicleImageContent,
                 rangeLabel = rangeLabel,
@@ -340,14 +346,15 @@ private fun CloudConfigGroup(
 private fun VehicleHeroCard(
     model: VehicleInfoUiModel,
     profile: VehicleProfile?,
+    cloudTheme: VehicleCloudTheme?,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)?,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)?,
     rangeLabel: String,
     batteryLabel: String,
 ) {
     val dimensions = AppDesign.dimensions
-    val linked = profile?.isLinkedModel == true
-    val background = if (linked) {
+    val customized = cloudTheme?.isCustomized ?: (profile?.isLinkedModel == true)
+    val background = if (customized) {
         Brush.linearGradient(
             listOf(
                 AppDesign.colors.primaryContainer,
@@ -362,7 +369,7 @@ private fun VehicleHeroCard(
             ),
         )
     }
-    val foreground = if (linked) {
+    val foreground = if (customized) {
         AppDesign.colors.onPrimaryContainer
     } else {
         AppDesign.colors.onSurfaceContainerHighest
@@ -370,21 +377,25 @@ private fun VehicleHeroCard(
     val subtitle = if (profile == null) {
         model.connectionLabel
     } else {
-        "${model.connectionLabel} · ${if (linked) "联动款" else "普通款"}"
+        "${model.connectionLabel} · ${if (customized) "定制主题" else "标准主题"}"
     }
+    val cloudBackgroundUrl = cloudTheme?.loveCarImageUrl.orEmpty()
+    val vehicleImageUrl = profile?.backgroundImageUrl
+        ?.takeIf { it.isNotBlank() }
+        ?: profile?.vehicleImageUrl.orEmpty()
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 330.dp)
             .clip(AppDesign.shapes.section)
             .background(background),
     ) {
-        val backgroundImageUrl = profile?.backgroundImageUrl.orEmpty()
-        if (backgroundImageUrl.isNotBlank() && vehicleBackgroundContent != null) {
-            vehicleBackgroundContent(backgroundImageUrl, Modifier.matchParentSize())
+        if (cloudBackgroundUrl.isNotBlank() && vehicleBackgroundContent != null) {
+            vehicleBackgroundContent(cloudBackgroundUrl, Modifier.matchParentSize())
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .background(AppDesign.colors.surface.copy(alpha = 0.22f)),
+                    .background(AppDesign.colors.surface.copy(alpha = 0.18f)),
             )
         }
         Column(
@@ -394,26 +405,38 @@ private fun VehicleHeroCard(
             ),
             verticalArrangement = Arrangement.spacedBy(dimensions.compactSpacing),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    AppText(
-                        text = profile?.bikeNickName?.ifBlank { null } ?: "我的车辆",
-                        style = AppDesign.typography.sectionTitle,
-                        color = foreground,
-                    )
-                    AppText(
-                        text = subtitle,
-                        style = AppDesign.typography.summary,
-                        color = foreground,
-                    )
-                }
-                if (profile?.vehicleImageUrl?.isNotBlank() == true && vehicleImageContent != null) {
-                    vehicleImageContent(profile.vehicleImageUrl, Modifier)
-                }
+            Column(modifier = Modifier.fillMaxWidth()) {
+                AppText(
+                    text = profile?.bikeNickName?.ifBlank { null } ?: "我的车辆",
+                    style = AppDesign.typography.sectionTitle,
+                    color = foreground,
+                )
+                AppText(
+                    text = subtitle,
+                    style = AppDesign.typography.summary,
+                    color = foreground,
+                )
+                AppText(
+                    text = "$batteryLabel · ${model.lockLabel}",
+                    style = AppDesign.typography.title,
+                    color = foreground,
+                    modifier = Modifier.padding(top = dimensions.compactSpacing),
+                )
+                AppText(
+                    text = "续航 $rangeLabel",
+                    style = AppDesign.typography.body,
+                    color = foreground,
+                )
+            }
+            if (vehicleImageUrl.isNotBlank() && vehicleImageContent != null) {
+                vehicleImageContent(
+                    vehicleImageUrl,
+                    Modifier
+                        .fillMaxWidth()
+                        .height(190.dp),
+                )
+            } else {
+                Box(modifier = Modifier.fillMaxWidth().height(190.dp))
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),

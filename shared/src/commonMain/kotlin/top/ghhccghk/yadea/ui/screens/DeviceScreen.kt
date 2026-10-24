@@ -17,6 +17,7 @@ import top.ghhccghk.yadea.ota.OtaController
 import top.ghhccghk.yadea.vehicle.TtpInfo
 import top.ghhccghk.yadea.vehicle.VehicleInfoFormatter
 import top.ghhccghk.yadea.vehicle.VehicleProfile
+import top.ghhccghk.yadea.vehicle.VehicleCloudTheme
 import top.ghhccghk.yadea.vehicle.VehicleCloudStatus
 import top.ghhccghk.yadea.vehicle.VehicleBindingController
 import top.ghhccghk.yadea.vehicle.VehicleControlController
@@ -47,6 +48,7 @@ internal fun VehicleHubScreen(
     status: TtpInfo?,
     connected: Boolean,
     profile: VehicleProfile?,
+    cloudTheme: VehicleCloudTheme? = null,
     profiles: List<VehicleProfile>,
     onSelectVehicle: (String) -> Unit,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)? = null,
@@ -103,6 +105,7 @@ internal fun VehicleHubScreen(
                     connected = connected,
                     contentPadding = pagePadding,
                     profile = profile,
+                    cloudTheme = cloudTheme,
                     vehicleBackgroundContent = vehicleBackgroundContent,
                     vehicleImageContent = vehicleImageContent,
                     onOpenIotRenewal = onOpenIotRenewal,

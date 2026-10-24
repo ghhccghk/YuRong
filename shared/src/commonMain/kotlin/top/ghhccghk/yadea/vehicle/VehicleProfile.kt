@@ -7,9 +7,8 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * 云端车辆资料（`VehicleInfoBean` 的 UI 子集）。
  *
- * 两个图片字段语义不同：
- * - `skinPicUrl` 是车辆页背景图；
- * - `imgUrl` 是车辆本体图（`getVehicleImage()` 也只在车本体位置使用它）。
+ * 两个图片字段都参与车辆本体图选择，而车辆页背景来自
+ * `user/theme/queryUserApplyThemeAndVariedTheme` 的 `loveCarImgUrl`。
  */
 data class VehicleProfile(
     val vin: String = "",
@@ -40,9 +39,9 @@ data class VehicleProfile(
      * 不能由客户端自行猜测。
      */
     val experimental: String = "",
-    /** `VehicleInfoBean.skinPicUrl`，车辆页背景图。 */
+    /** `VehicleInfoBean.skinPicUrl`，车辆本体优先图（对应 `getVehicleImage()`）。 */
     val backgroundImageUrl: String = "",
-    /** `VehicleInfoBean.imgUrl`，车辆本体图。 */
+    /** `VehicleInfoBean.imgUrl`，`skinPicUrl` 为空时使用的车辆本体图。 */
     val vehicleImageUrl: String = "",
     /** 当前登录账号是否为车辆主用户。 */
     val primaryUser: Boolean? = null,

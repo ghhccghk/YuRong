@@ -51,6 +51,8 @@ import top.ghhccghk.yadea.vehicle.EmptyVehicleStatusSource
 import top.ghhccghk.yadea.vehicle.EmptyVehicleProfileSource
 import top.ghhccghk.yadea.vehicle.TtpInfo
 import top.ghhccghk.yadea.vehicle.VehicleProfile
+import top.ghhccghk.yadea.vehicle.VehicleCloudTheme
+import top.ghhccghk.yadea.vehicle.VehicleCloudThemeSource
 import top.ghhccghk.yadea.vehicle.VehicleCloudStatus
 import top.ghhccghk.yadea.vehicle.VehicleFaultController
 import top.ghhccghk.yadea.vehicle.VehicleFaultGateway
@@ -118,6 +120,8 @@ fun MainScreen(
     otaGateway: OtaGateway? = null,
     onOpenExternalUrl: ((String) -> Unit)? = null,
     onRefreshVehicleProfile: (() -> Unit)? = null,
+    vehicleCloudThemeSource: VehicleCloudThemeSource? = null,
+    onRefreshVehicleCloudTheme: (() -> Unit)? = null,
     vehicleProfilesRefreshing: Boolean = false,
     vehicleProfilesError: String? = null,
     vehicleCloudStatus: VehicleCloudStatus? = null,
@@ -188,6 +192,8 @@ fun MainScreen(
     }
     val vehicleProfile by resolvedProfileSource.profile.collectAsState()
     val vehicleProfiles by resolvedProfileSource.profiles.collectAsState()
+    val vehicleCloudTheme by vehicleCloudThemeSource?.theme?.collectAsState()
+        ?: remember { mutableStateOf<VehicleCloudTheme?>(null) }
     val authController = remember(resolvedPreferences, authGateway) {
         AuthController(AuthSession(resolvedPreferences), authGateway, featureScope)
     }
@@ -302,6 +308,18 @@ fun MainScreen(
         }
     }
     LaunchedEffect(
+        authUiState.session.token,
+        vehicleProfile?.vin,
+        vehicleProfile?.modelNo,
+        vehicleProfile?.seriesCode,
+    ) {
+        if (authUiState.session.token.isNotBlank() &&
+            !vehicleProfile?.vin.isNullOrBlank()
+        ) {
+            onRefreshVehicleCloudTheme?.invoke()
+        }
+    }
+    LaunchedEffect(
         vehicleProfile?.bikeId,
         authUiState.session.user?.id,
         vehicleAccountRoleProvider,
@@ -392,6 +410,7 @@ fun MainScreen(
             vehicleStatus = vehicleStatus,
             vehicleConnected = vehicleConnected,
             vehicleProfile = vehicleProfile,
+            vehicleCloudTheme = vehicleCloudTheme,
             vehicleProfiles = vehicleProfiles,
             onSelectVehicle = resolvedProfileSource::select,
             onRefreshVehicleProfile = onRefreshVehicleProfile,
@@ -451,6 +470,7 @@ private fun MainScreenContent(
     vehicleStatus: TtpInfo?,
     vehicleConnected: Boolean,
     vehicleProfile: VehicleProfile?,
+    vehicleCloudTheme: VehicleCloudTheme?,
     vehicleProfiles: List<VehicleProfile>,
     onSelectVehicle: (String) -> Unit,
     onRefreshVehicleProfile: (() -> Unit)?,
@@ -576,6 +596,7 @@ private fun MainScreenContent(
             vehicleConnected = vehicleConnected &&
                 bleState == BleConnectionState.Connected,
             vehicleProfile = vehicleProfile,
+            vehicleCloudTheme = vehicleCloudTheme,
             vehicleProfiles = vehicleProfiles,
             onSelectVehicle = onSelectVehicle,
             onRefreshVehicleProfile = onRefreshVehicleProfile,
@@ -684,6 +705,7 @@ private fun MainDestinationContent(
     vehicleStatus: TtpInfo?,
     vehicleConnected: Boolean,
     vehicleProfile: VehicleProfile?,
+    vehicleCloudTheme: VehicleCloudTheme?,
     vehicleProfiles: List<VehicleProfile>,
     onSelectVehicle: (String) -> Unit,
     onRefreshVehicleProfile: (() -> Unit)?,
@@ -732,6 +754,7 @@ private fun MainDestinationContent(
                 status = vehicleStatus,
                 connected = vehicleConnected,
                 profile = vehicleProfile,
+                cloudTheme = vehicleCloudTheme,
                 profiles = vehicleProfiles,
                 onSelectVehicle = onSelectVehicle,
                 onRefreshVehicles = onRefreshVehicleProfile,
