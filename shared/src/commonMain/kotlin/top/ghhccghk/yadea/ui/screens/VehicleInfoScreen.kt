@@ -354,6 +354,7 @@ private fun VehicleHeroCard(
     batteryLabel: String,
 ) {
     val dimensions = AppDesign.dimensions
+    val vehicleVisualTopOffset = 20.dp
     val customized = cloudTheme?.isCustomized ?: (profile?.isLinkedModel == true)
     val darkTheme = AppDesign.colors.page.luminance() < 0.5f
     val dynamicBackgroundUrl = cloudTheme
@@ -386,7 +387,12 @@ private fun VehicleHeroCard(
             .background(background),
     ) {
         if (backgroundImageUrl.isNotBlank() && vehicleBackgroundContent != null) {
-            vehicleBackgroundContent(backgroundImageUrl, Modifier.matchParentSize())
+            vehicleBackgroundContent(
+                backgroundImageUrl,
+                Modifier
+                    .matchParentSize()
+                    .padding(top = vehicleVisualTopOffset),
+            )
             Box(
                 modifier = Modifier
                     .matchParentSize()
@@ -428,7 +434,8 @@ private fun VehicleHeroCard(
                     vehicleImageUrl,
                     Modifier
                         .fillMaxWidth()
-                        .height(190.dp),
+                        .height(190.dp)
+                        .padding(top = vehicleVisualTopOffset),
                 )
             } else {
                 Box(modifier = Modifier.fillMaxWidth().height(190.dp))
