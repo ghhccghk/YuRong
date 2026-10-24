@@ -11,6 +11,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +62,12 @@ fun VehicleInfoScreen(
     val cloudTotalLabel = cloudStatus?.totalMileage
         ?.takeIf { it.isNotBlank() }
         ?.let { if (it.endsWith("km", ignoreCase = true)) it else "$it km" }
+    var knownConfigsExpanded by remember(profile?.vin, profile?.configIds) {
+        mutableStateOf(false)
+    }
+    var unknownConfigsExpanded by remember(profile?.vin, profile?.configIds) {
+        mutableStateOf(false)
+    }
     val dimensions = AppDesign.dimensions
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -82,7 +92,13 @@ fun VehicleInfoScreen(
         }
         if (profile?.configIds?.isNotEmpty() == true) {
             item {
-                CloudConfigIdsSection(profile.configIds)
+                CloudConfigIdsSection(
+                    configIds = profile.configIds,
+                    knownExpanded = knownConfigsExpanded,
+                    unknownExpanded = unknownConfigsExpanded,
+                    onKnownExpandedChange = { knownConfigsExpanded = it },
+                    onUnknownExpandedChange = { unknownConfigsExpanded = it },
+                )
             }
         }
         if (profile == null && (onRefresh != null || profileErrorMessage != null)) {
@@ -251,19 +267,70 @@ fun VehicleInfoScreen(
 }
 
 @Composable
-private fun CloudConfigIdsSection(configIds: List<String>) {
+private fun CloudConfigIdsSection(
+    configIds: List<String>,
+    knownExpanded: Boolean,
+    unknownExpanded: Boolean,
+    onKnownExpandedChange: (Boolean) -> Unit,
+    onUnknownExpandedChange: (Boolean) -> Unit,
+) {
+    val knownConfigs = configIds.mapNotNull { configId ->
+        CloudCarSettingMapper.titleForConfigId(configId)?.let { title ->
+            configId to title
+        }
+    }
+    val unknownConfigIds = configIds.filter {
+        CloudCarSettingMapper.titleForConfigId(it) == null
+    }
+
     AppSection(title = "云端已开通功能") {
-        configIds.forEachIndexed { index, configId ->
-            val title = CloudCarSettingMapper.titleForConfigId(configId)
+        if (knownConfigs.isNotEmpty()) {
+            CloudConfigGroup(
+                title = "已识别功能",
+                items = knownConfigs,
+                expanded = knownExpanded,
+                onExpandedChange = onKnownExpandedChange,
+                showTrailingDivider = unknownConfigIds.isNotEmpty(),
+            )
+        }
+        if (unknownConfigIds.isNotEmpty()) {
+            CloudConfigGroup(
+                title = "未知配置 ID",
+                items = unknownConfigIds.map { it to null },
+                expanded = unknownExpanded,
+                onExpandedChange = onUnknownExpandedChange,
+                showTrailingDivider = false,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CloudConfigGroup(
+    title: String,
+    items: List<Pair<String, String?>>,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    showTrailingDivider: Boolean,
+) {
+    AppListRow(
+        title = title,
+        summary = "共 ${items.size} 项",
+        value = if (expanded) "收起" else "展开",
+        onClick = { onExpandedChange(!expanded) },
+        showDivider = expanded || showTrailingDivider,
+    )
+    if (expanded) {
+        items.forEachIndexed { index, (configId, featureTitle) ->
             AppListRow(
-                title = title ?: "未收录功能",
-                summary = if (title == null) {
+                title = featureTitle ?: "未收录功能",
+                summary = if (featureTitle == null) {
                     "该配置 ID 暂未在本地功能表中找到对应名称。"
                 } else {
                     null
                 },
                 value = "ID $configId",
-                showDivider = index != configIds.lastIndex,
+                showDivider = index != items.lastIndex || showTrailingDivider,
             )
         }
     }
