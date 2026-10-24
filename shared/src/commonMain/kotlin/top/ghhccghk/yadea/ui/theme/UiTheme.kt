@@ -64,6 +64,7 @@ enum class AppColorSource {
     SystemDynamic,
     SeedColor,
     Preset,
+    VehicleBackground,
 }
 
 enum class AppPaletteStyle {

@@ -99,6 +99,7 @@
 - `bikeGameThemeVOList.colorType` 映射绝区零联动主题：`1=金色/Lycaon/冯·莱卡恩`、`2=橙色/Bangboo/邦布`、`3=粉色/Ellen Joe/艾莲·乔`，背景取对应资产中的 `bannerVehicleBgImg.icon.url`，并按亮/暗主题选择变体。
 - 原 App 没有写入 `colorType` 的云端接口；应用设置中的角色选择只能作为本机外观覆盖，不得伪称已修改云端车辆主题，并必须提供“跟随云端”恢复入口。
 - 车辆页背景优先级固定为动态主题 `bannerVehicleBgImg` → 云端 `loveCarImgUrl` → 纯色兜底；不要用装饰性渐变替代缺失背景。
+- 背景取色必须跟随当前实际背景 URL；切换联动角色或深浅色时应重新提取，不能继续沿用上一张背景的主色。
 - 云端主题按 VIN 缓存；切换车辆时必须先切到对应 VIN 的缓存，再异步刷新，禁止短暂沿用上一辆车背景。
 
 ## BLE 与平台适配
@@ -112,6 +113,9 @@
 主题和设置必须保持“配置模型、存储抽象、平台后端、Compose 绑定”分离。
 
 - `AppAppearance` 是唯一的主题配置模型，至少保持 `uiStyle`、`themeMode`、`colorSource`、`seedColorArgb`、`presetId`、`paletteStyle`、`amoledDarkEnabled`、`themeAnimationsEnabled` 的语义稳定。
+- `AppColorSource.VehicleBackground` 表示从当前车辆背景图提取种子色；只有存在可解码背景图时才能选择。
+- 图片提取色只用于当前渲染，不覆盖用户保存的 `seedColorArgb`；背景缺失或取色失败时必须回退到原种子色。
+- 图片下载和字节解码使用 Compose Multiplatform 跨平台资源解码链路；各平台只提供下载实现，不在业务页面写平台分支。
 - `AppPreferenceKeys` 是设置 key、类型和默认值的唯一来源。已发布的 key 不得随意改名或改变类型。
 - `PreferenceStore` 只提供 `read`、`observe`、`write`、`delete`、`clear`；业务 UI 不直接访问 SharedPreferences、NSUserDefaults、localStorage 或 Java Preferences。
 - 平台持久化后端放在各平台 sourceSet：

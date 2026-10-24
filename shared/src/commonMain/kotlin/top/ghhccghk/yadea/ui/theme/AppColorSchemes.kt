@@ -35,6 +35,7 @@ object AppThemePresets {
 fun appSeedColor(
     appearance: AppAppearance,
     systemAccentColor: Color?,
+    vehicleBackgroundSeedColor: Color? = null,
 ): Color {
     val sourceColor = when (appearance.colorSource) {
         AppColorSource.SystemDynamic -> systemAccentColor
@@ -42,6 +43,7 @@ fun appSeedColor(
         AppColorSource.Preset -> Color(
             AppThemePresets.byId(appearance.presetId).seedColorArgb.toLong() and 0xFFFFFFFFL,
         )
+        AppColorSource.VehicleBackground -> vehicleBackgroundSeedColor
     }
     return sourceColor ?: Color(appearance.seedColorArgb.toLong() and 0xFFFFFFFFL)
 }

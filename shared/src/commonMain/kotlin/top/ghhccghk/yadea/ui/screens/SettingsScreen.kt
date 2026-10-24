@@ -45,6 +45,8 @@ fun SettingsScreen(
     cloudThemeColorOverride: Int? = null,
     detectedCloudThemeColorType: Int? = null,
     onCloudThemeColorOverrideChange: (Int?) -> Unit = {},
+    vehicleBackgroundAvailable: Boolean = false,
+    vehicleBackgroundSeedColor: Color? = null,
     onVehicleAutoConnectChange: (Boolean) -> Unit = {},
     onVehicleForegroundServiceChange: (Boolean) -> Unit = {},
     systemAccentColor: Color? = null,
@@ -61,7 +63,11 @@ fun SettingsScreen(
 
     AppColorPickerDialog(
         show = showCustomColorPicker,
-        initialColor = appSeedColor(appearance, systemAccentColor),
+        initialColor = appSeedColor(
+            appearance,
+            systemAccentColor,
+            vehicleBackgroundSeedColor,
+        ),
         onConfirm = { color ->
             showCustomColorPicker = false
             haptics.confirm()
@@ -111,11 +117,13 @@ fun SettingsScreen(
                             appearance = appearance,
                             systemAccentColor = systemAccentColor,
                             onAppearanceChange = onAppearanceChange,
+                            vehicleBackgroundAvailable = vehicleBackgroundAvailable,
                             haptics = haptics,
                         )
                         SettingsThemeColorSection(
                             appearance = appearance,
                             systemAccentColor = systemAccentColor,
+                            vehicleBackgroundSeedColor = vehicleBackgroundSeedColor,
                             onAppearanceChange = onAppearanceChange,
                             onRequestCustomColor = {
                                 haptics.contextClick()
@@ -419,6 +427,7 @@ private fun SettingsColorSourceSection(
     appearance: AppAppearance,
     systemAccentColor: Color?,
     onAppearanceChange: (AppAppearance) -> Unit,
+    vehicleBackgroundAvailable: Boolean,
     haptics: AppHaptics,
 ) {
     val dimensions = AppDesign.dimensions
@@ -433,8 +442,11 @@ private fun SettingsColorSourceSection(
                 onAppearanceChange(appearance.copy(colorSource = AppColorSource.entries[index]))
             },
             enabled = { index ->
-                AppColorSource.entries[index] != AppColorSource.SystemDynamic ||
-                    systemAccentColor != null
+                when (AppColorSource.entries[index]) {
+                    AppColorSource.SystemDynamic -> systemAccentColor != null
+                    AppColorSource.VehicleBackground -> vehicleBackgroundAvailable
+                    else -> true
+                }
             },
             modifier = Modifier.fillMaxWidth().padding(
                 horizontal = dimensions.itemHorizontalPadding,
@@ -448,6 +460,13 @@ private fun SettingsColorSourceSection(
                 // 前置图标只做视觉引导，语义由标题承担。
                 leadingIcon = MiuixIcons.Photos,
                 summary = "当前平台不支持，已回退到自定义颜色",
+            )
+        }
+        if (!vehicleBackgroundAvailable) {
+            AppListRow(
+                title = "爱车背景",
+                leadingIcon = MiuixIcons.Image,
+                summary = "当前车辆没有可用背景图，暂时不能从背景提取主色",
             )
         }
 
@@ -470,6 +489,7 @@ private fun SettingsColorSourceSection(
 private fun SettingsThemeColorSection(
     appearance: AppAppearance,
     systemAccentColor: Color?,
+    vehicleBackgroundSeedColor: Color?,
     onAppearanceChange: (AppAppearance) -> Unit,
     onRequestCustomColor: () -> Unit,
     haptics: AppHaptics,
@@ -507,9 +527,25 @@ private fun SettingsThemeColorSection(
             title = "当前颜色",
             // 前置图标只做视觉引导，语义由标题承担。
             leadingIcon = MiuixIcons.Image,
-            value = appSeedColor(appearance, systemAccentColor).toHexColor(),
+            value = appSeedColor(
+                appearance,
+                systemAccentColor,
+                vehicleBackgroundSeedColor,
+            ).toHexColor(),
             onClick = onRequestCustomColor,
         )
+        if (appearance.colorSource == AppColorSource.VehicleBackground) {
+            AppListRow(
+                title = "背景种子色",
+                leadingIcon = MiuixIcons.Image,
+                value = vehicleBackgroundSeedColor?.toHexColor() ?: "提取中",
+                summary = if (vehicleBackgroundSeedColor == null) {
+                    "正在分析当前车辆背景图，失败时会回退到原自定义主色"
+                } else {
+                    "颜色来自当前车辆背景图中占比最高的鲜艳色"
+                },
+            )
+        }
         AppActionPreference(
             title = "自定义主题色",
             // 前置图标只做视觉引导，语义由标题承担。
@@ -573,6 +609,7 @@ private val AppColorSource.label: String
         AppColorSource.SystemDynamic -> "动态"
         AppColorSource.SeedColor -> "自定义"
         AppColorSource.Preset -> "预设"
+        AppColorSource.VehicleBackground -> "爱车背景"
     }
 
 private val AppColorSpec.label: String

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -25,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.ble.BleAdapter
 import top.ghhccghk.yadea.ble.BleConnectionState
@@ -132,6 +134,7 @@ fun MainScreen(
     onRefreshVehicleCloudStatus: ((String) -> Unit)? = null,
     vehicleBindingController: VehicleBindingController? = null,
     vehicleBackgroundContent: (@Composable (String, Modifier) -> Unit)? = null,
+    vehicleBackgroundColorExtractor: VehicleBackgroundColorExtractor? = null,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)? = null,
     systemAccentColor: androidx.compose.ui.graphics.Color? = null,
 ) {
@@ -203,6 +206,40 @@ fun MainScreen(
         vehicleCloudThemeColorOverride,
     ) {
         vehicleCloudTheme.withColorTypeOverride(vehicleCloudThemeColorOverride)
+    }
+    val darkTheme = when (appearanceState.value.themeMode) {
+        AppThemeMode.System -> isSystemInDarkTheme()
+        AppThemeMode.Light -> false
+        AppThemeMode.Dark -> true
+    }
+    val vehicleBackgroundUrl = remember(effectiveVehicleCloudTheme, darkTheme) {
+        effectiveVehicleCloudTheme
+            ?.bannerVehicleBgImgUrl(darkTheme)
+            .orEmpty()
+            .ifBlank { effectiveVehicleCloudTheme?.loveCarImageUrl.orEmpty() }
+    }
+    val resolvedVehicleBackgroundColorExtractor = remember(vehicleBackgroundColorExtractor) {
+        vehicleBackgroundColorExtractor ?: createVehicleBackgroundColorExtractor()
+    }
+    var vehicleBackgroundSeedColorArgb by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(
+        appearanceState.value.colorSource,
+        vehicleBackgroundUrl,
+        resolvedVehicleBackgroundColorExtractor,
+    ) {
+        vehicleBackgroundSeedColorArgb = null
+        if (appearanceState.value.colorSource != AppColorSource.VehicleBackground ||
+            vehicleBackgroundUrl.isBlank()
+        ) {
+            return@LaunchedEffect
+        }
+        vehicleBackgroundSeedColorArgb = try {
+            resolvedVehicleBackgroundColorExtractor.extractSeedArgb(vehicleBackgroundUrl)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
     }
     val authController = remember(resolvedPreferences, authGateway) {
         AuthController(AuthSession(resolvedPreferences), authGateway, featureScope)
@@ -405,9 +442,18 @@ fun MainScreen(
     }
 
     var selectedDestination by remember { mutableStateOf(MainDestination.Connection) }
+    val extractedVehicleSeedArgb = vehicleBackgroundSeedColorArgb
+    val themeAppearance = if (appearanceState.value.colorSource ==
+        AppColorSource.VehicleBackground &&
+        extractedVehicleSeedArgb != null
+    ) {
+        appearanceState.value.copy(seedColorArgb = extractedVehicleSeedArgb)
+    } else {
+        appearanceState.value
+    }
 
     AppTheme(
-        appearance = appearanceState.value,
+        appearance = themeAppearance,
         systemAccentColor = systemAccentColor,
     ) {
         MainScreenContent(
@@ -427,6 +473,10 @@ fun MainScreen(
                 featureScope.launch {
                     resolvedPreferences.writeVehicleCloudThemeColorOverride(colorType)
                 }
+            },
+            vehicleBackgroundAvailable = vehicleBackgroundUrl.isNotBlank(),
+            vehicleBackgroundSeedColor = vehicleBackgroundSeedColorArgb?.let {
+                androidx.compose.ui.graphics.Color(it.toLong() and 0xFFFFFFFFL)
             },
             vehicleProfiles = vehicleProfiles,
             onSelectVehicle = resolvedProfileSource::select,
@@ -490,6 +540,8 @@ private fun MainScreenContent(
     vehicleCloudTheme: VehicleCloudTheme?,
     vehicleCloudThemeColorOverride: Int?,
     onVehicleCloudThemeColorOverrideChange: (Int?) -> Unit,
+    vehicleBackgroundAvailable: Boolean,
+    vehicleBackgroundSeedColor: androidx.compose.ui.graphics.Color?,
     vehicleProfiles: List<VehicleProfile>,
     onSelectVehicle: (String) -> Unit,
     onRefreshVehicleProfile: (() -> Unit)?,
@@ -619,6 +671,8 @@ private fun MainScreenContent(
             vehicleCloudThemeColorOverride = vehicleCloudThemeColorOverride,
             onVehicleCloudThemeColorOverrideChange =
                 onVehicleCloudThemeColorOverrideChange,
+            vehicleBackgroundAvailable = vehicleBackgroundAvailable,
+            vehicleBackgroundSeedColor = vehicleBackgroundSeedColor,
             vehicleProfiles = vehicleProfiles,
             onSelectVehicle = onSelectVehicle,
             onRefreshVehicleProfile = onRefreshVehicleProfile,
@@ -730,6 +784,8 @@ private fun MainDestinationContent(
     vehicleCloudTheme: VehicleCloudTheme?,
     vehicleCloudThemeColorOverride: Int?,
     onVehicleCloudThemeColorOverrideChange: (Int?) -> Unit,
+    vehicleBackgroundAvailable: Boolean,
+    vehicleBackgroundSeedColor: androidx.compose.ui.graphics.Color?,
     vehicleProfiles: List<VehicleProfile>,
     onSelectVehicle: (String) -> Unit,
     onRefreshVehicleProfile: (() -> Unit)?,
@@ -810,6 +866,8 @@ private fun MainDestinationContent(
                 cloudThemeColorOverride = vehicleCloudThemeColorOverride,
                 detectedCloudThemeColorType = vehicleCloudTheme?.gameThemeColorType,
                 onCloudThemeColorOverrideChange = onVehicleCloudThemeColorOverrideChange,
+                vehicleBackgroundAvailable = vehicleBackgroundAvailable,
+                vehicleBackgroundSeedColor = vehicleBackgroundSeedColor,
                 onVehicleAutoConnectChange = onVehicleAutoConnectChange,
                 onVehicleForegroundServiceChange = onVehicleForegroundServiceChange,
                 systemAccentColor = systemAccentColor,
