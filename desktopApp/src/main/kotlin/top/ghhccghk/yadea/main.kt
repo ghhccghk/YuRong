@@ -7,14 +7,18 @@ import top.ghhccghk.yadea.settings.AppPreferences
 import top.ghhccghk.yadea.settings.JavaPreferencesStore
 import top.ghhccghk.yadea.ui.MainScreen
 
-fun main() = application {
-    Window(
-        onCloseRequest = ::exitApplication,
-        title = "touping",
-    ) {
-        MainScreen(
-            frameSourceFactory = JvmFrameSourceFactory(),
-            preferences = AppPreferences(JavaPreferencesStore()),
-        )
+fun main() {
+    val instrumentImagePicker = DesktopInstrumentImagePicker()
+    application {
+        Window(
+            onCloseRequest = ::exitApplication,
+            title = "touping",
+        ) {
+            MainScreen(
+                frameSourceFactory = JvmFrameSourceFactory(),
+                instrumentImagePicker = instrumentImagePicker,
+                preferences = AppPreferences(JavaPreferencesStore()),
+            )
+        }
     }
 }

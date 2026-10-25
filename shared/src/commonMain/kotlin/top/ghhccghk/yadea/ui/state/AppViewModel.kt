@@ -26,6 +26,7 @@ import top.ghhccghk.yadea.ble.BleDevice
 import top.ghhccghk.yadea.mirror.*
 import top.ghhccghk.yadea.carsetting.VehicleSettingCommand
 import top.ghhccghk.yadea.carsetting.VehicleSettingCommandSink
+import top.ghhccghk.yadea.instrumentskin.InstrumentImagePicker
 import top.ghhccghk.yadea.model.NavDisplayConfig
 import top.ghhccghk.yadea.network.FrameSender
 import top.ghhccghk.yadea.network.TcpTransport
@@ -55,6 +56,7 @@ class AppViewModel(
     private val permissionChecker: PermissionChecker? = null,
     private val screenCaptureAuthorizer: ScreenCaptureAuthorizer? = null,
     private val mediaSourcePicker: MediaSourcePicker? = null,
+    private val instrumentImagePicker: InstrumentImagePicker? = null,
     private val bleTokenProvider: VehicleBleTokenProvider? = null,
     private val vehicleAccountRoleProvider: VehicleAccountRoleProvider? = null,
     private val vehicleVinProvider: () -> String = { "" },
@@ -68,6 +70,19 @@ class AppViewModel(
         { _, _, _ -> },
 ) {
     val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    val instrumentTheme = InstrumentThemeController(
+        scope = scope,
+        imagePicker = instrumentImagePicker,
+        interactionGuard = {
+            when (_mirrorState.value) {
+                MirrorState.Negotiating,
+                MirrorState.Running,
+                -> "请先停止当前投屏会话，仪表同一时间只允许一个数据会话"
+
+                else -> null
+            }
+        },
+    )
 
     @Volatile
     private var connectedDeviceRealMac = ""
@@ -255,6 +270,9 @@ class AppViewModel(
         if (p2pManager != null) {
             scope.launch { p2pManager.discoveredPeers.collect { _p2pDevices.value = it } }
             scope.launch { p2pManager.connectionState.collect { _p2pConnected.value = (it == P2pStatus.Connected) } }
+            scope.launch {
+                p2pManager.groupOwnerIp.collect { host -> instrumentTheme.suggestTargetHost(host) }
+            }
             scope.launch {
                 p2pManager.isDiscovering.collect {
                     _isScanningP2p.value = it
@@ -484,6 +502,10 @@ class AppViewModel(
      */
     fun startAutoMirror() {
         if (autoMirrorJob?.isActive == true) return
+        if (instrumentTheme.state.value.busy) {
+            publishMirrorConnect(MirrorConnectEvent.Failed("请先停止仪表壁纸或皮肤任务"))
+            return
+        }
         val sink = settingCommandSink
         val p2p = p2pManager
         if (sink == null) {
@@ -587,6 +609,11 @@ class AppViewModel(
 
     fun startMirror(targetHost: String, tcpControlPort: Int = 8888, udpImagePort: Int = 8889) {
         if (cleaningUp.value) return
+        if (instrumentTheme.state.value.busy) {
+            _mirrorState.value = MirrorState.Failed
+            _mirrorStatus.value = "请先停止仪表壁纸或皮肤任务"
+            return
+        }
         if (_mirrorState.value == MirrorState.Running || _mirrorState.value == MirrorState.Negotiating) {
             debug("忽略重复的 startMirror 请求")
             return
@@ -859,6 +886,7 @@ class AppViewModel(
         udpTransport?.close()
         tcpTransport = null
         udpTransport = null
+        instrumentTheme.close()
         _mirrorState.value = MirrorState.Stopped
         scope.cancel()
     }

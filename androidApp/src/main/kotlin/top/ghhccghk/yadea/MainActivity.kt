@@ -31,6 +31,7 @@ import top.ghhccghk.yadea.network.GatewayClientInfo
 import top.ghhccghk.yadea.network.createHttpTransport
 import top.ghhccghk.yadea.auth.YadeaAuthGateway
 import top.ghhccghk.yadea.carsetting.YadeaCarSettingsGateway
+import top.ghhccghk.yadea.instrumentskin.AndroidInstrumentImageContext
 import top.ghhccghk.yadea.ota.YadeaOtaGateway
 import top.ghhccghk.yadea.ota.WifiOtaInstaller
 import top.ghhccghk.yadea.ui.MainScreen
@@ -94,6 +95,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         initAndroidFileLogger(applicationContext)
+        AndroidInstrumentImageContext.init(applicationContext)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && Build.MODEL != "robolectric") {
             HiddenApiBypass.setHiddenApiExemptions("")
@@ -314,6 +316,7 @@ class MainActivity : ComponentActivity() {
         val permissionChecker = AndroidPermissionChecker(this)
         val screenCaptureAuthorizer: ScreenCaptureAuthorizer = AndroidScreenCaptureAuthorizer(this)
         val mediaSourcePicker: MediaSourcePicker = AndroidMediaSourcePicker(this)
+        val instrumentImagePicker = AndroidInstrumentImagePicker(this)
         val vehicleControlSink = AndroidVehicleControlSink(
             adapter = vehicleBleAdapter,
             bikeBondTypeHexProvider = {
@@ -360,6 +363,7 @@ class MainActivity : ComponentActivity() {
                 permissionChecker = permissionChecker,
                 screenCaptureAuthorizer = screenCaptureAuthorizer,
                 mediaSourcePicker = mediaSourcePicker,
+                instrumentImagePicker = instrumentImagePicker,
                 preferences = appPreferences,
                 onOpenExternalUrl = { url ->
                     runCatching {

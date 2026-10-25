@@ -32,6 +32,7 @@ internal enum class VehicleSection(val label: String) {
     Diagnostics("诊断"),
     Garage("车库"),
     Settings("设置"),
+    Instrument("仪表"),
     Ota("OTA"),
     Account("账号"),
 }
@@ -70,6 +71,7 @@ internal fun VehicleHubScreen(
     customSoundController: CustomSoundController? = null,
     otaController: OtaController,
     vehicleControlController: VehicleControlController,
+    instrumentThemeController: InstrumentThemeController,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
@@ -156,6 +158,10 @@ internal fun VehicleHubScreen(
                     emergencyContactController = emergencyContactController,
                     onOpenLostMode = { onSectionChange(VehicleSection.Diagnostics) },
                     customSoundController = customSoundController,
+                )
+                VehicleSection.Instrument -> InstrumentThemeScreen(
+                    controller = instrumentThemeController,
+                    contentPadding = pagePadding,
                 )
                 VehicleSection.Ota -> OtaScreen(
                     controller = otaController,

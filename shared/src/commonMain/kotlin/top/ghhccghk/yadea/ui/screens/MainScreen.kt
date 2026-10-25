@@ -42,6 +42,7 @@ import top.ghhccghk.yadea.carsetting.VehicleSettingCommandSink
 import top.ghhccghk.yadea.carsetting.CarSettingsController
 import top.ghhccghk.yadea.carsetting.CustomSoundController
 import top.ghhccghk.yadea.carsetting.CustomSoundGateway
+import top.ghhccghk.yadea.instrumentskin.InstrumentImagePicker
 import top.ghhccghk.yadea.mirror.FrameSourceFactory
 import top.ghhccghk.yadea.mirror.MediaSourcePicker
 import top.ghhccghk.yadea.mirror.ScreenCaptureAuthorizer
@@ -113,6 +114,7 @@ fun MainScreen(
     permissionChecker: PermissionChecker? = null,
     screenCaptureAuthorizer: ScreenCaptureAuthorizer? = null,
     mediaSourcePicker: MediaSourcePicker? = null,
+    instrumentImagePicker: InstrumentImagePicker? = null,
     preferences: AppPreferences? = null,
     vehicleStatusSource: VehicleStatusSource? = null,
     vehicleProfileSource: VehicleProfileSource? = null,
@@ -147,7 +149,12 @@ fun MainScreen(
     var vehicleCloudThemeColorOverride by remember {
         mutableStateOf(resolvedPreferences.readVehicleCloudThemeColorOverride())
     }
-    val viewModel = remember(bleTokenProvider, vehicleAccountRoleProvider, vehicleProfileSource) {
+    val viewModel = remember(
+        bleTokenProvider,
+        vehicleAccountRoleProvider,
+        vehicleProfileSource,
+        instrumentImagePicker,
+    ) {
         AppViewModel(
             wifiManager = wifiManager,
             bleAdapter = bleAdapter,
@@ -156,6 +163,7 @@ fun MainScreen(
             permissionChecker = permissionChecker,
             screenCaptureAuthorizer = screenCaptureAuthorizer,
             mediaSourcePicker = mediaSourcePicker,
+            instrumentImagePicker = instrumentImagePicker,
             bleTokenProvider = bleTokenProvider,
             vehicleAccountRoleProvider = vehicleAccountRoleProvider,
             vehicleVinProvider = { vehicleProfileSource?.profile?.value?.vin.orEmpty() },
@@ -855,6 +863,7 @@ private fun MainDestinationContent(
                 customSoundController = customSoundController,
                 otaController = otaController,
                 vehicleControlController = vehicleControlController,
+                instrumentThemeController = viewModel.instrumentTheme,
                 contentPadding = contentPadding,
             )
             MainDestination.Settings -> SettingsScreen(
