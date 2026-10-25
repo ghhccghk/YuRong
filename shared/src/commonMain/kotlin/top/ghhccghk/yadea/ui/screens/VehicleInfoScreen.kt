@@ -424,7 +424,7 @@ private fun VehicleHeroCard(
                     modifier = Modifier.padding(top = dimensions.compactSpacing),
                 )
                 AppText(
-                    text = "续航:$rangeLabel 电量:$batteryLabel 车速:${model.speedLabel} ",
+                    text = "续航: $rangeLabel 车速:${model.speedLabel} ",
                     style = AppDesign.typography.body,
                     color = foreground,
                 )
@@ -434,11 +434,11 @@ private fun VehicleHeroCard(
                     vehicleImageUrl,
                     Modifier
                         .fillMaxWidth()
-                        .height(220.dp)
+                        .height(235.dp)
                         .padding(top = vehicleVisualTopOffset),
                 )
             } else {
-                Box(modifier = Modifier.fillMaxWidth().height(220.dp))
+                Box(modifier = Modifier.fillMaxWidth().height(235.dp))
             }
         }
     }
