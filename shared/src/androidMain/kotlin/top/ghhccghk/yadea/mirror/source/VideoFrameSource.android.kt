@@ -2,8 +2,8 @@ package top.ghhccghk.yadea.mirror.source
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.ImageFormat
 import android.graphics.Matrix
-import android.graphics.PixelFormat
 import android.media.Image
 import android.media.ImageReader
 import android.media.MediaCodec
@@ -13,7 +13,6 @@ import android.net.Uri
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
-import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -86,8 +85,7 @@ class VideoFrameSource(
     @Volatile
     private var frameRotationDegrees = 0
 
-    // ImageReader invokes its listener on one HandlerThread, so these buffers can be reused.
-    private var packedRgbaBuffer: ByteBuffer? = null
+    // ImageReader invokes its listener on one HandlerThread, so this buffer can be reused.
     private var argbPixelBuffer: IntArray? = null
     private var lastDeliveredElapsedNanos = 0L
 
@@ -249,7 +247,7 @@ class VideoFrameSource(
             val frameReader = ImageReader.newInstance(
                 captureWidth,
                 captureHeight,
-                PixelFormat.RGBA_8888,
+                ImageFormat.YUV_420_888,
                 2,
             )
             reader = frameReader
@@ -292,7 +290,6 @@ class VideoFrameSource(
             runCatching { reader?.close() }
             runCatching { extractor?.release() }
             frameThread?.quitSafely()
-            packedRgbaBuffer = null
             argbPixelBuffer = null
 
             synchronized(lifecycleLock) {
@@ -461,7 +458,7 @@ class VideoFrameSource(
             }
             lastDeliveredElapsedNanos = nowNanos
 
-            val decoded = image.toRgbaBitmap()
+            val decoded = image.toArgbBitmap()
             val transformed = rotateAndScale(decoded, frameRotationDegrees)
             previewDispatcher.publishDimensions(transformed.width, transformed.height)
             if (previewDispatcher.shouldPublishFrame()) {
@@ -523,79 +520,85 @@ class VideoFrameSource(
     }
 
     /**
-     * Codec output can contain row padding. Reuse packed buffers when possible and
-     * avoid allocating a new full-frame array for every delivered image.
+     * MediaCodec surface output is most reliable as YUV_420_888 across vendors.
+     * Convert it explicitly instead of calling Bitmap.copyPixelsFromBuffer on a
+     * codec-owned RGBA buffer, which can abort in native code on some devices.
      */
-    private fun Image.toRgbaBitmap(): Bitmap {
+    private fun Image.toArgbBitmap(): Bitmap {
         val imagePlanes = planes
-        if (imagePlanes.isEmpty()) {
-            throw IllegalStateException("视频解码输出没有像素平面")
+        if (imagePlanes.size < 3) {
+            throw IllegalStateException("视频 YUV 解码输出像素平面不足: ${imagePlanes.size}")
         }
-        val plane = imagePlanes[0]
-        val rowStride = plane.rowStride
-        val pixelStride = plane.pixelStride
         val frameWidth = width
         val frameHeight = height
-        if (rowStride <= 0 || pixelStride <= 0) {
-            throw IllegalStateException(
-                "视频解码输出步长无效: row=$rowStride pixel=$pixelStride",
-            )
-        }
+        val yPlane = imagePlanes[0]
+        val uPlane = imagePlanes[1]
+        val vPlane = imagePlanes[2]
+        val yRowStride = yPlane.rowStride
+        val yPixelStride = yPlane.pixelStride
+        val uRowStride = uPlane.rowStride
+        val uPixelStride = uPlane.pixelStride
+        val vRowStride = vPlane.rowStride
+        val vPixelStride = vPlane.pixelStride
+        val chromaWidth = (frameWidth + 1) / 2
+        val chromaHeight = (frameHeight + 1) / 2
+        validateYuvPlane(
+            name = "Y",
+            limit = yPlane.buffer.limit(),
+            rowStride = yRowStride,
+            pixelStride = yPixelStride,
+            width = frameWidth,
+            height = frameHeight,
+        )
+        validateYuvPlane(
+            name = "U",
+            limit = uPlane.buffer.limit(),
+            rowStride = uRowStride,
+            pixelStride = uPixelStride,
+            width = chromaWidth,
+            height = chromaHeight,
+        )
+        validateYuvPlane(
+            name = "V",
+            limit = vPlane.buffer.limit(),
+            rowStride = vRowStride,
+            pixelStride = vPixelStride,
+            width = chromaWidth,
+            height = chromaHeight,
+        )
+
         val bitmap = Bitmap.createBitmap(frameWidth, frameHeight, Bitmap.Config.ARGB_8888)
         try {
-            val source = plane.buffer
-            source.rewind()
-            val tightRowBytes = frameWidth * pixelStride
-            val requiredBytes = tightRowBytes * frameHeight
-
-            if (pixelStride == 4 &&
-                rowStride == tightRowBytes &&
-                source.remaining() >= requiredBytes
-            ) {
-                bitmap.copyPixelsFromBuffer(source)
-                return bitmap
-            }
-
-            if (pixelStride == 4) {
-                val packed = packedRgbaBuffer
-                    ?.takeIf { it.capacity() >= requiredBytes }
-                    ?: ByteBuffer.allocate(requiredBytes).also { packedRgbaBuffer = it }
-                packed.clear()
-                for (y in 0 until frameHeight) {
-                    val rowStart = y * rowStride
-                    val available = (source.limit() - rowStart).coerceAtLeast(0)
-                    val bytesToCopy = minOf(tightRowBytes, available)
-                    if (bytesToCopy < tightRowBytes) {
-                        throw IllegalStateException(
-                            "视频 RGBA 缓冲区不足: 行=$y 需要=$tightRowBytes 实际=$bytesToCopy",
-                        )
-                    }
-                    val row = source.duplicate()
-                    row.position(rowStart)
-                    row.limit(rowStart + bytesToCopy)
-                    packed.put(row)
-                }
-                packed.position(0)
-                packed.limit(requiredBytes)
-                bitmap.copyPixelsFromBuffer(packed)
-                return bitmap
-            }
-
             val requiredPixels = frameWidth * frameHeight
             val pixels = argbPixelBuffer
                 ?.takeIf { it.size >= requiredPixels }
                 ?: IntArray(requiredPixels).also { argbPixelBuffer = it }
+            val yBuffer = yPlane.buffer
+            val uBuffer = uPlane.buffer
+            val vBuffer = vPlane.buffer
             for (y in 0 until frameHeight) {
+                val yRowOffset = y * yRowStride
+                val uvRowOffset = (y / 2) * uRowStride
+                val vvRowOffset = (y / 2) * vRowStride
                 for (x in 0 until frameWidth) {
-                    val offset = y * rowStride + x * pixelStride
-                    if (offset + 3 >= source.limit()) {
-                        throw IllegalStateException("视频像素缓冲区越界: offset=$offset")
-                    }
-                    val r = source.get(offset).toInt() and 0xFF
-                    val g = source.get(offset + 1).toInt() and 0xFF
-                    val b = source.get(offset + 2).toInt() and 0xFF
-                    val a = source.get(offset + 3).toInt() and 0xFF
-                    pixels[y * frameWidth + x] = (a shl 24) or (r shl 16) or (g shl 8) or b
+                    val yValue = yBuffer.get(
+                        yRowOffset + x * yPixelStride,
+                    ).toInt() and 0xFF
+                    val uvX = x / 2
+                    val uValue = uBuffer.get(
+                        uvRowOffset + uvX * uPixelStride,
+                    ).toInt() and 0xFF
+                    val vValue = vBuffer.get(
+                        vvRowOffset + uvX * vPixelStride,
+                    ).toInt() and 0xFF
+
+                    val c = (yValue - 16).coerceAtLeast(0)
+                    val d = uValue - 128
+                    val e = vValue - 128
+                    val r = ((298 * c + 409 * e + 128) shr 8).coerceIn(0, 255)
+                    val g = ((298 * c - 100 * d - 208 * e + 128) shr 8).coerceIn(0, 255)
+                    val b = ((298 * c + 516 * d + 128) shr 8).coerceIn(0, 255)
+                    pixels[y * frameWidth + x] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
                 }
             }
             bitmap.setPixels(pixels, 0, frameWidth, 0, 0, frameWidth, frameHeight)
@@ -603,6 +606,28 @@ class VideoFrameSource(
         } catch (error: Throwable) {
             if (!bitmap.isRecycled) bitmap.recycle()
             throw error
+        }
+    }
+
+    private fun validateYuvPlane(
+        name: String,
+        limit: Int,
+        rowStride: Int,
+        pixelStride: Int,
+        width: Int,
+        height: Int,
+    ) {
+        if (rowStride <= 0 || pixelStride <= 0) {
+            throw IllegalStateException(
+                "视频 $name 平面步长无效: row=$rowStride pixel=$pixelStride",
+            )
+        }
+        val lastIndex = (height - 1).coerceAtLeast(0) * rowStride +
+            (width - 1).coerceAtLeast(0) * pixelStride
+        if (lastIndex >= limit) {
+            throw IllegalStateException(
+                "视频 $name 平面缓冲区不足: last=$lastIndex limit=$limit",
+            )
         }
     }
 
