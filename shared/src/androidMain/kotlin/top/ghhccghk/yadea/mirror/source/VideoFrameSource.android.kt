@@ -17,6 +17,7 @@ import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.roundToInt
 import top.ghhccghk.yadea.mirror.FrameCropConfig
 import top.ghhccghk.yadea.mirror.FramePreviewDispatcher
 import top.ghhccghk.yadea.mirror.FrameSource
@@ -241,12 +242,13 @@ class VideoFrameSource(
             val rotation = format.intValue(MediaFormat.KEY_ROTATION)
                 ?.let(::normalizedRotation)
                 ?: 0
+            val (captureWidth, captureHeight) = scaledSize(sourceWidth, sourceHeight)
 
             val thread = HandlerThread("android-video-frame-reader").apply { start() }
             frameThread = thread
             val frameReader = ImageReader.newInstance(
-                sourceWidth,
-                sourceHeight,
+                captureWidth,
+                captureHeight,
                 PixelFormat.RGBA_8888,
                 2,
             )
@@ -502,6 +504,13 @@ class VideoFrameSource(
         return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
     }
 
+    private fun scaledSize(width: Int, height: Int): Pair<Int, Int> {
+        if (width <= 0 || height <= 0) return width to height
+        val scale = minOf(1f, MAX_CAPTURE_EDGE.toFloat() / maxOf(width, height))
+        return (width * scale).roundToInt().coerceAtLeast(2) to
+            (height * scale).roundToInt().coerceAtLeast(2)
+    }
+
     private fun applyCrop(bitmap: Bitmap): Bitmap {
         if (cropConfig == FrameCropConfig.FULL) return bitmap
         val rect = cropConfig.toPixelRect(bitmap.width, bitmap.height)
@@ -518,59 +527,83 @@ class VideoFrameSource(
      * avoid allocating a new full-frame array for every delivered image.
      */
     private fun Image.toRgbaBitmap(): Bitmap {
-        val plane = planes[0]
+        val imagePlanes = planes
+        if (imagePlanes.isEmpty()) {
+            throw IllegalStateException("视频解码输出没有像素平面")
+        }
+        val plane = imagePlanes[0]
         val rowStride = plane.rowStride
         val pixelStride = plane.pixelStride
         val frameWidth = width
         val frameHeight = height
+        if (rowStride <= 0 || pixelStride <= 0) {
+            throw IllegalStateException(
+                "视频解码输出步长无效: row=$rowStride pixel=$pixelStride",
+            )
+        }
         val bitmap = Bitmap.createBitmap(frameWidth, frameHeight, Bitmap.Config.ARGB_8888)
-        val source = plane.buffer
-        source.rewind()
-
-        val tightRowBytes = frameWidth * pixelStride
-        if (pixelStride == 4 && rowStride == tightRowBytes) {
-            bitmap.copyPixelsFromBuffer(source)
-            return bitmap
-        }
-
-        if (pixelStride == 4) {
+        try {
+            val source = plane.buffer
+            source.rewind()
+            val tightRowBytes = frameWidth * pixelStride
             val requiredBytes = tightRowBytes * frameHeight
-            val packed = packedRgbaBuffer
-                ?.takeIf { it.capacity() >= requiredBytes }
-                ?: ByteBuffer.allocate(requiredBytes).also { packedRgbaBuffer = it }
-            packed.clear()
-            for (y in 0 until frameHeight) {
-                val rowStart = y * rowStride
-                val available = (source.limit() - rowStart).coerceAtLeast(0)
-                val bytesToCopy = minOf(tightRowBytes, available)
-                if (bytesToCopy <= 0) break
-                val row = source.duplicate()
-                row.position(rowStart)
-                row.limit(rowStart + bytesToCopy)
-                packed.put(row)
-            }
-            packed.flip()
-            bitmap.copyPixelsFromBuffer(packed)
-            return bitmap
-        }
 
-        val requiredPixels = frameWidth * frameHeight
-        val pixels = argbPixelBuffer
-            ?.takeIf { it.size >= requiredPixels }
-            ?: IntArray(requiredPixels).also { argbPixelBuffer = it }
-        for (y in 0 until frameHeight) {
-            for (x in 0 until frameWidth) {
-                val offset = y * rowStride + x * pixelStride
-                if (offset + 3 >= source.limit()) continue
-                val r = source.get(offset).toInt() and 0xFF
-                val g = source.get(offset + 1).toInt() and 0xFF
-                val b = source.get(offset + 2).toInt() and 0xFF
-                val a = source.get(offset + 3).toInt() and 0xFF
-                pixels[y * frameWidth + x] = (a shl 24) or (r shl 16) or (g shl 8) or b
+            if (pixelStride == 4 &&
+                rowStride == tightRowBytes &&
+                source.remaining() >= requiredBytes
+            ) {
+                bitmap.copyPixelsFromBuffer(source)
+                return bitmap
             }
+
+            if (pixelStride == 4) {
+                val packed = packedRgbaBuffer
+                    ?.takeIf { it.capacity() >= requiredBytes }
+                    ?: ByteBuffer.allocate(requiredBytes).also { packedRgbaBuffer = it }
+                packed.clear()
+                for (y in 0 until frameHeight) {
+                    val rowStart = y * rowStride
+                    val available = (source.limit() - rowStart).coerceAtLeast(0)
+                    val bytesToCopy = minOf(tightRowBytes, available)
+                    if (bytesToCopy < tightRowBytes) {
+                        throw IllegalStateException(
+                            "视频 RGBA 缓冲区不足: 行=$y 需要=$tightRowBytes 实际=$bytesToCopy",
+                        )
+                    }
+                    val row = source.duplicate()
+                    row.position(rowStart)
+                    row.limit(rowStart + bytesToCopy)
+                    packed.put(row)
+                }
+                packed.position(0)
+                packed.limit(requiredBytes)
+                bitmap.copyPixelsFromBuffer(packed)
+                return bitmap
+            }
+
+            val requiredPixels = frameWidth * frameHeight
+            val pixels = argbPixelBuffer
+                ?.takeIf { it.size >= requiredPixels }
+                ?: IntArray(requiredPixels).also { argbPixelBuffer = it }
+            for (y in 0 until frameHeight) {
+                for (x in 0 until frameWidth) {
+                    val offset = y * rowStride + x * pixelStride
+                    if (offset + 3 >= source.limit()) {
+                        throw IllegalStateException("视频像素缓冲区越界: offset=$offset")
+                    }
+                    val r = source.get(offset).toInt() and 0xFF
+                    val g = source.get(offset + 1).toInt() and 0xFF
+                    val b = source.get(offset + 2).toInt() and 0xFF
+                    val a = source.get(offset + 3).toInt() and 0xFF
+                    pixels[y * frameWidth + x] = (a shl 24) or (r shl 16) or (g shl 8) or b
+                }
+            }
+            bitmap.setPixels(pixels, 0, frameWidth, 0, 0, frameWidth, frameHeight)
+            return bitmap
+        } catch (error: Throwable) {
+            if (!bitmap.isRecycled) bitmap.recycle()
+            throw error
         }
-        bitmap.setPixels(pixels, 0, frameWidth, 0, 0, frameWidth, frameHeight)
-        return bitmap
     }
 
     private fun setDataSource(extractor: MediaExtractor) {
