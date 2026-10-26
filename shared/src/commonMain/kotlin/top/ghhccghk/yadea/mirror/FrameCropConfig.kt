@@ -18,6 +18,8 @@ data class FrameCropConfig(
 
     val normalizedWidth: Float get() = right - left
     val normalizedHeight: Float get() = bottom - top
+    val centerX: Float get() = (left + right) / 2f
+    val centerY: Float get() = (top + bottom) / 2f
 
     /**
      * 将归一化坐标转换为像素矩形
@@ -31,32 +33,58 @@ data class FrameCropConfig(
     }
 
     /**
-     * 保持宽高比并居中裁剪
+     * 生成像素宽高比严格等于 [targetRatio] 的裁剪区域。
+     *
+     * 归一化坐标同时受源宽高影响，不能直接令 normalizedWidth /
+     * normalizedHeight 等于投屏比例。这里先换算到源像素比例，再以当前中心
+     * 和期望宽度生成裁剪框。
      */
-    fun withAspectRation(targetRatio: Float, sourceWidth: Int, sourceHeight: Int): FrameCropConfig {
-        val sourceRatio = sourceWidth.toFloat() / sourceHeight
-        val centerH = (top + bottom) / 2f
-        val centerV = (left + right) / 2f
+    fun withAspectRatio(
+        targetRatio: Float,
+        sourceWidth: Int,
+        sourceHeight: Int,
+        centerX: Float = this.centerX,
+        centerY: Float = this.centerY,
+        requestedWidth: Float = normalizedWidth,
+    ): FrameCropConfig {
+        if (targetRatio <= 0f || sourceWidth <= 0 || sourceHeight <= 0) return this
 
-        return if (sourceRatio > targetRatio) {
-            // 源更宽，按高度限制宽度
-            val halfW = normalizedHeight * targetRatio / sourceRatio / 2f
-            FrameCropConfig(
-                left = (centerV - halfW).coerceIn(0f, 1f),
-                top = top,
-                right = (centerV + halfW).coerceIn(0f, 1f),
-                bottom = bottom
-            )
-        } else {
-            // 源更高，按宽度限制高度
-            val halfH = normalizedWidth * sourceRatio / targetRatio / 2f
-            FrameCropConfig(
-                left = left,
-                top = (centerH - halfH).coerceIn(0f, 1f),
-                right = right,
-                bottom = (centerH + halfH).coerceIn(0f, 1f)
-            )
-        }
+        val sourceRatio = sourceWidth.toFloat() / sourceHeight
+        val normalizedHeightPerWidth = sourceRatio / targetRatio
+        val maxWidth = minOf(1f, 1f / normalizedHeightPerWidth)
+        val width = requestedWidth
+            .coerceAtLeast(0.01f)
+            .coerceAtMost(maxWidth)
+        val height = (width * normalizedHeightPerWidth).coerceAtMost(1f)
+        val halfWidth = width / 2f
+        val halfHeight = height / 2f
+        val safeCenterX = centerX.coerceIn(halfWidth, 1f - halfWidth)
+        val safeCenterY = centerY.coerceIn(halfHeight, 1f - halfHeight)
+
+        return FrameCropConfig(
+            left = safeCenterX - halfWidth,
+            top = safeCenterY - halfHeight,
+            right = safeCenterX + halfWidth,
+            bottom = safeCenterY + halfHeight,
+        )
+    }
+
+    /** 保留旧方法名，避免已发布调用点失效。 */
+    fun withAspectRation(targetRatio: Float, sourceWidth: Int, sourceHeight: Int): FrameCropConfig =
+        withAspectRatio(targetRatio, sourceWidth, sourceHeight)
+
+    /** 平移裁剪框，同时保持在源画面边界内。 */
+    fun moveBy(deltaX: Float, deltaY: Float): FrameCropConfig {
+        val width = normalizedWidth
+        val height = normalizedHeight
+        val safeLeft = (left + deltaX).coerceIn(0f, 1f - width)
+        val safeTop = (top + deltaY).coerceIn(0f, 1f - height)
+        return FrameCropConfig(
+            left = safeLeft,
+            top = safeTop,
+            right = safeLeft + width,
+            bottom = safeTop + height,
+        )
     }
 
     companion object {

@@ -18,7 +18,9 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import top.ghhccghk.yadea.mirror.FrameCropConfig
+import top.ghhccghk.yadea.mirror.FramePreviewDispatcher
 import top.ghhccghk.yadea.mirror.FrameSource
+import top.ghhccghk.yadea.mirror.FrameSourceDimensions
 import top.ghhccghk.yadea.mirror.PlatformBitmap
 
 private const val MAX_CAPTURE_EDGE = 1280
@@ -48,6 +50,7 @@ class VideoFrameSource(
     private val released = AtomicBoolean(false)
     private val generation = AtomicLong(0L)
     private val failureReported = AtomicBoolean(false)
+    private val previewDispatcher = FramePreviewDispatcher()
 
     @Volatile
     private var worker: Thread? = null
@@ -105,6 +108,14 @@ class VideoFrameSource(
 
     override fun onFailure(handler: (String) -> Unit) {
         failureHandler = handler
+    }
+
+    override fun onSourceDimensions(handler: ((FrameSourceDimensions) -> Unit)?) {
+        previewDispatcher.onSourceDimensions(handler)
+    }
+
+    override fun onPreviewFrame(handler: ((PlatformBitmap) -> Unit)?) {
+        previewDispatcher.onPreviewFrame(handler)
     }
 
     override fun updateTargetFps(fps: Int) {
@@ -450,6 +461,13 @@ class VideoFrameSource(
 
             val decoded = image.toRgbaBitmap()
             val transformed = rotateAndScale(decoded, frameRotationDegrees)
+            previewDispatcher.publishDimensions(transformed.width, transformed.height)
+            if (previewDispatcher.shouldPublishFrame()) {
+                val preview = transformed.copy(Bitmap.Config.ARGB_8888, false)
+                if (preview != null) {
+                    previewDispatcher.publishFrame(PlatformBitmap(preview))
+                }
+            }
             val cropped = applyCrop(transformed)
             var delivered = false
             try {

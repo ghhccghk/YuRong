@@ -18,7 +18,9 @@ import android.view.WindowManager
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 import top.ghhccghk.yadea.mirror.FrameCropConfig
+import top.ghhccghk.yadea.mirror.FramePreviewDispatcher
 import top.ghhccghk.yadea.mirror.FrameSource
+import top.ghhccghk.yadea.mirror.FrameSourceDimensions
 import top.ghhccghk.yadea.mirror.PlatformBitmap
 
 /**
@@ -40,6 +42,7 @@ class ScreenCaptureFrameSource(
     private val stopRequested = AtomicBoolean(false)
     private val intentionalProjectionStop = AtomicBoolean(false)
     private val failureReported = AtomicBoolean(false)
+    private val previewDispatcher = FramePreviewDispatcher()
 
     @Volatile
     private var failureHandler: ((String) -> Unit)? = null
@@ -75,6 +78,14 @@ class ScreenCaptureFrameSource(
 
     override fun onFailure(handler: (String) -> Unit) {
         failureHandler = handler
+    }
+
+    override fun onSourceDimensions(handler: ((FrameSourceDimensions) -> Unit)?) {
+        previewDispatcher.onSourceDimensions(handler)
+    }
+
+    override fun onPreviewFrame(handler: ((PlatformBitmap) -> Unit)?) {
+        previewDispatcher.onPreviewFrame(handler)
     }
 
     override suspend fun start(onFrame: (PlatformBitmap) -> Unit) {
@@ -192,6 +203,13 @@ class ScreenCaptureFrameSource(
                 return
             }
 
+            previewDispatcher.publishDimensions(bitmap.width, bitmap.height)
+            if (previewDispatcher.shouldPublishFrame()) {
+                val preview = bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                if (preview != null) {
+                    previewDispatcher.publishFrame(PlatformBitmap(preview))
+                }
+            }
             val cropped = applyCrop(bitmap)
             var delivered = false
             try {

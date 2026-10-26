@@ -15,7 +15,9 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import top.ghhccghk.yadea.mirror.FrameCropConfig
+import top.ghhccghk.yadea.mirror.FramePreviewDispatcher
 import top.ghhccghk.yadea.mirror.FrameSource
+import top.ghhccghk.yadea.mirror.FrameSourceDimensions
 import top.ghhccghk.yadea.mirror.PlatformBitmap
 
 /**
@@ -38,6 +40,7 @@ class CameraFrameSource(
     private val startGeneration = AtomicLong(0L)
     private val released = AtomicBoolean(false)
     private val failureReported = AtomicBoolean(false)
+    private val previewDispatcher = FramePreviewDispatcher()
 
     private val running = AtomicBoolean(false)
 
@@ -58,6 +61,14 @@ class CameraFrameSource(
 
     override fun onFailure(handler: (String) -> Unit) {
         failureHandler = handler
+    }
+
+    override fun onSourceDimensions(handler: ((FrameSourceDimensions) -> Unit)?) {
+        previewDispatcher.onSourceDimensions(handler)
+    }
+
+    override fun onPreviewFrame(handler: ((PlatformBitmap) -> Unit)?) {
+        previewDispatcher.onPreviewFrame(handler)
     }
 
     override suspend fun start(onFrame: (PlatformBitmap) -> Unit) {
@@ -157,6 +168,13 @@ class CameraFrameSource(
             var delivered = false
             try {
                 if (!isCurrentStart(generation)) return
+                previewDispatcher.publishDimensions(bitmap.width, bitmap.height)
+                if (previewDispatcher.shouldPublishFrame()) {
+                    val preview = bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                    if (preview != null) {
+                        previewDispatcher.publishFrame(PlatformBitmap(preview))
+                    }
+                }
                 cropped = applyCrop(bitmap)
                 if (!isCurrentStart(generation)) return
                 onFrame(PlatformBitmap(cropped))

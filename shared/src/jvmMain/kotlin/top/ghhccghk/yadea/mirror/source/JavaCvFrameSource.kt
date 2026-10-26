@@ -7,7 +7,9 @@ import org.bytedeco.javacv.FrameGrabber
 import org.bytedeco.javacv.Java2DFrameConverter
 import org.bytedeco.javacv.OpenCVFrameGrabber
 import top.ghhccghk.yadea.mirror.FrameCropConfig
+import top.ghhccghk.yadea.mirror.FramePreviewDispatcher
 import top.ghhccghk.yadea.mirror.FrameSource
+import top.ghhccghk.yadea.mirror.FrameSourceDimensions
 import top.ghhccghk.yadea.mirror.PlatformBitmap
 
 /**
@@ -26,6 +28,7 @@ class JavaCvFrameSource private constructor(
 
     private val running = AtomicBoolean(false)
     private val closed = AtomicBoolean(false)
+    private val previewDispatcher = FramePreviewDispatcher()
     @Volatile private var worker: Thread? = null
     @Volatile private var cropConfig: FrameCropConfig = FrameCropConfig.FULL
     @Volatile private var failureHandler: ((String) -> Unit)? = null
@@ -39,6 +42,14 @@ class JavaCvFrameSource private constructor(
 
     override fun onFailure(handler: (String) -> Unit) {
         failureHandler = handler
+    }
+
+    override fun onSourceDimensions(handler: ((FrameSourceDimensions) -> Unit)?) {
+        previewDispatcher.onSourceDimensions(handler)
+    }
+
+    override fun onPreviewFrame(handler: ((PlatformBitmap) -> Unit)?) {
+        previewDispatcher.onPreviewFrame(handler)
     }
 
     override suspend fun start(onFrame: (PlatformBitmap) -> Unit) {
@@ -71,6 +82,11 @@ class JavaCvFrameSource private constructor(
 
                     val converted = frame?.let { convertFrame(converter, it) } ?: continue
                     val copied = Java2DFrameConverter.cloneBufferedImage(converted)
+                    previewDispatcher.publishDimensions(copied.width, copied.height)
+                    if (previewDispatcher.shouldPublishFrame()) {
+                        val preview = Java2DFrameConverter.cloneBufferedImage(copied)
+                        previewDispatcher.publishFrame(PlatformBitmap(preview))
+                    }
                     val cropped = applyCrop(copied)
                     onFrame(PlatformBitmap(cropped))
                 }

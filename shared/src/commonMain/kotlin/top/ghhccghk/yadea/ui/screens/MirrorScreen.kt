@@ -43,6 +43,9 @@ fun MirrorScreen(
     val selectedSource by viewModel.selectedSource.collectAsState()
     val sourceCapabilities = viewModel.sourceCapabilities
     val sourceUri by viewModel.sourceUri.collectAsState()
+    val sourceDimensions by viewModel.sourceDimensions.collectAsState()
+    val sourcePreviewJpeg by viewModel.sourcePreviewJpeg.collectAsState()
+    val navConfig by viewModel.navConfig.collectAsState()
     val cropConfig by viewModel.cropConfig.collectAsState()
     val p2pGroupOwnerIp by viewModel.p2pGroupOwnerIp.collectAsState()
     val wifiIp by viewModel.wifiIp.collectAsState()
@@ -297,6 +300,11 @@ fun MirrorScreen(
         item {
             MirrorPreviewPanel(
                 cropConfig = cropConfig,
+                previewJpeg = sourcePreviewJpeg,
+                sourceWidth = sourceDimensions.width,
+                sourceHeight = sourceDimensions.height,
+                projectionWidth = navConfig.width,
+                projectionHeight = navConfig.height,
                 onCropChange = { viewModel.updateCrop(it) },
             )
         }

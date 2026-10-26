@@ -10,8 +10,10 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import top.ghhccghk.yadea.mirror.FrameCropConfig
+import top.ghhccghk.yadea.mirror.FramePreviewDispatcher
 import top.ghhccghk.yadea.mirror.FrameRatePolicy
 import top.ghhccghk.yadea.mirror.FrameSource
+import top.ghhccghk.yadea.mirror.FrameSourceDimensions
 import top.ghhccghk.yadea.mirror.PlatformBitmap
 
 /**
@@ -29,6 +31,7 @@ class RobotScreenCaptureFrameSource(
     private val lifecycleLock = Any()
     private val startGeneration = AtomicLong(0L)
     private val running = AtomicBoolean(false)
+    private val previewDispatcher = FramePreviewDispatcher()
     private var worker: ExecutorService? = null
     @Volatile
     private var cropConfig: FrameCropConfig = FrameCropConfig.FULL
@@ -51,6 +54,14 @@ class RobotScreenCaptureFrameSource(
 
     override fun onFailure(handler: (String) -> Unit) {
         failureHandler = handler
+    }
+
+    override fun onSourceDimensions(handler: ((FrameSourceDimensions) -> Unit)?) {
+        previewDispatcher.onSourceDimensions(handler)
+    }
+
+    override fun onPreviewFrame(handler: ((PlatformBitmap) -> Unit)?) {
+        previewDispatcher.onPreviewFrame(handler)
     }
 
     override suspend fun start(onFrame: (PlatformBitmap) -> Unit) {
@@ -92,6 +103,21 @@ class RobotScreenCaptureFrameSource(
                         if (!isCurrent(generation)) break
 
                         val captured = robot.createScreenCapture(deviceBounds)
+                        previewDispatcher.publishDimensions(captured.width, captured.height)
+                        if (previewDispatcher.shouldPublishFrame()) {
+                            val preview = BufferedImage(
+                                captured.width,
+                                captured.height,
+                                BufferedImage.TYPE_INT_ARGB,
+                            )
+                            val graphics = preview.createGraphics()
+                            try {
+                                graphics.drawImage(captured, 0, 0, null)
+                            } finally {
+                                graphics.dispose()
+                            }
+                            previewDispatcher.publishFrame(PlatformBitmap(preview))
+                        }
                         val cropped = applyCrop(captured)
                         onFrame(PlatformBitmap(cropped))
 

@@ -175,6 +175,11 @@ class AppViewModel(
     val cropConfig: StateFlow<FrameCropConfig> = _cropConfig.asStateFlow()
     private val _sourceUri = MutableStateFlow("")
     val sourceUri: StateFlow<String> = _sourceUri.asStateFlow()
+    private val _sourceDimensions = MutableStateFlow(FrameSourceDimensions(16, 9))
+    val sourceDimensions: StateFlow<FrameSourceDimensions> = _sourceDimensions.asStateFlow()
+    private val _sourcePreviewJpeg = MutableStateFlow<ByteArray?>(null)
+    val sourcePreviewJpeg: StateFlow<ByteArray?> = _sourcePreviewJpeg.asStateFlow()
+    private var sourceInspectJob: Job? = null
 
     val frameBus = FrameBus()
     @Volatile private var currentFrameSource: top.ghhccghk.yadea.mirror.FrameSource? = null
@@ -440,7 +445,17 @@ class AppViewModel(
         scope.launch { p2pManager?.connect(device) }
     }
 
-    fun selectSource(index: Int) { _selectedSource.value = index }
+    fun selectSource(index: Int) {
+        _selectedSource.value = index
+        if (index == 2 || index == 3) {
+            scheduleSourceInspection(_sourceUri.value)
+        } else {
+            sourceInspectJob?.cancel()
+            sourceInspectJob = null
+            _sourcePreviewJpeg.value = null
+            _sourceDimensions.value = FrameSourceDimensions(16, 9)
+        }
+    }
     val canPickVideoSource: Boolean
         get() = mediaSourcePicker?.canPickVideo == true
 
@@ -459,7 +474,11 @@ class AppViewModel(
     }
 
     fun updateSourceUri(uri: String) {
-        _sourceUri.value = uri.trim()
+        val normalized = uri.trim()
+        _sourceUri.value = normalized
+        _sourcePreviewJpeg.value = null
+        _sourceDimensions.value = FrameSourceDimensions(16, 9)
+        scheduleSourceInspection(normalized)
     }
 
     fun updateCrop(config: FrameCropConfig) {
@@ -479,10 +498,51 @@ class AppViewModel(
         }
 
     private fun releaseFrameSource(source: top.ghhccghk.yadea.mirror.FrameSource?) {
+        source?.onPreviewFrame(null)
+        source?.onSourceDimensions(null)
         runCatching { source?.release() }
             .onFailure { debug("释放帧源失败: ${it.message}") }
         runCatching { screenCaptureAuthorizer?.releaseScreenCapture() }
             .onFailure { debug("释放屏幕录制授权失败: ${it.message}") }
+    }
+
+    private fun scheduleSourceInspection(uri: String) {
+        sourceInspectJob?.cancel()
+        sourceInspectJob = null
+        if (uri.isBlank() || mediaSourcePicker == null) return
+
+        sourceInspectJob = scope.launch {
+            delay(350)
+            val info = runCatching { mediaSourcePicker.inspectVideo(uri) }.getOrNull()
+                ?: return@launch
+            if (_sourceUri.value != uri ||
+                (_selectedSource.value != 2 && _selectedSource.value != 3)
+            ) {
+                return@launch
+            }
+            _sourceDimensions.value = FrameSourceDimensions(info.width, info.height)
+            info.previewJpeg?.let { _sourcePreviewJpeg.value = it }
+        }
+    }
+
+    private fun publishSourcePreview(
+        source: top.ghhccghk.yadea.mirror.FrameSource,
+        bitmap: PlatformBitmap,
+    ) {
+        try {
+            val maxEdge = maxOf(bitmap.width, bitmap.height).coerceAtLeast(1)
+            val scale = minOf(1f, PREVIEW_ENCODE_MAX_EDGE.toFloat() / maxEdge)
+            val width = (bitmap.width * scale).toInt().coerceAtLeast(2)
+            val height = (bitmap.height * scale).toInt().coerceAtLeast(2)
+            val preview = JpegEncoder.encodeAtQuality(bitmap, width, height, 70)
+            if (preview.isNotEmpty() && currentFrameSource === source) {
+                _sourcePreviewJpeg.value = preview
+            }
+        } catch (error: Throwable) {
+            debug("投屏预览帧编码失败: ${error.message}")
+        } finally {
+            bitmap.recycle()
+        }
     }
 
     private fun submitSourceFrame(
@@ -671,6 +731,14 @@ class AppViewModel(
             }
             currentFrameSource = source
             source.onFailure { message -> handleSourceFailure(source, message) }
+            source.onSourceDimensions { dimensions ->
+                if (currentFrameSource === source) {
+                    _sourceDimensions.value = dimensions
+                }
+            }
+            source.onPreviewFrame { bitmap ->
+                publishSourcePreview(source, bitmap)
+            }
 
             val tcp = createTcpTransport()
             val udp = createUdpTransport()
@@ -872,6 +940,8 @@ class AppViewModel(
         stopMirrorJob = null
         mirrorSessionJob?.cancel()
         mirrorSessionJob = null
+        sourceInspectJob?.cancel()
+        sourceInspectJob = null
 
         val source = currentFrameSource
         currentFrameSource = null
@@ -896,6 +966,7 @@ class AppViewModel(
         const val P2P_CONNECT_TIMEOUT_MS = 15_000L
         const val TCP_CONNECT_TIMEOUT_MS = 15_000L
         const val STATUS_POLL_INTERVAL_MS = 500L
+        const val PREVIEW_ENCODE_MAX_EDGE = 640
     }
 }
 
