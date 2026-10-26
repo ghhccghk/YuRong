@@ -13,7 +13,7 @@ import top.ghhccghk.yadea.network.HttpTransport
 class VehicleCloudControlGatewayTest {
 
     @Test
-    fun cloudControlUsesFortifyCommandIds() = runBlocking {
+    fun cloudControlUsesVerifiedCommandIds() = runBlocking {
         val requests = mutableListOf<HttpRequest>()
         val gateway = YadeaVehicleCloudControlGateway(
             transport = object : HttpTransport {
@@ -35,22 +35,29 @@ class VehicleCloudControlGatewayTest {
             timestampProvider = { 1L },
         )
 
-        assertTrue(gateway.send("VIN1", VehicleControlCommand.LOCK).success)
-        assertTrue(gateway.send("VIN1", VehicleControlCommand.UNLOCK).success)
+        val expectedIds = listOf(
+            VehicleControlCommand.POWER_ON to "START",
+            VehicleControlCommand.POWER_OFF to "STOP",
+            VehicleControlCommand.FIND to "FIND",
+            VehicleControlCommand.LOCK to "FORTIFY",
+            VehicleControlCommand.UNLOCK to "RELEASE_FORTIFY",
+        )
+        expectedIds.forEach { (command, _) ->
+            assertTrue(gateway.send("VIN1", command).success)
+        }
 
-        assertEquals(2, requests.size)
+        assertEquals(expectedIds.size, requests.size)
         requests.forEach { request ->
             assertEquals("POST", request.method)
             assertTrue(request.url.endsWith(YadeaVehicleCloudControlGateway.PATH))
         }
-        val lockJson = signedJson(requests[0].body!!)
-        assertTrue(lockJson.contains("\"id\":\"FORTIFY\""))
-        assertTrue(lockJson.contains("\"clientId\":\"1\""))
-        assertTrue(lockJson.contains("\"controlMode\":\"11\""))
-        assertTrue(lockJson.contains("\"vin\":\"VIN1\""))
-
-        val unlockJson = signedJson(requests[1].body!!)
-        assertTrue(unlockJson.contains("\"id\":\"RELEASE_FORTIFY\""))
+        expectedIds.forEachIndexed { index, (_, expectedId) ->
+            val json = signedJson(requests[index].body!!)
+            assertTrue(json.contains("\"id\":\"$expectedId\""))
+            assertTrue(json.contains("\"clientId\":\"1\""))
+            assertTrue(json.contains("\"controlMode\":\"11\""))
+            assertTrue(json.contains("\"vin\":\"VIN1\""))
+        }
     }
 
     @Test

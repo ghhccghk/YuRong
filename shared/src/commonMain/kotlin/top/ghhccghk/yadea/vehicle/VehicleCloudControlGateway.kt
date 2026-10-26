@@ -12,7 +12,7 @@ import top.ghhccghk.yadea.network.NetworkLog
 /**
  * `protocol/user/control-vehicle` 的云端控车链路。
  *
- * 原 App 在 BLE 未连接且车辆 `onlineState=true` 时使用该接口下发远程控制。
+ * 原 App 在 BLE 不可用、或当前控车项要求车联网时使用该接口。
  * 请求字段固定为 `vin`、`id`、`clientId=1`、`controlMode=11`。
  */
 class YadeaVehicleCloudControlGateway(

@@ -8,14 +8,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import top.ghhccghk.yadea.vehicle.VehicleControlChannel
 import top.ghhccghk.yadea.vehicle.VehicleControlCommand
 import top.ghhccghk.yadea.vehicle.VehicleControlController
 
@@ -33,28 +31,11 @@ fun VehicleControlScreen(
     val state by controller.state.collectAsState()
     val dimensions = AppDesign.dimensions
     var pendingDanger by remember { mutableStateOf<VehicleControlCommand?>(null) }
-    var channel by remember {
-        mutableStateOf(
-            if (!connected && cloudAvailable) VehicleControlChannel.CLOUD
-            else VehicleControlChannel.BLE,
-        )
-    }
-    LaunchedEffect(connected, cloudAvailable) {
-        if (channel == VehicleControlChannel.BLE && !connected && cloudAvailable) {
-            channel = VehicleControlChannel.CLOUD
-        } else if (channel == VehicleControlChannel.CLOUD && !cloudAvailable && connected) {
-            channel = VehicleControlChannel.BLE
-        }
-    }
-    val channelOptions = listOf(VehicleControlChannel.BLE, VehicleControlChannel.CLOUD)
     val ready = state.busyCommand == null
     fun commandEnabled(command: VehicleControlCommand): Boolean =
-        ready && when (channel) {
-            VehicleControlChannel.BLE -> connected
-            VehicleControlChannel.CLOUD -> cloudAvailable && command.cloudControlId != null
-        }
+        ready && controller.canSend(command)
     fun send(command: VehicleControlCommand) {
-        controller.send(command, channel)
+        controller.send(command)
     }
 
     LazyColumn(
@@ -65,7 +46,7 @@ fun VehicleControlScreen(
         item {
             AppPageHeader(
                 title = "车辆控制",
-                subtitle = "可选择蓝牙或车联网下发车辆控制指令",
+                subtitle = "自动选择蓝牙或车联网下发车辆控制指令",
             )
         }
         if (!connected && !cloudAvailable) {
@@ -83,43 +64,32 @@ fun VehicleControlScreen(
         }
         item {
             AppSection(title = "下发通道") {
-                AppSegmentedControl(
-                    options = channelOptions.map(VehicleControlChannel::label),
-                    selectedIndex = channelOptions.indexOf(channel),
-                    onSelected = { channel = channelOptions[it] },
-                    enabled = { index ->
-                        when (channelOptions[index]) {
-                            VehicleControlChannel.BLE -> connected
-                            VehicleControlChannel.CLOUD -> cloudAvailable
-                        }
-                    },
-                    modifier = Modifier.padding(
-                        horizontal = dimensions.itemHorizontalPadding,
-                        vertical = dimensions.itemVerticalPadding,
-                    ),
+                AppListRow(
+                    title = "通道策略",
+                    value = "自动",
+                    summary = "蓝牙可用时优先蓝牙；蓝牙不可用且车辆在线时自动切换车联网。",
+                    showDivider = true,
                 )
-                AppText(
-                    text = when (channel) {
-                        VehicleControlChannel.BLE ->
-                            "通过手机与车辆蓝牙直接下发，需要靠近车辆并保持连接。"
-                        VehicleControlChannel.CLOUD ->
-                            "通过车联网云平台下发，不要求手机靠近，但车辆必须在线，且当前仅开放开锁和锁车。"
+                AppListRow(
+                    title = "蓝牙",
+                    value = if (connected) "可用" else "不可用",
+                    summary = if (connected) {
+                        "车辆已连接，优先通过本地蓝牙控制。"
+                    } else {
+                        "连接车辆后可减少云端链路延迟。"
                     },
-                    style = AppDesign.typography.caption,
-                    modifier = Modifier.padding(
-                        horizontal = dimensions.itemHorizontalPadding,
-                        vertical = dimensions.compactSpacing,
-                    ),
+                    showDivider = true,
+                )
+                AppListRow(
+                    title = "车联网",
+                    value = if (cloudAvailable) "可用" else "不可用",
+                    summary = if (cloudAvailable) {
+                        "当前支持开机、关机、寻车、开锁和锁车的云端下发。"
+                    } else {
+                        cloudUnavailableReason.ifBlank { "车辆必须在线才能使用车联网控制。" }
+                    },
                 )
                 if (!cloudAvailable && cloudUnavailableReason.isNotBlank()) {
-                    AppText(
-                        text = cloudUnavailableReason,
-                        style = AppDesign.typography.caption,
-                        modifier = Modifier.padding(
-                            horizontal = dimensions.itemHorizontalPadding,
-                            vertical = dimensions.compactSpacing,
-                        ),
-                    )
                     onRefreshCloudStatus?.let { refresh ->
                         AppOutlinedButton(
                             onClick = refresh,

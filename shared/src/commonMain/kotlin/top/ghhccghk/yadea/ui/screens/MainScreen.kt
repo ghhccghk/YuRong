@@ -327,7 +327,10 @@ fun MainScreen(
             connectedProvider = { resolvedVehicleSource.connected.value },
             scope = featureScope,
             cloudSink = vehicleCloudControlSink,
-            cloudOnlineProvider = { latestCloudStatus?.onlineState == true },
+            cloudOnlineProvider = {
+                latestCloudStatus?.onlineState == true &&
+                    latestVehicleProfile?.iotService?.isExpired != true
+            },
             vinProvider = { latestVehicleProfile?.vin.orEmpty() },
             onCloudCommandSent = { vin ->
                 onRefreshVehicleCloudStatus?.invoke(vin)

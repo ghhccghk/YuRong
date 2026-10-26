@@ -252,6 +252,23 @@ mul-float/2addr v13, v11
 
 UI 上只能显示"指令已发送"，不能显示"开锁成功"。真实状态需要等车辆状态通知回报。
 
+### 7.4 自动选择 BLE / 车联网
+
+原 App 的 `VehicleService` 先判断 BLE 是否连接、车辆 `onlineState` 是否为真，
+再由 `BicycleControlHelper` 决定本地下发还是调用
+`protocol/user/control-vehicle`。BLE 不可用且车辆在线时自动使用云端；
+BLE 写失败时也可以安全地切换到云端。
+
+云端 `clientId=1`、`controlMode=11`，已确认的控制 ID：
+
+| 操作 | BLE commandId | 云端 `id` |
+| --- | ---: | --- |
+| 开机 | `0x08` | `START` |
+| 关机 | `0x07` | `STOP` |
+| 寻车 | `0x03` | `FIND` |
+| 锁车 | `0x06` | `FORTIFY` |
+| 开锁 | `0x04` | `RELEASE_FORTIFY` |
+
 ## 8. UUID
 
 ### 8.1 车辆主链路
