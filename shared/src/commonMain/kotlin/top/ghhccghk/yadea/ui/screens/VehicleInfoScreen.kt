@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import top.ghhccghk.yadea.carsetting.CloudCarSettingMapper
 import top.ghhccghk.yadea.vehicle.TtpInfo
@@ -393,6 +394,17 @@ private fun VehicleHeroCard(
                     .matchParentSize()
                     .padding(top = vehicleVisualTopOffset),
             )
+        } else if (backgroundImageUrl.isNotBlank()) {
+            AppRemoteImage(
+                url = backgroundImageUrl,
+                contentDescription = "车辆背景图",
+                modifier = Modifier
+                    .matchParentSize()
+                    .padding(top = vehicleVisualTopOffset),
+                contentScale = ContentScale.Crop,
+            )
+        }
+        if (backgroundImageUrl.isNotBlank()) {
             Box(
                 modifier = Modifier
                     .matchParentSize()
@@ -436,6 +448,16 @@ private fun VehicleHeroCard(
                         .fillMaxWidth()
                         .height(235.dp)
                         .padding(top = vehicleVisualTopOffset),
+                )
+            } else if (vehicleImageUrl.isNotBlank()) {
+                AppRemoteImage(
+                    url = vehicleImageUrl,
+                    contentDescription = "车辆图片",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(235.dp)
+                        .padding(top = vehicleVisualTopOffset),
+                    contentScale = ContentScale.Fit,
                 )
             } else {
                 Box(modifier = Modifier.fillMaxWidth().height(235.dp))

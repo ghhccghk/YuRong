@@ -32,6 +32,7 @@ import top.ghhccghk.yadea.network.createHttpTransport
 import top.ghhccghk.yadea.auth.YadeaAuthGateway
 import top.ghhccghk.yadea.carsetting.YadeaCarSettingsGateway
 import top.ghhccghk.yadea.instrumentskin.AndroidInstrumentImageContext
+import top.ghhccghk.yadea.image.AndroidImageCacheContext
 import top.ghhccghk.yadea.ota.YadeaOtaGateway
 import top.ghhccghk.yadea.ota.WifiOtaInstaller
 import top.ghhccghk.yadea.ui.MainScreen
@@ -96,6 +97,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         initAndroidFileLogger(applicationContext)
         AndroidInstrumentImageContext.init(applicationContext)
+        AndroidImageCacheContext.init(applicationContext)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && Build.MODEL != "robolectric") {
             HiddenApiBypass.setHiddenApiExemptions("")

@@ -3,7 +3,7 @@ package top.ghhccghk.yadea.ui
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
-import org.jetbrains.compose.resources.decodeToImageBitmap
+import top.ghhccghk.yadea.image.AppImages
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -20,15 +20,12 @@ fun interface VehicleBackgroundColorExtractor {
 
 expect fun createVehicleBackgroundColorExtractor(): VehicleBackgroundColorExtractor
 
-internal expect suspend fun downloadVehicleBackgroundImage(url: String): ByteArray?
-
 internal fun createEncodedImageColorExtractor(): VehicleBackgroundColorExtractor =
     EncodedImageVehicleBackgroundColorExtractor()
 
 private class EncodedImageVehicleBackgroundColorExtractor : VehicleBackgroundColorExtractor {
     override suspend fun extractSeedArgb(url: String): Int? {
-        val bytes = downloadVehicleBackgroundImage(url) ?: return null
-        val image = bytes.decodeToImageBitmap()
+        val image = AppImages.loadImage(url) ?: return null
         val pixelMap = image.toPixelMap()
         val step = max(1, max(pixelMap.width, pixelMap.height) / MAX_SAMPLE_EDGE)
         val pixels = ArrayList<Int>((pixelMap.width / step + 1) * (pixelMap.height / step + 1))

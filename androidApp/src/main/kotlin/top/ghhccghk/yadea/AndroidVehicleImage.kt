@@ -1,29 +1,14 @@
 package top.ghhccghk.yadea
 
-import android.graphics.BitmapFactory
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.size
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
-import java.net.URL
+import top.ghhccghk.yadea.ui.AppRemoteImage
 
 /**
- * 车辆图加载器。
- *
- * 原应用把 `skinPicUrl` 用作车辆页背景，把 `imgUrl` 用作车辆本体图。
- * 这里直接使用 Android 自带网络与 BitmapFactory，避免为图片引入图片库。
+ * Android 调用点保留原有语义，实际加载统一经过 commonMain 的 AppImages 缓存。
  */
 @Composable
 fun AndroidVehicleImage(
@@ -32,24 +17,8 @@ fun AndroidVehicleImage(
     contentScale: ContentScale = ContentScale.Fit,
     contentDescription: String = "车辆图片",
 ) {
-    var bitmap by remember(url) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(url) {
-        bitmap = withContext(Dispatchers.IO) {
-            runCatching {
-                val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 5_000
-                    readTimeout = 8_000
-                    instanceFollowRedirects = true
-                }
-                connection.inputStream.use { stream ->
-                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
-                }
-            }.getOrNull()
-        }
-    }
-    val image = bitmap ?: return
-    Image(
-        bitmap = image,
+    AppRemoteImage(
+        url = url,
         contentDescription = contentDescription,
         modifier = modifier,
         contentScale = contentScale,
