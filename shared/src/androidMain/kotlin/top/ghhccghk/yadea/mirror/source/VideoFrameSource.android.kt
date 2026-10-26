@@ -2,32 +2,41 @@ package top.ghhccghk.yadea.mirror.source
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.media.MediaMetadataRetriever
+import android.graphics.Matrix
+import android.graphics.PixelFormat
+import android.media.Image
+import android.media.ImageReader
+import android.media.MediaCodec
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.net.Uri
-import android.os.Build
+import android.os.Handler
+import android.os.HandlerThread
 import android.os.SystemClock
+import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
-import kotlin.math.roundToInt
-import kotlin.math.max
 import top.ghhccghk.yadea.mirror.FrameCropConfig
 import top.ghhccghk.yadea.mirror.FrameSource
 import top.ghhccghk.yadea.mirror.PlatformBitmap
 
 private const val MAX_CAPTURE_EDGE = 1280
 private const val PAUSE_POLL_INTERVAL_MS = 50L
-private const val UNKNOWN_SOURCE_FRAME_INTERVAL_MS = 100L
-private const val MIN_SOURCE_FRAME_INTERVAL_MS = 1L
-private const val MAX_SOURCE_FRAME_INTERVAL_MS = 1_000L
+private const val CODEC_TIMEOUT_US = 10_000L
+private const val FRAME_WAIT_CHUNK_US = 20_000L
 private const val DEFAULT_TARGET_FPS = 30
+private const val NO_SEEK_REQUEST = -1L
 
 /**
  * Android 视频/网络流帧源。
  *
- * 每次 start 都创建独立的 MediaMetadataRetriever 与工作线程。播放节奏优先使用
- * 媒体帧时间戳，不在源层套用固定的 10/30/60 FPS 限速；最终发送节奏由
- * MirrorEngine 根据车辆协商结果统一调度，FrameBus 只保留最新一帧。
+ * MediaMetadataRetriever.getFrameAtTime() is designed for random thumbnails, not
+ * continuous playback. Repeated closest-frame requests can seek back to the same
+ * keyframe for every image, which makes long-GOP videos appear to update only once
+ * every few seconds. This source uses the platform decoder as a stream: samples
+ * are paced by presentation time and rendered to an ImageReader surface, while
+ * FrameBus and MirrorEngine retain only the newest frame at the negotiated rate.
  */
 class VideoFrameSource(
     private val context: Context,
@@ -38,6 +47,7 @@ class VideoFrameSource(
     private val running = AtomicBoolean(false)
     private val released = AtomicBoolean(false)
     private val generation = AtomicLong(0L)
+    private val failureReported = AtomicBoolean(false)
 
     @Volatile
     private var worker: Thread? = null
@@ -61,10 +71,21 @@ class VideoFrameSource(
     private var positionUs = 0L
 
     @Volatile
-    private var playbackOriginUs = 0L
+    private var clockAnchorContentUs = 0L
 
     @Volatile
-    private var playbackOriginElapsedMs = 0L
+    private var clockAnchorElapsedUs = 0L
+
+    @Volatile
+    private var seekRequestUs = NO_SEEK_REQUEST
+
+    @Volatile
+    private var frameRotationDegrees = 0
+
+    // ImageReader invokes its listener on one HandlerThread, so these buffers can be reused.
+    private var packedRgbaBuffer: ByteBuffer? = null
+    private var argbPixelBuffer: IntArray? = null
+    private var lastDeliveredElapsedNanos = 0L
 
     val isPlaying: Boolean
         get() = playing
@@ -102,19 +123,17 @@ class VideoFrameSource(
             startGeneration = generation.incrementAndGet()
             durationUs = 0L
             positionUs = 0L
-            playbackOriginUs = 0L
-            playbackOriginElapsedMs = SystemClock.elapsedRealtime()
+            clockAnchorContentUs = 0L
+            clockAnchorElapsedUs = monotonicUs()
+            seekRequestUs = NO_SEEK_REQUEST
+            frameRotationDegrees = 0
             playing = true
+            failureReported.set(false)
+            lastDeliveredElapsedNanos = 0L
             running.set(true)
 
             worker = Thread(
-                {
-                    decodeFrames(
-                        generation = startGeneration,
-                        retriever = MediaMetadataRetriever(),
-                        onFrame = onFrame,
-                    )
-                },
+                { decodeStream(startGeneration, onFrame) },
                 "android-video-frame-source",
             ).apply {
                 isDaemon = true
@@ -141,8 +160,8 @@ class VideoFrameSource(
     fun play() {
         synchronized(lifecycleLock) {
             if (playing || !running.get()) return
-            playbackOriginUs = positionUs
-            playbackOriginElapsedMs = SystemClock.elapsedRealtime()
+            clockAnchorContentUs = positionUs
+            clockAnchorElapsedUs = monotonicUs()
             playing = true
         }
     }
@@ -151,6 +170,8 @@ class VideoFrameSource(
         synchronized(lifecycleLock) {
             if (!playing) return
             positionUs = currentPositionUsLocked()
+            clockAnchorContentUs = positionUs
+            clockAnchorElapsedUs = monotonicUs()
             playing = false
         }
     }
@@ -159,8 +180,9 @@ class VideoFrameSource(
         synchronized(lifecycleLock) {
             val requestedUs = TimeUnit.MILLISECONDS.toMicros(positionMs.coerceAtLeast(0L))
             positionUs = if (durationUs > 0L) requestedUs.coerceAtMost(durationUs) else requestedUs
-            playbackOriginUs = positionUs
-            playbackOriginElapsedMs = SystemClock.elapsedRealtime()
+            clockAnchorContentUs = positionUs
+            clockAnchorElapsedUs = monotonicUs()
+            seekRequestUs = positionUs
         }
     }
 
@@ -169,104 +191,99 @@ class VideoFrameSource(
 
     private fun currentPositionUsLocked(): Long {
         if (!playing) return positionUs
-        val elapsedUs = TimeUnit.MILLISECONDS.toMicros(
-            (SystemClock.elapsedRealtime() - playbackOriginElapsedMs).coerceAtLeast(0L)
-        )
-        return (playbackOriginUs + elapsedUs).coerceAtLeast(0L)
+        val elapsedUs = (monotonicUs() - clockAnchorElapsedUs).coerceAtLeast(0L)
+        return (clockAnchorContentUs + elapsedUs).coerceAtLeast(0L)
     }
 
-    private fun decodeFrames(
-        generation: Long,
-        retriever: MediaMetadataRetriever,
+    private fun decodeStream(
+        expectedGeneration: Long,
         onFrame: (PlatformBitmap) -> Unit,
     ) {
+        var extractor: MediaExtractor? = null
+        var codec: MediaCodec? = null
+        var reader: ImageReader? = null
+        var frameThread: HandlerThread? = null
+
         try {
-            setDataSource(retriever)
-            val sourceDurationUs = retriever
-                .extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                ?.toLongOrNull()
-                ?.let(TimeUnit.MILLISECONDS::toMicros)
+            extractor = MediaExtractor().also(::setDataSource)
+            val trackIndex = findVideoTrack(extractor)
+            if (trackIndex < 0) {
+                throw IllegalStateException("视频源中没有可解码的视频轨道")
+            }
+            extractor.selectTrack(trackIndex)
+            val format = extractor.getTrackFormat(trackIndex)
+            val mime = format.getString(MediaFormat.KEY_MIME)
+                ?: throw IllegalStateException("视频轨道缺少 MIME 类型")
+            if (!mime.startsWith("video/")) {
+                throw IllegalStateException("不支持的视频轨道: $mime")
+            }
+            val sourceWidth = format.intValue(MediaFormat.KEY_WIDTH)
+            val sourceHeight = format.intValue(MediaFormat.KEY_HEIGHT)
+            if (sourceWidth == null || sourceHeight == null ||
+                sourceWidth <= 1 || sourceHeight <= 1
+            ) {
+                throw IllegalStateException("视频轨道尺寸无效: ${sourceWidth}x$sourceHeight")
+            }
+            val sourceDurationUs = format.longValue(MediaFormat.KEY_DURATION)
+                ?.takeIf { it > 0L }
                 ?: 0L
-            val sourceWidth = retriever
-                .extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
-                ?.toIntOrNull() ?: 0
-            val sourceHeight = retriever
-                .extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
-                ?.toIntOrNull() ?: 0
-            val (scaledWidth, scaledHeight) = scaledSize(sourceWidth, sourceHeight)
-            val sourceFrameIntervalUs = resolveSourceFrameIntervalUs(retriever, sourceDurationUs)
+            val rotation = format.intValue(MediaFormat.KEY_ROTATION)
+                ?.let(::normalizedRotation)
+                ?: 0
 
+            val thread = HandlerThread("android-video-frame-reader").apply { start() }
+            frameThread = thread
+            val frameReader = ImageReader.newInstance(
+                sourceWidth,
+                sourceHeight,
+                PixelFormat.RGBA_8888,
+                2,
+            )
+            reader = frameReader
+            frameReader.setOnImageAvailableListener(
+                { source -> processImage(expectedGeneration, source, onFrame) },
+                Handler(thread.looper),
+            )
+
+            val mediaCodec = MediaCodec.createDecoderByType(mime)
+            codec = mediaCodec
             synchronized(lifecycleLock) {
-                if (!isCurrent(generation)) return
+                if (!isCurrent(expectedGeneration)) return
                 durationUs = sourceDurationUs
+                frameRotationDegrees = rotation
                 positionUs = 0L
-                playbackOriginUs = 0L
-                playbackOriginElapsedMs = SystemClock.elapsedRealtime()
+                clockAnchorContentUs = 0L
+                clockAnchorElapsedUs = monotonicUs()
             }
 
-            var nextRetrievalAtMs = SystemClock.elapsedRealtime()
+            mediaCodec.configure(format, frameReader.surface, null, 0)
+            mediaCodec.setVideoScalingMode(MediaCodec.VIDEO_SCALING_MODE_SCALE_TO_FIT)
+            mediaCodec.start()
 
-            while (isCurrent(generation)) {
-                if (!playing) {
-                    Thread.sleep(PAUSE_POLL_INTERVAL_MS)
-                    nextRetrievalAtMs = SystemClock.elapsedRealtime()
-                    continue
-                }
-
-                waitUntil(nextRetrievalAtMs)
-                if (!isCurrent(generation)) break
-
-                val targetUs = currentPositionUs()
-                synchronized(lifecycleLock) {
-                    if (isCurrent(generation)) positionUs = targetUs
-                }
-
-                val frame = frameAt(retriever, targetUs, scaledWidth, scaledHeight)
-                if (!isCurrent(generation)) {
-                    frame?.recycle()
-                    break
-                }
-
-                if (frame != null) {
-                    deliverFrame(generation, frame, onFrame)
-                }
-
-                if (sourceDurationUs > 0L &&
-                    currentPositionUs() >= sourceDurationUs
-                ) {
-                    synchronized(lifecycleLock) {
-                        if (!isCurrent(generation)) break
-                        positionUs = 0L
-                        playbackOriginUs = 0L
-                        playbackOriginElapsedMs = SystemClock.elapsedRealtime()
-                    }
-                }
-
-                val intervalMs = effectiveFrameIntervalMs(sourceFrameIntervalUs)
-                nextRetrievalAtMs += intervalMs
-
-                // MediaMetadataRetriever may decode slower than the requested cadence.
-                // Skip missed playback slots instead of issuing a burst of old frames.
-                val now = SystemClock.elapsedRealtime()
-                if (nextRetrievalAtMs < now) {
-                    val missedSlots = (now - nextRetrievalAtMs + intervalMs - 1L) / intervalMs
-                    nextRetrievalAtMs += missedSlots * intervalMs
-                }
-            }
+            extractor.seekTo(0L, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+            decodeSamples(
+                expectedGeneration = expectedGeneration,
+                extractor = extractor,
+                codec = mediaCodec,
+            )
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
         } catch (error: Throwable) {
-            if (isCurrent(generation)) {
-                val detail = error.message ?: error::class.simpleName ?: "未知错误"
-                failureHandler?.invoke("无法读取视频源: $detail")
+            if (isCurrent(expectedGeneration)) {
+                reportFailure("无法读取视频源: ${error.message ?: error::class.simpleName ?: "未知错误"}")
             }
         } finally {
-            try {
-                retriever.release()
-            } catch (_: Exception) {
-            }
+            reader?.setOnImageAvailableListener(null, null)
+            runCatching { codec?.stop() }
+            runCatching { codec?.release() }
+            runCatching { reader?.close() }
+            runCatching { extractor?.release() }
+            frameThread?.quitSafely()
+            packedRgbaBuffer = null
+            argbPixelBuffer = null
+
             synchronized(lifecycleLock) {
-                if (generation == this.generation.get()) {
+                if (generation.get() == expectedGeneration) {
                     running.set(false)
                     playing = false
                     worker = null
@@ -275,109 +292,196 @@ class VideoFrameSource(
         }
     }
 
-    private fun setDataSource(retriever: MediaMetadataRetriever) {
-        when (uri.scheme?.lowercase()) {
-            "http", "https", "rtsp" ->
-                retriever.setDataSource(uri.toString(), emptyMap())
-            "content", "file", "android.resource" ->
-                retriever.setDataSource(context, uri)
-            null ->
-                retriever.setDataSource(uri.toString())
-            else ->
-                retriever.setDataSource(context, uri)
-        }
-    }
+    private fun decodeSamples(
+        expectedGeneration: Long,
+        extractor: MediaExtractor,
+        codec: MediaCodec,
+    ) {
+        val bufferInfo = MediaCodec.BufferInfo()
+        var inputEnded = false
+        var outputEnded = false
 
-    private fun effectiveFrameIntervalMs(sourceFrameIntervalUs: Long): Long {
-        val sourceIntervalMs = TimeUnit.MICROSECONDS.toMillis(
-            sourceFrameIntervalUs.coerceAtLeast(1L),
-        )
-        val targetIntervalMs = (1_000L / targetFps.coerceAtLeast(1)).coerceAtLeast(1L)
-        return max(sourceIntervalMs, targetIntervalMs)
-            .coerceIn(MIN_SOURCE_FRAME_INTERVAL_MS, MAX_SOURCE_FRAME_INTERVAL_MS)
-    }
+        while (isCurrent(expectedGeneration)) {
+            if (drainOutput(codec, bufferInfo) == true) {
+                outputEnded = true
+            }
+            if (outputEnded) {
+                if (!isCurrent(expectedGeneration)) break
+                restartPlayback(expectedGeneration, extractor, codec)
+                inputEnded = false
+                outputEnded = false
+                continue
+            }
 
-    private fun frameAt(
-        retriever: MediaMetadataRetriever,
-        positionUs: Long,
-        width: Int,
-        height: Int,
-    ): Bitmap? {
-        val safePositionUs = positionUs.coerceAtLeast(0L)
-        return if (Build.VERSION.SDK_INT >= 27 && width > 0 && height > 0) {
-            retriever.getScaledFrameAtTime(
-                safePositionUs,
-                MediaMetadataRetriever.OPTION_CLOSEST,
-                width,
-                height,
-            )
-        } else {
-            val frame = retriever.getFrameAtTime(
-                safePositionUs,
-                MediaMetadataRetriever.OPTION_CLOSEST,
-            ) ?: return null
-            if (width <= 0 || height <= 0 || (frame.width == width && frame.height == height)) {
-                frame
-            } else {
-                Bitmap.createScaledBitmap(frame, width, height, true).also { frame.recycle() }
+            if (!playing) {
+                Thread.sleep(PAUSE_POLL_INTERVAL_MS)
+                continue
+            }
+
+            val requestedSeek = takeSeekRequest()
+            if (requestedSeek != NO_SEEK_REQUEST) {
+                extractor.seekTo(requestedSeek, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+                codec.flush()
+                inputEnded = false
+                outputEnded = false
+                synchronized(lifecycleLock) {
+                    if (isCurrent(expectedGeneration)) {
+                        clockAnchorContentUs = requestedSeek
+                        clockAnchorElapsedUs = monotonicUs()
+                    }
+                }
+            }
+
+            if (!inputEnded) {
+                val sampleTimeUs = extractor.sampleTime
+                if (sampleTimeUs < 0L) {
+                    val inputIndex = codec.dequeueInputBuffer(CODEC_TIMEOUT_US)
+                    if (inputIndex >= 0) {
+                        codec.queueInputBuffer(
+                            inputIndex,
+                            0,
+                            0,
+                            0L,
+                            MediaCodec.BUFFER_FLAG_END_OF_STREAM,
+                        )
+                        inputEnded = true
+                    }
+                } else {
+                    val waitUs = sampleTimeUs - currentPositionUs()
+                    if (waitUs > 0L) {
+                        sleepMicros(minOf(waitUs, FRAME_WAIT_CHUNK_US))
+                        continue
+                    }
+
+                    val inputIndex = codec.dequeueInputBuffer(CODEC_TIMEOUT_US)
+                    if (inputIndex >= 0) {
+                        val inputBuffer = codec.getInputBuffer(inputIndex)
+                            ?: throw IllegalStateException("解码器输入缓冲区不可用")
+                        inputBuffer.clear()
+                        val sampleSize = extractor.readSampleData(inputBuffer, 0)
+                        if (sampleSize < 0) {
+                            codec.queueInputBuffer(
+                                inputIndex,
+                                0,
+                                0,
+                                0L,
+                                MediaCodec.BUFFER_FLAG_END_OF_STREAM,
+                            )
+                            inputEnded = true
+                        } else {
+                            codec.queueInputBuffer(
+                                inputIndex,
+                                0,
+                                sampleSize,
+                                sampleTimeUs,
+                                extractor.sampleFlags,
+                            )
+                            extractor.advance()
+                        }
+                    }
+                }
+            }
+
+            synchronized(lifecycleLock) {
+                if (isCurrent(expectedGeneration)) {
+                    positionUs = currentPositionUsLocked()
+                }
             }
         }
     }
 
-    private fun resolveSourceFrameIntervalUs(
-        retriever: MediaMetadataRetriever,
-        durationUs: Long,
-    ): Long {
-        val captureRate = retriever
-            .extractMetadata(MediaMetadataRetriever.METADATA_KEY_CAPTURE_FRAMERATE)
-            ?.toFloatOrNull()
-            ?.takeIf { it.isFinite() && it > 0f }
-        if (captureRate != null) {
-            return (1_000_000f / captureRate).roundToInt().toLong()
-        }
-
-        if (Build.VERSION.SDK_INT >= 28 && durationUs > 0L) {
-            val frameCount = retriever
-                .extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT)
-                ?.toLongOrNull()
-                ?.takeIf { it > 0L }
-            if (frameCount != null) {
-                return durationUs / frameCount
+    /** Returns true when the decoder has emitted its end-of-stream output buffer. */
+    private fun drainOutput(
+        codec: MediaCodec,
+        bufferInfo: MediaCodec.BufferInfo,
+    ): Boolean? {
+        while (true) {
+            when (val outputIndex = codec.dequeueOutputBuffer(bufferInfo, 0L)) {
+                MediaCodec.INFO_TRY_AGAIN_LATER -> return null
+                MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> continue
+                else -> {
+                    if (outputIndex < 0) return null
+                    val endOfStream =
+                        bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
+                    // Surface decoders do not consistently populate BufferInfo.size.
+                    // Every non-EOS decoded buffer must still be rendered.
+                    val render = !endOfStream || bufferInfo.size > 0
+                    codec.releaseOutputBuffer(outputIndex, render)
+                    if (endOfStream) {
+                        return true
+                    }
+                }
             }
         }
-
-        // Only used when the media exposes neither capture rate nor frame count.
-        // The engine's negotiated FPS can lower this cadence further.
-        return TimeUnit.MILLISECONDS.toMicros(UNKNOWN_SOURCE_FRAME_INTERVAL_MS)
     }
 
-    private fun waitUntil(targetElapsedMs: Long) {
-        val waitMs = targetElapsedMs - SystemClock.elapsedRealtime()
-        if (waitMs > 0L) Thread.sleep(waitMs)
+    private fun restartPlayback(
+        expectedGeneration: Long,
+        extractor: MediaExtractor,
+        codec: MediaCodec,
+    ) {
+        codec.flush()
+        extractor.seekTo(0L, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+        synchronized(lifecycleLock) {
+            if (!isCurrent(expectedGeneration)) return
+            positionUs = 0L
+            clockAnchorContentUs = 0L
+            clockAnchorElapsedUs = monotonicUs()
+        }
     }
 
-    private fun scaledSize(width: Int, height: Int): Pair<Int, Int> {
-        if (width <= 0 || height <= 0) return 0 to 0
-        val scale = minOf(1f, MAX_CAPTURE_EDGE.toFloat() / maxOf(width, height))
-        return (width * scale).roundToInt().coerceAtLeast(2) to
-            (height * scale).roundToInt().coerceAtLeast(2)
-    }
-
-    private fun deliverFrame(
-        generation: Long,
-        frame: Bitmap,
+    private fun processImage(
+        expectedGeneration: Long,
+        reader: ImageReader,
         onFrame: (PlatformBitmap) -> Unit,
     ) {
-        val cropped = applyCrop(frame)
-        var delivered = false
+        val image = runCatching { reader.acquireLatestImage() }.getOrNull() ?: return
         try {
-            if (!isCurrent(generation)) return
-            onFrame(PlatformBitmap(cropped))
-            delivered = true
+            if (!isCurrent(expectedGeneration)) return
+
+            val nowNanos = SystemClock.elapsedRealtimeNanos()
+            val intervalNanos = TimeUnit.SECONDS.toNanos(1L) / targetFps.coerceAtLeast(1)
+            if (lastDeliveredElapsedNanos != 0L &&
+                nowNanos - lastDeliveredElapsedNanos < intervalNanos
+            ) {
+                return
+            }
+            lastDeliveredElapsedNanos = nowNanos
+
+            val decoded = image.toRgbaBitmap()
+            val transformed = rotateAndScale(decoded, frameRotationDegrees)
+            val cropped = applyCrop(transformed)
+            var delivered = false
+            try {
+                if (!isCurrent(expectedGeneration)) return
+                onFrame(PlatformBitmap(cropped))
+                delivered = true
+            } finally {
+                if (cropped !== transformed) transformed.recycle()
+                if (transformed !== decoded) decoded.recycle()
+                if (!delivered) cropped.recycle()
+            }
+        } catch (error: Throwable) {
+            if (isCurrent(expectedGeneration)) {
+                reportFailure(
+                    "视频帧处理失败: ${error.message ?: error::class.simpleName ?: "未知错误"}",
+                )
+            }
         } finally {
-            if (!delivered) cropped.recycle()
-            if (cropped !== frame) frame.recycle()
+            image.close()
         }
+    }
+
+    private fun rotateAndScale(source: Bitmap, rotationDegrees: Int): Bitmap {
+        val maxEdge = maxOf(source.width, source.height)
+        val scale = minOf(1f, MAX_CAPTURE_EDGE.toFloat() / maxEdge.coerceAtLeast(1))
+        if (rotationDegrees == 0 && scale >= 1f) return source
+
+        val matrix = Matrix().apply {
+            if (rotationDegrees != 0) postRotate(rotationDegrees.toFloat())
+            if (scale < 1f) postScale(scale, scale)
+        }
+        return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
     }
 
     private fun applyCrop(bitmap: Bitmap): Bitmap {
@@ -390,6 +494,123 @@ class VideoFrameSource(
         }
         return Bitmap.createBitmap(bitmap, rect.x, rect.y, rect.width, rect.height)
     }
+
+    /**
+     * Codec output can contain row padding. Reuse packed buffers when possible and
+     * avoid allocating a new full-frame array for every delivered image.
+     */
+    private fun Image.toRgbaBitmap(): Bitmap {
+        val plane = planes[0]
+        val rowStride = plane.rowStride
+        val pixelStride = plane.pixelStride
+        val frameWidth = width
+        val frameHeight = height
+        val bitmap = Bitmap.createBitmap(frameWidth, frameHeight, Bitmap.Config.ARGB_8888)
+        val source = plane.buffer
+        source.rewind()
+
+        val tightRowBytes = frameWidth * pixelStride
+        if (pixelStride == 4 && rowStride == tightRowBytes) {
+            bitmap.copyPixelsFromBuffer(source)
+            return bitmap
+        }
+
+        if (pixelStride == 4) {
+            val requiredBytes = tightRowBytes * frameHeight
+            val packed = packedRgbaBuffer
+                ?.takeIf { it.capacity() >= requiredBytes }
+                ?: ByteBuffer.allocate(requiredBytes).also { packedRgbaBuffer = it }
+            packed.clear()
+            for (y in 0 until frameHeight) {
+                val rowStart = y * rowStride
+                val available = (source.limit() - rowStart).coerceAtLeast(0)
+                val bytesToCopy = minOf(tightRowBytes, available)
+                if (bytesToCopy <= 0) break
+                val row = source.duplicate()
+                row.position(rowStart)
+                row.limit(rowStart + bytesToCopy)
+                packed.put(row)
+            }
+            packed.flip()
+            bitmap.copyPixelsFromBuffer(packed)
+            return bitmap
+        }
+
+        val requiredPixels = frameWidth * frameHeight
+        val pixels = argbPixelBuffer
+            ?.takeIf { it.size >= requiredPixels }
+            ?: IntArray(requiredPixels).also { argbPixelBuffer = it }
+        for (y in 0 until frameHeight) {
+            for (x in 0 until frameWidth) {
+                val offset = y * rowStride + x * pixelStride
+                if (offset + 3 >= source.limit()) continue
+                val r = source.get(offset).toInt() and 0xFF
+                val g = source.get(offset + 1).toInt() and 0xFF
+                val b = source.get(offset + 2).toInt() and 0xFF
+                val a = source.get(offset + 3).toInt() and 0xFF
+                pixels[y * frameWidth + x] = (a shl 24) or (r shl 16) or (g shl 8) or b
+            }
+        }
+        bitmap.setPixels(pixels, 0, frameWidth, 0, 0, frameWidth, frameHeight)
+        return bitmap
+    }
+
+    private fun setDataSource(extractor: MediaExtractor) {
+        when (uri.scheme?.lowercase()) {
+            "http", "https", "rtsp" ->
+                extractor.setDataSource(uri.toString(), emptyMap())
+            "content", "file", "android.resource" ->
+                extractor.setDataSource(context, uri, null)
+            null ->
+                extractor.setDataSource(uri.path ?: uri.toString(), emptyMap())
+            else ->
+                extractor.setDataSource(context, uri, null)
+        }
+    }
+
+    private fun findVideoTrack(extractor: MediaExtractor): Int {
+        for (index in 0 until extractor.trackCount) {
+            val mime = extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)
+            if (mime?.startsWith("video/") == true) return index
+        }
+        return -1
+    }
+
+    private fun takeSeekRequest(): Long = synchronized(lifecycleLock) {
+        val requested = seekRequestUs
+        seekRequestUs = NO_SEEK_REQUEST
+        requested
+    }
+
+    private fun normalizedRotation(value: Int): Int {
+        val normalized = value % 360
+        return if (normalized < 0) normalized + 360 else normalized
+    }
+
+    private fun MediaFormat.intValue(key: String): Int? =
+        if (containsKey(key)) getInteger(key) else null
+
+    private fun MediaFormat.longValue(key: String): Long? =
+        if (containsKey(key)) getLong(key) else null
+
+    private fun sleepMicros(delayUs: Long) {
+        if (delayUs <= 0L) return
+        val millis = delayUs / 1_000L
+        val nanos = ((delayUs % 1_000L) * 1_000L).toInt()
+        if (millis == 0L && nanos == 0) {
+            Thread.yield()
+        } else {
+            Thread.sleep(millis, nanos)
+        }
+    }
+
+    private fun reportFailure(message: String) {
+        if (failureReported.compareAndSet(false, true)) {
+            failureHandler?.invoke(message)
+        }
+    }
+
+    private fun monotonicUs(): Long = SystemClock.elapsedRealtimeNanos() / 1_000L
 
     private fun isCurrent(expectedGeneration: Long): Boolean =
         running.get() && !released.get() && generation.get() == expectedGeneration
