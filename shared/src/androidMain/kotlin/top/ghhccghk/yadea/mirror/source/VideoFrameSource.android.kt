@@ -529,8 +529,11 @@ class VideoFrameSource(
         if (imagePlanes.size < 3) {
             throw IllegalStateException("视频 YUV 解码输出像素平面不足: ${imagePlanes.size}")
         }
-        val frameWidth = width
-        val frameHeight = height
+        val crop = cropRect
+        val frameWidth = crop.width().coerceIn(1, width)
+        val frameHeight = crop.height().coerceIn(1, height)
+        val cropLeft = crop.left.coerceAtLeast(0)
+        val cropTop = crop.top.coerceAtLeast(0)
         val yPlane = imagePlanes[0]
         val uPlane = imagePlanes[1]
         val vPlane = imagePlanes[2]
@@ -540,11 +543,16 @@ class VideoFrameSource(
         val uPixelStride = uPlane.pixelStride
         val vRowStride = vPlane.rowStride
         val vPixelStride = vPlane.pixelStride
-        val chromaWidth = (frameWidth + 1) / 2
-        val chromaHeight = (frameHeight + 1) / 2
+        val chromaLeft = cropLeft / 2
+        val chromaTop = cropTop / 2
+        val visibleChromaWidth = (frameWidth + 1) / 2
+        val visibleChromaHeight = (frameHeight + 1) / 2
         validateYuvPlane(
             name = "Y",
             limit = yPlane.buffer.limit(),
+            baseOffset = yPlane.buffer.position(),
+            startX = cropLeft,
+            startY = cropTop,
             rowStride = yRowStride,
             pixelStride = yPixelStride,
             width = frameWidth,
@@ -553,18 +561,24 @@ class VideoFrameSource(
         validateYuvPlane(
             name = "U",
             limit = uPlane.buffer.limit(),
+            baseOffset = uPlane.buffer.position(),
+            startX = chromaLeft,
+            startY = chromaTop,
             rowStride = uRowStride,
             pixelStride = uPixelStride,
-            width = chromaWidth,
-            height = chromaHeight,
+            width = visibleChromaWidth,
+            height = visibleChromaHeight,
         )
         validateYuvPlane(
             name = "V",
             limit = vPlane.buffer.limit(),
+            baseOffset = vPlane.buffer.position(),
+            startX = chromaLeft,
+            startY = chromaTop,
             rowStride = vRowStride,
             pixelStride = vPixelStride,
-            width = chromaWidth,
-            height = chromaHeight,
+            width = visibleChromaWidth,
+            height = visibleChromaHeight,
         )
 
         val bitmap = Bitmap.createBitmap(frameWidth, frameHeight, Bitmap.Config.ARGB_8888)
@@ -576,15 +590,20 @@ class VideoFrameSource(
             val yBuffer = yPlane.buffer
             val uBuffer = uPlane.buffer
             val vBuffer = vPlane.buffer
+            val yBaseOffset = yBuffer.position()
+            val uBaseOffset = uBuffer.position()
+            val vBaseOffset = vBuffer.position()
             for (y in 0 until frameHeight) {
-                val yRowOffset = y * yRowStride
-                val uvRowOffset = (y / 2) * uRowStride
-                val vvRowOffset = (y / 2) * vRowStride
+                val sourceY = cropTop + y
+                val yRowOffset = yBaseOffset + sourceY * yRowStride
+                val uvRowOffset = uBaseOffset + (sourceY / 2) * uRowStride
+                val vvRowOffset = vBaseOffset + (sourceY / 2) * vRowStride
                 for (x in 0 until frameWidth) {
+                    val sourceX = cropLeft + x
                     val yValue = yBuffer.get(
-                        yRowOffset + x * yPixelStride,
+                        yRowOffset + sourceX * yPixelStride,
                     ).toInt() and 0xFF
-                    val uvX = x / 2
+                    val uvX = sourceX / 2
                     val uValue = uBuffer.get(
                         uvRowOffset + uvX * uPixelStride,
                     ).toInt() and 0xFF
@@ -612,6 +631,9 @@ class VideoFrameSource(
     private fun validateYuvPlane(
         name: String,
         limit: Int,
+        baseOffset: Int,
+        startX: Int,
+        startY: Int,
         rowStride: Int,
         pixelStride: Int,
         width: Int,
@@ -622,8 +644,9 @@ class VideoFrameSource(
                 "视频 $name 平面步长无效: row=$rowStride pixel=$pixelStride",
             )
         }
-        val lastIndex = (height - 1).coerceAtLeast(0) * rowStride +
-            (width - 1).coerceAtLeast(0) * pixelStride
+        val lastIndex = baseOffset +
+            (startY + height - 1).coerceAtLeast(0) * rowStride +
+            (startX + width - 1).coerceAtLeast(0) * pixelStride
         if (lastIndex >= limit) {
             throw IllegalStateException(
                 "视频 $name 平面缓冲区不足: last=$lastIndex limit=$limit",
