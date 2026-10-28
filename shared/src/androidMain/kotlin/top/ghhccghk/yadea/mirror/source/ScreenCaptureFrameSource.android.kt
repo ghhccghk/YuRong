@@ -70,6 +70,10 @@ class ScreenCaptureFrameSource(
     @Volatile
     var cropConfig: FrameCropConfig = FrameCropConfig.FULL
 
+    override fun updateCropConfig(config: FrameCropConfig) {
+        if (config.isValid) cropConfig = config
+    }
+
     /** 最大输出宽度（高度按比例） */
     @Volatile
     var maxWidth: Int = 960

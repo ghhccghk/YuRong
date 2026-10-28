@@ -22,7 +22,7 @@ import top.ghhccghk.yadea.mirror.FrameSourceDimensions
 import top.ghhccghk.yadea.mirror.PlatformBitmap
 import top.ghhccghk.yadea.ui.logToFile
 
-private const val MAX_CAPTURE_EDGE = 1280
+private const val MAX_CAPTURE_EDGE = 1024
 private const val PAUSE_POLL_INTERVAL_MS = 50L
 private const val CODEC_TIMEOUT_US = 10_000L
 private const val FRAME_WAIT_CHUNK_US = 20_000L

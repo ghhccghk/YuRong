@@ -54,6 +54,10 @@ class CameraFrameSource(
     @Volatile
     var cropConfig: FrameCropConfig = FrameCropConfig.FULL
 
+    override fun updateCropConfig(config: FrameCropConfig) {
+        if (config.isValid) cropConfig = config
+    }
+
     /** CameraX 分析目标分辨率；最终输出分辨率仍由 MirrorEngine 协商结果决定。 */
     var targetResolution: Size = Size(960, 368)
 

@@ -7,6 +7,7 @@ import java.io.ByteArrayOutputStream
 import javax.imageio.IIOImage
 import javax.imageio.ImageIO
 import javax.imageio.ImageWriteParam
+import kotlin.math.abs
 
 actual object JpegEncoder {
 
@@ -32,6 +33,20 @@ actual object JpegEncoder {
 
     private fun centerCropScale(src: BufferedImage, targetWidth: Int, targetHeight: Int): BufferedImage {
         if (src.width == targetWidth && src.height == targetHeight) return src
+
+        val targetAspect = targetWidth.toFloat() / targetHeight
+        val sourceAspect = src.width.toFloat() / src.height
+        if (abs(sourceAspect - targetAspect) <= 0.02f) {
+            val result = BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_RGB)
+            val graphics = result.createGraphics()
+            graphics.setRenderingHint(
+                RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_BILINEAR,
+            )
+            graphics.drawImage(src, 0, 0, targetWidth, targetHeight, null)
+            graphics.dispose()
+            return result
+        }
 
         val scaleW = targetWidth.toFloat() / src.width
         val scaleH = targetHeight.toFloat() / src.height
