@@ -20,6 +20,7 @@ import top.ghhccghk.yadea.mirror.FramePreviewDispatcher
 import top.ghhccghk.yadea.mirror.FrameSource
 import top.ghhccghk.yadea.mirror.FrameSourceDimensions
 import top.ghhccghk.yadea.mirror.PlatformBitmap
+import top.ghhccghk.yadea.ui.logToFile
 
 private const val MAX_CAPTURE_EDGE = 1280
 private const val PAUSE_POLL_INTERVAL_MS = 50L
@@ -27,6 +28,29 @@ private const val CODEC_TIMEOUT_US = 10_000L
 private const val FRAME_WAIT_CHUNK_US = 20_000L
 private const val DEFAULT_TARGET_FPS = 30
 private const val NO_SEEK_REQUEST = -1L
+
+private data class VideoTrackFormat(
+    val mediaFormat: MediaFormat,
+    val mime: String,
+    val width: Int,
+    val height: Int,
+    val durationUs: Long,
+    val rotationDegrees: Int,
+    val frameRate: Float,
+    val profile: Int?,
+    val level: Int?,
+)
+
+private data class VideoDecoderCandidate(
+    val name: String,
+    val software: Boolean,
+)
+
+private data class StartedVideoDecoder(
+    val codec: MediaCodec,
+    val name: String,
+    val software: Boolean,
+)
 
 /**
  * Android 视频/网络流帧源。
@@ -216,51 +240,34 @@ class VideoFrameSource(
                 throw IllegalStateException("视频源中没有可解码的视频轨道")
             }
             extractor.selectTrack(trackIndex)
-            val format = extractor.getTrackFormat(trackIndex)
-            val mime = format.getString(MediaFormat.KEY_MIME)
-                ?: throw IllegalStateException("视频轨道缺少 MIME 类型")
-            if (!mime.startsWith("video/")) {
-                throw IllegalStateException("不支持的视频轨道: $mime")
-            }
-            val sourceWidth = format.intValue(MediaFormat.KEY_WIDTH)
-            val sourceHeight = format.intValue(MediaFormat.KEY_HEIGHT)
-            if (sourceWidth == null || sourceHeight == null ||
-                sourceWidth <= 1 || sourceHeight <= 1
-            ) {
-                throw IllegalStateException("视频轨道尺寸无效: ${sourceWidth}x$sourceHeight")
-            }
-            val sourceDurationUs = format.longValue(MediaFormat.KEY_DURATION)
-                ?.takeIf { it > 0L }
-                ?: 0L
-            val rotation = format.intValue(MediaFormat.KEY_ROTATION)
-                ?.let(::normalizedRotation)
-                ?: 0
-            val mediaCodec = createDecoder(mime)
-            codec = mediaCodec
+            val videoFormat = parseVideoFormat(extractor.getTrackFormat(trackIndex))
+            val startedDecoder = startDecoder(videoFormat)
+            codec = startedDecoder.codec
             synchronized(lifecycleLock) {
                 if (!isCurrent(expectedGeneration)) return
-                durationUs = sourceDurationUs
-                frameRotationDegrees = rotation
+                durationUs = videoFormat.durationUs
+                frameRotationDegrees = videoFormat.rotationDegrees
                 positionUs = 0L
                 clockAnchorContentUs = 0L
                 clockAnchorElapsedUs = monotonicUs()
             }
 
-            // ByteBuffer output avoids vendor Surface/ImageReader conversions. The
-            // flexible YUV format is exposed as Image planes and is handled below
-            // without copying codec-owned buffers into Bitmap native memory.
-            format.setInteger(
-                MediaFormat.KEY_COLOR_FORMAT,
-                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible,
+            logToFile(
+                "MIRROR VIDEO format=${videoFormat.mime} " +
+                    "${videoFormat.width}x${videoFormat.height} " +
+                    "fps=${videoFormat.frameRate} profile=${videoFormat.profile} " +
+                    "level=${videoFormat.level}",
             )
-            mediaCodec.configure(format, null, null, 0)
-            mediaCodec.start()
+            logToFile(
+                "MIRROR VIDEO decoder=${startedDecoder.name} " +
+                    "software=${startedDecoder.software}",
+            )
 
             extractor.seekTo(0L, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
             decodeSamples(
                 expectedGeneration = expectedGeneration,
                 extractor = extractor,
-                codec = mediaCodec,
+                codec = startedDecoder.codec,
                 onFrame = onFrame,
             )
         } catch (_: InterruptedException) {
@@ -687,37 +694,130 @@ class VideoFrameSource(
         return -1
     }
 
+    private fun parseVideoFormat(source: MediaFormat): VideoTrackFormat {
+        val mime = source.getString(MediaFormat.KEY_MIME)
+            ?: throw IllegalStateException("视频轨道缺少 MIME 类型")
+        if (!mime.startsWith("video/")) {
+            throw IllegalStateException("不支持的视频轨道: $mime")
+        }
+        val width = source.intValue(MediaFormat.KEY_WIDTH)
+        val height = source.intValue(MediaFormat.KEY_HEIGHT)
+        if (width == null || height == null || width <= 1 || height <= 1) {
+            throw IllegalStateException("视频轨道尺寸无效: ${width}x$height")
+        }
+
+        return VideoTrackFormat(
+            mediaFormat = source,
+            mime = mime,
+            width = width,
+            height = height,
+            durationUs = source.longValue(MediaFormat.KEY_DURATION)?.takeIf { it > 0L } ?: 0L,
+            rotationDegrees = source.intValue(MediaFormat.KEY_ROTATION)
+                ?.let(::normalizedRotation)
+                ?: 0,
+            frameRate = source.floatValue(MediaFormat.KEY_FRAME_RATE)
+                ?.takeIf { it > 0f }
+                ?: 0f,
+            profile = source.intValue(MediaFormat.KEY_PROFILE),
+            level = source.intValue(MediaFormat.KEY_LEVEL),
+        )
+    }
+
     /**
-     * Prefer a decoder that explicitly exposes flexible YUV output. This keeps the
-     * Android implementation on the documented Image/Buffer contract instead of
-     * relying on vendor-specific Surface/ImageReader pixel layouts.
+     * Try format-compatible hardware decoders first, then software decoders.
+     * configure/start is part of capability detection because vendor
+     * MediaCodecInfo declarations can differ from what the runtime accepts.
      */
-    private fun createDecoder(mime: String): MediaCodec {
-        val decoderInfos = MediaCodecList(MediaCodecList.REGULAR_CODECS)
+    private fun startDecoder(videoFormat: VideoTrackFormat): StartedVideoDecoder {
+        videoFormat.mediaFormat.setInteger(
+            MediaFormat.KEY_COLOR_FORMAT,
+            MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible,
+        )
+        val candidates = decoderCandidates(videoFormat)
+        if (candidates.isEmpty()) {
+            throw IllegalStateException(
+                "没有支持 ${videoFormat.mime} ${videoFormat.width}x${videoFormat.height} " +
+                    "Flexible YUV 输出的解码器",
+            )
+        }
+
+        var lastError: Throwable? = null
+        for (candidate in candidates) {
+            val codec = runCatching { MediaCodec.createByCodecName(candidate.name) }
+                .getOrNull()
+                ?: continue
+            try {
+                codec.configure(videoFormat.mediaFormat, null, null, 0)
+                codec.start()
+                return StartedVideoDecoder(
+                    codec = codec,
+                    name = candidate.name,
+                    software = candidate.software,
+                )
+            } catch (error: Throwable) {
+                lastError = error
+                runCatching { codec.stop() }
+                runCatching { codec.release() }
+            }
+        }
+
+        throw IllegalStateException(
+            "硬件和软件解码器均无法解析该视频格式",
+            lastError,
+        )
+    }
+
+    private fun decoderCandidates(videoFormat: VideoTrackFormat): List<VideoDecoderCandidate> {
+        val probeFormat = MediaFormat.createVideoFormat(
+            videoFormat.mime,
+            videoFormat.width,
+            videoFormat.height,
+        ).apply {
+            videoFormat.profile?.let { setInteger(MediaFormat.KEY_PROFILE, it) }
+            videoFormat.level?.let { setInteger(MediaFormat.KEY_LEVEL, it) }
+            if (videoFormat.frameRate > 0f) {
+                setFloat(MediaFormat.KEY_FRAME_RATE, videoFormat.frameRate)
+            }
+        }
+
+        return MediaCodecList(MediaCodecList.REGULAR_CODECS)
             .codecInfos
+            .asSequence()
             .filter { info ->
                 !info.isEncoder &&
-                    info.supportedTypes.any { it.equals(mime, ignoreCase = true) }
+                    !info.name.lowercase().contains("secure") &&
+                    info.supportedTypes.any { it.equals(videoFormat.mime, ignoreCase = true) }
+            }
+            .mapNotNull { info ->
+                val capabilities = runCatching {
+                    info.getCapabilitiesForType(videoFormat.mime)
+                }.getOrNull() ?: return@mapNotNull null
+                if (!capabilities.colorFormats.contains(
+                        MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible,
+                    )
+                ) {
+                    return@mapNotNull null
+                }
+                val videoCapabilities = capabilities.videoCapabilities
+                    ?: return@mapNotNull null
+                if (!videoCapabilities.isSizeSupported(videoFormat.width, videoFormat.height)) {
+                    return@mapNotNull null
+                }
+                val software = isLikelySoftwareDecoder(info.name)
+                val formatSupported = runCatching {
+                    capabilities.isFormatSupported(probeFormat)
+                }.getOrDefault(true)
+                VideoDecoderCandidate(info.name, software) to formatSupported
             }
             .sortedWith(
                 compareBy(
-                    { if (isLikelySoftwareDecoder(it.name)) 0 else 1 },
-                    { it.name },
+                    { if (it.first.software) 1 else 0 },
+                    { if (it.second) 0 else 1 },
+                    { it.first.name },
                 ),
             )
-
-        for (info in decoderInfos) {
-            val capabilities = runCatching { info.getCapabilitiesForType(mime) }
-                .getOrNull() ?: continue
-            if (!capabilities.colorFormats.contains(
-                    MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible,
-                )
-            ) {
-                continue
-            }
-            runCatching { return MediaCodec.createByCodecName(info.name) }
-        }
-        return MediaCodec.createDecoderByType(mime)
+            .map { it.first }
+            .toList()
     }
 
     private fun isLikelySoftwareDecoder(name: String): Boolean {
@@ -744,6 +844,13 @@ class VideoFrameSource(
 
     private fun MediaFormat.longValue(key: String): Long? =
         if (containsKey(key)) getLong(key) else null
+
+    private fun MediaFormat.floatValue(key: String): Float? {
+        if (!containsKey(key)) return null
+        return runCatching { getFloat(key) }
+            .recoverCatching { getInteger(key).toFloat() }
+            .getOrNull()
+    }
 
     private fun sleepMicros(delayUs: Long) {
         if (delayUs <= 0L) return
