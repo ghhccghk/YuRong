@@ -52,6 +52,11 @@ private data class StartedVideoDecoder(
     val software: Boolean,
 )
 
+private class VideoDecoderOutputException(
+    message: String,
+    cause: Throwable? = null,
+) : RuntimeException(message, cause)
+
 /**
  * Android 视频/网络流帧源。
  *
@@ -241,34 +246,67 @@ class VideoFrameSource(
             }
             extractor.selectTrack(trackIndex)
             val videoFormat = parseVideoFormat(extractor.getTrackFormat(trackIndex))
-            val startedDecoder = startDecoder(videoFormat)
-            codec = startedDecoder.codec
-            synchronized(lifecycleLock) {
-                if (!isCurrent(expectedGeneration)) return
-                durationUs = videoFormat.durationUs
-                frameRotationDegrees = videoFormat.rotationDegrees
-                positionUs = 0L
-                clockAnchorContentUs = 0L
-                clockAnchorElapsedUs = monotonicUs()
+            val candidates = decoderCandidates(videoFormat)
+            if (candidates.isEmpty()) {
+                throw IllegalStateException(
+                    "没有支持 ${videoFormat.mime} ${videoFormat.width}x${videoFormat.height} " +
+                        "Flexible YUV 输出的解码器",
+                )
             }
+            var lastDecoderError: Throwable? = null
+            var candidateIndex = 0
+            while (candidateIndex < candidates.size && isCurrent(expectedGeneration)) {
+                val candidate = candidates[candidateIndex]
+                val startedDecoder = tryStartDecoder(videoFormat, candidate)
+                if (startedDecoder == null) {
+                    candidateIndex++
+                    continue
+                }
+                codec = startedDecoder.codec
+                synchronized(lifecycleLock) {
+                    if (!isCurrent(expectedGeneration)) return
+                    durationUs = videoFormat.durationUs
+                    frameRotationDegrees = videoFormat.rotationDegrees
+                    positionUs = 0L
+                    clockAnchorContentUs = 0L
+                    clockAnchorElapsedUs = monotonicUs()
+                }
 
-            logToFile(
-                "MIRROR VIDEO format=${videoFormat.mime} " +
-                    "${videoFormat.width}x${videoFormat.height} " +
-                    "fps=${videoFormat.frameRate} profile=${videoFormat.profile} " +
-                    "level=${videoFormat.level}",
-            )
-            logToFile(
-                "MIRROR VIDEO decoder=${startedDecoder.name} " +
-                    "software=${startedDecoder.software}",
-            )
+                logToFile(
+                    "MIRROR VIDEO format=${videoFormat.mime} " +
+                        "${videoFormat.width}x${videoFormat.height} " +
+                        "fps=${videoFormat.frameRate} profile=${videoFormat.profile} " +
+                        "level=${videoFormat.level}",
+                )
+                logToFile(
+                    "MIRROR VIDEO decoder=${startedDecoder.name} " +
+                        "software=${startedDecoder.software}",
+                )
 
-            extractor.seekTo(0L, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
-            decodeSamples(
-                expectedGeneration = expectedGeneration,
-                extractor = extractor,
-                codec = startedDecoder.codec,
-                onFrame = onFrame,
+                try {
+                    extractor.seekTo(0L, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+                    decodeSamples(
+                        expectedGeneration = expectedGeneration,
+                        extractor = extractor,
+                        codec = startedDecoder.codec,
+                        onFrame = onFrame,
+                    )
+                    return
+                } catch (error: VideoDecoderOutputException) {
+                    lastDecoderError = error
+                    logToFile(
+                        "MIRROR VIDEO decoder output failed " +
+                            "${startedDecoder.name}: ${error.message}",
+                    )
+                    runCatching { startedDecoder.codec.stop() }
+                    runCatching { startedDecoder.codec.release() }
+                    codec = null
+                    candidateIndex++
+                }
+            }
+            throw IllegalStateException(
+                "硬件和软件解码器均无法输出该视频格式",
+                lastDecoderError,
             )
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
@@ -409,7 +447,7 @@ class VideoFrameSource(
                     try {
                         if (!endOfStream && bufferInfo.size > 0) {
                             val image = codec.getOutputImage(outputIndex)
-                                ?: throw IllegalStateException(
+                                ?: throw VideoDecoderOutputException(
                                     "视频解码器没有提供 YUV 图像: ${codec.outputFormat}",
                                 )
                             try {
@@ -728,43 +766,30 @@ class VideoFrameSource(
      * configure/start is part of capability detection because vendor
      * MediaCodecInfo declarations can differ from what the runtime accepts.
      */
-    private fun startDecoder(videoFormat: VideoTrackFormat): StartedVideoDecoder {
+    private fun tryStartDecoder(
+        videoFormat: VideoTrackFormat,
+        candidate: VideoDecoderCandidate,
+    ): StartedVideoDecoder? {
         videoFormat.mediaFormat.setInteger(
             MediaFormat.KEY_COLOR_FORMAT,
             MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible,
         )
-        val candidates = decoderCandidates(videoFormat)
-        if (candidates.isEmpty()) {
-            throw IllegalStateException(
-                "没有支持 ${videoFormat.mime} ${videoFormat.width}x${videoFormat.height} " +
-                    "Flexible YUV 输出的解码器",
+        val codec = runCatching { MediaCodec.createByCodecName(candidate.name) }
+            .getOrNull()
+            ?: return null
+        return try {
+            codec.configure(videoFormat.mediaFormat, null, null, 0)
+            codec.start()
+            StartedVideoDecoder(
+                codec = codec,
+                name = candidate.name,
+                software = candidate.software,
             )
+        } catch (error: Throwable) {
+            runCatching { codec.stop() }
+            runCatching { codec.release() }
+            null
         }
-
-        var lastError: Throwable? = null
-        for (candidate in candidates) {
-            val codec = runCatching { MediaCodec.createByCodecName(candidate.name) }
-                .getOrNull()
-                ?: continue
-            try {
-                codec.configure(videoFormat.mediaFormat, null, null, 0)
-                codec.start()
-                return StartedVideoDecoder(
-                    codec = codec,
-                    name = candidate.name,
-                    software = candidate.software,
-                )
-            } catch (error: Throwable) {
-                lastError = error
-                runCatching { codec.stop() }
-                runCatching { codec.release() }
-            }
-        }
-
-        throw IllegalStateException(
-            "硬件和软件解码器均无法解析该视频格式",
-            lastError,
-        )
     }
 
     private fun decoderCandidates(videoFormat: VideoTrackFormat): List<VideoDecoderCandidate> {
