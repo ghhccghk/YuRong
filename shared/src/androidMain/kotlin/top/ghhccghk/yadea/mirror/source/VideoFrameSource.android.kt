@@ -2,16 +2,14 @@ package top.ghhccghk.yadea.mirror.source
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.media.Image
-import android.media.ImageReader
 import android.media.MediaCodec
+import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
-import android.os.Handler
-import android.os.HandlerThread
 import android.os.SystemClock
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -37,7 +35,7 @@ private const val NO_SEEK_REQUEST = -1L
  * continuous playback. Repeated closest-frame requests can seek back to the same
  * keyframe for every image, which makes long-GOP videos appear to update only once
  * every few seconds. This source uses the platform decoder as a stream: samples
- * are paced by presentation time and rendered to an ImageReader surface, while
+ * are paced by presentation time and decoded to flexible YUV buffers, while
  * FrameBus and MirrorEngine retain only the newest frame at the negotiated rate.
  */
 class VideoFrameSource(
@@ -85,7 +83,7 @@ class VideoFrameSource(
     @Volatile
     private var frameRotationDegrees = 0
 
-    // ImageReader invokes its listener on one HandlerThread, so this buffer can be reused.
+    // Decoder output is consumed on the source thread, so this buffer can be reused.
     private var argbPixelBuffer: IntArray? = null
     private var lastDeliveredElapsedNanos = 0L
 
@@ -211,9 +209,6 @@ class VideoFrameSource(
     ) {
         var extractor: MediaExtractor? = null
         var codec: MediaCodec? = null
-        var reader: ImageReader? = null
-        var frameThread: HandlerThread? = null
-
         try {
             extractor = MediaExtractor().also(::setDataSource)
             val trackIndex = findVideoTrack(extractor)
@@ -240,23 +235,7 @@ class VideoFrameSource(
             val rotation = format.intValue(MediaFormat.KEY_ROTATION)
                 ?.let(::normalizedRotation)
                 ?: 0
-            val (captureWidth, captureHeight) = scaledSize(sourceWidth, sourceHeight)
-
-            val thread = HandlerThread("android-video-frame-reader").apply { start() }
-            frameThread = thread
-            val frameReader = ImageReader.newInstance(
-                captureWidth,
-                captureHeight,
-                ImageFormat.YUV_420_888,
-                2,
-            )
-            reader = frameReader
-            frameReader.setOnImageAvailableListener(
-                { source -> processImage(expectedGeneration, source, onFrame) },
-                Handler(thread.looper),
-            )
-
-            val mediaCodec = MediaCodec.createDecoderByType(mime)
+            val mediaCodec = createDecoder(mime)
             codec = mediaCodec
             synchronized(lifecycleLock) {
                 if (!isCurrent(expectedGeneration)) return
@@ -267,8 +246,14 @@ class VideoFrameSource(
                 clockAnchorElapsedUs = monotonicUs()
             }
 
-            mediaCodec.configure(format, frameReader.surface, null, 0)
-            mediaCodec.setVideoScalingMode(MediaCodec.VIDEO_SCALING_MODE_SCALE_TO_FIT)
+            // ByteBuffer output avoids vendor Surface/ImageReader conversions. The
+            // flexible YUV format is exposed as Image planes and is handled below
+            // without copying codec-owned buffers into Bitmap native memory.
+            format.setInteger(
+                MediaFormat.KEY_COLOR_FORMAT,
+                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible,
+            )
+            mediaCodec.configure(format, null, null, 0)
             mediaCodec.start()
 
             extractor.seekTo(0L, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
@@ -276,6 +261,7 @@ class VideoFrameSource(
                 expectedGeneration = expectedGeneration,
                 extractor = extractor,
                 codec = mediaCodec,
+                onFrame = onFrame,
             )
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
@@ -284,12 +270,9 @@ class VideoFrameSource(
                 reportFailure("无法读取视频源: ${error.message ?: error::class.simpleName ?: "未知错误"}")
             }
         } finally {
-            reader?.setOnImageAvailableListener(null, null)
             runCatching { codec?.stop() }
             runCatching { codec?.release() }
-            runCatching { reader?.close() }
             runCatching { extractor?.release() }
-            frameThread?.quitSafely()
             argbPixelBuffer = null
 
             synchronized(lifecycleLock) {
@@ -306,13 +289,14 @@ class VideoFrameSource(
         expectedGeneration: Long,
         extractor: MediaExtractor,
         codec: MediaCodec,
+        onFrame: (PlatformBitmap) -> Unit,
     ) {
         val bufferInfo = MediaCodec.BufferInfo()
         var inputEnded = false
         var outputEnded = false
 
         while (isCurrent(expectedGeneration)) {
-            if (drainOutput(codec, bufferInfo) == true) {
+            if (drainOutput(expectedGeneration, codec, bufferInfo, onFrame) == true) {
                 outputEnded = true
             }
             if (outputEnded) {
@@ -402,8 +386,10 @@ class VideoFrameSource(
 
     /** Returns true when the decoder has emitted its end-of-stream output buffer. */
     private fun drainOutput(
+        expectedGeneration: Long,
         codec: MediaCodec,
         bufferInfo: MediaCodec.BufferInfo,
+        onFrame: (PlatformBitmap) -> Unit,
     ): Boolean? {
         while (true) {
             when (val outputIndex = codec.dequeueOutputBuffer(bufferInfo, 0L)) {
@@ -413,10 +399,21 @@ class VideoFrameSource(
                     if (outputIndex < 0) return null
                     val endOfStream =
                         bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
-                    // Surface decoders do not consistently populate BufferInfo.size.
-                    // Every non-EOS decoded buffer must still be rendered.
-                    val render = !endOfStream || bufferInfo.size > 0
-                    codec.releaseOutputBuffer(outputIndex, render)
+                    try {
+                        if (!endOfStream && bufferInfo.size > 0) {
+                            val image = codec.getOutputImage(outputIndex)
+                                ?: throw IllegalStateException(
+                                    "视频解码器没有提供 YUV 图像: ${codec.outputFormat}",
+                                )
+                            try {
+                                processImage(expectedGeneration, image, onFrame)
+                            } finally {
+                                image.close()
+                            }
+                        }
+                    } finally {
+                        codec.releaseOutputBuffer(outputIndex, false)
+                    }
                     if (endOfStream) {
                         return true
                     }
@@ -442,50 +439,39 @@ class VideoFrameSource(
 
     private fun processImage(
         expectedGeneration: Long,
-        reader: ImageReader,
+        image: Image,
         onFrame: (PlatformBitmap) -> Unit,
     ) {
-        val image = runCatching { reader.acquireLatestImage() }.getOrNull() ?: return
+        if (!isCurrent(expectedGeneration)) return
+
+        val nowNanos = SystemClock.elapsedRealtimeNanos()
+        val intervalNanos = TimeUnit.SECONDS.toNanos(1L) / targetFps.coerceAtLeast(1)
+        if (lastDeliveredElapsedNanos != 0L &&
+            nowNanos - lastDeliveredElapsedNanos < intervalNanos
+        ) {
+            return
+        }
+        lastDeliveredElapsedNanos = nowNanos
+
+        val decoded = image.toArgbBitmap()
+        val transformed = rotateAndScale(decoded, frameRotationDegrees)
+        previewDispatcher.publishDimensions(transformed.width, transformed.height)
+        if (previewDispatcher.shouldPublishFrame()) {
+            val preview = transformed.copy(Bitmap.Config.ARGB_8888, false)
+            if (preview != null) {
+                previewDispatcher.publishFrame(PlatformBitmap(preview))
+            }
+        }
+        val cropped = applyCrop(transformed)
+        var delivered = false
         try {
             if (!isCurrent(expectedGeneration)) return
-
-            val nowNanos = SystemClock.elapsedRealtimeNanos()
-            val intervalNanos = TimeUnit.SECONDS.toNanos(1L) / targetFps.coerceAtLeast(1)
-            if (lastDeliveredElapsedNanos != 0L &&
-                nowNanos - lastDeliveredElapsedNanos < intervalNanos
-            ) {
-                return
-            }
-            lastDeliveredElapsedNanos = nowNanos
-
-            val decoded = image.toArgbBitmap()
-            val transformed = rotateAndScale(decoded, frameRotationDegrees)
-            previewDispatcher.publishDimensions(transformed.width, transformed.height)
-            if (previewDispatcher.shouldPublishFrame()) {
-                val preview = transformed.copy(Bitmap.Config.ARGB_8888, false)
-                if (preview != null) {
-                    previewDispatcher.publishFrame(PlatformBitmap(preview))
-                }
-            }
-            val cropped = applyCrop(transformed)
-            var delivered = false
-            try {
-                if (!isCurrent(expectedGeneration)) return
-                onFrame(PlatformBitmap(cropped))
-                delivered = true
-            } finally {
-                if (cropped !== transformed) transformed.recycle()
-                if (transformed !== decoded) decoded.recycle()
-                if (!delivered) cropped.recycle()
-            }
-        } catch (error: Throwable) {
-            if (isCurrent(expectedGeneration)) {
-                reportFailure(
-                    "视频帧处理失败: ${error.message ?: error::class.simpleName ?: "未知错误"}",
-                )
-            }
+            onFrame(PlatformBitmap(cropped))
+            delivered = true
         } finally {
-            image.close()
+            if (cropped !== transformed) transformed.recycle()
+            if (transformed !== decoded) decoded.recycle()
+            if (!delivered) cropped.recycle()
         }
     }
 
@@ -520,9 +506,9 @@ class VideoFrameSource(
     }
 
     /**
-     * MediaCodec surface output is most reliable as YUV_420_888 across vendors.
-     * Convert it explicitly instead of calling Bitmap.copyPixelsFromBuffer on a
-     * codec-owned RGBA buffer, which can abort in native code on some devices.
+     * Convert flexible YUV output explicitly instead of calling
+     * Bitmap.copyPixelsFromBuffer on a codec-owned RGBA buffer, which can abort
+     * in native code on some devices.
      */
     private fun Image.toArgbBitmap(): Bitmap {
         val imagePlanes = planes
@@ -530,10 +516,12 @@ class VideoFrameSource(
             throw IllegalStateException("视频 YUV 解码输出像素平面不足: ${imagePlanes.size}")
         }
         val crop = cropRect
-        val frameWidth = crop.width().coerceIn(1, width)
-        val frameHeight = crop.height().coerceIn(1, height)
-        val cropLeft = crop.left.coerceAtLeast(0)
-        val cropTop = crop.top.coerceAtLeast(0)
+        val cropLeft = crop.left.coerceIn(0, width - 1)
+        val cropTop = crop.top.coerceIn(0, height - 1)
+        val cropRight = crop.right.coerceIn(cropLeft + 1, width)
+        val cropBottom = crop.bottom.coerceIn(cropTop + 1, height)
+        val frameWidth = cropRight - cropLeft
+        val frameHeight = cropBottom - cropTop
         val yPlane = imagePlanes[0]
         val uPlane = imagePlanes[1]
         val vPlane = imagePlanes[2]
@@ -545,8 +533,12 @@ class VideoFrameSource(
         val vPixelStride = vPlane.pixelStride
         val chromaLeft = cropLeft / 2
         val chromaTop = cropTop / 2
-        val visibleChromaWidth = (frameWidth + 1) / 2
-        val visibleChromaHeight = (frameHeight + 1) / 2
+        // Chroma coordinates are floor(lumaCoordinate / 2). For odd crop edges
+        // the visible chroma range can be one sample wider than ceil(width / 2).
+        val visibleChromaWidth =
+            (cropRight - 1) / 2 - chromaLeft + 1
+        val visibleChromaHeight =
+            (cropBottom - 1) / 2 - chromaTop + 1
         validateYuvPlane(
             name = "Y",
             limit = yPlane.buffer.limit(),
@@ -581,9 +573,18 @@ class VideoFrameSource(
             height = visibleChromaHeight,
         )
 
-        val bitmap = Bitmap.createBitmap(frameWidth, frameHeight, Bitmap.Config.ARGB_8888)
+        // Decode buffers can be 4K or larger. Convert directly to a bounded
+        // bitmap so the old full-resolution ARGB allocation cannot create the
+        // memory pressure seen before the native crash.
+        val outputScale = minOf(
+            1f,
+            MAX_CAPTURE_EDGE.toFloat() / maxOf(frameWidth, frameHeight),
+        )
+        val outputWidth = (frameWidth * outputScale).roundToInt().coerceAtLeast(2)
+        val outputHeight = (frameHeight * outputScale).roundToInt().coerceAtLeast(2)
+        val bitmap = Bitmap.createBitmap(outputWidth, outputHeight, Bitmap.Config.ARGB_8888)
         try {
-            val requiredPixels = frameWidth * frameHeight
+            val requiredPixels = outputWidth * outputHeight
             val pixels = argbPixelBuffer
                 ?.takeIf { it.size >= requiredPixels }
                 ?: IntArray(requiredPixels).also { argbPixelBuffer = it }
@@ -593,13 +594,15 @@ class VideoFrameSource(
             val yBaseOffset = yBuffer.position()
             val uBaseOffset = uBuffer.position()
             val vBaseOffset = vBuffer.position()
-            for (y in 0 until frameHeight) {
-                val sourceY = cropTop + y
+            for (y in 0 until outputHeight) {
+                val sourceY = cropTop +
+                    (y.toLong() * frameHeight / outputHeight).toInt()
                 val yRowOffset = yBaseOffset + sourceY * yRowStride
                 val uvRowOffset = uBaseOffset + (sourceY / 2) * uRowStride
                 val vvRowOffset = vBaseOffset + (sourceY / 2) * vRowStride
-                for (x in 0 until frameWidth) {
-                    val sourceX = cropLeft + x
+                for (x in 0 until outputWidth) {
+                    val sourceX = cropLeft +
+                        (x.toLong() * frameWidth / outputWidth).toInt()
                     val yValue = yBuffer.get(
                         yRowOffset + sourceX * yPixelStride,
                     ).toInt() and 0xFF
@@ -617,10 +620,19 @@ class VideoFrameSource(
                     val r = ((298 * c + 409 * e + 128) shr 8).coerceIn(0, 255)
                     val g = ((298 * c - 100 * d - 208 * e + 128) shr 8).coerceIn(0, 255)
                     val b = ((298 * c + 516 * d + 128) shr 8).coerceIn(0, 255)
-                    pixels[y * frameWidth + x] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+                    pixels[y * outputWidth + x] =
+                        (0xFF shl 24) or (r shl 16) or (g shl 8) or b
                 }
             }
-            bitmap.setPixels(pixels, 0, frameWidth, 0, 0, frameWidth, frameHeight)
+            bitmap.setPixels(
+                pixels,
+                0,
+                outputWidth,
+                0,
+                0,
+                outputWidth,
+                outputHeight,
+            )
             return bitmap
         } catch (error: Throwable) {
             if (!bitmap.isRecycled) bitmap.recycle()
@@ -673,6 +685,47 @@ class VideoFrameSource(
             if (mime?.startsWith("video/") == true) return index
         }
         return -1
+    }
+
+    /**
+     * Prefer a decoder that explicitly exposes flexible YUV output. This keeps the
+     * Android implementation on the documented Image/Buffer contract instead of
+     * relying on vendor-specific Surface/ImageReader pixel layouts.
+     */
+    private fun createDecoder(mime: String): MediaCodec {
+        val decoderInfos = MediaCodecList(MediaCodecList.REGULAR_CODECS)
+            .codecInfos
+            .filter { info ->
+                !info.isEncoder &&
+                    info.supportedTypes.any { it.equals(mime, ignoreCase = true) }
+            }
+            .sortedWith(
+                compareBy(
+                    { if (isLikelySoftwareDecoder(it.name)) 0 else 1 },
+                    { it.name },
+                ),
+            )
+
+        for (info in decoderInfos) {
+            val capabilities = runCatching { info.getCapabilitiesForType(mime) }
+                .getOrNull() ?: continue
+            if (!capabilities.colorFormats.contains(
+                    MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible,
+                )
+            ) {
+                continue
+            }
+            runCatching { return MediaCodec.createByCodecName(info.name) }
+        }
+        return MediaCodec.createDecoderByType(mime)
+    }
+
+    private fun isLikelySoftwareDecoder(name: String): Boolean {
+        val normalized = name.lowercase()
+        return normalized.startsWith("c2.android.") ||
+            normalized.startsWith("omx.google.") ||
+            normalized.contains(".sw.") ||
+            normalized.endsWith(".sw")
     }
 
     private fun takeSeekRequest(): Long = synchronized(lifecycleLock) {

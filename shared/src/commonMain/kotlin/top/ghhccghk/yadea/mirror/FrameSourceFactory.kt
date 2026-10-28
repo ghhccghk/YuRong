@@ -23,11 +23,21 @@ interface FrameSourceFactory {
     fun createVideoSource(uri: String): FrameSource
 
     /** 按业务请求创建帧源。 */
-    fun createSource(request: FrameSourceRequest): FrameSource = when (request) {
-        is FrameSourceRequest.Camera -> createCameraSource()
-        is FrameSourceRequest.Screen -> createScreenSource()
-        is FrameSourceRequest.Video -> createVideoSource(request.uri)
-        is FrameSourceRequest.Navigation -> createVideoSource(request.uri)
+    fun createSource(request: FrameSourceRequest): FrameSource {
+        val source = when (request) {
+            is FrameSourceRequest.Camera -> createCameraSource()
+            is FrameSourceRequest.Screen -> createScreenSource()
+            is FrameSourceRequest.Video -> createVideoSource(request.uri)
+            is FrameSourceRequest.Navigation -> createVideoSource(request.uri)
+        }
+        val cropConfig = when (request) {
+            is FrameSourceRequest.Camera -> request.cropConfig
+            is FrameSourceRequest.Screen -> request.cropConfig
+            is FrameSourceRequest.Video -> request.cropConfig
+            is FrameSourceRequest.Navigation -> request.cropConfig
+        }
+        source.updateCropConfig(cropConfig)
+        return source
     }
 }
 

@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import java.io.ByteArrayOutputStream
+import kotlin.math.abs
 
 actual object JpegEncoder {
 
@@ -31,6 +32,13 @@ actual object JpegEncoder {
 
         val targetAspect = targetWidth.toFloat() / targetHeight
         val sourceAspect = src.width.toFloat() / src.height
+        // The source pipeline has already applied the user's projection-ratio
+        // crop. Keep that selected region intact; only center-crop sources that
+        // still have a materially different aspect ratio (for example an
+        // uncropped camera frame).
+        if (abs(sourceAspect - targetAspect) <= 0.02f) {
+            return Bitmap.createScaledBitmap(src, targetWidth, targetHeight, true)
+        }
         val cropWidth: Int
         val cropHeight: Int
         if (sourceAspect > targetAspect) {
