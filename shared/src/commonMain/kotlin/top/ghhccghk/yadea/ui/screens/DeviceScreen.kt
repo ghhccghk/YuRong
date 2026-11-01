@@ -21,6 +21,7 @@ import top.ghhccghk.yadea.vehicle.VehicleCloudTheme
 import top.ghhccghk.yadea.vehicle.VehicleCloudStatus
 import top.ghhccghk.yadea.vehicle.VehicleBindingController
 import top.ghhccghk.yadea.vehicle.VehicleControlController
+import top.ghhccghk.yadea.vehicle.VehiclePowerStateResolver
 import top.ghhccghk.yadea.vehicle.VehicleFaultController
 import top.ghhccghk.yadea.vehicle.LostModeController
 import top.ghhccghk.yadea.vehicle.EmergencyContactController
@@ -101,6 +102,11 @@ internal fun VehicleHubScreen(
                 vehicleCloudStatus?.onlineState == true -> ""
                 else -> "车辆车联网当前离线或状态未知"
             }
+            val powerToggleState = VehiclePowerStateResolver.resolve(
+                status = status,
+                cloudPowerState = vehicleCloudStatus?.powerState,
+                cloudLockStatus = vehicleCloudStatus?.lockStatus,
+            )
             when (section) {
                 VehicleSection.Info -> VehicleInfoScreen(
                     status = status,
@@ -121,6 +127,8 @@ internal fun VehicleHubScreen(
                     connected = connected,
                     cloudAvailable = cloudControlAvailable,
                     cloudUnavailableReason = cloudControlUnavailableReason,
+                    powerOn = powerToggleState.powerOn,
+                    keyOn = powerToggleState.keyOn,
                     onRefreshCloudStatus = {
                         profile?.vin?.takeIf { it.isNotBlank() }
                             ?.let { onRefreshVehicleCloudStatus?.invoke(it) }

@@ -24,6 +24,8 @@ fun VehicleControlScreen(
     connected: Boolean,
     cloudAvailable: Boolean,
     cloudUnavailableReason: String,
+    powerOn: Boolean? = null,
+    keyOn: Boolean? = null,
     onRefreshCloudStatus: (() -> Unit)?,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
@@ -152,24 +154,44 @@ fun VehicleControlScreen(
         }
         item {
             AppSection(title = "电源与更多") {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(
-                        horizontal = dimensions.itemHorizontalPadding,
-                        vertical = dimensions.itemVerticalPadding,
-                    ),
-                    horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
-                ) {
-                    AppOutlinedButton(
-                        onClick = { send(VehicleControlCommand.POWER_ON) },
-                        enabled = commandEnabled(VehicleControlCommand.POWER_ON),
-                        modifier = Modifier.weight(1f),
-                    ) { AppText("开机") }
-                    AppOutlinedButton(
-                        onClick = { send(VehicleControlCommand.POWER_OFF) },
-                        enabled = commandEnabled(VehicleControlCommand.POWER_OFF),
-                        modifier = Modifier.weight(1f),
-                    ) { AppText("关机") }
-                }
+                AppSwitchPreference(
+                    checked = powerOn == true,
+                    onCheckedChange = { checked ->
+                        if (checked) {
+                            send(VehicleControlCommand.POWER_ON)
+                        } else {
+                            send(VehicleControlCommand.POWER_OFF)
+                        }
+                    },
+                    title = "车辆电源",
+                    summary = when {
+                        keyOn == true -> "机械钥匙已开机，当前禁止远程开关机"
+                        powerOn == true -> "车辆已开机，关闭将发送关机指令"
+                        powerOn == false -> "车辆已关机，打开将发送开机指令"
+                        else -> "电源状态未知，打开将发送开机指令"
+                    },
+                    enabled = keyOn != true && ready &&
+                        commandEnabled(
+                            if (powerOn == true) {
+                                VehicleControlCommand.POWER_OFF
+                            } else {
+                                VehicleControlCommand.POWER_ON
+                            },
+                        ),
+                )
+                AppListRow(
+                    title = "机械钥匙",
+                    value = when (keyOn) {
+                        true -> "已开机"
+                        false -> "未开机"
+                        null -> "—"
+                    },
+                    summary = if (keyOn == true) {
+                        "请使用机械钥匙操作车辆电源"
+                    } else {
+                        null
+                    },
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(
                         horizontal = dimensions.itemHorizontalPadding,

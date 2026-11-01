@@ -113,6 +113,40 @@ data class VehicleControlState(
     val message: String? = null,
 )
 
+data class VehiclePowerToggleState(
+    /** null 表示当前电源状态未知。 */
+    val powerOn: Boolean?,
+    /** null 表示机械钥匙状态未知。 */
+    val keyOn: Boolean?,
+)
+
+/**
+ * 原 App 的电源开关状态来源：
+ * - 电源：TTP `onOffStatus` 0..7 为开机、8..16 为关机；无 TTP 时使用云端 `powerState`。
+ * - 机械钥匙：TTP `realKeyStatus` / 云端 `lockStatus` 为 1 时视为钥匙已开机。
+ */
+object VehiclePowerStateResolver {
+    fun resolve(
+        status: TtpInfo?,
+        cloudPowerState: Int? = null,
+        cloudLockStatus: Int? = null,
+    ): VehiclePowerToggleState {
+        val powerOn = when {
+            status != null && status.onOffStatus in 0..7 -> true
+            status != null && status.onOffStatus in 8..16 -> false
+            cloudPowerState != null -> cloudPowerState == 1
+            else -> null
+        }
+        val keyOn = when {
+            status != null && status.realKeyStatus == 1 -> true
+            status != null && status.realKeyStatus == 0 -> false
+            cloudLockStatus != null -> cloudLockStatus == 1
+            else -> null
+        }
+        return VehiclePowerToggleState(powerOn = powerOn, keyOn = keyOn)
+    }
+}
+
 /**
  * 车辆控制操作状态。
  *
