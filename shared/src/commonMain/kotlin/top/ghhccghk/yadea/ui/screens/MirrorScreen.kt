@@ -231,28 +231,28 @@ fun MirrorScreen(
                 horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
             ) {
                 SourceButton(
-                    text = "📷\n摄像头",
+                    text = "摄像头",
                     selected = selectedSource == 0,
                     modifier = Modifier.weight(1f),
                     enabled = sourceCapabilities.supports(0),
                     reason = sourceCapabilities.reason(0),
                 ) { viewModel.selectSource(0) }
                 SourceButton(
-                    text = "📱\n屏幕",
+                    text = "屏幕",
                     selected = selectedSource == 1,
                     modifier = Modifier.weight(1f),
                     enabled = sourceCapabilities.supports(1),
                     reason = sourceCapabilities.reason(1),
                 ) { viewModel.selectSource(1) }
                 SourceButton(
-                    text = "🎬\n视频",
+                    text = "视频",
                     selected = selectedSource == 2,
                     modifier = Modifier.weight(1f),
                     enabled = sourceCapabilities.supports(2),
                     reason = sourceCapabilities.reason(2),
                 ) { viewModel.chooseVideoSource() }
                 SourceButton(
-                    text = "🗺\n导航",
+                    text = "导航",
                     selected = selectedSource == 3,
                     modifier = Modifier.weight(1f),
                     enabled = sourceCapabilities.supports(3),
