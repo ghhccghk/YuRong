@@ -345,11 +345,20 @@ BLE 开关命令来自 `CarSettingsPowerRegistry`、
 
 | confId | 命令 | 帧参数 |
 | --- | --- | --- |
-| `2` 边撑感应 | `0x131` | `0x1F` bit4..7，开 `1`、关 `0` |
-| `32` 倾倒提醒 | `0x12D` | `0x41` bit2..3，开 `1`、关 `0` |
-| `63` T 动力 | 开 `0x6A`、关 `0x69` | 固定位域 |
-| `79` 座垫上电 | `0x130` | `0x1F` bit0..3，开 `1`、关 `0` |
-| `90` 赛道模式 | 开 `0x90`、关 `0x91` | 固定位域 |
+| `2` 边撑感应 | 开 `0x0F`、关 `0x10` | `SLIDE_BRACE_ON/OFF` |
+| `17` 能量回收开关 | 开 `0x13`、关 `0x14` | `ENERGY_RECOVER_OPEN/CLOSE` |
+| `32` 倾倒提醒 | 开 `0xA0`、关 `0xA1` | `TILT_WARNING_OPEN/CLOSE` |
+| `45` 定速巡航 | 开 `0xAA`、关 `0xAB` | `CONST_SPEED_OPEN/CLOSE` |
+| `53` 边撑开机 | `0xC7` | 开 `1`、关 `0` |
+| `61` 安全限速 | `0x36` | 车速值 |
+| `62` 座椅加热 | 开关 `0xD2`、档位 `0xD3` | `0x35` bit4..5 / bit6..7 |
+| `63` T 动力 | `0xCF` | `0x37` bit0..1，开 `1`、关 `0` |
+| `72` 长续航 | `0xDD` | `0x0B` bit2..3，开 `1`、关 `0` |
+| `77` 休眠模式 | `0x133` | `0x06` bit6..7，开 `1`、关 `0` |
+| `79` 座垫上电 | `0xFB1` | `0x0F` bit2..3，开 `1`、关 `0` |
+| `80` OTD | `0x132` | `0x3A` bit3..4，开 `0`、关 `1` |
+| `90` 赛道模式 | `0x13F` | `0x45` bit6..7，开 `1`、关 `0` |
+| `93` 静音模式 | `0x141` | 开启 `[1,2]`、关闭 `[0,1]` |
 
 云端直接字段：
 
@@ -357,6 +366,9 @@ BLE 开关命令来自 `CarSettingsPowerRegistry`、
 | --- | --- | --- |
 | `10` | 电子围栏开关 | `distanceOn` |
 | `10` | 电子围栏半径 | `distance` |
+| `47` | 充电功率开关 | `chargeWattSwitch` |
+| `47` | 充电功率值 | `chargeWattVal` |
+| `48` | 充电上限 | `chargeUlVal` |
 | `52` | 感应解锁开关 | `bleUnlockOn` |
 | `52` | 感应解锁距离 | `bleDistance` |
 | `62` | 座椅加热开关 | `seatHeating` |
@@ -377,7 +389,9 @@ TTP 回填：
 | `15` | `vehiclePowerDownStatus`、`vehiclePowerDownTimeStatus` |
 | `42` | `remainingMileageDebugStatus` |
 | `51` | `syncTimeResultStatus` |
+| `53` | `templeSettingStatus` |
 | `73` | `ambientStatus` |
+| `77` | `sleepModeSwitch` |
 | `81` | `withGoHomeStatus`、`withGoHomeTimeStatus` |
 | `72` | `longEnduranceStatus` |
 | `79` | `seatPowerStatus` |

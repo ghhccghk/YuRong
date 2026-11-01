@@ -103,24 +103,58 @@ object VehicleSettingCommands {
                 onId = 0x11,
                 offId = 0x12,
             )
+            // EnergyRecoveryActivity：能量回收开关。
+            "17" -> toggle(
+                kind = kind,
+                onType = "ENERGY_RECOVER_OPEN",
+                offType = "ENERGY_RECOVER_CLOSE",
+                onId = 0x13,
+                offId = 0x14,
+            )
+            // BracketPoweredActivity：边撑开机。
+            "53" -> toggle(
+                kind = kind,
+                onType = "COMMAND_CONST_TEMPLE_SETTING",
+                offType = "COMMAND_CONST_TEMPLE_SETTING",
+                onId = 0xC7,
+                offId = 0xC7,
+                onParameter = 1,
+                offParameter = 0,
+            )
             "32" -> toggle(
                 kind = kind,
                 onType = "TILT_WARNING_OPEN",
                 offType = "TILT_WARNING_CLOSE",
-                onId = 0x12D,
-                offId = 0x12D,
-                onParameter = 1,
-                offParameter = 0,
+                onId = 0xA0,
+                offId = 0xA1,
             )
             "63" -> toggle(
                 kind = kind,
                 onType = "COMMAND_CONST_T_POWER_SETTING",
                 offType = "COMMAND_CONST_T_POWER_SETTING",
-                onId = 0x6A,
-                offId = 0x69,
+                onId = 0xCF,
+                offId = 0xCF,
                 onParameter = 1,
                 offParameter = 0,
             )
+            // HeatedSeatsActivity：座椅加热开关和档位。
+            "62" -> when (kind) {
+                is CarSettingKind.Toggle -> toggle(
+                    kind = kind,
+                    onType = "SEAT_HEAT_SWITCH",
+                    offType = "SEAT_HEAT_SWITCH",
+                    onId = 0xD2,
+                    offId = 0xD2,
+                    onParameter = 1,
+                    offParameter = 0,
+                )
+                is CarSettingKind.Choice -> VehicleSettingCommand(
+                    commandType = "SEAT_HEAT_LEVEL",
+                    commandId = 0xD3,
+                    parameter = (kind.selectedIndex + 1).coerceIn(1, 3),
+                )
+                else -> null
+            }
             "79" -> toggle(
                 kind = kind,
                 onType = "COMMAND_SEAT_POWER_UP",
@@ -134,17 +168,47 @@ object VehicleSettingCommands {
                 kind = kind,
                 onType = "TRACK_MODE",
                 offType = "TRACK_MODE",
-                onId = 0x90,
-                offId = 0x91,
+                onId = 0x13F,
+                offId = 0x13F,
                 onParameter = 1,
                 offParameter = 0,
+            )
+            // EnduranceModeActivity：长续航模式。
+            "72" -> toggle(
+                kind = kind,
+                onType = "LONG_ENDURANCE_SETTING",
+                offType = "LONG_ENDURANCE_SETTING",
+                onId = 0xDD,
+                offId = 0xDD,
+                onParameter = 1,
+                offParameter = 0,
+            )
+            // HibernateModeActivity：休眠模式。
+            "77" -> toggle(
+                kind = kind,
+                onType = "SLEEP_MODE_SWITCH",
+                offType = "SLEEP_MODE_SWITCH",
+                onId = 0x133,
+                offId = 0x133,
+                onParameter = 1,
+                offParameter = 0,
+            )
+            // OTDActivity：0 表示开启，1 表示关闭。
+            "80" -> toggle(
+                kind = kind,
+                onType = "COMMAND_OTD_SWITCH",
+                offType = "COMMAND_OTD_SWITCH",
+                onId = 0x132,
+                offId = 0x132,
+                onParameter = 0,
+                offParameter = 1,
             )
             "45" -> toggle(
                 kind = kind,
                 onType = "CONST_SPEED_OPEN",
                 offType = "CONST_SPEED_CLOSE",
-                onId = 0x92,
-                offId = 0x93,
+                onId = 0xAA,
+                offId = 0xAB,
             )
             "27" -> {
                 val choice = kind as? CarSettingKind.Choice ?: return null
@@ -169,6 +233,16 @@ object VehicleSettingCommands {
                     commandType = "MAX_SPEED_SETTING",
                     commandId = 0x36,
                     parameter = slider.value.toInt().coerceIn(15, 120),
+                )
+            }
+            // MaxSpeedLimitActivity：0 表示不限速，非零最低 15 km/h。
+            "61" -> {
+                val slider = kind as? CarSettingKind.Slider ?: return null
+                val speed = slider.value.toInt()
+                VehicleSettingCommand(
+                    commandType = "MAX_SPEED_SETTING",
+                    commandId = 0x36,
+                    parameter = if (speed == 0) 0 else speed.coerceIn(15, 120),
                 )
             }
             // AutoShutDownActivity：离车自动锁与 3/5/10/15 秒时间。
@@ -229,9 +303,9 @@ object VehicleSettingCommands {
                     commandType = "COMMAND_DISABLE_OVERSPEED_ALERT",
                     commandId = 0x141,
                     parameters = if (toggle.checked) {
-                        listOf(0, 2)
+                        listOf(1, 2)
                     } else {
-                        listOf(1, 1)
+                        listOf(0, 1)
                     },
                 )
             }

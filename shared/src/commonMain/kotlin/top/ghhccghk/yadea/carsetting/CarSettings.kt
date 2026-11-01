@@ -453,7 +453,9 @@ class CarSettingsController(
                 }
                 "73" -> item.withToggle(status.extended.ambientStatus.flagOrNull())
                 "51" -> item.withToggle(status.extended.syncTimeResultStatus.flagOrNull())
+                "53" -> item.withToggle(status.extended.templeSettingStatus.flagOrNull())
                 "72" -> item.withToggle(status.extended.longEnduranceStatus.flagOrNull())
+                "77" -> item.withToggle(status.extended.sleepModeSwitch.flagOrNull())
                 "79" -> item.withToggle(status.extended.seatPowerStatus.flagOrNull())
                 "80" -> item.withToggle(status.extended.otdSwitch.flagOrNull())
                 "90" -> item.withToggle(status.extended.trackModeStatus.flagOrNull())

@@ -110,6 +110,7 @@ object CloudCarSettingUpdateBuilder {
         "25" to "passwordUnlockEnable",
         "40" to "colorEggSoundEffect",
         "41" to "userDefinedSoundEffect",
+        "47" to "chargeWattSwitch",
         "52" to "bleUnlockOn",
         "53" to "bleApproachPowerOnEnable",
         "62" to "seatHeating",
@@ -123,6 +124,8 @@ object CloudCarSettingUpdateBuilder {
 
     private val SLIDER_FIELDS = mapOf(
         "10" to "distance",
+        "47" to "chargeWattVal",
+        "48" to "chargeUlVal",
         "52" to "bleDistance",
         "61" to "highestSpeedLimit",
     )

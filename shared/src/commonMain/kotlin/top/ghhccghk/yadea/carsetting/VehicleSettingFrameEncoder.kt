@@ -28,6 +28,9 @@ object VehicleSettingFrameEncoder {
     }
 
     private fun suffixOf(command: VehicleSettingCommand): String? = when (command.commandId) {
+        // EnergyRecoveryActivity：能量回收开关。
+        0x13 -> "FFFFFFFFFFFFFDFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        0x14 -> "FFFFFFFFFFFFFCFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
         // SeatCushionSensorActivity：携出助力。
         0x11 -> "FFFFFFFFFF7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
         0x12 -> "FFFFFFFFFF3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
@@ -37,6 +40,12 @@ object VehicleSettingFrameEncoder {
         0x63 -> "FFFFFFFFFFFFFFFF3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
         0x92 -> "FFFFFFFFFFFFFFFFFFFFFFF7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
         0x93 -> "FFFFFFFFFFFFFFFFFFFFFFF3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        // DumpWarningActivity：倾倒提醒开关。
+        0xA0 -> "FFFFFFFFFFFFFFFFFF7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        0xA1 -> "FFFFFFFFFFFFFFFFFF3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        // ConstantSpeedModeActivity：定速巡航。
+        0xAA -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7"
+        0xAB -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF3"
         // BodyStabilityActivity -> TCS_BODY_STABILITY，参数 0..7 映射到 F8..FF。
         0x9D -> "FF".repeat(35) + hex2(0xF8 + command.parameter.coerceIn(0, 7))
         // AntiLockActivity -> ABS_ANTI_LOCK_OPEN / CLOSE。
@@ -79,6 +88,12 @@ object VehicleSettingFrameEncoder {
         // ArmedModeActivity：关机不设防 / 关机自动设防。
         0x8D -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF3FFFFFFFFFFFFFFF"
         0x8E -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7FFFFFFFFFFFFFFF"
+        // BracketPoweredActivity：边撑开机。
+        0xC7 -> when (command.parameter) {
+            0 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            1 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            else -> return null
+        }
         // VoltagePlatformActivity：参数 0..6 映射到帧尾 1F/3F/5F/7F/9F/BF/DF。
         0xC6 -> when (command.parameter) {
             0 -> "FF".repeat(44) + "1F"
@@ -111,6 +126,9 @@ object VehicleSettingFrameEncoder {
         0xD9 -> bitfieldSuffix(0x39, command.parameter, 6, 7)
         0x144 -> bitfieldSuffix(0x39, command.parameter, 2, 3)
         0x136 -> bitfieldSuffix(0x37, command.parameter, 6, 7)
+        // HeatedSeatsActivity：座椅加热开关和档位。
+        0xD2 -> bitfieldSuffix(0x35, command.parameter, 4, 5)
+        0xD3 -> bitfieldSuffix(0x35, command.parameter, 6, 7)
         // HelpPromotePlusActivity：自适应推行开关（0xD0）与推行档位（0xD1）。
         0xD0 -> bitfieldSuffix(0x37, command.parameter, 2, 3)
         0xD1 -> bitfieldSuffix(0x38, command.parameter, 0, 2)
@@ -122,7 +140,7 @@ object VehicleSettingFrameEncoder {
         0x10 -> "FFFFFFFFFFCFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
         // SeatPowerUpActivity：座垫感应上电。
         0xFB1 -> bitfieldSuffix(0x0F, command.parameter, 2, 3)
-        // CarSettingsSecurityRegistry：倾倒提醒 0x12D。
+        // RadarActivity：RCW 雷达开关。
         0x12D -> bitfieldSuffix(0x41, command.parameter, 2, 3)
         // RadarActivity：FCW / BSD。
         0x13A -> bitfieldSuffix(0x0F, command.parameter, 4, 5)
@@ -133,6 +151,12 @@ object VehicleSettingFrameEncoder {
         // TRACK_MODE：0x90 开、0x91 关。
         0x90 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDFF"
         0x91 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFCFF"
+        // 原 App qg.g 的 T_POWER、赛道、长续航、休眠和 OTD 位域。
+        0xCF -> bitfieldSuffix(0x37, command.parameter, 0, 1)
+        0xDD -> bitfieldSuffix(0x0B, command.parameter, 2, 3)
+        0x132 -> bitfieldSuffix(0x3A, command.parameter, 3, 4)
+        0x133 -> bitfieldSuffix(0x06, command.parameter, 6, 7)
+        0x13F -> bitfieldSuffix(0x45, command.parameter, 6, 7)
         // VehicleVolumeActivity：0..7 档映射到 C7..FF。
         0x46 -> "FF".repeat(13) +
             hex2(0xC7 + (command.parameter.coerceIn(0, 7) shl 3)) +

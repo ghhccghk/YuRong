@@ -11,24 +11,22 @@ class Phase4CarSettingsTest {
     fun phase4CommandsUseConfirmedIdsAndBitfields() {
         assertEquals(
             VehicleSettingCommand(
-                "EDGE_BRACE_INDUCTION_OPEN",
-                0x131,
-                parameter = 1,
+                "SLIDE_BRACE_ON",
+                0x0F,
             ),
             VehicleSettingCommands.forConfigId("2", CarSettingKind.Toggle(true)),
         )
         assertEquals(
             VehicleSettingCommand(
                 "TILT_WARNING_CLOSE",
-                0x12D,
-                parameter = 0,
+                0xA1,
             ),
             VehicleSettingCommands.forConfigId("32", CarSettingKind.Toggle(false)),
         )
         assertEquals(
             VehicleSettingCommand(
                 "COMMAND_CONST_T_POWER_SETTING",
-                0x6A,
+                0xCF,
                 parameter = 1,
             ),
             VehicleSettingCommands.forConfigId("63", CarSettingKind.Toggle(true)),
@@ -36,7 +34,7 @@ class Phase4CarSettingsTest {
         assertEquals(
             VehicleSettingCommand(
                 "TRACK_MODE",
-                0x91,
+                0x13F,
                 parameter = 0,
             ),
             VehicleSettingCommands.forConfigId("90", CarSettingKind.Toggle(false)),
@@ -44,13 +42,97 @@ class Phase4CarSettingsTest {
     }
 
     @Test
+    fun commandMappingsMatchOriginalQqBranches() {
+        assertEquals(
+            VehicleSettingCommand("TILT_WARNING_OPEN", 0xA0),
+            VehicleSettingCommands.forConfigId("32", CarSettingKind.Toggle(true)),
+        )
+        assertEquals(
+            VehicleSettingCommand("CONST_SPEED_OPEN", 0xAA),
+            VehicleSettingCommands.forConfigId("45", CarSettingKind.Toggle(true)),
+        )
+        assertEquals(
+            VehicleSettingCommand("COMMAND_CONST_T_POWER_SETTING", 0xCF, 1),
+            VehicleSettingCommands.forConfigId("63", CarSettingKind.Toggle(true)),
+        )
+        assertEquals(
+            VehicleSettingCommand("TRACK_MODE", 0x13F, 1),
+            VehicleSettingCommands.forConfigId("90", CarSettingKind.Toggle(true)),
+        )
+        assertEquals(
+            VehicleSettingCommand("ENERGY_RECOVER_OPEN", 0x13),
+            VehicleSettingCommands.forConfigId("17", CarSettingKind.Toggle(true)),
+        )
+        assertEquals(
+            VehicleSettingCommand("COMMAND_CONST_TEMPLE_SETTING", 0xC7, 1),
+            VehicleSettingCommands.forConfigId("53", CarSettingKind.Toggle(true)),
+        )
+        assertEquals(
+            VehicleSettingCommand("MAX_SPEED_SETTING", 0x36, 80),
+            VehicleSettingCommands.forConfigId(
+                "61",
+                CarSettingKind.Slider(80f, 0f..100f),
+            ),
+        )
+        assertEquals(
+            VehicleSettingCommand("MAX_SPEED_SETTING", 0x36, 0),
+            VehicleSettingCommands.forConfigId(
+                "61",
+                CarSettingKind.Slider(0f, 0f..100f),
+            ),
+        )
+        assertEquals(
+            VehicleSettingCommand("SEAT_HEAT_SWITCH", 0xD2, 1),
+            VehicleSettingCommands.forConfigId("62", CarSettingKind.Toggle(true)),
+        )
+        assertEquals(
+            VehicleSettingCommand("SEAT_HEAT_LEVEL", 0xD3, 2),
+            VehicleSettingCommands.forConfigId(
+                "62",
+                CarSettingKind.Choice(1, listOf("1 档", "2 档", "3 档")),
+            ),
+        )
+        assertEquals(
+            VehicleSettingCommand("LONG_ENDURANCE_SETTING", 0xDD, 1),
+            VehicleSettingCommands.forConfigId("72", CarSettingKind.Toggle(true)),
+        )
+        assertEquals(
+            VehicleSettingCommand("SLEEP_MODE_SWITCH", 0x133, 1),
+            VehicleSettingCommands.forConfigId("77", CarSettingKind.Toggle(true)),
+        )
+        assertEquals(
+            VehicleSettingCommand("COMMAND_OTD_SWITCH", 0x132, 0),
+            VehicleSettingCommands.forConfigId("80", CarSettingKind.Toggle(true)),
+        )
+        assertEquals(
+            VehicleSettingCommand(
+                "COMMAND_DISABLE_OVERSPEED_ALERT",
+                0x141,
+                parameters = listOf(1, 2),
+            ),
+            VehicleSettingCommands.forConfigId("93", CarSettingKind.Toggle(true)),
+        )
+    }
+
+    @Test
     fun phase4FramesCanBeEncoded() {
         listOf(
-            VehicleSettingCommand("EDGE_BRACE_INDUCTION_CLOSE", 0x131, 0),
-            VehicleSettingCommand("TILT_WARNING_OPEN", 0x12D, 1),
-            VehicleSettingCommand("COMMAND_SEAT_POWER_UP", 0x130, 1),
-            VehicleSettingCommand("COMMAND_CONST_T_POWER_SETTING", 0x6A, 1),
-            VehicleSettingCommand("TRACK_MODE", 0x90, 1),
+            VehicleSettingCommand("SLIDE_BRACE_OFF", 0x10),
+            VehicleSettingCommand("COMMAND_SEAT_POWER_UP", 0xFB1, 1),
+            VehicleSettingCommand("TILT_WARNING_OPEN", 0xA0),
+            VehicleSettingCommand("TILT_WARNING_CLOSE", 0xA1),
+            VehicleSettingCommand("CONST_SPEED_OPEN", 0xAA),
+            VehicleSettingCommand("CONST_SPEED_CLOSE", 0xAB),
+            VehicleSettingCommand("COMMAND_CONST_T_POWER_SETTING", 0xCF, 1),
+            VehicleSettingCommand("TRACK_MODE", 0x13F, 1),
+            VehicleSettingCommand("ENERGY_RECOVER_OPEN", 0x13),
+            VehicleSettingCommand("ENERGY_RECOVER_CLOSE", 0x14),
+            VehicleSettingCommand("COMMAND_CONST_TEMPLE_SETTING", 0xC7, 1),
+            VehicleSettingCommand("SEAT_HEAT_SWITCH", 0xD2, 1),
+            VehicleSettingCommand("SEAT_HEAT_LEVEL", 0xD3, 2),
+            VehicleSettingCommand("LONG_ENDURANCE_SETTING", 0xDD, 1),
+            VehicleSettingCommand("SLEEP_MODE_SWITCH", 0x133, 1),
+            VehicleSettingCommand("COMMAND_OTD_SWITCH", 0x132, 0),
         ).forEach { command ->
             assertNotNull(command.toString(), VehicleSettingFrameEncoder.encode(command))
         }
@@ -91,6 +173,42 @@ class Phase4CarSettingsTest {
             CloudCarSettingUpdateBuilder.build(
                 configId = "62",
                 kind = CarSettingKind.Choice(2, listOf("1 档", "2 档", "3 档")),
+                vin = "VIN",
+            )?.fields,
+        )
+        assertEquals(
+            mapOf(
+                "_gateway" to "True",
+                "chargeWattSwitch" to "1",
+                "vin" to "VIN",
+            ),
+            CloudCarSettingUpdateBuilder.build(
+                configId = "47",
+                kind = CarSettingKind.Toggle(true),
+                vin = "VIN",
+            )?.fields,
+        )
+        assertEquals(
+            mapOf(
+                "_gateway" to "True",
+                "chargeWattVal" to "650",
+                "vin" to "VIN",
+            ),
+            CloudCarSettingUpdateBuilder.build(
+                configId = "47",
+                kind = CarSettingKind.Slider(650f, 200f..1_000f),
+                vin = "VIN",
+            )?.fields,
+        )
+        assertEquals(
+            mapOf(
+                "_gateway" to "True",
+                "chargeUlVal" to "90",
+                "vin" to "VIN",
+            ),
+            CloudCarSettingUpdateBuilder.build(
+                configId = "48",
+                kind = CarSettingKind.Slider(90f, 70f..100f),
                 vin = "VIN",
             )?.fields,
         )

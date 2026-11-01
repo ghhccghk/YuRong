@@ -48,10 +48,14 @@ class CarSettingsControllerTest {
     private fun sampleStatus(
         tcsWorkMode: Int? = null,
         seatHeatSwitchStatus: Int? = null,
+        templeSettingRaw: Int? = null,
+        sleepModeRaw: Int? = null,
     ): TtpInfo {
         val bytes = SAMPLE_TTP_HEX.hexToBytes()!!
         tcsWorkMode?.let { bytes[0xAA] = it.toByte() }
         seatHeatSwitchStatus?.let { bytes[0x75] = it.toByte() }
+        templeSettingRaw?.let { bytes[0x6F] = it.toByte() }
+        sleepModeRaw?.let { bytes[0x88] = it.toByte() }
         return (VehicleNotifyDispatcher.dispatch(bytes) as VehicleNotify.Ttp).info
     }
 
@@ -266,6 +270,52 @@ class CarSettingsControllerTest {
         assertEquals(
             false,
             (items.getValue("cloud:62").kind as CarSettingKind.Toggle).checked,
+        )
+    }
+
+    @Test
+    fun templeAndSleepStatusAreReadBack() {
+        val controller = CarSettingsController(
+            initialItems = listOf(
+                CarSettingItem(
+                    id = "cloud:53",
+                    configId = "53",
+                    title = "边撑开机",
+                    summary = "",
+                    classification = CarSettingClassification.POWER,
+                    channel = CarSettingChannel.BLE,
+                    kind = CarSettingKind.Toggle(false),
+                ),
+                CarSettingItem(
+                    id = "cloud:77",
+                    configId = "77",
+                    title = "休眠模式",
+                    summary = "",
+                    classification = CarSettingClassification.SECURITY,
+                    channel = CarSettingChannel.BLE,
+                    kind = CarSettingKind.Toggle(false),
+                ),
+            ),
+            writer = FakeWriter(true),
+        )
+
+        controller.updateVehicleStatus(
+            sampleStatus(
+                // 0x6F bit2-3 = 1
+                templeSettingRaw = 0x04,
+                // 0x88 bit4-5 = 1
+                sleepModeRaw = 0x10,
+            ),
+        )
+
+        val items = controller.state.value.items.associateBy { it.id }
+        assertEquals(
+            true,
+            (items.getValue("cloud:53").kind as CarSettingKind.Toggle).checked,
+        )
+        assertEquals(
+            true,
+            (items.getValue("cloud:77").kind as CarSettingKind.Toggle).checked,
         )
     }
 
