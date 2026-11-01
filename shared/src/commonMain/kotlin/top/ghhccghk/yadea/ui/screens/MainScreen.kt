@@ -153,6 +153,7 @@ fun MainScreen(
         vehicleAccountRoleProvider,
         vehicleProfileSource,
         instrumentImagePicker,
+        resolvedPreferences,
     ) {
         AppViewModel(
             wifiManager = wifiManager,
@@ -176,6 +177,7 @@ fun MainScreen(
             },
             settingCommandSink = carSettingCommandSink,
             vehicleStatusProvider = { vehicleStatusSource?.status?.value },
+            appPreferences = resolvedPreferences,
             onVehicleConnectionEstablished = { mac, name, binding ->
                 if (mac.isNotBlank()) {
                     featureScope.launch {

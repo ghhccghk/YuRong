@@ -2,7 +2,6 @@ package top.ghhccghk.yadea.mirror.source
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Matrix
 import android.media.Image
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
@@ -22,7 +21,9 @@ import top.ghhccghk.yadea.mirror.FrameSourceDimensions
 import top.ghhccghk.yadea.mirror.PlatformBitmap
 import top.ghhccghk.yadea.ui.logToFile
 
-private const val MAX_CAPTURE_EDGE = 1024
+private const val PREVIEW_MAX_EDGE = 1024
+private const val DEFAULT_TARGET_WIDTH = 800
+private const val DEFAULT_TARGET_HEIGHT = 480
 private const val PAUSE_POLL_INTERVAL_MS = 50L
 private const val CODEC_TIMEOUT_US = 10_000L
 private const val FRAME_WAIT_CHUNK_US = 20_000L
@@ -112,6 +113,12 @@ class VideoFrameSource(
     @Volatile
     private var frameRotationDegrees = 0
 
+    @Volatile
+    private var targetWidth = DEFAULT_TARGET_WIDTH
+
+    @Volatile
+    private var targetHeight = DEFAULT_TARGET_HEIGHT
+
     // Decoder output is consumed on the source thread, so this buffer can be reused.
     private var argbPixelBuffer: IntArray? = null
     private var lastDeliveredElapsedNanos = 0L
@@ -146,6 +153,13 @@ class VideoFrameSource(
 
     override fun updateTargetFps(fps: Int) {
         if (fps > 0) targetFps = fps.coerceAtMost(60)
+    }
+
+    override fun updateTargetSize(width: Int, height: Int) {
+        if (width > 0 && height > 0) {
+            targetWidth = width
+            targetHeight = height
+        }
     }
 
     override suspend fun start(onFrame: (PlatformBitmap) -> Unit) {
@@ -498,56 +512,49 @@ class VideoFrameSource(
         }
         lastDeliveredElapsedNanos = nowNanos
 
-        val decoded = image.toArgbBitmap()
-        val transformed = rotateAndScale(decoded, frameRotationDegrees)
-        previewDispatcher.publishDimensions(transformed.width, transformed.height)
-        if (previewDispatcher.shouldPublishFrame()) {
-            val preview = transformed.copy(Bitmap.Config.ARGB_8888, false)
-            if (preview != null) {
-                previewDispatcher.publishFrame(PlatformBitmap(preview))
-            }
+        val codecCrop = image.cropRect
+        val frameWidth = (codecCrop.right - codecCrop.left)
+            .coerceAtLeast(1)
+        val frameHeight = (codecCrop.bottom - codecCrop.top)
+            .coerceAtLeast(1)
+        val orientedWidth: Int
+        val orientedHeight: Int
+        if (frameRotationDegrees == 90 || frameRotationDegrees == 270) {
+            orientedWidth = frameHeight
+            orientedHeight = frameWidth
+        } else {
+            orientedWidth = frameWidth
+            orientedHeight = frameHeight
         }
-        val cropped = applyCrop(transformed)
+        previewDispatcher.publishDimensions(orientedWidth, orientedHeight)
+        if (previewDispatcher.shouldPublishFrame()) {
+            val previewScale = minOf(
+                1f,
+                PREVIEW_MAX_EDGE.toFloat() /
+                    maxOf(orientedWidth, orientedHeight).coerceAtLeast(1),
+            )
+            val preview = image.toArgbBitmap(
+                outputWidth = (orientedWidth * previewScale).roundToInt().coerceAtLeast(1),
+                outputHeight = (orientedHeight * previewScale).roundToInt().coerceAtLeast(1),
+                rotationDegrees = frameRotationDegrees,
+                crop = FrameCropConfig.FULL,
+            )
+            previewDispatcher.publishFrame(PlatformBitmap(preview))
+        }
+        val deliveredFrame = image.toArgbBitmap(
+            outputWidth = targetWidth,
+            outputHeight = targetHeight,
+            rotationDegrees = frameRotationDegrees,
+            crop = cropConfig,
+        )
         var delivered = false
         try {
             if (!isCurrent(expectedGeneration)) return
-            onFrame(PlatformBitmap(cropped))
+            onFrame(PlatformBitmap(deliveredFrame))
             delivered = true
         } finally {
-            if (cropped !== transformed) transformed.recycle()
-            if (transformed !== decoded) decoded.recycle()
-            if (!delivered) cropped.recycle()
+            if (!delivered) deliveredFrame.recycle()
         }
-    }
-
-    private fun rotateAndScale(source: Bitmap, rotationDegrees: Int): Bitmap {
-        val maxEdge = maxOf(source.width, source.height)
-        val scale = minOf(1f, MAX_CAPTURE_EDGE.toFloat() / maxEdge.coerceAtLeast(1))
-        if (rotationDegrees == 0 && scale >= 1f) return source
-
-        val matrix = Matrix().apply {
-            if (rotationDegrees != 0) postRotate(rotationDegrees.toFloat())
-            if (scale < 1f) postScale(scale, scale)
-        }
-        return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
-    }
-
-    private fun scaledSize(width: Int, height: Int): Pair<Int, Int> {
-        if (width <= 0 || height <= 0) return width to height
-        val scale = minOf(1f, MAX_CAPTURE_EDGE.toFloat() / maxOf(width, height))
-        return (width * scale).roundToInt().coerceAtLeast(2) to
-            (height * scale).roundToInt().coerceAtLeast(2)
-    }
-
-    private fun applyCrop(bitmap: Bitmap): Bitmap {
-        if (cropConfig == FrameCropConfig.FULL) return bitmap
-        val rect = cropConfig.toPixelRect(bitmap.width, bitmap.height)
-        if (rect.x == 0 && rect.y == 0 &&
-            rect.width == bitmap.width && rect.height == bitmap.height
-        ) {
-            return bitmap
-        }
-        return Bitmap.createBitmap(bitmap, rect.x, rect.y, rect.width, rect.height)
     }
 
     /**
@@ -555,16 +562,25 @@ class VideoFrameSource(
      * Bitmap.copyPixelsFromBuffer on a codec-owned RGBA buffer, which can abort
      * in native code on some devices.
      */
-    private fun Image.toArgbBitmap(): Bitmap {
+    private fun Image.toArgbBitmap(
+        outputWidth: Int,
+        outputHeight: Int,
+        rotationDegrees: Int,
+        crop: FrameCropConfig,
+    ): Bitmap {
+        require(outputWidth > 0 && outputHeight > 0) {
+            "视频输出尺寸无效: ${outputWidth}x$outputHeight"
+        }
+        require(crop.isValid) { "视频裁切区域无效" }
         val imagePlanes = planes
         if (imagePlanes.size < 3) {
             throw IllegalStateException("视频 YUV 解码输出像素平面不足: ${imagePlanes.size}")
         }
-        val crop = cropRect
-        val cropLeft = crop.left.coerceIn(0, width - 1)
-        val cropTop = crop.top.coerceIn(0, height - 1)
-        val cropRight = crop.right.coerceIn(cropLeft + 1, width)
-        val cropBottom = crop.bottom.coerceIn(cropTop + 1, height)
+        val codecCrop = cropRect
+        val cropLeft = codecCrop.left.coerceIn(0, width - 1)
+        val cropTop = codecCrop.top.coerceIn(0, height - 1)
+        val cropRight = codecCrop.right.coerceIn(cropLeft + 1, width)
+        val cropBottom = codecCrop.bottom.coerceIn(cropTop + 1, height)
         val frameWidth = cropRight - cropLeft
         val frameHeight = cropBottom - cropTop
         val yPlane = imagePlanes[0]
@@ -618,15 +634,40 @@ class VideoFrameSource(
             height = visibleChromaHeight,
         )
 
-        // Decode buffers can be 4K or larger. Convert directly to a bounded
-        // bitmap so the old full-resolution ARGB allocation cannot create the
-        // memory pressure seen before the native crash.
-        val outputScale = minOf(
-            1f,
-            MAX_CAPTURE_EDGE.toFloat() / maxOf(frameWidth, frameHeight),
-        )
-        val outputWidth = (frameWidth * outputScale).roundToInt().coerceAtLeast(2)
-        val outputHeight = (frameHeight * outputScale).roundToInt().coerceAtLeast(2)
+        val normalizedRotation = ((rotationDegrees % 360) + 360) % 360
+        val orientedWidth = if (normalizedRotation == 90 || normalizedRotation == 270) {
+            frameHeight
+        } else {
+            frameWidth
+        }
+        val orientedHeight = if (normalizedRotation == 90 || normalizedRotation == 270) {
+            frameWidth
+        } else {
+            frameHeight
+        }
+        val selected = crop.toPixelRect(orientedWidth, orientedHeight)
+
+        // The JPEG encoder historically completed a center crop to the display
+        // ratio. Apply that crop while sampling YUV so the source never allocates
+        // a full-resolution ARGB frame just to scale it down again.
+        val targetAspect = outputWidth.toFloat() / outputHeight
+        val selectedAspect = selected.width.toFloat() / selected.height
+        val effectiveWidth: Int
+        val effectiveHeight: Int
+        if (selectedAspect > targetAspect) {
+            effectiveHeight = selected.height
+            effectiveWidth = (effectiveHeight * targetAspect)
+                .roundToInt()
+                .coerceIn(1, selected.width)
+        } else {
+            effectiveWidth = selected.width
+            effectiveHeight = (effectiveWidth / targetAspect)
+                .roundToInt()
+                .coerceIn(1, selected.height)
+        }
+        val effectiveLeft = selected.x + (selected.width - effectiveWidth) / 2
+        val effectiveTop = selected.y + (selected.height - effectiveHeight) / 2
+
         val bitmap = Bitmap.createBitmap(outputWidth, outputHeight, Bitmap.Config.ARGB_8888)
         try {
             val requiredPixels = outputWidth * outputHeight
@@ -640,14 +681,43 @@ class VideoFrameSource(
             val uBaseOffset = uBuffer.position()
             val vBaseOffset = vBuffer.position()
             for (y in 0 until outputHeight) {
-                val sourceY = cropTop +
-                    (y.toLong() * frameHeight / outputHeight).toInt()
-                val yRowOffset = yBaseOffset + sourceY * yRowStride
-                val uvRowOffset = uBaseOffset + (sourceY / 2) * uRowStride
-                val vvRowOffset = vBaseOffset + (sourceY / 2) * vRowStride
+                val orientedY = (
+                    effectiveTop +
+                        (y.toLong() * effectiveHeight / outputHeight).toInt()
+                    ).coerceIn(effectiveTop, effectiveTop + effectiveHeight - 1)
                 for (x in 0 until outputWidth) {
-                    val sourceX = cropLeft +
-                        (x.toLong() * frameWidth / outputWidth).toInt()
+                    val orientedX = (
+                        effectiveLeft +
+                            (x.toLong() * effectiveWidth / outputWidth).toInt()
+                        ).coerceIn(effectiveLeft, effectiveLeft + effectiveWidth - 1)
+                    val rawX: Int
+                    val rawY: Int
+                    when (normalizedRotation) {
+                        90 -> {
+                            rawX = orientedY
+                            rawY = frameHeight - 1 - orientedX
+                        }
+
+                        180 -> {
+                            rawX = frameWidth - 1 - orientedX
+                            rawY = frameHeight - 1 - orientedY
+                        }
+
+                        270 -> {
+                            rawX = frameWidth - 1 - orientedY
+                            rawY = orientedX
+                        }
+
+                        else -> {
+                            rawX = orientedX
+                            rawY = orientedY
+                        }
+                    }
+                    val sourceX = cropLeft + rawX.coerceIn(0, frameWidth - 1)
+                    val sourceY = cropTop + rawY.coerceIn(0, frameHeight - 1)
+                    val yRowOffset = yBaseOffset + sourceY * yRowStride
+                    val uvRowOffset = uBaseOffset + (sourceY / 2) * uRowStride
+                    val vvRowOffset = vBaseOffset + (sourceY / 2) * vRowStride
                     val yValue = yBuffer.get(
                         yRowOffset + sourceX * yPixelStride,
                     ).toInt() and 0xFF

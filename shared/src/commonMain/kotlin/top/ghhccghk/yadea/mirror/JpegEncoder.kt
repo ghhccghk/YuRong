@@ -3,11 +3,10 @@ package top.ghhccghk.yadea.mirror
 /**
  * JpegEncoder - 平台无关的 JPEG 编码接口
  *
- * 视频热路径使用单次 JPEG 编码；仅当结果超过 80KB 硬上限时降到质量 72 重试一次，
- * 避免对同一帧反复压缩造成投屏卡顿。
+ * 视频热路径使用单次 JPEG 编码；仅当结果超过 80KB 硬上限时按当前画质档位
+ * 降低一次质量重试，避免对同一帧反复压缩造成投屏卡顿。
  */
 private const val IMAGE_HARD_LIMIT = 81_920
-private const val LARGE_FRAME_PIXELS = 320 * 240
 
 expect object JpegEncoder {
     fun encode(source: PlatformBitmap, targetWidth: Int, targetHeight: Int): ByteArray
@@ -15,28 +14,46 @@ expect object JpegEncoder {
 }
 
 /**
- * 快速 JPEG 编码：首选质量 80，超过硬上限后仅重试一次质量 72。
+ * 兼容旧调用点：没有显式画质配置时保持原自动策略。
  */
 fun encodeAdaptiveJpeg(
     source: PlatformBitmap,
     targetWidth: Int,
     targetHeight: Int
-): ByteArray {
-    val initialQuality =
-        if (targetWidth * targetHeight > LARGE_FRAME_PIXELS) 72 else 80
+): ByteArray = encodeAdaptiveJpeg(
+    source = source,
+    targetWidth = targetWidth,
+    targetHeight = targetHeight,
+    quality = MirrorQualitySettings(),
+).bytes
+
+/**
+ * 按用户档位编码一帧，并在超过协议硬上限时只降质重试一次。
+ */
+fun encodeAdaptiveJpeg(
+    source: PlatformBitmap,
+    targetWidth: Int,
+    targetHeight: Int,
+    quality: MirrorQualitySettings,
+): JpegEncoding {
+    val initialQuality = quality.initialQuality(targetWidth, targetHeight)
     val first = JpegEncoder.encodeAtQuality(
         source,
         targetWidth,
         targetHeight,
         initialQuality,
     )
-    if (first.size <= IMAGE_HARD_LIMIT) return first
+    if (first.size <= IMAGE_HARD_LIMIT) {
+        return JpegEncoding(first, initialQuality, retried = false)
+    }
 
     // 视频热路径只做一次降质重编码，避免每帧多次 JPEG 压缩造成播放卡顿。
-    return JpegEncoder.encodeAtQuality(
+    val retryQuality = quality.retryQuality(initialQuality)
+    val retried = JpegEncoder.encodeAtQuality(
         source,
         targetWidth,
         targetHeight,
-        (initialQuality - 8).coerceAtLeast(56),
+        retryQuality,
     )
+    return JpegEncoding(retried, retryQuality, retried = true)
 }

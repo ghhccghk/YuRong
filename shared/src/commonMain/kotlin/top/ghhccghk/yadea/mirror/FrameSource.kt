@@ -59,6 +59,13 @@ interface FrameSource {
      * this hint; the final protocol send cadence always remains in MirrorEngine.
      */
     fun updateTargetFps(fps: Int) {}
+
+    /**
+     * Receive the resolution negotiated with the vehicle. Sources that convert
+     * decoded frames directly can use this to avoid allocating an intermediate
+     * full-resolution bitmap.
+     */
+    fun updateTargetSize(width: Int, height: Int) {}
 }
 
 /**

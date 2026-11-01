@@ -28,6 +28,8 @@ data class MirrorMetricsSnapshot(
     val outputWidth: Int = 0,
     val outputHeight: Int = 0,
     val jpegBytes: Int = 0,
+    val jpegQuality: Int = 0,
+    val jpegRetried: Boolean = false,
     val udpChunks: Int = 0,
     val lastCapturedAtMillis: Long = 0,
     val lastSubmittedAtMillis: Long = 0,
@@ -61,6 +63,8 @@ internal class MirrorMetricsTracker {
     private var lastOutputWidth = 0
     private var lastOutputHeight = 0
     private var lastJpegBytes = 0
+    private var lastJpegQuality = 0
+    private var lastJpegRetried = false
     private var lastUdpChunks = 0
 
     private var lastCaptureToSubmitMs = 0L
@@ -91,12 +95,16 @@ internal class MirrorMetricsTracker {
         outputWidth: Int,
         outputHeight: Int,
         jpegBytes: Int,
+        jpegQuality: Int,
+        jpegRetried: Boolean,
     ) {
         encodedFrames++
         lastEncodedAt = encodedAtMillis
         lastOutputWidth = outputWidth
         lastOutputHeight = outputHeight
         lastJpegBytes = jpegBytes
+        lastJpegQuality = jpegQuality
+        lastJpegRetried = jpegRetried
         lastEncodeDurationMs = (encodedAtMillis - lastTakenAt).coerceAtLeast(0)
     }
 
@@ -128,6 +136,8 @@ internal class MirrorMetricsTracker {
         lastOutputWidth = 0
         lastOutputHeight = 0
         lastJpegBytes = 0
+        lastJpegQuality = 0
+        lastJpegRetried = false
         lastUdpChunks = 0
         lastCaptureToSubmitMs = 0L
         lastQueueAgeMs = 0L
@@ -169,6 +179,8 @@ internal class MirrorMetricsTracker {
             outputWidth = lastOutputWidth,
             outputHeight = lastOutputHeight,
             jpegBytes = lastJpegBytes,
+            jpegQuality = lastJpegQuality,
+            jpegRetried = lastJpegRetried,
             udpChunks = lastUdpChunks,
             lastCapturedAtMillis = lastCapturedAt,
             lastSubmittedAtMillis = lastSubmittedAt,

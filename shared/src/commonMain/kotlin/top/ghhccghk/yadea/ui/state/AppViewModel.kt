@@ -33,6 +33,7 @@ import top.ghhccghk.yadea.network.TcpTransport
 import top.ghhccghk.yadea.network.UdpTransport
 import top.ghhccghk.yadea.network.createTcpTransport
 import top.ghhccghk.yadea.network.createUdpTransport
+import top.ghhccghk.yadea.settings.AppPreferences
 import top.ghhccghk.yadea.vehicle.Clock
 import top.ghhccghk.yadea.vehicle.BindingEvent
 import top.ghhccghk.yadea.vehicle.BindingFlow
@@ -66,6 +67,7 @@ class AppViewModel(
     private val bikeBondTypeHexProvider: () -> String = { "C8" },
     private val settingCommandSink: VehicleSettingCommandSink? = null,
     private val vehicleStatusProvider: () -> TtpInfo? = { null },
+    private val appPreferences: AppPreferences? = null,
     private val onVehicleConnectionEstablished: (mac: String, name: String, binding: Boolean) -> Unit =
         { _, _, _ -> },
 ) {
@@ -156,6 +158,10 @@ class AppViewModel(
     val navConfig: StateFlow<NavDisplayConfig> = _navConfig.asStateFlow()
     private val _mirrorMetrics = MutableStateFlow(MirrorMetricsSnapshot())
     val mirrorMetrics: StateFlow<MirrorMetricsSnapshot> = _mirrorMetrics.asStateFlow()
+    private val _mirrorQuality = MutableStateFlow(
+        appPreferences?.readMirrorQuality() ?: MirrorQualitySettings(),
+    )
+    val mirrorQuality: StateFlow<MirrorQualitySettings> = _mirrorQuality.asStateFlow()
     private val acceptingFramesFrom = MutableStateFlow<top.ghhccghk.yadea.mirror.FrameSource?>(null)
     private val cleaningUp = MutableStateFlow(false)
     @Volatile private var mirrorSessionJob: Job? = null
@@ -487,6 +493,41 @@ class AppViewModel(
         currentFrameSource?.updateCropConfig(config)
     }
 
+    fun selectMirrorQuality(preset: MirrorQualityPreset) {
+        applyMirrorQuality(_mirrorQuality.value.copy(preset = preset))
+        persistMirrorQuality()
+    }
+
+    /** Slider preview updates the next frame immediately but does not write storage. */
+    fun previewMirrorQualityCustom(value: Int) {
+        applyMirrorQuality(
+            _mirrorQuality.value.copy(
+                preset = MirrorQualityPreset.Custom,
+                customQuality = value,
+            ),
+        )
+    }
+
+    /** Slider release persists the value that was already applied during drag. */
+    fun commitMirrorQualityCustom(value: Int) {
+        previewMirrorQualityCustom(value)
+        persistMirrorQuality()
+    }
+
+    private fun applyMirrorQuality(settings: MirrorQualitySettings) {
+        val normalized = settings.normalized()
+        _mirrorQuality.value = normalized
+        mirrorEngine?.updateQuality(normalized)
+    }
+
+    private fun persistMirrorQuality() {
+        val preferences = appPreferences ?: return
+        val settings = _mirrorQuality.value
+        scope.launch {
+            preferences.writeMirrorQuality(settings)
+        }
+    }
+
     private suspend fun requestScreenCaptureGrant(): ScreenCaptureGrant =
         suspendCoroutine { continuation ->
             val authorizer = screenCaptureAuthorizer
@@ -790,7 +831,12 @@ class AppViewModel(
             }
 
             val sender = FrameSender(tcp, udp) { msg -> debug(msg) }
-            val engine = MirrorEngine(sender, frameBus) { _mirrorStatus.value = it }
+            val engine = MirrorEngine(
+                frameSender = sender,
+                frameBus = frameBus,
+                onStatus = { _mirrorStatus.value = it },
+                initialQuality = _mirrorQuality.value,
+            )
             mirrorEngine = engine
             _mirrorMetrics.value = engine.metrics.value
 
@@ -833,6 +879,12 @@ class AppViewModel(
                 frameBus.clear()
                 runCatching { source.updateTargetFps(engine.effectiveFps) }
                     .onFailure { debug("更新帧源目标帧率失败: ${it.message}") }
+                runCatching {
+                    source.updateTargetSize(
+                        engine.currentConfig.width,
+                        engine.currentConfig.height,
+                    )
+                }.onFailure { debug("更新帧源目标尺寸失败: ${it.message}") }
                 source.start { bitmap -> submitSourceFrame(source, bitmap) }
                 _mirrorState.value = MirrorState.Running
                 _navConfig.value = engine.currentConfig

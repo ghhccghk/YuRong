@@ -12,6 +12,8 @@ import top.ghhccghk.yadea.ui.AppPaletteStyle
 import top.ghhccghk.yadea.ui.AppThemeMode
 import top.ghhccghk.yadea.ui.UiThemeStyle
 import top.ghhccghk.yadea.auth.AuthUser
+import top.ghhccghk.yadea.mirror.MirrorQualityPreset
+import top.ghhccghk.yadea.mirror.MirrorQualitySettings
 
 class AppPreferencesTest {
     @Test
@@ -59,6 +61,37 @@ class AppPreferencesTest {
         assertTrue(preferences.write(expected) is PreferenceWriteResult.Success)
         assertEquals(expected, preferences.read())
         assertEquals(expected, preferences.observe().first())
+    }
+
+    @Test
+    fun mirrorQualityDefaultsAndRoundTrips() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        val preferences = AppPreferences(store)
+
+        assertEquals(MirrorQualitySettings(), preferences.readMirrorQuality())
+
+        val expected = MirrorQualitySettings(
+            preset = MirrorQualityPreset.Custom,
+            customQuality = 88,
+        )
+        assertTrue(preferences.writeMirrorQuality(expected) is PreferenceWriteResult.Success)
+        assertEquals(expected, preferences.readMirrorQuality())
+        assertEquals(AppPreferenceKeys.SCHEMA_VERSION, store.read(AppPreferenceKeys.schemaVersion))
+    }
+
+    @Test
+    fun invalidMirrorQualityFallsBackToSafeValues() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        store.write(AppPreferenceKeys.mirrorQuality, "unknown")
+        store.write(AppPreferenceKeys.mirrorQualityCustom, 999)
+
+        assertEquals(
+            MirrorQualitySettings(
+                preset = MirrorQualityPreset.Auto,
+                customQuality = MirrorQualitySettings.MAX_CUSTOM_QUALITY,
+            ),
+            AppPreferences(store).readMirrorQuality(),
+        )
     }
 
     @Test

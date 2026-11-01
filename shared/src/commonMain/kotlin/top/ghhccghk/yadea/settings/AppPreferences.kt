@@ -7,6 +7,8 @@ import kotlin.random.Random
 import top.ghhccghk.yadea.auth.AuthProfileCodec
 import top.ghhccghk.yadea.auth.AuthSessionSnapshot
 import top.ghhccghk.yadea.auth.AuthUser
+import top.ghhccghk.yadea.mirror.MirrorQualityPreset
+import top.ghhccghk.yadea.mirror.MirrorQualitySettings
 import top.ghhccghk.yadea.ui.AppAppearance
 import top.ghhccghk.yadea.ui.AppColorSource
 import top.ghhccghk.yadea.ui.AppColorSpec
@@ -32,7 +34,8 @@ object AppPreferenceKeys {
     // 9 -> 10：新增当前 VIN 的云端主题背景与定制款标记缓存。
     // 10 -> 11：缓存动态主题 colorType，用于选择 bannerVehicleBgImg 亮/暗背景。
     // 11 -> 12：新增绝区零联动主题的本地 colorType 覆盖。
-    const val SCHEMA_VERSION = 12
+    // 12 -> 13：新增投屏画质档位与自定义 JPEG 质量。
+    const val SCHEMA_VERSION = 13
 
     val schemaVersion = PreferenceKey.int("app_settings_schema_version", SCHEMA_VERSION)
     val uiStyle = PreferenceKey.string("ui_style", UiThemeStyle.Miuix.storageName)
@@ -82,6 +85,14 @@ object AppPreferenceKeys {
         PreferenceKey.int("vehicle_cloud_theme_game_color_type", 0)
     val vehicleCloudThemeColorOverride =
         PreferenceKey.int("vehicle_cloud_theme_color_override", 0)
+    val mirrorQuality = PreferenceKey.string(
+        "mirror_quality",
+        MirrorQualityPreset.Auto.name,
+    )
+    val mirrorQualityCustom = PreferenceKey.int(
+        "mirror_quality_custom",
+        MirrorQualitySettings.DEFAULT_CUSTOM_QUALITY,
+    )
 
     val vehicleKeys: List<PreferenceKey<*>> = listOf(
         vehicleLastMac,
@@ -98,7 +109,7 @@ object AppPreferenceKeys {
         vehicleCloudThemeGameThemeColorType,
     )
 
-    val all: List<PreferenceKey<*>> = listOf(
+    val appearanceKeys: List<PreferenceKey<*>> = listOf(
         schemaVersion,
         uiStyle,
         themeMode,
@@ -114,6 +125,14 @@ object AppPreferenceKeys {
         uiScalePercent,
         blurEnabled,
     )
+
+    val mirrorKeys: List<PreferenceKey<*>> = listOf(
+        mirrorQuality,
+        mirrorQualityCustom,
+    )
+
+    /** Clearable assets include appearance and mirror settings. */
+    val all: List<PreferenceKey<*>> = appearanceKeys + mirrorKeys
 }
 
 data class VehicleConnectionPreferences(
@@ -145,10 +164,10 @@ class AppPreferences(
     )
 
     fun observe(): Flow<AppAppearance> {
-        val flows = AppPreferenceKeys.all.map { key ->
+        val flows = AppPreferenceKeys.appearanceKeys.map { key ->
             store.observe(key).map { value -> value as Any }
         }
-        // 索引与 AppPreferenceKeys.all 的顺序一一对应，新增 key 时必须同步调整。
+        // 索引与 AppPreferenceKeys.appearanceKeys 的顺序一一对应。
         return combine(flows) { values ->
             decode(
                 uiStyle = values[1] as String,
@@ -304,6 +323,44 @@ class AppPreferences(
             foregroundService = store.read(AppPreferenceKeys.vehicleForegroundService),
             boundVin = store.read(AppPreferenceKeys.vehicleBoundVin),
         )
+
+    fun readMirrorQuality(): MirrorQualitySettings {
+        val preset = MirrorQualityPreset.entries.firstOrNull {
+            it.name == store.read(AppPreferenceKeys.mirrorQuality)
+        } ?: MirrorQualityPreset.Auto
+        return MirrorQualitySettings(
+            preset = preset,
+            customQuality = store.read(AppPreferenceKeys.mirrorQualityCustom).coerceIn(
+                MirrorQualitySettings.MIN_CUSTOM_QUALITY,
+                MirrorQualitySettings.MAX_CUSTOM_QUALITY,
+            ),
+        )
+    }
+
+    suspend fun writeMirrorQuality(
+        settings: MirrorQualitySettings,
+    ): PreferenceWriteResult {
+        val storedSchemaVersion = store.read(AppPreferenceKeys.schemaVersion)
+        if (storedSchemaVersion > AppPreferenceKeys.SCHEMA_VERSION) {
+            return PreferenceWriteResult.Failure(
+                IllegalStateException(
+                    "Stored settings schema $storedSchemaVersion is newer than supported " +
+                        "${AppPreferenceKeys.SCHEMA_VERSION}.",
+                ),
+            )
+        }
+        val normalized = settings.normalized()
+        val writes = listOf(
+            AppPreferenceKeys.schemaVersion to AppPreferenceKeys.SCHEMA_VERSION,
+            AppPreferenceKeys.mirrorQuality to normalized.preset.name,
+            AppPreferenceKeys.mirrorQualityCustom to normalized.customQuality,
+        )
+        for ((key, value) in writes) {
+            val result = writeTyped(key, value)
+            if (result != PreferenceWriteResult.Success) return result
+        }
+        return PreferenceWriteResult.Success
+    }
 
     override fun readVehicleStatus(): CachedVehicleStatus? {
         val vin = store.read(AppPreferenceKeys.vehicleStatusVin).trim()

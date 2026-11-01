@@ -33,7 +33,8 @@ enum class MirrorState {
 class MirrorEngine(
     private val frameSender: FrameSender,
     private val frameBus: FrameBus,
-    private val onStatus: (String) -> Unit = {}
+    initialQuality: MirrorQualitySettings = MirrorQualitySettings(),
+    private val onStatus: (String) -> Unit = {},
 ) {
     private val lifecycleMutex = Mutex()
     private val metricsTracker = MirrorMetricsTracker()
@@ -44,6 +45,7 @@ class MirrorEngine(
     private var heartbeatJob: Job? = null
     private var imageSequence = 1
     @Volatile private var resolvedFps = FrameRatePolicy.SAFE_DEFAULT_FPS
+    @Volatile private var qualitySettings = initialQuality.normalized()
     @Volatile private var stopRequested = false
     @Volatile private var releaseRequested = false
     @Volatile private var framesSent = 0
@@ -56,6 +58,11 @@ class MirrorEngine(
     val sentByteCount: Long get() = bytesSent
     val effectiveFps: Int get() = resolvedFps
     val metrics: StateFlow<MirrorMetricsSnapshot> = metricsTracker.snapshot
+
+    /** Applies to the next encoded frame without restarting the decoder. */
+    fun updateQuality(settings: MirrorQualitySettings) {
+        qualitySettings = settings.normalized()
+    }
 
     suspend fun start(
         targetHost: String,
@@ -179,17 +186,20 @@ class MirrorEngine(
             metricsTracker.onFrameTaken(buffered, takenAt)
 
             try {
-                val jpeg = JpegEncoder.encode(
+                val encoded = encodeAdaptiveJpeg(
                     buffered.bitmap,
                     navConfig.width,
                     navConfig.height,
+                    qualitySettings,
                 )
                 val encodedAt = currentMonotonicMillis()
                 metricsTracker.onFrameEncoded(
                     encodedAtMillis = encodedAt,
                     outputWidth = navConfig.width,
                     outputHeight = navConfig.height,
-                    jpegBytes = jpeg.size,
+                    jpegBytes = encoded.bytes.size,
+                    jpegQuality = encoded.quality,
+                    jpegRetried = encoded.retried,
                 )
 
                 // Encoding is synchronous on the send loop. Cancellation cannot reach it
@@ -199,6 +209,7 @@ class MirrorEngine(
 
                 val timestamp = currentTimeProvider().toEpochMillis() and 0xFFFFFFFFL
                 val sendStartedAt = currentMonotonicMillis()
+                val jpeg = encoded.bytes
                 val chunks = if (broadcastPort != null) {
                     frameSender.broadcastImage(jpeg, imageSequence, broadcastPort, timestamp)
                 } else {

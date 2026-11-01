@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.mirror.FrameCropConfig
 import top.ghhccghk.yadea.mirror.MirrorPreviewPanel
+import top.ghhccghk.yadea.mirror.MirrorQualityPreset
 import top.ghhccghk.yadea.mirror.MirrorState
 import top.ghhccghk.yadea.mirror.fmt
 import top.ghhccghk.yadea.mirror.MirrorConnectStage
@@ -40,6 +41,7 @@ fun MirrorScreen(
     val frameCount by viewModel.frameCount.collectAsState()
     val bytesSent by viewModel.bytesSent.collectAsState()
     val mirrorMetrics by viewModel.mirrorMetrics.collectAsState()
+    val mirrorQuality by viewModel.mirrorQuality.collectAsState()
     val selectedSource by viewModel.selectedSource.collectAsState()
     val sourceCapabilities = viewModel.sourceCapabilities
     val sourceUri by viewModel.sourceUri.collectAsState()
@@ -212,6 +214,26 @@ fun MirrorScreen(
                         StatItem("已发送", formatBytes(bytesSent))
                         StatItem("发送帧率", if (mirrorMetrics.sentFrames > 0) "${fmt(mirrorMetrics.sendFps.toFloat(), 1)} fps" else "-- fps")
                     }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(
+                            horizontal = dimensions.itemHorizontalPadding,
+                            vertical = dimensions.compactSpacing,
+                        ),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        StatItem(
+                            "JPEG 画质",
+                            if (mirrorMetrics.jpegQuality > 0) {
+                                mirrorMetrics.jpegQuality.toString()
+                            } else {
+                                "--"
+                            },
+                        )
+                        StatItem(
+                            "超限降质",
+                            if (mirrorMetrics.jpegRetried) "是" else "否",
+                        )
+                    }
                 }
             }
         }
@@ -258,6 +280,46 @@ fun MirrorScreen(
                     enabled = sourceCapabilities.supports(3),
                     reason = sourceCapabilities.reason(3),
                 ) { viewModel.selectSource(3) }
+            }
+        }
+
+        item {
+            AppSection(title = "投屏画质") {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(
+                        horizontal = dimensions.itemHorizontalPadding,
+                        vertical = dimensions.itemVerticalPadding,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(dimensions.compactSpacing),
+                ) {
+                    AppSegmentedControl(
+                        options = MirrorQualityPreset.entries.map { it.label },
+                        selectedIndex = MirrorQualityPreset.entries.indexOf(mirrorQuality.preset),
+                        onSelected = {
+                            viewModel.selectMirrorQuality(MirrorQualityPreset.entries[it])
+                        },
+                    )
+                    AppText(
+                        "分辨率始终使用仪表协商尺寸；档位只调整 JPEG 画质。",
+                        style = AppDesign.typography.summary,
+                    )
+                }
+                if (mirrorQuality.preset == MirrorQualityPreset.Custom) {
+                    AppSliderPreference(
+                        title = "自定义画质",
+                        summary = "画面复杂时会自动降一次画质，保证能发送",
+                        value = mirrorQuality.customQuality.toFloat(),
+                        valueRange = 40f..95f,
+                        steps = 54,
+                        valueText = "画质 ${mirrorQuality.customQuality}",
+                        onValueChange = {
+                            viewModel.previewMirrorQualityCustom(it.toInt())
+                        },
+                        onValueChangeFinished = {
+                            viewModel.commitMirrorQualityCustom(mirrorQuality.customQuality)
+                        },
+                    )
+                }
             }
         }
 
