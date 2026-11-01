@@ -1,4 +1,4 @@
-# 御戎（touping）
+# 御戎（YuRong）
 
 基于 Kotlin Multiplatform 与 Compose Multiplatform 的雅迪车辆连接、控制、诊断与投屏应用。
 
@@ -15,7 +15,7 @@
 - 车辆投屏，以及摄像头、本地视频等平台可用视频帧源。
 - 双界面风格：
   - Miuix / HyperOS 风格；
-  - 原有 Material 3 风格。
+  - Material 3 风格。
 - 跟随系统、浅色与深色模式，以及主题色、车辆背景取色和界面缩放设置。
 
 功能入口主要位于：
