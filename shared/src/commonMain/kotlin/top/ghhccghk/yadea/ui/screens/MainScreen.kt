@@ -369,6 +369,15 @@ fun MainScreen(
             onRefreshVehicleCloudStatus?.invoke(vin)
         }
     }
+    LaunchedEffect(vehicleConnected, vehicleProfile?.vin, authUiState.session.token) {
+        val vin = vehicleProfile?.vin.orEmpty()
+        if (!vehicleConnected &&
+            authUiState.session.token.isNotBlank() &&
+            vin.isNotBlank()
+        ) {
+            onRefreshVehicleCloudStatus?.invoke(vin)
+        }
+    }
     LaunchedEffect(
         authUiState.session.token,
         vehicleProfile?.vin,

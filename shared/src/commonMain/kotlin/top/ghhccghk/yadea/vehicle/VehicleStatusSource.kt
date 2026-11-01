@@ -47,6 +47,24 @@ data class VehicleInfoUiModel(
 object VehicleInfoFormatter {
     private const val EMPTY = "—"
 
+    /**
+     * BLE 断开后，缓存的 TTP 电量不能再视为实时值；有有效云端 SOC 时优先使用云端。
+     * BLE 已连接时仍以车辆实时上报为准。
+     */
+    fun preferredBatteryLabel(
+        bluetoothLabel: String,
+        cloudSoc: Int?,
+        connected: Boolean,
+    ): String {
+        val cloudLabel = cloudSoc?.takeIf { it in 0..100 }?.let { "$it%" }
+        return when {
+            !connected && cloudLabel != null -> cloudLabel
+            bluetoothLabel != EMPTY -> bluetoothLabel
+            cloudLabel != null -> cloudLabel
+            else -> EMPTY
+        }
+    }
+
     fun format(info: TtpInfo?, connected: Boolean): VehicleInfoUiModel {
         if (info == null) {
             return VehicleInfoUiModel(

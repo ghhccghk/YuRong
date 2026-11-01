@@ -61,6 +61,42 @@ class VehicleInfoFormatterTest {
     }
 
     @Test
+    fun disconnectedUsesCloudBatteryInsteadOfCachedBleValue() {
+        assertEquals(
+            "73%",
+            VehicleInfoFormatter.preferredBatteryLabel(
+                bluetoothLabel = "87 %",
+                cloudSoc = 73,
+                connected = false,
+            ),
+        )
+        assertEquals(
+            "87 %",
+            VehicleInfoFormatter.preferredBatteryLabel(
+                bluetoothLabel = "87 %",
+                cloudSoc = 73,
+                connected = true,
+            ),
+        )
+        assertEquals(
+            "87 %",
+            VehicleInfoFormatter.preferredBatteryLabel(
+                bluetoothLabel = "87 %",
+                cloudSoc = null,
+                connected = false,
+            ),
+        )
+        assertEquals(
+            "73%",
+            VehicleInfoFormatter.preferredBatteryLabel(
+                bluetoothLabel = "—",
+                cloudSoc = 73,
+                connected = true,
+            ),
+        )
+    }
+
+    @Test
     fun poweredOnAndZeroSpeed_isNotRiding() {
         val d = packet()
         d[0x4E] = 0x01

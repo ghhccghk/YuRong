@@ -60,11 +60,15 @@ fun VehicleInfoScreen(
         ?.takeIf { it.isNotBlank() }
         ?.let { if (it.toFloatOrNull() != null) "$it km" else it }
     val rangeLabel = cloudRangeLabel ?: model.rangeLabel
-    val cloudSocLabel = cloudStatus?.soc?.let { "$it%" }
-    val batteryLabel = if (model.batteryLabel == "—") {
-        cloudSocLabel ?: model.batteryLabel
+    val batteryLabel = VehicleInfoFormatter.preferredBatteryLabel(
+        bluetoothLabel = model.batteryLabel,
+        cloudSoc = cloudStatus?.soc,
+        connected = connected,
+    )
+    val batterySummary = if (!connected && cloudStatus?.soc?.let { it in 0..100 } == true) {
+        "云端最近上报"
     } else {
-        model.batteryLabel
+        null
     }
     val cloudTotalLabel = cloudStatus?.totalMileage
         ?.takeIf { it.isNotBlank() }
@@ -84,7 +88,11 @@ fun VehicleInfoScreen(
         item {
             AppPageHeader(
                 title = "车辆信息",
-                subtitle = "实时状态来自车辆 BLE 周期报文",
+                subtitle = if (connected) {
+                    "实时状态来自车辆 BLE 周期报文"
+                } else {
+                    "蓝牙未连接，BLE 数据为缓存；有效时优先显示云端最近上报"
+                },
             )
         }
         item {
@@ -239,7 +247,12 @@ fun VehicleInfoScreen(
                     )
                     AppListRow("总里程", value = model.odoLabel, showDivider = true)
                     AppListRow("单次里程", value = model.tripLabel, showDivider = true)
-                    AppListRow("电池电量", value = batteryLabel, showDivider = true)
+                    AppListRow(
+                        title = "电池电量",
+                        value = batteryLabel,
+                        summary = batterySummary,
+                        showDivider = true,
+                    )
                     AppListRow("总电压", value = model.voltageLabel, showDivider = true)
                     AppListRow("总电流", value = model.currentLabel, showDivider = true)
                     AppListRow("电池温度", value = model.temperatureLabel)
