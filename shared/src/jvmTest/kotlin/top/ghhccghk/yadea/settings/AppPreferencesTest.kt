@@ -154,6 +154,28 @@ class AppPreferencesTest {
     }
 
     @Test
+    fun vehicleWidgetProfileRoundTripsAndIsClearedWithVehicleSession() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        val preferences = AppPreferences(store)
+        val profile = VehicleWidgetProfileCache(
+            vin = "VIN-1",
+            name = "星舰Ⅱ100-M",
+            subtitle = "冠能星舰Ⅱ",
+            imageUrl = "https://cdn/vehicle.png",
+            bikeBondTypeHex = "D0",
+        )
+
+        assertTrue(
+            preferences.writeVehicleWidgetProfile(profile) is PreferenceWriteResult.Success,
+        )
+        assertEquals(profile, preferences.readVehicleWidgetProfile())
+        assertEquals(AppPreferenceKeys.SCHEMA_VERSION, store.read(AppPreferenceKeys.schemaVersion))
+
+        assertTrue(preferences.clearVehicleSession() is PreferenceWriteResult.Success)
+        assertEquals(VehicleWidgetProfileCache(), preferences.readVehicleWidgetProfile())
+    }
+
+    @Test
     fun authKeysRoundTripAndDoNotResetAppearance() = runBlocking {
         val store = InMemoryPreferenceStore()
         val preferences = AppPreferences(store)

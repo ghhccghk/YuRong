@@ -35,7 +35,8 @@ object AppPreferenceKeys {
     // 10 -> 11：缓存动态主题 colorType，用于选择 bannerVehicleBgImg 亮/暗背景。
     // 11 -> 12：新增绝区零联动主题的本地 colorType 覆盖。
     // 12 -> 13：新增投屏画质档位与自定义 JPEG 质量。
-    const val SCHEMA_VERSION = 13
+    // 13 -> 14：缓存桌面小部件所需的车辆名称、车图和 BLE 账户类型。
+    const val SCHEMA_VERSION = 14
 
     val schemaVersion = PreferenceKey.int("app_settings_schema_version", SCHEMA_VERSION)
     val uiStyle = PreferenceKey.string("ui_style", UiThemeStyle.Miuix.storageName)
@@ -85,6 +86,12 @@ object AppPreferenceKeys {
         PreferenceKey.int("vehicle_cloud_theme_game_color_type", 0)
     val vehicleCloudThemeColorOverride =
         PreferenceKey.int("vehicle_cloud_theme_color_override", 0)
+    val vehicleWidgetVin = PreferenceKey.string("vehicle_widget_vin", "")
+    val vehicleWidgetName = PreferenceKey.string("vehicle_widget_name", "")
+    val vehicleWidgetSubtitle = PreferenceKey.string("vehicle_widget_subtitle", "")
+    val vehicleWidgetImageUrl = PreferenceKey.string("vehicle_widget_image_url", "")
+    val vehicleWidgetBikeBondTypeHex =
+        PreferenceKey.string("vehicle_widget_bike_bond_type_hex", "C8")
     val mirrorQuality = PreferenceKey.string(
         "mirror_quality",
         MirrorQualityPreset.Auto.name,
@@ -107,6 +114,11 @@ object AppPreferenceKeys {
         vehicleCloudThemeType,
         vehicleCloudThemeHasBannerBackground,
         vehicleCloudThemeGameThemeColorType,
+        vehicleWidgetVin,
+        vehicleWidgetName,
+        vehicleWidgetSubtitle,
+        vehicleWidgetImageUrl,
+        vehicleWidgetBikeBondTypeHex,
     )
 
     val appearanceKeys: List<PreferenceKey<*>> = listOf(
@@ -141,6 +153,14 @@ data class VehicleConnectionPreferences(
     val autoConnect: Boolean = false,
     val foregroundService: Boolean = true,
     val boundVin: String = "",
+)
+
+data class VehicleWidgetProfileCache(
+    val vin: String = "",
+    val name: String = "",
+    val subtitle: String = "",
+    val imageUrl: String = "",
+    val bikeBondTypeHex: String = "C8",
 )
 
 class AppPreferences(
@@ -323,6 +343,35 @@ class AppPreferences(
             foregroundService = store.read(AppPreferenceKeys.vehicleForegroundService),
             boundVin = store.read(AppPreferenceKeys.vehicleBoundVin),
         )
+
+    fun readVehicleWidgetProfile(): VehicleWidgetProfileCache =
+        VehicleWidgetProfileCache(
+            vin = store.read(AppPreferenceKeys.vehicleWidgetVin),
+            name = store.read(AppPreferenceKeys.vehicleWidgetName),
+            subtitle = store.read(AppPreferenceKeys.vehicleWidgetSubtitle),
+            imageUrl = store.read(AppPreferenceKeys.vehicleWidgetImageUrl),
+            bikeBondTypeHex = store.read(AppPreferenceKeys.vehicleWidgetBikeBondTypeHex)
+                .ifBlank { "C8" },
+        )
+
+    suspend fun writeVehicleWidgetProfile(
+        profile: VehicleWidgetProfileCache,
+    ): PreferenceWriteResult {
+        val writes = listOf(
+            AppPreferenceKeys.schemaVersion to AppPreferenceKeys.SCHEMA_VERSION,
+            AppPreferenceKeys.vehicleWidgetVin to profile.vin,
+            AppPreferenceKeys.vehicleWidgetName to profile.name,
+            AppPreferenceKeys.vehicleWidgetSubtitle to profile.subtitle,
+            AppPreferenceKeys.vehicleWidgetImageUrl to profile.imageUrl,
+            AppPreferenceKeys.vehicleWidgetBikeBondTypeHex to
+                profile.bikeBondTypeHex.ifBlank { "C8" },
+        )
+        for ((key, value) in writes) {
+            val result = writeTyped(key, value)
+            if (result != PreferenceWriteResult.Success) return result
+        }
+        return PreferenceWriteResult.Success
+    }
 
     fun readMirrorQuality(): MirrorQualitySettings {
         val preset = MirrorQualityPreset.entries.firstOrNull {

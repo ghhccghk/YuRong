@@ -190,18 +190,6 @@ class MainActivity : ComponentActivity() {
             cache = appPreferences,
             vinFlow = vehicleProfileSource.profile.map { it?.vin.orEmpty() },
         ).also { vehicleStatusSource = it }
-        VehicleStatusWidgetCoordinator(
-            context = applicationContext,
-            scope = lifecycleScope,
-            profileSource = vehicleProfileSource,
-            statusSource = vehicleStatus,
-            cloudThemeSource = vehicleCloudThemeSource,
-            preferences = appPreferences,
-            updater = VehicleStatusWidgetUpdater(applicationContext),
-        ).also {
-            vehicleStatusWidgetCoordinator = it
-            it.start()
-        }
         val profileController = VehicleProfileController(
             source = vehicleProfileSource,
             gateway = YadeaVehicleProfileGateway(
@@ -213,6 +201,9 @@ class MainActivity : ComponentActivity() {
             ),
             scope = lifecycleScope,
         )
+        if (appPreferences.readAuth().token.isNotBlank()) {
+            profileController.refresh()
+        }
         val cloudThemeController = VehicleCloudThemeController(
             source = vehicleCloudThemeSource,
             gateway = YadeaVehicleCloudThemeGateway(
@@ -235,6 +226,19 @@ class MainActivity : ComponentActivity() {
             ),
             scope = lifecycleScope,
         )
+        VehicleStatusWidgetCoordinator(
+            context = applicationContext,
+            scope = lifecycleScope,
+            profileSource = vehicleProfileSource,
+            statusSource = vehicleStatus,
+            cloudThemeSource = vehicleCloudThemeSource,
+            cloudStatusSource = cloudStatusController.state,
+            preferences = appPreferences,
+            updater = VehicleStatusWidgetUpdater(applicationContext),
+        ).also {
+            vehicleStatusWidgetCoordinator = it
+            it.start()
+        }
         val vehicleFaultGateway = YadeaVehicleFaultGateway(
             transport = httpTransport,
             tokenProvider = { appPreferences.readAuth().token },
