@@ -36,7 +36,8 @@ object AppPreferenceKeys {
     // 11 -> 12：新增绝区零联动主题的本地 colorType 覆盖。
     // 12 -> 13：新增投屏画质档位与自定义 JPEG 质量。
     // 13 -> 14：缓存桌面小部件所需的车辆名称、车图和 BLE 账户类型。
-    const val SCHEMA_VERSION = 14
+    // 14 -> 15：缓存小部件云端控车所需的车辆系列代码。
+    const val SCHEMA_VERSION = 15
 
     val schemaVersion = PreferenceKey.int("app_settings_schema_version", SCHEMA_VERSION)
     val uiStyle = PreferenceKey.string("ui_style", UiThemeStyle.Miuix.storageName)
@@ -92,6 +93,7 @@ object AppPreferenceKeys {
     val vehicleWidgetImageUrl = PreferenceKey.string("vehicle_widget_image_url", "")
     val vehicleWidgetBikeBondTypeHex =
         PreferenceKey.string("vehicle_widget_bike_bond_type_hex", "C8")
+    val vehicleWidgetSeriesCode = PreferenceKey.string("vehicle_widget_series_code", "")
     val mirrorQuality = PreferenceKey.string(
         "mirror_quality",
         MirrorQualityPreset.Auto.name,
@@ -119,6 +121,7 @@ object AppPreferenceKeys {
         vehicleWidgetSubtitle,
         vehicleWidgetImageUrl,
         vehicleWidgetBikeBondTypeHex,
+        vehicleWidgetSeriesCode,
     )
 
     val appearanceKeys: List<PreferenceKey<*>> = listOf(
@@ -161,6 +164,7 @@ data class VehicleWidgetProfileCache(
     val subtitle: String = "",
     val imageUrl: String = "",
     val bikeBondTypeHex: String = "C8",
+    val seriesCode: String = "",
 )
 
 class AppPreferences(
@@ -352,6 +356,7 @@ class AppPreferences(
             imageUrl = store.read(AppPreferenceKeys.vehicleWidgetImageUrl),
             bikeBondTypeHex = store.read(AppPreferenceKeys.vehicleWidgetBikeBondTypeHex)
                 .ifBlank { "C8" },
+            seriesCode = store.read(AppPreferenceKeys.vehicleWidgetSeriesCode),
         )
 
     suspend fun writeVehicleWidgetProfile(
@@ -365,6 +370,7 @@ class AppPreferences(
             AppPreferenceKeys.vehicleWidgetImageUrl to profile.imageUrl,
             AppPreferenceKeys.vehicleWidgetBikeBondTypeHex to
                 profile.bikeBondTypeHex.ifBlank { "C8" },
+            AppPreferenceKeys.vehicleWidgetSeriesCode to profile.seriesCode,
         )
         for ((key, value) in writes) {
             val result = writeTyped(key, value)

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -87,9 +88,12 @@ import top.ghhccghk.yadea.AndroidVehicleControlSink
 import top.ghhccghk.yadea.MainActivity
 import top.ghhccghk.yadea.R
 import top.ghhccghk.yadea.ble.BleConnectionState
+import top.ghhccghk.yadea.network.GatewayClientInfo
+import top.ghhccghk.yadea.network.createHttpTransport
 import top.ghhccghk.yadea.image.AndroidImageCacheContext
 import top.ghhccghk.yadea.image.AppImages
 import top.ghhccghk.yadea.settings.AppPreferences
+import top.ghhccghk.yadea.settings.AndroidSecretStore
 import top.ghhccghk.yadea.settings.SharedPreferencesPreferenceStore
 import top.ghhccghk.yadea.settings.VehicleWidgetProfileCache
 import top.ghhccghk.yadea.ui.AppAppearance
@@ -102,6 +106,7 @@ import top.ghhccghk.yadea.vehicle.VehicleCloudStatus
 import top.ghhccghk.yadea.vehicle.VehicleControlCommand
 import top.ghhccghk.yadea.vehicle.VehicleInfoFormatter
 import top.ghhccghk.yadea.vehicle.VehiclePowerStateResolver
+import top.ghhccghk.yadea.vehicle.YadeaVehicleCloudControlGateway
 import top.ghhccghk.yadea.vehicle.VehicleProfile
 import top.ghhccghk.yadea.vehicle.VehicleProfileSource
 import top.ghhccghk.yadea.vehicle.VehicleStatusSource
@@ -204,24 +209,10 @@ class VehicleWidgetControlAction : ActionCallback {
             else -> return
         }
 
-        val adapter = AndroidVehicleBleSession.get(appContext)
-        val connectionState = adapter.connectionState.value
-        if (
-            connectionState != BleConnectionState.Connected &&
-            connectionState != BleConnectionState.Ready
-        ) {
-            completeControlAction(
-                context = appContext,
-                glanceId = glanceId,
-                message = "请先打开应用连接车辆蓝牙",
-            )
-            return
-        }
-
         val bondTypeHex = preferences[KEY_BIKE_BOND_TYPE]
             .orEmpty()
             .ifBlank { "C8" }
-        val success = VehicleWidgetCommandSender.send(
+        val result = VehicleWidgetCommandSender.send(
             context = appContext,
             command = command,
             bondTypeHex = bondTypeHex,
@@ -229,14 +220,15 @@ class VehicleWidgetControlAction : ActionCallback {
         completeControlAction(
             context = appContext,
             glanceId = glanceId,
-            message = if (success) {
-                "${command.label}指令已发送，等待车辆状态回报"
-            } else {
-                "${command.label}指令发送失败，请打开应用后重试"
-            },
+            message = result.message,
         )
     }
 }
+
+private data class VehicleWidgetControlResult(
+    val success: Boolean,
+    val message: String,
+)
 
 private object VehicleWidgetCommandSender {
     private val mutex = Mutex()
@@ -245,17 +237,96 @@ private object VehicleWidgetCommandSender {
         context: Context,
         command: VehicleControlCommand,
         bondTypeHex: String,
-    ): Boolean = mutex.withLock {
-        try {
-            AndroidVehicleControlSink(
-                adapter = AndroidVehicleBleSession.get(context),
-                bikeBondTypeHexProvider = { bondTypeHex },
-            ).send(command)
+    ): VehicleWidgetControlResult = mutex.withLock {
+        val adapter = AndroidVehicleBleSession.get(context)
+        val connectionState = adapter.connectionState.value
+        val bleReady = connectionState == BleConnectionState.Connected ||
+            connectionState == BleConnectionState.Ready
+        if (bleReady) {
+            val bleSuccess = try {
+                AndroidVehicleControlSink(
+                    adapter = adapter,
+                    bikeBondTypeHexProvider = { bondTypeHex },
+                ).send(command)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                false
+            }
+            if (bleSuccess) {
+                return@withLock VehicleWidgetControlResult(
+                    success = true,
+                    message = "${command.label}指令已通过蓝牙发送，等待车辆状态回报",
+                )
+            }
+        }
+
+        if (command.cloudControlId != null) {
+            return@withLock sendViaCloud(context, command)
+        }
+
+        VehicleWidgetControlResult(
+            success = false,
+            message = "${command.label}蓝牙发送失败，且该指令不支持车联网下发",
+        )
+    }
+
+    private suspend fun sendViaCloud(
+        context: Context,
+        command: VehicleControlCommand,
+    ): VehicleWidgetControlResult {
+        val appContext = context.applicationContext
+        val preferences = AppPreferences(
+            store = SharedPreferencesPreferenceStore(appContext),
+            secretStore = AndroidSecretStore(appContext),
+        )
+        val auth = preferences.readAuth()
+        if (auth.token.isBlank()) {
+            return VehicleWidgetControlResult(false, "登录状态已失效，请打开应用重新登录")
+        }
+        val profile = preferences.readVehicleWidgetProfile()
+        if (profile.vin.isBlank()) {
+            return VehicleWidgetControlResult(false, "缺少车辆 VIN，请打开应用刷新车辆资料")
+        }
+        val packageInfo = appContext.packageManager.getPackageInfo(appContext.packageName, 0)
+        val appMarket = appContext.applicationInfo.metaData
+            ?.getString("BUGLY_APP_CHANNEL")
+            .orEmpty()
+            .ifBlank { "Yadea" }
+        val result = try {
+            YadeaVehicleCloudControlGateway(
+                transport = createHttpTransport(),
+                tokenProvider = { auth.token },
+                deviceIdProvider = { auth.loginId },
+                clientInfoProvider = {
+                    GatewayClientInfo(
+                        appVersion = packageInfo.versionName.orEmpty(),
+                        appVersionNum = packageInfo.versionCode.toString(),
+                        appMarket = appMarket,
+                        appVersionType = "1",
+                        deviceBrand = Build.BRAND,
+                        phoneModel = Build.MODEL,
+                        bikeSeriesCode = profile.seriesCode.ifBlank { "4" },
+                    )
+                },
+                timestampProvider = { System.currentTimeMillis() },
+            ).send(profile.vin, command)
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (_: Throwable) {
-            false
+        } catch (error: Throwable) {
+            return VehicleWidgetControlResult(
+                false,
+                "${command.label}车联网下发失败：${error.message ?: "网络异常"}",
+            )
         }
+        return VehicleWidgetControlResult(
+            success = result.success,
+            message = if (result.success) {
+                "${command.label}指令已通过车联网发送，等待车辆状态更新"
+            } else {
+                result.message.ifBlank { "${command.label}车联网下发失败" }
+            },
+        )
     }
 }
 
@@ -442,6 +513,7 @@ internal class VehicleStatusWidgetCoordinator(
                 .takeIf(String::isNotBlank)
                 ?: vehicleImageUrl,
             bikeBondTypeHex = bikeBondTypeHex,
+            seriesCode = seriesCode,
         )
 
     private fun buildState(
@@ -477,13 +549,16 @@ internal class VehicleStatusWidgetCoordinator(
         val vehicleName = profile?.let(::vehicleName)
         val subtitle = profile?.let(::vehicleSubtitle).orEmpty()
         val hasStatus = effectiveStatus != null || cloudStatus != null
+        val cloudOnline = cloudStatus?.onlineState == true
         val connectionLabel = when {
+            cloudOnline && !connected -> "车联网在线"
             hasStatus -> formatted.connectionLabel
             connected -> "已连接，等待车辆上报"
             else -> "打开应用连接车辆"
         }
         val connectionShortLabel = when {
             hasStatus && connected -> "在线"
+            cloudOnline -> "云端"
             hasStatus -> "缓存"
             connected -> "等待上报"
             else -> "打开应用"
@@ -512,13 +587,16 @@ internal class VehicleStatusWidgetCoordinator(
             bikeBondTypeHex = profile?.bikeBondTypeHex.orEmpty().ifBlank { "C8" },
             hasStatus = hasStatus,
             connected = connected,
+            cloudOnline = cloudOnline,
             powerOn = powerState.powerOn,
             keyOn = powerState.keyOn,
             connectionLabel = connectionLabel,
             connectionShortLabel = connectionShortLabel,
-            batteryLabel = formatted.batteryLabel.takeIf { it != "—" }
-                ?: cloudStatus?.soc?.let { "$it%" }
-                ?: "—",
+            batteryLabel = VehicleInfoFormatter.preferredBatteryLabel(
+                bluetoothLabel = formatted.batteryLabel,
+                cloudSoc = cloudStatus?.soc,
+                connected = connected,
+            ),
             rangeLabel = formatted.rangeLabel.takeIf { it != "—" }
                 ?: cloudStatus?.remainingMileage
                     ?.takeIf(String::isNotBlank)
@@ -562,6 +640,7 @@ internal data class VehicleStatusWidgetState(
     val bikeBondTypeHex: String = "C8",
     val hasStatus: Boolean = false,
     val connected: Boolean = false,
+    val cloudOnline: Boolean = false,
     val powerOn: Boolean? = null,
     val keyOn: Boolean? = null,
     val connectionLabel: String = "打开应用连接车辆",
@@ -576,6 +655,9 @@ internal data class VehicleStatusWidgetState(
     val seedColorArgb: Int = 0xFF7B4DFF.toInt(),
     val amoledDarkEnabled: Boolean = false,
 ) {
+    val hasControlChannel: Boolean
+        get() = connected || cloudOnline
+
     fun visualKey(): String = listOf(
         hasVehicleIdentity,
         vin,
@@ -586,6 +668,7 @@ internal data class VehicleStatusWidgetState(
         bikeBondTypeHex,
         hasStatus,
         connected,
+        cloudOnline,
         uiStyle.storageName,
         themeMode.name,
         seedColorArgb,
@@ -605,6 +688,7 @@ internal data class VehicleStatusWidgetState(
     fun writeStatus(preferences: MutablePreferences) {
         preferences[KEY_HAS_STATUS] = hasStatus
         preferences[KEY_CONNECTED] = connected
+        preferences[KEY_CLOUD_ONLINE] = cloudOnline
         preferences[KEY_CONNECTION_LABEL] = connectionLabel
         preferences[KEY_CONNECTION_SHORT_LABEL] = connectionShortLabel
         preferences[KEY_BATTERY_LABEL] = batteryLabel
@@ -642,13 +726,16 @@ internal data class VehicleStatusWidgetState(
             val fallbackPowerState = VehiclePowerStateResolver.resolve(fallbackStatus)
             val hasStatus = preferences[KEY_HAS_STATUS] ?: (fallbackStatus != null)
             val connected = preferences[KEY_CONNECTED] ?: false
+            val cloudOnline = preferences[KEY_CLOUD_ONLINE] ?: false
             val connectionLabel = preferences[KEY_CONNECTION_LABEL] ?: when {
+                cloudOnline && !connected -> "车联网在线"
                 hasStatus -> fallbackFormatted?.connectionLabel ?: "状态缓存"
                 connected -> "已连接，等待车辆上报"
                 else -> "打开应用连接车辆"
             }
             val connectionShortLabel = preferences[KEY_CONNECTION_SHORT_LABEL] ?: when {
                 hasStatus && connected -> "在线"
+                cloudOnline -> "云端"
                 hasStatus -> "缓存"
                 connected -> "等待上报"
                 else -> "打开应用"
@@ -687,6 +774,7 @@ internal data class VehicleStatusWidgetState(
                     .ifBlank { "C8" },
                 hasStatus = hasStatus,
                 connected = connected,
+                cloudOnline = cloudOnline,
                 powerOn = preferences[KEY_POWER_ON] ?: fallbackPowerState.powerOn,
                 keyOn = preferences[KEY_KEY_ON] ?: fallbackPowerState.keyOn,
                 connectionLabel = connectionLabel,
@@ -756,6 +844,7 @@ private fun VehicleStatusWidgetContent(state: VehicleStatusWidgetState) {
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
+            .padding(2.dp)
             .appWidgetBackground()
             .background(ColorProvider(palette.surface))
             .cornerRadius(cornerRadius)
@@ -1073,7 +1162,7 @@ private fun WidgetActions(
     palette: WidgetPalette,
     compact: Boolean,
 ) {
-    if (state.connected) {
+    if (state.hasVehicleIdentity) {
         WidgetControls(state, palette, compact)
     } else {
         ConnectVehicleBar(palette, compact)
@@ -1129,11 +1218,6 @@ private fun WidgetControls(
     palette: WidgetPalette,
     compact: Boolean,
 ) {
-    val context = LocalContext.current
-    val openAppIntent = Intent(context, MainActivity::class.java).apply {
-        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-    }
-    val openAppAction = actionStartActivity(openAppIntent)
     val rowModifier = if (compact) {
         GlanceModifier.fillMaxWidth()
     } else {
@@ -1152,40 +1236,37 @@ private fun WidgetControls(
             label = "开锁",
             actionName = WIDGET_ACTION_UNLOCK,
             iconRes = R.drawable.ic_widget_unlock,
-            enabled = state.connected,
+            enabled = state.hasControlChannel || state.hasVehicleIdentity,
             palette = palette,
             compact = compact,
-            openAppAction = openAppAction,
         )
         Spacer(GlanceModifier.width(3.dp))
         WidgetControlButton(
             label = "锁车",
             actionName = WIDGET_ACTION_LOCK,
             iconRes = R.drawable.ic_widget_lock,
-            enabled = state.connected,
+            enabled = state.hasControlChannel || state.hasVehicleIdentity,
             palette = palette,
             compact = compact,
-            openAppAction = openAppAction,
         )
         Spacer(GlanceModifier.width(3.dp))
         WidgetControlButton(
             label = "寻车",
             actionName = WIDGET_ACTION_FIND,
             iconRes = R.drawable.ic_widget_find,
-            enabled = state.connected,
+            enabled = state.hasControlChannel || state.hasVehicleIdentity,
             palette = palette,
             compact = compact,
-            openAppAction = openAppAction,
         )
         Spacer(GlanceModifier.width(3.dp))
         WidgetControlButton(
             label = if (state.powerOn == true) "关机" else "开机",
             actionName = WIDGET_ACTION_POWER_TOGGLE,
             iconRes = R.drawable.ic_widget_power,
-            enabled = state.connected && state.keyOn != true,
+            enabled = (state.hasControlChannel || state.hasVehicleIdentity) &&
+                state.keyOn != true,
             palette = palette,
             compact = compact,
-            openAppAction = openAppAction,
         )
     }
 }
@@ -1198,15 +1279,10 @@ private fun RowScope.WidgetControlButton(
     enabled: Boolean,
     palette: WidgetPalette,
     compact: Boolean,
-    openAppAction: androidx.glance.action.Action,
 ) {
-    val action = if (enabled) {
-        actionRunCallback<VehicleWidgetControlAction>(
-            actionParametersOf(WidgetControlActionKey to actionName),
-        )
-    } else {
-        openAppAction
-    }
+    val action = actionRunCallback<VehicleWidgetControlAction>(
+        actionParametersOf(WidgetControlActionKey to actionName),
+    )
     Box(
         modifier = GlanceModifier
             .defaultWeight()
@@ -1302,13 +1378,13 @@ private fun MiuixHeader(
             modifier = GlanceModifier
                 .background(
                     ColorProvider(
-                        if (state.connected) palette.connected else palette.neutralPill,
+                        if (state.hasControlChannel) palette.connected else palette.neutralPill,
                     ),
                 )
                 .cornerRadius(12.dp)
                 .padding(horizontal = 6.dp, vertical = 3.dp),
             style = widgetTextStyle(
-                color = if (state.connected) palette.onConnected else palette.primaryText,
+                color = if (state.hasControlChannel) palette.onConnected else palette.primaryText,
                 size = 9.sp,
                 weight = FontWeight.Medium,
             ),
@@ -1352,7 +1428,7 @@ private fun MaterialHeader(
         Text(
             text = state.connectionShortLabel,
             style = widgetTextStyle(
-                color = if (state.connected) palette.connected else palette.secondaryText,
+                color = if (state.hasControlChannel) palette.connected else palette.secondaryText,
                 size = 9.sp,
                 weight = FontWeight.Medium,
             ),
@@ -1704,6 +1780,7 @@ private val KEY_BACKGROUND_IMAGE_URL = stringPreferencesKey("vehicle_background_
 private val KEY_BIKE_BOND_TYPE = stringPreferencesKey("vehicle_bike_bond_type")
 private val KEY_HAS_STATUS = booleanPreferencesKey("vehicle_has_status")
 private val KEY_CONNECTED = booleanPreferencesKey("vehicle_connected")
+private val KEY_CLOUD_ONLINE = booleanPreferencesKey("vehicle_cloud_online")
 private val KEY_POWER_ON = booleanPreferencesKey("vehicle_power_on")
 private val KEY_KEY_ON = booleanPreferencesKey("vehicle_key_on")
 private val KEY_CONNECTION_LABEL = stringPreferencesKey("vehicle_connection_label")

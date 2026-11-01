@@ -163,6 +163,7 @@ class AppPreferencesTest {
             subtitle = "冠能星舰Ⅱ",
             imageUrl = "https://cdn/vehicle.png",
             bikeBondTypeHex = "D0",
+            seriesCode = "3",
         )
 
         assertTrue(
