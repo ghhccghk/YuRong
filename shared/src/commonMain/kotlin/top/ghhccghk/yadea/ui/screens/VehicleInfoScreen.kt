@@ -192,6 +192,27 @@ fun VehicleInfoScreen(
                         cloudStatus.soc?.let { soc ->
                             AppListRow("云端电量", value = "$soc%")
                         }
+                        cloudStatus.powerState?.let { value ->
+                            AppListRow(
+                                title = "云端电源状态",
+                                value = when (value) {
+                                    1 -> "已开机"
+                                    0 -> "已关机"
+                                    else -> "—"
+                                },
+                                showDivider = true,
+                            )
+                        }
+                        cloudStatus.rideStatus?.let { value ->
+                            AppListRow(
+                                title = "云端骑行状态",
+                                value = when (value) {
+                                    3 -> "骑行中"
+                                    0, 1 -> "未骑行"
+                                    else -> "—"
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -228,6 +249,7 @@ fun VehicleInfoScreen(
                 AppSection(title = "车辆控制状态") {
                     AppListRow("锁车状态", value = model.lockLabel, showDivider = true)
                     AppListRow("开关机状态", value = model.powerLabel, showDivider = true)
+                    AppListRow("骑行状态", value = model.rideLabel, showDivider = true)
                     AppListRow("速度档位", value = model.gearLabel, showDivider = true)
                     AppListRow("定速巡航", value = model.cruiseLabel, showDivider = true)
                     AppListRow("充电状态", value = model.chargeLabel, showDivider = true)
@@ -435,6 +457,16 @@ private fun VehicleHeroCard(
                     color = foreground,
                     modifier = Modifier.padding(top = dimensions.compactSpacing),
                 )
+                val motionStatus = listOf(model.powerLabel, model.rideLabel)
+                    .filter { it != "—" }
+                    .joinToString(" · ")
+                if (motionStatus.isNotBlank()) {
+                    AppText(
+                        text = motionStatus,
+                        style = AppDesign.typography.title,
+                        color = foreground,
+                    )
+                }
                 AppText(
                     text = "续航: $rangeLabel 车速:${model.speedLabel} ",
                     style = AppDesign.typography.body,

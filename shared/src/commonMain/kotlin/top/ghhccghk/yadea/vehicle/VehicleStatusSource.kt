@@ -28,6 +28,7 @@ data class VehicleInfoUiModel(
     val connectionLabel: String,
     val lockLabel: String,
     val powerLabel: String,
+    val rideLabel: String,
     val speedLabel: String,
     val batteryLabel: String,
     val rangeLabel: String,
@@ -52,6 +53,7 @@ object VehicleInfoFormatter {
                 connectionLabel = if (connected) "已连接，等待车辆上报" else "未连接",
                 lockLabel = EMPTY,
                 powerLabel = EMPTY,
+                rideLabel = EMPTY,
                 speedLabel = EMPTY,
                 batteryLabel = EMPTY,
                 rangeLabel = EMPTY,
@@ -72,6 +74,15 @@ object VehicleInfoFormatter {
         val faults = info.faultCodes.filter { it != 0 }.ifEmpty {
             if (info.faultCodeAmount > 0) listOf(info.faultCodeAmount) else emptyList()
         }
+        val powerOn = info.onOffStatus in 0..7
+        val powerOff = info.onOffStatus in 8..16
+        val speed = info.currentSpeedValue
+        val rideLabel = when {
+            speed.isNaN() || speed < 0f -> EMPTY
+            powerOn -> if (speed > 0f) "骑行中" else "未骑行"
+            powerOff -> if (speed == 0f) "未骑行" else EMPTY
+            else -> EMPTY
+        }
         return VehicleInfoUiModel(
             connectionLabel = if (connected) "车辆在线" else "状态缓存",
             lockLabel = when (info.parkingStatus) {
@@ -84,6 +95,7 @@ object VehicleInfoFormatter {
                 in 8..16 -> "已关机"
                 else -> EMPTY
             },
+            rideLabel = rideLabel,
             speedLabel = unit(info.currentSpeedValue, "km/h", decimals = 1),
             batteryLabel = unit(info.totalBatterySoc, "%", decimals = 0),
             rangeLabel = unit(info.remainingMileage, "km", decimals = 1),

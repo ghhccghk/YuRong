@@ -39,6 +39,7 @@ class VehicleInfoFormatterTest {
         assertEquals("车辆在线", model.connectionLabel)
         assertEquals("未锁车", model.lockLabel)
         assertEquals("已开机", model.powerLabel)
+        assertEquals("骑行中", model.rideLabel)
         assertEquals("25.0 km/h", model.speedLabel)
         assertEquals("87 %", model.batteryLabel)
         assertEquals("12.3 km", model.rangeLabel)
@@ -56,5 +57,15 @@ class VehicleInfoFormatterTest {
         assertEquals("—", model.batteryLabel)
         assertEquals("—", model.lockLabel)
         assertEquals("—", model.powerLabel)
+        assertEquals("—", model.rideLabel)
+    }
+
+    @Test
+    fun poweredOnAndZeroSpeed_isNotRiding() {
+        val d = packet()
+        d[0x4E] = 0x01
+        val model = VehicleInfoFormatter.format(TtpInfoParser.parse(d), connected = true)
+        assertEquals("已开机", model.powerLabel)
+        assertEquals("未骑行", model.rideLabel)
     }
 }
