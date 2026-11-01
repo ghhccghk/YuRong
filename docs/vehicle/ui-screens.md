@@ -39,8 +39,15 @@
 外加实验室入口。开关采用**乐观切换**：先更新 UI，写入失败后回滚并显示提示。
 
 已映射到 Smali 命令 ID 的设置会通过 `VehicleSettingFrameEncoder` 生成
-`5944…4B4A` 控制帧，再由 `AndroidVehicleSettingCommandSink` 写入整车主特征。
+`5944…4B4A` 控制帧，再由 `AndroidVehicleSettingCommandSink` 写入协议命令特征：
+协议 1 为 `e7810bd2/bef8e821`，其他版本为 `e7810b82/bef8e7da`，均使用
+Write Without Response。该路径与原 App `wi.M()` 一致，不应写入 `b360/b362`。
 未映射的设置项会返回失败并回滚，不会猜测协议。
+
+与原 App `VehiclePluginIml.h -> VehicleService.L -> qg.g` 一致：蓝牙已连接且
+该项存在已确认 BLE 映射时优先 BLE，否则走云端字段；BLE 失败时可再尝试云端。
+设置控制器根据实际写入通道决定是否轮询云端状态，避免 BLE 已成功后被云端确认
+超时误回滚。
 
 ## 3. 登录
 

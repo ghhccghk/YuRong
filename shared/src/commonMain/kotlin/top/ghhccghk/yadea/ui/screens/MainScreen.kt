@@ -268,6 +268,9 @@ fun MainScreen(
                     gateway = gateway,
                     vinProvider = vehicleVinProvider,
                     bleFallback = bleWriter,
+                    bleAvailableProvider = {
+                        viewModel.bleState.value == BleConnectionState.Connected
+                    },
                 )
             } ?: bleWriter
         }
@@ -399,38 +402,7 @@ fun MainScreen(
             carSettingsController.refresh()
         }
     }
-    LaunchedEffect(
-        vehicleStatus?.extended?.tcsWorkMode,
-        vehicleStatus?.extended?.absFunctionStatus,
-        vehicleStatus?.extended?.sideBraceStatus,
-        vehicleStatus?.extended?.tiltWarningStatus,
-        vehicleStatus?.extended?.offModeStatus,
-        vehicleStatus?.extended?.metricSystemStatus,
-        vehicleStatus?.extended?.voltageSettingStatus,
-        vehicleStatus?.extended?.vehiclePowerDownStatus,
-        vehicleStatus?.extended?.vehiclePowerDownTimeStatus,
-        vehicleStatus?.extended?.remainingMileageDebugStatus,
-        vehicleStatus?.extended?.withGoHomeStatus,
-        vehicleStatus?.extended?.withGoHomeTimeStatus,
-        vehicleStatus?.extended?.ambientStatus,
-        vehicleStatus?.extended?.syncTimeResultStatus,
-        vehicleStatus?.cruiseControl,
-        vehicleStatus?.extended?.simulatedSoundWaveStatus,
-        vehicleStatus?.extended?.brightnessAdjustSwitch,
-        vehicleStatus?.extended?.automaticHeadlightFunctionStatus,
-        vehicleStatus?.extended?.turnSignalReturnsAutomaticallyStatus,
-        vehicleStatus?.extended?.brakePowerDownFunctionStatus,
-        vehicleStatus?.extended?.steepSlopeState,
-        vehicleStatus?.extended?.rampSlopeState,
-        vehicleStatus?.extended?.quickBrakeLightStatus,
-        vehicleStatus?.extended?.gearMemorySettingFeedback,
-        vehicleStatus?.extended?.blueLightSwitch,
-        vehicleStatus?.extended?.alarmWarningVolumeLevel,
-        vehicleStatus?.extended?.alarmWarningMode,
-        vehicleStatus?.extended?.batteryChargingPowerStatus,
-        vehicleStatus?.extended?.brakeModePowerRecoverFunctionStatus,
-        vehicleStatus?.extended?.brakeModePowerRecoverGearStatus,
-    ) {
+    LaunchedEffect(vehicleStatus?.hex, carSettingsController) {
         carSettingsController.updateVehicleStatus(vehicleStatus)
     }
     var autoConnectAttempted by remember { mutableStateOf(false) }

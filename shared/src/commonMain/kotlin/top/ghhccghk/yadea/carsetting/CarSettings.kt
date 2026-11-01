@@ -114,8 +114,22 @@ data class CarSettingsState(
 )
 
 /** 平台侧把设置值翻译成 BLE `CommandTempBean` 或 IoT 请求。 */
+enum class CarSettingWriteChannel {
+    BLE,
+    CLOUD,
+}
+
+data class CarSettingWriteResult(
+    val success: Boolean,
+    val channel: CarSettingWriteChannel? = null,
+)
+
 interface CarSettingWriter {
     suspend fun write(item: CarSettingItem): Boolean
+
+    /** 兼容只返回成功状态的写入器；需要区分实际通道的实现应覆盖此方法。 */
+    suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult =
+        CarSettingWriteResult(write(item))
 }
 
 /**
@@ -135,6 +149,7 @@ class CarSettingsController(
 ) {
     private val _state = MutableStateFlow(CarSettingsState(initialItems))
     val state: StateFlow<CarSettingsState> = _state.asStateFlow()
+    private var latestVehicleStatus: TtpInfo? = null
 
     val available: Boolean
         get() = writer != null
@@ -185,6 +200,7 @@ class CarSettingsController(
             loadedFromCloud = true,
             message = if (items.isEmpty()) "云端未返回可用设置项" else null,
         )
+        applyVehicleStatus(latestVehicleStatus)
         return true
     }
 
@@ -223,7 +239,9 @@ class CarSettingsController(
         if (optimistic.kind is CarSettingKind.Toggle && debounceMs > 0) {
             delay(debounceMs)
         }
-        val success = runCatching { activeWriter.write(optimistic) }.getOrDefault(false)
+        val writeResult = runCatching { activeWriter.writeWithResult(optimistic) }
+            .getOrDefault(CarSettingWriteResult(false))
+        val success = writeResult.success
         val latest = _state.value
         if (!success) {
             _state.value = latest
@@ -240,7 +258,10 @@ class CarSettingsController(
             kind = optimistic.kind,
         )
         val statusGateway = gateway
-        if (statusGateway != null && cloudUpdate && !isMissingCloudItem) {
+        val needsCloudConfirmation = writeResult.channel == CarSettingWriteChannel.CLOUD &&
+            cloudUpdate &&
+            !isMissingCloudItem
+        if (statusGateway != null && needsCloudConfirmation) {
             var confirmed: Boolean? = null
             for (attempt in 0 until statusPollAttempts) {
                 delay(statusPollIntervalMs)
@@ -267,7 +288,7 @@ class CarSettingsController(
             pendingIds = latest.pendingIds - id,
             message = null,
         )
-        if (statusGateway != null && cloudUpdate && !isMissingCloudItem) {
+        if (statusGateway != null && needsCloudConfirmation) {
             if (!refresh()) {
                 _state.value = _state.value.copy(message = "设置已保存，但云端配置刷新失败")
             }
@@ -284,106 +305,77 @@ class CarSettingsController(
      * 车辆状态更新后回填开关，避免设置页一直显示为关闭。
      */
     fun updateVehicleStatus(status: TtpInfo?) {
+        latestVehicleStatus = status
+        applyVehicleStatus(status)
+    }
+
+    private fun applyVehicleStatus(status: TtpInfo?) {
         val current = _state.value
         if (status == null || current.items.isEmpty()) return
         fun applyStatus(source: List<CarSettingItem>): List<CarSettingItem> = source.map { item ->
             if (item.id in current.pendingIds) return@map item
             when (item.configId) {
-                "37" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.tcsWorkMode != 0),
+                "37" -> item.withToggle(status.extended.tcsWorkMode.flagOrNull())
+                "38" -> item.withToggle(status.extended.absFunctionStatus.flagOrNull())
+                "33" -> item.withToggle(status.extended.simulatedSoundWaveStatus.flagOrNull())
+                "86" -> when (item.kind) {
+                    is CarSettingKind.Toggle -> item.withToggle(
+                        status.extended.brightnessAdjustSwitch.flagOrNull(),
+                    )
+                    is CarSettingKind.Slider -> item.withSlider(
+                        status.extended.brightnessAdjustValue.floatIn(0..100),
+                    )
+                    else -> item
+                }
+                "19" -> item.withToggle(
+                    status.extended.automaticHeadlightFunctionStatus.flagOrNull(),
                 )
-                "38" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.absFunctionStatus != 0),
+                "26" -> item.withToggle(
+                    status.extended.turnSignalReturnsAutomaticallyStatus.flagOrNull(),
                 )
-                "33" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.simulatedSoundWaveStatus != 0),
+                "36" -> item.withToggle(
+                    status.extended.brakePowerDownFunctionStatus.flagOrNull(),
                 )
-                "86" -> when (val kind = item.kind) {
-                    is CarSettingKind.Toggle -> item.copy(
-                        kind = kind.copy(
-                            checked = status.extended.brightnessAdjustSwitch != 0,
-                        ),
+                "46" -> item.withToggle(status.extended.steepSlopeState.flagOrNull())
+                "49" -> item.withToggle(status.extended.rampSlopeState.flagOrNull())
+                "68" -> item.withToggle(status.extended.quickBrakeLightStatus.flagOrNull())
+                "94" -> item.withToggle(
+                    status.extended.gearMemorySettingFeedback.flagOrNull(),
+                )
+                "84" -> item.withToggle(status.extended.blueLightSwitch.flagOrNull())
+                "47" -> when (item.kind) {
+                    is CarSettingKind.Toggle -> item.withToggle(
+                        status.extended.batteryChargingPowerStatus.flagOrNull(),
                     )
                     is CarSettingKind.Slider -> {
-                        val brightness = status.extended.brightnessAdjustValue
-                        if (brightness in 0..100) {
-                            item.copy(kind = kind.copy(value = brightness.toFloat()))
-                        } else {
-                            item
-                        }
+                        val watt = status.extended.batteryChargingPowerValue
+                            .takeIf { it in 200..1_000 }
+                            ?.let { (it / 50 * 50).toFloat() }
+                        item.withSlider(watt)
                     }
                     else -> item
-                }
-                "19" -> item.copy(
-                    kind = CarSettingKind.Toggle(
-                        status.extended.automaticHeadlightFunctionStatus != 0,
-                    ),
-                )
-                "26" -> item.copy(
-                    kind = CarSettingKind.Toggle(
-                        status.extended.turnSignalReturnsAutomaticallyStatus != 0,
-                    ),
-                )
-                "36" -> item.copy(
-                    kind = CarSettingKind.Toggle(
-                        status.extended.brakePowerDownFunctionStatus != 0,
-                    ),
-                )
-                "46" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.steepSlopeState != 0),
-                )
-                "49" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.rampSlopeState != 0),
-                )
-                "68" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.quickBrakeLightStatus != 0),
-                )
-                "94" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.gearMemorySettingFeedback != 0),
-                )
-                "84" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.blueLightSwitch != 0),
-                )
-                "47" -> if (item.kind is CarSettingKind.Toggle) {
-                    item.copy(
-                        kind = CarSettingKind.Toggle(
-                            status.extended.batteryChargingPowerStatus != 0,
-                        ),
-                    )
-                } else {
-                    item
                 }
                 "62" -> when (val kind = item.kind) {
-                    is CarSettingKind.Toggle -> item.copy(
-                        kind = kind.copy(checked = status.extended.seatHeatSwitchStatus != 0),
+                    is CarSettingKind.Toggle -> item.withToggle(
+                        status.extended.seatHeatSwitchStatus.flagOrNull(),
                     )
-                    is CarSettingKind.Choice -> item.copy(
-                        kind = kind.copy(
-                            selectedIndex = (status.extended.seatHeatLevelStatus - 1)
-                                .coerceIn(0, kind.options.lastIndex.coerceAtLeast(0)),
-                        ),
-                    )
-                    else -> item
-                }
-                "63" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.tPowerStatus != 0),
-                )
-                "64", "89" -> when {
-                    item.id.endsWith(":adaptive") -> item.copy(
-                        kind = CarSettingKind.Toggle(
-                            status.extended.customDriveSwitchStatus != 0,
-                        ),
-                    )
-                    item.kind is CarSettingKind.Slider -> {
-                        val kind = item.kind
-                        val level = status.extended.customDriveLevelStatus
-                        if (level in 1..3) {
-                            item.copy(kind = kind.copy(value = level.toFloat()))
-                        } else {
-                            item
-                        }
+                    is CarSettingKind.Choice -> {
+                        val level = status.extended.seatHeatLevelStatus
+                        item.withIndex(
+                            (level - 1).takeIf { level in 1..kind.options.size },
+                        )
                     }
                     else -> item
+                }
+                "63" -> item.withToggle(status.extended.tPowerStatus.flagOrNull())
+                "64", "89" -> when {
+                    item.id.endsWith(":adaptive") -> item.withToggle(
+                        status.extended.customDriveSwitchStatus.flagOrNull(),
+                    )
+                    item.kind is CarSettingKind.Slider -> item.withSlider(
+                        status.extended.customDriveLevelStatus.floatIn(1..3),
+                    )
+                    else -> item.withToggle(status.extended.helpCarState.flagOrNull())
                 }
                 "55", "92" -> when (val kind = item.kind) {
                     is CarSettingKind.Customize -> item.copy(
@@ -392,146 +384,90 @@ class CarSettingsController(
                                 .takeIf { it in 0..2 } ?: kind.throttleLevel,
                             energyLevel = status.extended.customizeEnergyLevel
                                 .takeIf { it in 0..2 } ?: kind.energyLevel,
-                            energyState = status.extended.customizeEnergyState != 0,
-                            tcs = status.extended.customizeTcs != 0,
+                            energyState = status.extended.customizeEnergyState.flagOrNull()
+                                ?: kind.energyState,
+                            tcs = status.extended.customizeTcs.flagOrNull() ?: kind.tcs,
                         ),
                     )
                     else -> item
                 }
-                "69" -> item.copy(
-                    kind = CarSettingKind.Toggle(
-                        when (item.id) {
-                            "cloud:69:fcw" -> status.extended.frontCollisionWarning
-                            "cloud:69:rcw" -> status.extended.rcwRadarSwitch
-                            "cloud:69:bsd" -> status.extended.bsdRadar
-                            else -> 0
-                        } != 0,
-                    ),
+                "69" -> item.withToggle(
+                    when (item.id) {
+                        "cloud:69:fcw" -> status.extended.frontCollisionWarning
+                        "cloud:69:rcw" -> status.extended.rcwRadarSwitch
+                        "cloud:69:bsd" -> status.extended.bsdRadar
+                        else -> -1
+                    }.flagOrNull(),
                 )
-                "2" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.sideBraceStatus != 0),
+                "2" -> item.withToggle(status.extended.sideBraceStatus.flagOrNull())
+                "32" -> item.withToggle(status.extended.tiltWarningStatus.flagOrNull())
+                "45" -> item.withToggle(status.cruiseControl.flagOrNull())
+                "27" -> item.withIndex(
+                    status.extended.offModeStatus.takeIf { it in 0..1 },
                 )
-                "32" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.tiltWarningStatus != 0),
+                "31" -> item.withIndex(
+                    status.extended.metricSystemStatus.takeIf { it in 0..1 },
                 )
-                "45" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.cruiseControl != 0),
-                )
-                "27" -> item.copy(
-                    kind = (item.kind as? CarSettingKind.Choice)?.copy(
-                        selectedIndex = status.extended.offModeStatus.coerceIn(0, 1),
-                    ) ?: item.kind,
-                )
-                "31" -> item.copy(
-                    kind = (item.kind as? CarSettingKind.Choice)?.copy(
-                        selectedIndex = status.extended.metricSystemStatus.coerceIn(0, 1),
-                    ) ?: item.kind,
-                )
-                "54" -> item.copy(
-                    kind = (item.kind as? CarSettingKind.Choice)?.copy(
-                        selectedIndex = (status.extended.voltageSettingStatus - 1)
-                            .coerceIn(0, 2),
-                    ) ?: item.kind,
+                "54" -> item.withIndex(
+                    (status.extended.voltageSettingStatus - 1)
+                        .takeIf { status.extended.voltageSettingStatus in 1..3 },
                 )
                 "15", "59" -> when (val kind = item.kind) {
-                    is CarSettingKind.Toggle -> item.copy(
-                        kind = kind.copy(
-                            checked = status.extended.vehiclePowerDownStatus != 0,
-                        ),
+                    is CarSettingKind.Toggle -> item.withToggle(
+                        status.extended.vehiclePowerDownStatus.flagOrNull(),
                     )
-                    is CarSettingKind.Slider -> item.copy(
-                        kind = kind.copy(
-                            value = status.extended.vehiclePowerDownTimeStatus
-                                .coerceIn(0, 20)
-                                .toFloat(),
-                        ),
+                    is CarSettingKind.Slider -> item.withSlider(
+                        status.extended.vehiclePowerDownTimeStatus.floatIn(0..20),
                     )
-                    is CarSettingKind.Choice -> item.copy(
-                        kind = kind.copy(
-                            selectedIndex = status.extended.vehiclePowerDownTimeStatus
-                                .coerceIn(0, kind.options.lastIndex.coerceAtLeast(0)),
-                        ),
+                    is CarSettingKind.Choice -> item.withIndex(
+                        status.extended.vehiclePowerDownTimeStatus
+                            .takeIf { it in 0..kind.options.lastIndex },
                     )
                     else -> item
                 }
-                "42" -> item.copy(
-                    kind = CarSettingKind.Toggle(
-                        status.extended.remainingMileageDebugStatus != 0,
-                    ),
+                "42" -> item.withToggle(
+                    status.extended.remainingMileageDebugStatus.flagOrNull(),
                 )
-                "43" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.reversingState != 0),
-                )
-                "44" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.helpCarState != 0),
-                )
+                "43" -> item.withToggle(status.extended.reversingState.flagOrNull())
+                "44" -> item.withToggle(status.extended.helpCarState.flagOrNull())
                 "60" -> when {
-                    item.id.endsWith(":enable") -> item.copy(
-                        kind = CarSettingKind.Toggle(status.extended.capacitySwitchStatus != 0),
+                    item.id.endsWith(":enable") -> item.withToggle(
+                        status.extended.capacitySwitchStatus.flagOrNull(),
                     )
                     item.kind is CarSettingKind.Choice -> {
-                        val kind = item.kind
                         val index = BatteryCapacityOptions.valuesAh
                             .indexOf(status.extended.capacitySettingStatus)
-                        if (index >= 0) {
-                            item.copy(kind = kind.copy(selectedIndex = index))
-                        } else {
-                            item
-                        }
+                        item.withIndex(index.takeIf { it >= 0 })
                     }
                     else -> item
                 }
                 "81" -> when (val kind = item.kind) {
-                    is CarSettingKind.Toggle -> item.copy(
-                        kind = kind.copy(checked = status.extended.withGoHomeStatus != 0),
+                    is CarSettingKind.Toggle -> item.withToggle(
+                        status.extended.withGoHomeStatus.flagOrNull(),
                     )
-                    is CarSettingKind.Choice -> item.copy(
-                        kind = kind.copy(
-                            selectedIndex = status.extended.withGoHomeTimeStatus
-                                .coerceIn(0, kind.options.lastIndex.coerceAtLeast(0)),
-                        ),
+                    is CarSettingKind.Choice -> item.withIndex(
+                        status.extended.withGoHomeTimeStatus
+                            .takeIf { it in 0..kind.options.lastIndex },
                     )
                     else -> item
                 }
-                "73" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.ambientStatus != 0),
+                "73" -> item.withToggle(status.extended.ambientStatus.flagOrNull())
+                "51" -> item.withToggle(status.extended.syncTimeResultStatus.flagOrNull())
+                "72" -> item.withToggle(status.extended.longEnduranceStatus.flagOrNull())
+                "79" -> item.withToggle(status.extended.seatPowerStatus.flagOrNull())
+                "80" -> item.withToggle(status.extended.otdSwitch.flagOrNull())
+                "90" -> item.withToggle(status.extended.trackModeStatus.flagOrNull())
+                "17" -> item.withToggle(
+                    status.extended.brakeModePowerRecoverFunctionStatus.flagOrNull(),
                 )
-                "51" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.syncTimeResultStatus != 0),
+                "18" -> item.withSlider(
+                    status.extended.brakeModePowerRecoverGearStatus.floatIn(1..3),
                 )
-                "72" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.longEnduranceStatus != 0),
+                "20" -> item.withSlider(
+                    status.extended.alarmWarningVolumeLevel.floatIn(0..7),
                 )
-                "79" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.seatPowerStatus != 0),
-                )
-                "80" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.otdSwitch != 0),
-                )
-                "90" -> item.copy(
-                    kind = CarSettingKind.Toggle(status.extended.trackModeStatus != 0),
-                )
-                "17" -> item.copy(
-                    kind = CarSettingKind.Toggle(
-                        status.extended.brakeModePowerRecoverFunctionStatus != 0,
-                    ),
-                )
-                "18" -> item.copy(
-                    kind = (item.kind as? CarSettingKind.Slider)?.copy(
-                        value = status.extended.brakeModePowerRecoverGearStatus
-                            .coerceIn(1, 3)
-                            .toFloat(),
-                    ) ?: item.kind,
-                )
-                "20" -> item.copy(
-                    kind = (item.kind as? CarSettingKind.Slider)?.copy(
-                        value = status.extended.alarmWarningVolumeLevel.coerceIn(0, 7).toFloat(),
-                    ) ?: item.kind,
-                )
-                "14" -> item.copy(
-                    kind = (item.kind as? CarSettingKind.Slider)?.copy(
-                        value = status.extended.alarmWarningMode.coerceIn(0, 7).toFloat(),
-                    ) ?: item.kind,
+                "14" -> item.withSlider(
+                    status.extended.alarmWarningMode.floatIn(0..7),
                 )
                 else -> item
             }
@@ -540,6 +476,40 @@ class CarSettingsController(
             items = applyStatus(current.items),
             missingCloudItems = applyStatus(current.missingCloudItems),
         )
+    }
+
+    private fun Int.flagOrNull(): Boolean? = when {
+        this < 0 -> null
+        this == 1 -> true
+        else -> false
+    }
+
+    private fun Int.floatIn(range: IntRange): Float? =
+        takeIf { it in range }?.toFloat()
+
+    private fun CarSettingItem.withToggle(value: Boolean?): CarSettingItem {
+        val checked = value ?: return this
+        val currentKind = kind as? CarSettingKind.Toggle ?: return this
+        return copy(kind = currentKind.copy(checked = checked))
+    }
+
+    private fun CarSettingItem.withIndex(value: Int?): CarSettingItem {
+        val selected = value ?: return this
+        val currentKind = kind as? CarSettingKind.Choice ?: return this
+        return copy(
+            kind = currentKind.copy(
+                selectedIndex = selected.coerceIn(
+                    0,
+                    currentKind.options.lastIndex.coerceAtLeast(0),
+                ),
+            ),
+        )
+    }
+
+    private fun CarSettingItem.withSlider(value: Float?): CarSettingItem {
+        val selected = value ?: return this
+        val currentKind = kind as? CarSettingKind.Slider ?: return this
+        return copy(kind = currentKind.copy(value = selected))
     }
 
     private fun List<CarSettingItem>.replace(item: CarSettingItem): List<CarSettingItem> =

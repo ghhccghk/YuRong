@@ -15,7 +15,7 @@ data class VehicleSettingCommand(
     val parameters: List<Int> = emptyList(),
 )
 
-/** 平台侧负责把 [VehicleSettingCommand] 编码成整车 BLE 命令并写入主特征。 */
+/** 平台侧负责把 [VehicleSettingCommand] 编码成整车 BLE 命令并写入协议命令特征。 */
 interface VehicleSettingCommandSink {
     suspend fun send(command: VehicleSettingCommand): Boolean
 }
@@ -23,14 +23,22 @@ interface VehicleSettingCommandSink {
 class MappedCarSettingWriter(
     private val sink: VehicleSettingCommandSink,
 ) : CarSettingWriter {
-    override suspend fun write(item: CarSettingItem): Boolean {
-        val command = VehicleSettingCommands.forItem(item) ?: return false
-        return sink.send(command)
+    override suspend fun write(item: CarSettingItem): Boolean =
+        writeWithResult(item).success
+
+    override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult {
+        val command = VehicleSettingCommands.forItem(item)
+            ?: return CarSettingWriteResult(false)
+        return CarSettingWriteResult(
+            success = sink.send(command),
+            channel = CarSettingWriteChannel.BLE,
+        )
     }
 }
 
 /**
- * 云端设置写入优先，未确认云端字段的设置再回退到 BLE 映射。
+ * 原 App 的分流：蓝牙已连接且存在 BLE 映射时优先 BLE，否则走云端字段。
+ * BLE 写入失败时允许再尝试云端，云端失败则不伪造成功。
  *
  * 云端清单决定项目是否存在与是否授权；写入通道仍按各 configId 的原实现分流。
  */
@@ -38,19 +46,31 @@ class CloudCarSettingWriter(
     private val gateway: CarSettingsGateway,
     private val vinProvider: () -> String,
     private val bleFallback: CarSettingWriter? = null,
+    private val bleAvailableProvider: () -> Boolean = { false },
 ) : CarSettingWriter {
-    override suspend fun write(item: CarSettingItem): Boolean {
+    override suspend fun write(item: CarSettingItem): Boolean =
+        writeWithResult(item).success
+
+    override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult {
         val vin = vinProvider().trim()
-        if (vin.isBlank()) return false
+        if (vin.isBlank()) return CarSettingWriteResult(false)
         val update = CloudCarSettingUpdateBuilder.build(
             configId = item.configId,
             kind = item.kind,
             vin = vin,
         )
-        if (update != null) {
-            return gateway.update(vin, update)
+        val bleAvailable = bleAvailableProvider()
+        if (bleAvailable) {
+            val fallback = bleFallback?.writeWithResult(item)
+            if (fallback?.success == true) return fallback
         }
-        return bleFallback?.write(item) ?: false
+        if (update != null && gateway.update(vin, update)) {
+            return CarSettingWriteResult(
+                success = true,
+                channel = CarSettingWriteChannel.CLOUD,
+            )
+        }
+        return CarSettingWriteResult(false)
     }
 }
 

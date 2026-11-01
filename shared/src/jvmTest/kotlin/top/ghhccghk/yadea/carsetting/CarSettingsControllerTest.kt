@@ -6,6 +6,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import top.ghhccghk.yadea.vehicle.TtpInfo
+import top.ghhccghk.yadea.vehicle.VehicleNotify
+import top.ghhccghk.yadea.vehicle.VehicleNotifyDispatcher
+import top.ghhccghk.yadea.vehicle.hexToBytes
 
 class CarSettingsControllerTest {
     private fun items() = CarSettingsRegistry.defaultItems()
@@ -18,6 +22,37 @@ class CarSettingsControllerTest {
             last = item
             return result
         }
+    }
+
+    private class FakeGateway(
+        private val cloud: CloudCarSettings?,
+    ) : CarSettingsGateway {
+        override suspend fun load(vin: String): CloudCarSettings? = cloud
+        override suspend fun update(vin: String, update: CloudCarSettingUpdate): Boolean = false
+    }
+
+    private fun statusCloud() = CloudCarSettings(
+        configs = listOf(
+            CloudBikeConfig(confId = "2", confName = "边撑感应"),
+            CloudBikeConfig(confId = "31", confName = "速度单位"),
+            CloudBikeConfig(confId = "33", confName = "模拟声浪"),
+            CloudBikeConfig(confId = "37", confName = "TCS"),
+            CloudBikeConfig(confId = "38", confName = "ABS"),
+            CloudBikeConfig(confId = "47", confName = "充电功率"),
+            CloudBikeConfig(confId = "62", confName = "座椅加热"),
+            CloudBikeConfig(confId = "63", confName = "T 动力"),
+        ),
+        values = emptyMap(),
+    )
+
+    private fun sampleStatus(
+        tcsWorkMode: Int? = null,
+        seatHeatSwitchStatus: Int? = null,
+    ): TtpInfo {
+        val bytes = SAMPLE_TTP_HEX.hexToBytes()!!
+        tcsWorkMode?.let { bytes[0xAA] = it.toByte() }
+        seatHeatSwitchStatus?.let { bytes[0x75] = it.toByte() }
+        return (VehicleNotifyDispatcher.dispatch(bytes) as VehicleNotify.Ttp).info
     }
 
     @Test
@@ -113,7 +148,7 @@ class CarSettingsControllerTest {
         assertTrue(hex.endsWith("4B4A"))
         assertTrue(
             hex.contains(
-                "01000101F8" +
+                "01000101C8" +
                     "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDFFFFFFFFFFFFFFF",
             ),
         )
@@ -122,5 +157,174 @@ class CarSettingsControllerTest {
             VehicleSettingCommand("BRIGHTNESS_ADJUST_VALUE", 0x134, parameter = 80),
         )
         assertNotNull(brightness)
+    }
+
+    @Test
+    fun latestVehicleStatus_appliesAfterCloudItemsLoad() = runBlocking {
+        val controller = CarSettingsController(
+            initialItems = emptyList(),
+            writer = FakeWriter(true),
+            gateway = FakeGateway(statusCloud()),
+            vinProvider = { "VIN" },
+        )
+
+        controller.updateVehicleStatus(sampleStatus())
+        assertTrue(controller.state.value.items.isEmpty())
+        assertTrue(controller.refresh())
+
+        val items = controller.state.value.items.associateBy { it.id }
+        assertEquals(
+            false,
+            (items.getValue("cloud:37").kind as CarSettingKind.Toggle).checked,
+        )
+        assertEquals(
+            true,
+            (items.getValue("cloud:38").kind as CarSettingKind.Toggle).checked,
+        )
+        assertEquals(
+            true,
+            (items.getValue("cloud:2").kind as CarSettingKind.Toggle).checked,
+        )
+        assertEquals(
+            1,
+            (items.getValue("cloud:31").kind as CarSettingKind.Choice).selectedIndex,
+        )
+        assertEquals(
+            true,
+            (items.getValue("cloud:63").kind as CarSettingKind.Toggle).checked,
+        )
+        assertEquals(
+            false,
+            (items.getValue("cloud:62").kind as CarSettingKind.Toggle).checked,
+        )
+        assertEquals(
+            350f,
+            (items.getValue("cloud:47").kind as CarSettingKind.Slider).value,
+        )
+    }
+
+    @Test
+    fun tcsStatusUsesConfirmedOneIsOnMapping() {
+        val controller = CarSettingsController(
+            initialItems = listOf(
+                CarSettingItem(
+                    id = "cloud:37",
+                    configId = "37",
+                    title = "TCS",
+                    summary = "",
+                    classification = CarSettingClassification.SECURITY,
+                    channel = CarSettingChannel.BLE,
+                    kind = CarSettingKind.Toggle(false),
+                ),
+            ),
+            writer = FakeWriter(true),
+        )
+
+        controller.updateVehicleStatus(sampleStatus(tcsWorkMode = 1))
+
+        assertEquals(
+            true,
+            (controller.state.value.items.single().kind as CarSettingKind.Toggle).checked,
+        )
+    }
+
+    @Test
+    fun invalidStatusDoesNotOverwriteKnownToggleValue() {
+        val controller = CarSettingsController(
+            initialItems = listOf(
+                CarSettingItem(
+                    id = "cloud:37",
+                    configId = "37",
+                    title = "TCS",
+                    summary = "",
+                    classification = CarSettingClassification.SECURITY,
+                    channel = CarSettingChannel.BLE,
+                    kind = CarSettingKind.Toggle(true),
+                ),
+                CarSettingItem(
+                    id = "cloud:62",
+                    configId = "62",
+                    title = "座椅加热",
+                    summary = "",
+                    classification = CarSettingClassification.BATTERY,
+                    channel = CarSettingChannel.BLE,
+                    kind = CarSettingKind.Toggle(false),
+                ),
+            ),
+            writer = FakeWriter(true),
+        )
+
+        controller.updateVehicleStatus(
+            sampleStatus(tcsWorkMode = 0xFF, seatHeatSwitchStatus = 0xFF),
+        )
+
+        val items = controller.state.value.items.associateBy { it.id }
+        assertEquals(
+            true,
+            (items.getValue("cloud:37").kind as CarSettingKind.Toggle).checked,
+        )
+        assertEquals(
+            false,
+            (items.getValue("cloud:62").kind as CarSettingKind.Toggle).checked,
+        )
+    }
+
+    @Test
+    fun bleFallbackSuccessDoesNotPollCloudStatus() = runBlocking {
+        var statusChecks = 0
+        val gateway = object : CarSettingsGateway {
+            override suspend fun load(vin: String): CloudCarSettings? = null
+            override suspend fun update(
+                vin: String,
+                update: CloudCarSettingUpdate,
+            ): Boolean = false
+
+            override suspend fun checkStatus(configId: String): Boolean? {
+                statusChecks += 1
+                return false
+            }
+        }
+        val writer = object : CarSettingWriter {
+            override suspend fun write(item: CarSettingItem): Boolean = true
+            override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult =
+                CarSettingWriteResult(
+                    success = true,
+                    channel = CarSettingWriteChannel.BLE,
+                )
+        }
+        val controller = CarSettingsController(
+            initialItems = listOf(
+                CarSettingItem(
+                    id = "cloud:9",
+                    configId = "9",
+                    title = "信息提醒",
+                    summary = "",
+                    classification = CarSettingClassification.SECURITY,
+                    channel = CarSettingChannel.BLE,
+                    kind = CarSettingKind.Toggle(true),
+                ),
+            ),
+            writer = writer,
+            gateway = gateway,
+            vinProvider = { "VIN" },
+            debounceMs = 0,
+        )
+
+        assertTrue(
+            controller.update("cloud:9") { kind ->
+                (kind as CarSettingKind.Toggle).copy(checked = false)
+            },
+        )
+        assertEquals(0, statusChecks)
+    }
+
+    private companion object {
+        const val SAMPLE_TTP_HEX =
+            "59442AAB2F024C06C079FE00FE00B2FEFFFFFFFFFFD5D0FFFFFFCD076BE1FF29" +
+                "FFFF003C824DE5F9FFFFFFFFFFFF7FFFFFF7FD57FCFCFFFFFFFFFFFFFFFFFFFF" +
+                "FFEF0FFFFF671B00003BFF0000FCEBE3020385F0A19C0177FFFFFFFFFFFFFFFF" +
+                "FFFFFFFFFFFFFFFFFFFFFFFF1E7F57F477071E01FFFF5F26FFF8FFFFFFFFFFFC" +
+                "FFFFFFFF0BFFFFFFC242DF38FFFFFFFF7FFFFF3830363533FF2E18FFFF4505FF" +
+                "FFFFFFFFFFFFFFFFFFFFF8D7EFFFF31B4B4A"
     }
 }
