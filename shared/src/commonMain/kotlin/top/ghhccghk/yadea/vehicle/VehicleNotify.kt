@@ -75,3 +75,14 @@ object VehicleNotifyDispatcher {
         }
     }
 }
+
+/**
+ * 解析本地缓存的完整车辆状态报文。
+ *
+ * 短报文只包含少量瞬时状态，不能恢复成完整快照；损坏、未知或短报文统一返回 null。
+ */
+fun decodeCachedVehicleStatus(packetHex: String): TtpInfo? {
+    val bytes = packetHex.trim().hexToBytes() ?: return null
+    val parsed = VehicleNotifyDispatcher.dispatch(bytes) as? VehicleNotify.Ttp ?: return null
+    return parsed.info.takeUnless { parsed.isShort }
+}

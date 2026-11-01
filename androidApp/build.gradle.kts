@@ -14,6 +14,7 @@ dependencies {
     implementation(project(":shared"))
 
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.glance.appwidget)
     implementation(libs.hiddenapibypass)
     implementation(libs.compose.foundation)
     implementation(libs.compose.ui)

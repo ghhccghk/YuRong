@@ -37,6 +37,8 @@ import top.ghhccghk.yadea.ota.YadeaOtaGateway
 import top.ghhccghk.yadea.ota.WifiOtaInstaller
 import top.ghhccghk.yadea.ui.MainScreen
 import top.ghhccghk.yadea.ui.initAndroidFileLogger
+import top.ghhccghk.yadea.widget.VehicleStatusWidgetCoordinator
+import top.ghhccghk.yadea.widget.VehicleStatusWidgetUpdater
 import top.ghhccghk.yadea.vehicle.BleVehicleStatusSource
 import top.ghhccghk.yadea.vehicle.MutableVehicleCloudThemeSource
 import top.ghhccghk.yadea.vehicle.MutableVehicleProfileSource
@@ -68,6 +70,7 @@ class MainActivity : ComponentActivity() {
 
     private var bleAdapter: AndroidBleAdapter? = null
     private var vehicleStatusSource: BleVehicleStatusSource? = null
+    private var vehicleStatusWidgetCoordinator: VehicleStatusWidgetCoordinator? = null
 
     private val requiredPermissions: Array<String>
         get() = buildList {
@@ -187,6 +190,18 @@ class MainActivity : ComponentActivity() {
             cache = appPreferences,
             vinFlow = vehicleProfileSource.profile.map { it?.vin.orEmpty() },
         ).also { vehicleStatusSource = it }
+        VehicleStatusWidgetCoordinator(
+            context = applicationContext,
+            scope = lifecycleScope,
+            profileSource = vehicleProfileSource,
+            statusSource = vehicleStatus,
+            cloudThemeSource = vehicleCloudThemeSource,
+            preferences = appPreferences,
+            updater = VehicleStatusWidgetUpdater(applicationContext),
+        ).also {
+            vehicleStatusWidgetCoordinator = it
+            it.start()
+        }
         val profileController = VehicleProfileController(
             source = vehicleProfileSource,
             gateway = YadeaVehicleProfileGateway(
@@ -401,6 +416,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        vehicleStatusWidgetCoordinator?.stop()
+        vehicleStatusWidgetCoordinator = null
         vehicleStatusSource?.dispose()
         vehicleStatusSource = null
         if (isFinishing) {

@@ -65,7 +65,7 @@ class BleVehicleStatusSource(
                 if (vin.isBlank()) return@collect
                 val cached = cache?.readVehicleStatus() ?: return@collect
                 if (cached.vin != vin) return@collect
-                val parsed = restore(cached) ?: return@collect
+                val parsed = decodeCachedVehicleStatus(cached.packetHex) ?: return@collect
                 _status.value = parsed
                 NetworkLog.write("恢复车辆状态缓存 vin=$vin bytes=${parsed.raw.size}")
             }
@@ -99,12 +99,6 @@ class BleVehicleStatusSource(
                 else -> Unit
             }
         }
-    }
-
-    private fun restore(cached: CachedVehicleStatus): TtpInfo? {
-        val bytes = cached.packetHex.hexToBytes() ?: return null
-        val parsed = VehicleNotifyDispatcher.dispatch(bytes) as? VehicleNotify.Ttp ?: return null
-        return parsed.info.takeUnless { parsed.isShort }
     }
 
     private fun cacheStatus(info: TtpInfo) {

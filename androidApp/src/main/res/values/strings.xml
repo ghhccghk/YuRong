@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">touping</string>
+    <string name="vehicle_status_widget_name">车辆状态</string>
+    <string name="vehicle_status_widget_description">查看车辆外观、连接状态、电量、续航和锁车状态</string>
 </resources>
