@@ -1,10 +1,10 @@
 package top.ghhccghk.yadea
 
 import top.ghhccghk.yadea.ble.BleAdapter
-import top.ghhccghk.yadea.vehicle.VehicleBleConstants
 import top.ghhccghk.yadea.vehicle.VehicleControlCommand
 import top.ghhccghk.yadea.vehicle.VehicleControlProtocol
 import top.ghhccghk.yadea.vehicle.VehicleControlSink
+import top.ghhccghk.yadea.vehicle.writeVehicleCommandFrame
 
 /**
  * 控车写入通道。
@@ -18,27 +18,14 @@ class AndroidVehicleControlSink(
     private val bikeBondTypeHexProvider: () -> String = { "C8" },
 ) : VehicleControlSink {
     override suspend fun send(command: VehicleControlCommand): Boolean {
-        val protocolV1 = runCatching {
-            adapter.writeCharacteristic(
-                serviceUuid = VehicleBleConstants.SERVICE_NOTIFY_V1,
-                characteristicUuid = VehicleBleConstants.CHAR_STATUS_QUERY_V1,
-                data = VehicleControlProtocol.encode(
-                    command = command,
-                    protocolVersion = 1,
-                    bikeBondTypeHex = bikeBondTypeHexProvider(),
-                ),
-                withResponse = false,
-            )
-        }.getOrDefault(false)
-        if (protocolV1) return true
-
-        return runCatching {
-            adapter.writeCharacteristic(
-                serviceUuid = VehicleBleConstants.SERVICE_NOTIFY_OTHER,
-                characteristicUuid = VehicleBleConstants.CHAR_STATUS_QUERY_OTHER,
-                data = VehicleControlProtocol.payload(command),
-                withResponse = false,
-            )
-        }.getOrDefault(false)
+        return adapter.writeVehicleCommandFrame(
+            protocolV1Frame = VehicleControlProtocol.encode(
+                command = command,
+                protocolVersion = 1,
+                bikeBondTypeHex = bikeBondTypeHexProvider(),
+            ),
+            otherProtocolFrame = VehicleControlProtocol.payload(command),
+            withResponse = false,
+        )
     }
 }

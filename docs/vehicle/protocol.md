@@ -278,6 +278,11 @@ BLE 写失败时也可以安全地切换到云端。
 | Service | `0000b360-d6d8-c7ec-bdf0-eab1bfc6bcbc` |
 | Characteristic | `0000b362-d6d8-c7ec-bdf0-eab1bfc6bcbc`（同时具备 NOTIFY 与 WRITE） |
 
+> `b360/b362` 不能当作协议 1 车辆命令的默认写入口。原 App 的
+> `BleControlManager.t/E -> wi.M` 路径会根据 `bleProtocolVersionName`
+> 将 `generateBleCommand()` 生成的帧写入 8.3 表中的“状态查询写”特征
+> （V1 为 `bef8e821`，其他版本为 `bef8e7da`），并使用 Write Without Response。
+
 ### 8.2 设备信息
 
 | 名称 | 值 |
