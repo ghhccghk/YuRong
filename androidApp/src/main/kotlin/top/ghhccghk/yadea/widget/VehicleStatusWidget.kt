@@ -844,7 +844,6 @@ private fun VehicleStatusWidgetContent(state: VehicleStatusWidgetState) {
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
-            .padding(2.dp)
             .appWidgetBackground()
             .background(ColorProvider(palette.surface))
             .cornerRadius(cornerRadius)
@@ -933,7 +932,7 @@ private fun MiuixWideWidgetContent(
                 )
             }
         }
-        Spacer(GlanceModifier.height(3.dp))
+        Spacer(GlanceModifier.height(12.dp))
         WidgetActions(state, palette, compact = false)
     }
 }
@@ -979,7 +978,7 @@ private fun MaterialWideWidgetContent(
                 )
             }
         }
-        Spacer(GlanceModifier.height(3.dp))
+        Spacer(GlanceModifier.height(12.dp))
         WidgetActions(state, palette, compact = false)
     }
 }
