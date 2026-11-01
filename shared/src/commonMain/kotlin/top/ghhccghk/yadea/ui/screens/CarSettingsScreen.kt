@@ -44,6 +44,8 @@ import top.ghhccghk.yadea.vehicle.EmergencyContactController
 fun CarSettingsScreen(
     controller: CarSettingsController,
     contentPadding: PaddingValues,
+    vehicleConnected: Boolean,
+    vehiclePowerOn: Boolean?,
     emergencyContactController: EmergencyContactController? = null,
     onOpenLostMode: (() -> Unit)? = null,
     customSoundController: CustomSoundController? = null,
@@ -136,10 +138,20 @@ fun CarSettingsScreen(
         .firstOrNull { it.id == "cloud:60:enable" }
         ?.kind
         .let { (it as? CarSettingKind.Toggle)?.checked == true }
+    val settingDisabledReason: (CarSettingItem) -> String? = { item ->
+        if (item.configId in BLE_POWER_SETTING_IDS &&
+            (!vehicleConnected || vehiclePowerOn != true)
+        ) {
+            "请先连接车辆并开机"
+        } else {
+            null
+        }
+    }
     val settingControlEnabled: (CarSettingItem) -> Boolean = { item ->
         controller.available &&
             item.writable &&
             item.id !in state.pendingIds &&
+            settingDisabledReason(item) == null &&
             (item.id != "cloud:60:level" || capacitySwitchOn)
     }
     val availableClassifications = CarSettingClassification.entries.filter { classification ->
@@ -243,6 +255,7 @@ fun CarSettingsScreen(
                             item = item,
                             enabled = settingControlEnabled(item),
                             pending = item.id in state.pendingIds,
+                            disabledReason = settingDisabledReason(item),
                             onOpenDetail = {
                                 detailItem = item
                             },
@@ -274,6 +287,7 @@ fun CarSettingsScreen(
                             item = item,
                             enabled = settingControlEnabled(item),
                             pending = item.id in state.pendingIds,
+                            disabledReason = settingDisabledReason(item),
                             onOpenDetail = {
                                 if (item.kind is CarSettingKind.Customize) {
                                     customizeItem = item
@@ -959,12 +973,14 @@ fun CarSettingsScreen(
 }
 
 private val SAFETY_CONFIRM_IDS = setOf("37", "38")
+private val BLE_POWER_SETTING_IDS = setOf("37", "38")
 
 @Composable
 private fun CarSettingRow(
     item: CarSettingItem,
     enabled: Boolean,
     pending: Boolean,
+    disabledReason: String?,
     onOpenDetail: () -> Unit,
     onUpdate: ((CarSettingKind) -> CarSettingKind) -> Unit,
 ) {
@@ -975,6 +991,10 @@ private fun CarSettingRow(
             append(item.summary)
             append(" · ")
             append(item.channel.label)
+            disabledReason?.let {
+                append(" · ")
+                append(it)
+            }
             if (!item.writable) append(" · 只读")
         }
     }

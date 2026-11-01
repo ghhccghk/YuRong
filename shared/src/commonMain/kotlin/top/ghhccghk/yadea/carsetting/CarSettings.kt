@@ -315,7 +315,8 @@ class CarSettingsController(
         fun applyStatus(source: List<CarSettingItem>): List<CarSettingItem> = source.map { item ->
             if (item.id in current.pendingIds) return@map item
             when (item.configId) {
-                "37" -> item.withToggle(status.extended.tcsWorkMode.flagOrNull())
+                // 原 App：tcsWorkMode == 0 为开启，1..7 为关闭，-1 表示未上报。
+                "37" -> item.withToggle(status.extended.tcsWorkMode.zeroIsOnOrNull())
                 "38" -> item.withToggle(status.extended.absFunctionStatus.flagOrNull())
                 "33" -> item.withToggle(status.extended.simulatedSoundWaveStatus.flagOrNull())
                 "86" -> when (item.kind) {
@@ -485,6 +486,9 @@ class CarSettingsController(
         this == 1 -> true
         else -> false
     }
+
+    private fun Int.zeroIsOnOrNull(): Boolean? =
+        if (this < 0) null else this == 0
 
     private fun Int.floatIn(range: IntRange): Float? =
         takeIf { it in range }?.toFloat()

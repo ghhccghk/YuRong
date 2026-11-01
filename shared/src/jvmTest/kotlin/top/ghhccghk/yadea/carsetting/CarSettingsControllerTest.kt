@@ -208,7 +208,7 @@ class CarSettingsControllerTest {
     }
 
     @Test
-    fun tcsStatusUsesConfirmedOneIsOnMapping() {
+    fun tcsStatusUsesZeroIsOnMapping() {
         val controller = CarSettingsController(
             initialItems = listOf(
                 CarSettingItem(
@@ -225,6 +225,13 @@ class CarSettingsControllerTest {
         )
 
         controller.updateVehicleStatus(sampleStatus(tcsWorkMode = 1))
+
+        assertEquals(
+            false,
+            (controller.state.value.items.single().kind as CarSettingKind.Toggle).checked,
+        )
+
+        controller.updateVehicleStatus(sampleStatus(tcsWorkMode = 0))
 
         assertEquals(
             true,

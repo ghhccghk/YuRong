@@ -163,6 +163,8 @@ internal fun VehicleHubScreen(
                 VehicleSection.Settings -> CarSettingsScreen(
                     controller = carSettingsController,
                     contentPadding = pagePadding,
+                    vehicleConnected = connected,
+                    vehiclePowerOn = powerToggleState.powerOn,
                     emergencyContactController = emergencyContactController,
                     onOpenLostMode = { onSectionChange(VehicleSection.Diagnostics) },
                     customSoundController = customSoundController,
