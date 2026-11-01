@@ -902,7 +902,7 @@ private fun MiuixWideWidgetContent(
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .padding(8.dp),
+            .padding(15.dp),
     ) {
         MiuixHeader(state, palette, showSubtitle = false)
         Spacer(GlanceModifier.height(1.dp))
@@ -947,7 +947,7 @@ private fun MaterialWideWidgetContent(
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .padding(8.dp),
+            .padding(15.dp),
     ) {
         MaterialHeader(state, palette, showSubtitle = false)
         Spacer(GlanceModifier.height(1.dp))
@@ -1167,6 +1167,7 @@ private fun WidgetActions(
     } else {
         ConnectVehicleBar(palette, compact)
     }
+    Spacer(GlanceModifier.height(5.dp))
 }
 
 @Composable
