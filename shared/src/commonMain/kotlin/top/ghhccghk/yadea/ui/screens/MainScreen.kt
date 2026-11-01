@@ -82,12 +82,11 @@ import top.yukonga.miuix.kmp.icon.extended.Settings
 
 private enum class MainDestination(
     val label: String,
-    val miuixIcon: ImageVector,
-    val fallbackText: String,
+    val icon: ImageVector,
 ) {
-    Connection("连接", MiuixIcons.SearchDevice, "📡"),
-    Device("车辆", MiuixIcons.Phone, "🚗"),
-    Settings("设置", MiuixIcons.Settings, "⚙"),
+    Connection("连接", MiuixIcons.SearchDevice),
+    Device("车辆", MiuixIcons.Phone),
+    Settings("设置", MiuixIcons.Settings),
 }
 
 /**
@@ -581,8 +580,7 @@ private fun MainScreenContent(
     val navigationItems = MainDestination.entries.map {
         AppNavigationItem(
             label = it.label,
-            icon = it.miuixIcon,
-            fallbackText = it.fallbackText,
+            icon = it.icon,
         )
     }
 

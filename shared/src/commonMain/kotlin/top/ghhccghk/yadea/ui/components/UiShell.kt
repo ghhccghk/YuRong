@@ -64,7 +64,6 @@ private const val MiuixTopBarBlurTintAlpha = 0.82f
 data class AppNavigationItem(
     val label: String,
     val icon: ImageVector,
-    val fallbackText: String,
 )
 
 /**
@@ -328,7 +327,7 @@ fun AppTopBar(
 /**
  * 底部导航：在顶层页面之间切换。
  *
- * @param items 导航项；Miuix 使用 [AppNavigationItem.icon]，Material 3 使用文本占位图标。
+ * @param items 导航项；两种风格共用 [AppNavigationItem.icon]。
  * @param selectedIndex 当前选中项索引。
  * @param onSelected 选中回调；重复选中当前项不会触发。
  * @param floating 是否使用 Miuix 悬浮胶囊底栏。Material 3 没有对应的原生样式，
@@ -352,7 +351,7 @@ fun AppBottomNavigation(
                     NavigationBarItem(
                         selected = selectedIndex == index,
                         onClick = { onSelected(index) },
-                        icon = { Text(item.fallbackText, style = AppDesign.typography.title) },
+                        icon = { Icon(item.icon, contentDescription = null) },
                         label = { Text(item.label) },
                     )
                 }
@@ -617,8 +616,7 @@ private fun AppNavigationRail(
                     MaterialNavigationRailItem(
                         selected = selectedIndex == index,
                         onClick = { onSelected(index) },
-                        // Material 3 侧栏没有对应的矢量图标来源，沿用与底栏一致的文本占位图标。
-                        icon = { Text(item.fallbackText, style = AppDesign.typography.title) },
+                        icon = { Icon(item.icon, contentDescription = null) },
                         label = { Text(item.label) },
                     )
                 }
