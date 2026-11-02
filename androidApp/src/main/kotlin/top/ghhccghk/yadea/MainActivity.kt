@@ -12,6 +12,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -38,6 +39,7 @@ import top.ghhccghk.yadea.image.AndroidImageCacheContext
 import top.ghhccghk.yadea.ota.YadeaOtaGateway
 import top.ghhccghk.yadea.ota.WifiOtaInstaller
 import top.ghhccghk.yadea.ui.MainScreen
+import top.ghhccghk.yadea.ui.MainScreenStartDestination
 import top.ghhccghk.yadea.ui.initAndroidFileLogger
 import top.ghhccghk.yadea.widget.VehicleStatusWidgetCoordinator
 import top.ghhccghk.yadea.widget.VehicleStatusWidgetUpdater
@@ -73,6 +75,9 @@ class MainActivity : ComponentActivity() {
     private var bleAdapter: AndroidBleAdapter? = null
     private var vehicleStatusSource: BleVehicleStatusSource? = null
     private var vehicleStatusWidgetCoordinator: VehicleStatusWidgetCoordinator? = null
+    private val requestedStartDestination =
+        mutableStateOf<MainScreenStartDestination?>(null)
+    private val startDestinationRequestVersion = mutableStateOf(0)
 
     private val requiredPermissions: Array<String>
         get() = buildList {
@@ -100,6 +105,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        handleStartDestinationIntent(intent)
         initAndroidFileLogger(applicationContext)
         AndroidInstrumentImageContext.init(applicationContext)
         AndroidImageCacheContext.init(applicationContext)
@@ -432,8 +438,29 @@ class MainActivity : ComponentActivity() {
                 } else {
                     null
                 },
+                startDestination = requestedStartDestination.value
+                    ?: MainScreenStartDestination.Connection,
+                destinationRequest = requestedStartDestination.value,
+                destinationRequestVersion = startDestinationRequestVersion.value,
             )
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleStartDestinationIntent(intent)
+    }
+
+    private fun handleStartDestinationIntent(intent: Intent?) {
+        val destinationName = intent
+            ?.getStringExtra(EXTRA_START_DESTINATION)
+            ?: return
+        val destination = runCatching {
+            MainScreenStartDestination.valueOf(destinationName)
+        }.getOrNull() ?: return
+        requestedStartDestination.value = destination
+        startDestinationRequestVersion.value += 1
     }
 
     override fun onDestroy() {
@@ -462,5 +489,9 @@ class MainActivity : ComponentActivity() {
         return requiredPermissions.all {
             ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
         }
+    }
+
+    companion object {
+        const val EXTRA_START_DESTINATION = "top.ghhccghk.yadea.START_DESTINATION"
     }
 }

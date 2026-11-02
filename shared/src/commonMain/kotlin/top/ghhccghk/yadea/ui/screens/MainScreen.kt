@@ -80,6 +80,12 @@ import top.yukonga.miuix.kmp.icon.extended.Phone
 import top.yukonga.miuix.kmp.icon.extended.SearchDevice
 import top.yukonga.miuix.kmp.icon.extended.Settings
 
+enum class MainScreenStartDestination {
+    Connection,
+    Vehicle,
+    Settings,
+}
+
 private enum class MainDestination(
     val label: String,
     val icon: ImageVector,
@@ -87,6 +93,12 @@ private enum class MainDestination(
     Connection("连接", MiuixIcons.SearchDevice),
     Device("车辆", MiuixIcons.Phone),
     Settings("设置", MiuixIcons.Settings),
+}
+
+private fun MainScreenStartDestination.toMainDestination(): MainDestination = when (this) {
+    MainScreenStartDestination.Connection -> MainDestination.Connection
+    MainScreenStartDestination.Vehicle -> MainDestination.Device
+    MainScreenStartDestination.Settings -> MainDestination.Settings
 }
 
 /**
@@ -138,6 +150,9 @@ fun MainScreen(
     vehicleBackgroundColorExtractor: VehicleBackgroundColorExtractor? = null,
     vehicleImageContent: (@Composable (String, Modifier) -> Unit)? = null,
     systemAccentColor: androidx.compose.ui.graphics.Color? = null,
+    startDestination: MainScreenStartDestination = MainScreenStartDestination.Connection,
+    destinationRequest: MainScreenStartDestination? = null,
+    destinationRequestVersion: Int = 0,
 ) {
     val resolvedPreferences = preferences ?: remember { AppPreferences(InMemoryPreferenceStore()) }
     val appearanceState = rememberAppAppearance(resolvedPreferences)
@@ -434,7 +449,12 @@ fun MainScreen(
         }
     }
 
-    var selectedDestination by remember { mutableStateOf(MainDestination.Connection) }
+    var selectedDestination by remember {
+        mutableStateOf(startDestination.toMainDestination())
+    }
+    LaunchedEffect(destinationRequestVersion) {
+        destinationRequest?.let { selectedDestination = it.toMainDestination() }
+    }
     val extractedVehicleSeedArgb = vehicleBackgroundSeedColorArgb
     val themeAppearance = if (appearanceState.value.colorSource ==
         AppColorSource.VehicleBackground &&

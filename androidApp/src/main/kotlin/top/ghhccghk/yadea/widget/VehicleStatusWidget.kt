@@ -33,6 +33,7 @@ import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.LocalSize
+import androidx.glance.action.Action
 import androidx.glance.action.ActionParameters
 import androidx.glance.action.clickable
 import androidx.glance.action.actionParametersOf
@@ -97,6 +98,7 @@ import top.ghhccghk.yadea.settings.AndroidSecretStore
 import top.ghhccghk.yadea.settings.SharedPreferencesPreferenceStore
 import top.ghhccghk.yadea.settings.VehicleWidgetProfileCache
 import top.ghhccghk.yadea.ui.AppAppearance
+import top.ghhccghk.yadea.ui.MainScreenStartDestination
 import top.ghhccghk.yadea.ui.AppThemeMode
 import top.ghhccghk.yadea.ui.UiThemeStyle
 import top.ghhccghk.yadea.vehicle.TtpInfo
@@ -117,8 +119,7 @@ import top.ghhccghk.yadea.vehicle.withColorTypeOverride
 private const val WIDGET_UPDATE_INTERVAL_MS = 5_000L
 private const val VEHICLE_IMAGE_MAX_DIMENSION = 384
 private const val VEHICLE_BACKGROUND_MAX_DIMENSION = 960
-private const val WIDGET_ACTION_UNLOCK = "UNLOCK"
-private const val WIDGET_ACTION_LOCK = "LOCK"
+private const val WIDGET_ACTION_LOCK_TOGGLE = "LOCK_TOGGLE"
 private const val WIDGET_ACTION_FIND = "FIND"
 private const val WIDGET_ACTION_POWER_ON = "POWER_ON"
 private const val WIDGET_ACTION_POWER_OFF = "POWER_OFF"
@@ -135,16 +136,56 @@ private val WidgetControlActionKey =
  * 整个应用重新启动；同时加 SINGLE_TOP 才会清除上层页面并复用当前实例。
  */
 private fun buildOpenAppIntent(context: Context): Intent =
-    Intent(context, MainActivity::class.java).apply {
-        flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-            Intent.FLAG_ACTIVITY_CLEAR_TOP or
-            Intent.FLAG_ACTIVITY_SINGLE_TOP
+    buildAppIntent(context, destination = null)
+
+private fun buildVehicleInfoIntent(context: Context): Intent =
+    buildAppIntent(context, MainScreenStartDestination.Vehicle)
+
+private fun buildAppIntent(
+    context: Context,
+    destination: MainScreenStartDestination?,
+): Intent = Intent(context, MainActivity::class.java).apply {
+    flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+        Intent.FLAG_ACTIVITY_SINGLE_TOP
+    destination?.let {
+        putExtra(MainActivity.EXTRA_START_DESTINATION, it.name)
     }
+}
 
 private fun isWidgetBleConnected(context: Context): Boolean =
     AndroidVehicleBleSession.get(context).connectionState.value.let { state ->
         state == BleConnectionState.Connected || state == BleConnectionState.Ready
     }
+
+/**
+ * 小部件的开锁/锁车合并状态。
+ *
+ * BLE 在线时使用 TTP `parkingStatus` 的原 App 语义：`0` 为撤防，`2` 为 P 档，
+ * 其他有效值为设防。蓝牙断开时使用原 App `VehicleDataBean.isLocked()` 的云端
+ * 判断：`powerState=1` 或 `rideStatus=2` 视为解防，其余已知状态视为设防。
+ */
+private fun resolveWidgetLockedState(
+    status: TtpInfo?,
+    connected: Boolean,
+    cloudStatus: VehicleCloudStatus?,
+): Boolean? {
+    if (connected && status != null && status.parkingStatus >= 0) {
+        return when (status.parkingStatus) {
+            0 -> false
+            2 -> null
+            else -> true
+        }
+    }
+    val powerOn = cloudStatus?.powerState
+    val rideStatus = cloudStatus?.rideStatus
+    return when {
+        powerOn == 1 -> false
+        rideStatus == 2 -> false
+        powerOn == 0 || (rideStatus != null && rideStatus in 0..1) -> true
+        else -> null
+    }
+}
 
 private suspend fun loadWidgetCloudStatus(
     context: Context,
@@ -299,8 +340,18 @@ class VehicleWidgetControlAction : ActionCallback {
             glanceId = glanceId,
         )
         val command = when (action) {
-            WIDGET_ACTION_UNLOCK -> VehicleControlCommand.UNLOCK
-            WIDGET_ACTION_LOCK -> VehicleControlCommand.LOCK
+            WIDGET_ACTION_LOCK_TOGGLE -> when (preferences[KEY_LOCKED]) {
+                true -> VehicleControlCommand.UNLOCK
+                false -> VehicleControlCommand.LOCK
+                null -> {
+                    completeControlAction(
+                        context = appContext,
+                        glanceId = glanceId,
+                        message = "车辆设防状态未知，无法自动选择开锁或锁车指令",
+                    )
+                    return
+                }
+            }
             WIDGET_ACTION_FIND -> VehicleControlCommand.FIND
             WIDGET_ACTION_POWER_ON -> VehicleControlCommand.POWER_ON
             WIDGET_ACTION_POWER_OFF -> VehicleControlCommand.POWER_OFF
@@ -649,6 +700,11 @@ internal class VehicleStatusWidgetCoordinator(
             cloudLockStatus = cloudStatus?.lockStatus,
             preferCloud = !connected,
         )
+        val locked = resolveWidgetLockedState(
+            status = effectiveStatus,
+            connected = connected,
+            cloudStatus = cloudStatus,
+        )
         val darkTheme = resolveDarkTheme(context, appearance.themeMode)
         val matchedCloudTheme = cloudTheme
             ?.withColorTypeOverride(preferences.readVehicleCloudThemeColorOverride())
@@ -686,7 +742,12 @@ internal class VehicleStatusWidgetCoordinator(
                 false -> "已关机"
                 null -> formatted.powerLabel
             }
-            listOf(formatted.lockLabel, powerLabel, chargeLabel)
+            val lockLabel = when (locked) {
+                true -> "已锁车"
+                false -> "未锁车"
+                null -> formatted.lockLabel
+            }
+            listOf(lockLabel, powerLabel, chargeLabel)
                 .filter { it.isNotBlank() && it != "—" }
                 .joinToString(" · ")
                 .ifBlank { "车辆状态已同步" }
@@ -709,6 +770,7 @@ internal class VehicleStatusWidgetCoordinator(
             cloudOnline = cloudOnline,
             powerOn = powerState.powerOn,
             keyOn = powerState.keyOn,
+            locked = locked,
             connectionLabel = connectionLabel,
             connectionShortLabel = connectionShortLabel,
             batteryLabel = VehicleInfoFormatter.preferredBatteryLabel(
@@ -762,6 +824,7 @@ internal data class VehicleStatusWidgetState(
     val cloudOnline: Boolean = false,
     val powerOn: Boolean? = null,
     val keyOn: Boolean? = null,
+    val locked: Boolean? = null,
     val connectionLabel: String = "打开应用连接车辆",
     val connectionShortLabel: String = "打开应用",
     val batteryLabel: String = "—",
@@ -813,6 +876,11 @@ internal data class VehicleStatusWidgetState(
         preferences[KEY_BATTERY_LABEL] = batteryLabel
         preferences[KEY_RANGE_LABEL] = rangeLabel
         preferences[KEY_STATUS_SUMMARY] = statusSummary
+        if (locked == null) {
+            preferences.remove(KEY_LOCKED)
+        } else {
+            preferences[KEY_LOCKED] = locked
+        }
         if (powerOn == null) {
             preferences.remove(KEY_POWER_ON)
         } else {
@@ -853,6 +921,20 @@ internal data class VehicleStatusWidgetState(
                 cloudLockStatus = liveCloudStatus?.lockStatus,
                 preferCloud = !connected,
             )
+            val fallbackLocked = if (!connected && liveCloudStatus != null) {
+                resolveWidgetLockedState(
+                    status = fallbackStatus,
+                    connected = connected,
+                    cloudStatus = liveCloudStatus,
+                )
+            } else {
+                preferences[KEY_LOCKED]
+                    ?: resolveWidgetLockedState(
+                        status = fallbackStatus,
+                        connected = connected,
+                        cloudStatus = liveCloudStatus,
+                    )
+            }
             val cloudOnline = liveCloudStatus?.onlineState == true ||
                 preferences[KEY_CLOUD_ONLINE] == true
             val connectionLabel = when {
@@ -881,7 +963,12 @@ internal data class VehicleStatusWidgetState(
                     false -> "已关机"
                     null -> formatted.powerLabel
                 }
-                listOf(formatted.lockLabel, powerLabel, chargeLabel)
+                val lockLabel = when (fallbackLocked) {
+                    true -> "已锁车"
+                    false -> "未锁车"
+                    null -> formatted.lockLabel
+                }
+                listOf(lockLabel, powerLabel, chargeLabel)
                     .filter { value -> value.isNotBlank() && value != "—" }
                     .joinToString(" · ")
             }?.takeIf(String::isNotBlank)
@@ -922,6 +1009,7 @@ internal data class VehicleStatusWidgetState(
                 } else {
                     preferences[KEY_KEY_ON] ?: fallbackPowerState.keyOn
                 },
+                locked = fallbackLocked,
                 connectionLabel = connectionLabel,
                 connectionShortLabel = connectionShortLabel,
                 batteryLabel = VehicleInfoFormatter.preferredBatteryLabel(
@@ -1016,11 +1104,13 @@ private fun VehicleStatusWidgetContent(state: VehicleStatusWidgetState) {
                     state,
                     palette,
                     vehicleBitmap,
+                    compact,
                 )
                 wide -> MaterialWideWidgetContent(
                     state,
                     palette,
                     vehicleBitmap,
+                    compact,
                 )
                 state.uiStyle == UiThemeStyle.Miuix -> MiuixWidgetContent(
                     state = state,
@@ -1044,26 +1134,28 @@ private fun MiuixWideWidgetContent(
     state: VehicleStatusWidgetState,
     palette: WidgetPalette,
     vehicleBitmap: Bitmap?,
+    compact: Boolean,
 ) {
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .padding(15.dp),
+            .padding(if (compact) 10.dp else 15.dp),
     ) {
         MiuixHeader(state, palette, showSubtitle = false)
-        Spacer(GlanceModifier.height(1.dp))
+        Spacer(GlanceModifier.height(if (compact) 3.dp else 6.dp))
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
-                .height(60.dp),
+                .height(if (compact) 50.dp else 60.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             WideMetrics(
                 state = state,
                 palette = palette,
+                compact = compact,
                 modifier = GlanceModifier.defaultWeight(),
             )
-            Spacer(GlanceModifier.width(7.dp))
+            Spacer(GlanceModifier.width(if (compact) 6.dp else 10.dp))
             Box(
                 modifier = GlanceModifier
                     .fillMaxHeight()
@@ -1074,13 +1166,13 @@ private fun MiuixWideWidgetContent(
                     bitmap = vehicleBitmap,
                     palette = palette,
                     height = 0.dp,
-                    radius = 18.dp,
+                    radius = if (compact) 14.dp else 18.dp,
                     modifier = GlanceModifier.fillMaxSize(),
                 )
             }
         }
-        Spacer(GlanceModifier.height(12.dp))
-        WidgetActions(state, palette, compact = false)
+        Spacer(GlanceModifier.height(if (compact) 4.dp else 10.dp))
+        WidgetActions(state, palette, compact = compact)
     }
 }
 
@@ -1089,26 +1181,28 @@ private fun MaterialWideWidgetContent(
     state: VehicleStatusWidgetState,
     palette: WidgetPalette,
     vehicleBitmap: Bitmap?,
+    compact: Boolean,
 ) {
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .padding(15.dp),
+            .padding(if (compact) 10.dp else 15.dp),
     ) {
         MaterialHeader(state, palette, showSubtitle = false)
-        Spacer(GlanceModifier.height(1.dp))
+        Spacer(GlanceModifier.height(if (compact) 3.dp else 6.dp))
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
-                .height(60.dp),
+                .height(if (compact) 50.dp else 60.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             WideMetrics(
                 state = state,
                 palette = palette,
+                compact = compact,
                 modifier = GlanceModifier.defaultWeight(),
             )
-            Spacer(GlanceModifier.width(7.dp))
+            Spacer(GlanceModifier.width(if (compact) 6.dp else 10.dp))
             Box(
                 modifier = GlanceModifier
                     .fillMaxHeight()
@@ -1125,8 +1219,8 @@ private fun MaterialWideWidgetContent(
                 )
             }
         }
-        Spacer(GlanceModifier.height(12.dp))
-        WidgetActions(state, palette, compact = false)
+        Spacer(GlanceModifier.height(if (compact) 4.dp else 10.dp))
+        WidgetActions(state, palette, compact = compact)
     }
 }
 
@@ -1134,62 +1228,74 @@ private fun MaterialWideWidgetContent(
 private fun WideMetrics(
     state: VehicleStatusWidgetState,
     palette: WidgetPalette,
+    compact: Boolean,
     modifier: GlanceModifier,
 ) {
-    val range = state.rangeLabel.replace(" ", "")
     val battery = state.batteryLabel.replace(" ", "")
-    val hasRange = range.isNotBlank() && range != "—"
-    val primaryValue = if (hasRange) range else battery
-    val primaryLabel = if (hasRange) "续航" else "电量"
-    Column(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = primaryValue,
-            style = widgetTextStyle(
-                color = palette.primaryText,
-                size = 24.sp,
-                weight = FontWeight.Bold,
-            ),
-            maxLines = 1,
-        )
-        Text(
-            text = primaryLabel,
-            style = widgetTextStyle(
-                color = palette.secondaryText,
-                size = 8.sp,
-            ),
-            maxLines = 1,
-        )
-        if (hasRange) {
+    val range = state.rangeLabel.replace(" ", "")
+    if (compact) {
+        Column(
+            modifier = modifier,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                modifier = GlanceModifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Metric(
+                    label = "电量",
+                    value = battery,
+                    palette = palette,
+                    modifier = GlanceModifier.defaultWeight(),
+                    valueSize = 15.sp,
+                )
+                Spacer(GlanceModifier.width(5.dp))
+                Metric(
+                    label = "续航",
+                    value = range,
+                    palette = palette,
+                    modifier = GlanceModifier.defaultWeight(),
+                    valueSize = 15.sp,
+                )
+            }
             Spacer(GlanceModifier.height(2.dp))
             Text(
-                text = battery,
+                text = state.statusSummary,
                 style = widgetTextStyle(
-                    color = palette.primaryText,
-                    size = 16.sp,
+                    color = palette.secondaryText,
+                    size = 8.sp,
                     weight = FontWeight.Medium,
                 ),
                 maxLines = 1,
             )
-            Text(
-                text = "电量",
-                style = widgetTextStyle(
-                    color = palette.secondaryText,
-                    size = 8.sp,
-                ),
-                maxLines = 1,
+        }
+    } else {
+        Row(
+            modifier = modifier,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Metric(
+                label = "电量",
+                value = battery,
+                palette = palette,
+                modifier = GlanceModifier.defaultWeight(),
+                valueSize = 17.sp,
             )
-        } else {
-            Spacer(GlanceModifier.height(3.dp))
-            Text(
-                text = state.displaySummary(),
-                style = widgetTextStyle(
-                    color = palette.secondaryText,
-                    size = 8.sp,
-                ),
-                maxLines = 1,
+            Spacer(GlanceModifier.width(8.dp))
+            Metric(
+                label = "续航",
+                value = range,
+                palette = palette,
+                modifier = GlanceModifier.defaultWeight(),
+                valueSize = 17.sp,
+            )
+            Spacer(GlanceModifier.width(8.dp))
+            Metric(
+                label = "车况",
+                value = state.statusSummary,
+                palette = palette,
+                modifier = GlanceModifier.defaultWeight(),
+                valueSize = 11.sp,
             )
         }
     }
@@ -1361,6 +1467,7 @@ private fun WidgetControls(
     palette: WidgetPalette,
     compact: Boolean,
 ) {
+    val context = LocalContext.current
     val rowModifier = if (compact) {
         GlanceModifier.fillMaxWidth()
     } else {
@@ -1375,43 +1482,61 @@ private fun WidgetControls(
         modifier = rowModifier,
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val lockLabel = when (state.locked) {
+            true -> "开锁"
+            false -> "锁车"
+            null -> "车锁"
+        }
         WidgetControlButton(
-            label = "开锁",
-            actionName = WIDGET_ACTION_UNLOCK,
-            iconRes = R.drawable.ic_widget_unlock,
-            enabled = state.hasControlChannel || state.hasVehicleIdentity,
-            palette = palette,
-            compact = compact,
-        )
-        Spacer(GlanceModifier.width(3.dp))
-        WidgetControlButton(
-            label = "锁车",
-            actionName = WIDGET_ACTION_LOCK,
-            iconRes = R.drawable.ic_widget_lock,
-            enabled = state.hasControlChannel || state.hasVehicleIdentity,
+            label = lockLabel,
+            iconRes = if (state.locked == true) {
+                R.drawable.ic_widget_unlock
+            } else {
+                R.drawable.ic_widget_lock
+            },
+            enabled = state.hasControlChannel && state.locked != null,
+            action = actionRunCallback<VehicleWidgetControlAction>(
+                actionParametersOf(
+                    WidgetControlActionKey to WIDGET_ACTION_LOCK_TOGGLE,
+                ),
+            ),
             palette = palette,
             compact = compact,
         )
         Spacer(GlanceModifier.width(3.dp))
         WidgetControlButton(
             label = "寻车",
-            actionName = WIDGET_ACTION_FIND,
             iconRes = R.drawable.ic_widget_find,
-            enabled = state.hasControlChannel || state.hasVehicleIdentity,
+            enabled = state.hasControlChannel,
+            action = actionRunCallback<VehicleWidgetControlAction>(
+                actionParametersOf(WidgetControlActionKey to WIDGET_ACTION_FIND),
+            ),
             palette = palette,
             compact = compact,
         )
         Spacer(GlanceModifier.width(3.dp))
         WidgetControlButton(
             label = if (state.powerOn == true) "关机" else "开机",
-            actionName = if (state.powerOn == true) {
-                WIDGET_ACTION_POWER_OFF
-            } else {
-                WIDGET_ACTION_POWER_ON
-            },
             iconRes = R.drawable.ic_widget_power,
-            enabled = (state.hasControlChannel || state.hasVehicleIdentity) &&
-                state.keyOn != true,
+            enabled = state.hasControlChannel && state.keyOn != true,
+            action = actionRunCallback<VehicleWidgetControlAction>(
+                actionParametersOf(
+                    WidgetControlActionKey to if (state.powerOn == true) {
+                        WIDGET_ACTION_POWER_OFF
+                    } else {
+                        WIDGET_ACTION_POWER_ON
+                    },
+                ),
+            ),
+            palette = palette,
+            compact = compact,
+        )
+        Spacer(GlanceModifier.width(3.dp))
+        WidgetControlButton(
+            label = "车辆信息",
+            iconRes = R.drawable.ic_widget_vehicle_info,
+            enabled = true,
+            action = actionStartActivity(buildVehicleInfoIntent(context)),
             palette = palette,
             compact = compact,
         )
@@ -1421,15 +1546,12 @@ private fun WidgetControls(
 @Composable
 private fun RowScope.WidgetControlButton(
     label: String,
-    actionName: String,
     iconRes: Int,
     enabled: Boolean,
+    action: Action,
     palette: WidgetPalette,
     compact: Boolean,
 ) {
-    val action = actionRunCallback<VehicleWidgetControlAction>(
-        actionParametersOf(WidgetControlActionKey to actionName),
-    )
     Box(
         modifier = GlanceModifier
             .defaultWeight()
@@ -1716,6 +1838,7 @@ private fun Metric(
     value: String,
     palette: WidgetPalette,
     modifier: GlanceModifier,
+    valueSize: androidx.compose.ui.unit.TextUnit = 12.sp,
 ) {
     Column(modifier = modifier) {
         Text(
@@ -1730,7 +1853,7 @@ private fun Metric(
             text = value,
             style = widgetTextStyle(
                 color = palette.primaryText,
-                size = 12.sp,
+                size = valueSize,
                 weight = FontWeight.Medium,
             ),
             maxLines = 1,
@@ -1930,6 +2053,7 @@ private val KEY_CONNECTED = booleanPreferencesKey("vehicle_connected")
 private val KEY_CLOUD_ONLINE = booleanPreferencesKey("vehicle_cloud_online")
 private val KEY_POWER_ON = booleanPreferencesKey("vehicle_power_on")
 private val KEY_KEY_ON = booleanPreferencesKey("vehicle_key_on")
+private val KEY_LOCKED = booleanPreferencesKey("vehicle_locked")
 private val KEY_CONNECTION_LABEL = stringPreferencesKey("vehicle_connection_label")
 private val KEY_CONNECTION_SHORT_LABEL = stringPreferencesKey("vehicle_connection_short_label")
 private val KEY_BATTERY_LABEL = stringPreferencesKey("vehicle_battery_label")
