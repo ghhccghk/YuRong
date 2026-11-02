@@ -149,8 +149,8 @@ class YadeaVehicleCloudStatusGateway(
             },
             totalMileage = text(data, "totalMileage"),
             currentOdoValue = text(data, "currentOdoValue").toFloatOrNull(),
-            soc = JsonSupport.int(data, "totalSoc")
-                ?: JsonSupport.string(data, "soc1")?.toIntOrNull(),
+            soc = intValue(data, "totalSoc")
+                ?: intValue(data, "soc1"),
             soc1 = JsonSupport.string(data, "soc1").orEmpty(),
             soc2 = JsonSupport.string(data, "soc2").orEmpty(),
             leftFrontPressure = text(data, "leftFrontPressure"),
@@ -283,10 +283,26 @@ class YadeaVehicleCloudStatusGateway(
             ?: JsonSupport.numberText(json, key)
             ?: ""
 
+    /**
+     * 云端 DTO 的 Integer 字段经 Gson 反序列化时可接受 `"73"`、`"73.0"`。
+     * 本地解析器不能只接受 JSON number，否则有云端 SOC 时仍会被当成空值。
+     */
     private fun intValue(json: String, key: String): Int? =
-        JsonSupport.int(json, key)
-            ?: JsonSupport.numberText(json, key)?.toIntOrNull()
-            ?: JsonSupport.string(json, key)?.toIntOrNull()
+        parseLooseInt(JsonSupport.numberText(json, key))
+            ?: parseLooseInt(JsonSupport.string(json, key))
+
+    private fun parseLooseInt(raw: String?): Int? {
+        val normalized = raw
+            ?.trim()
+            ?.removeSuffix("%")
+            ?.trim()
+            ?.takeIf(String::isNotEmpty)
+            ?: return null
+        return normalized.toIntOrNull()
+            ?: normalized.toDoubleOrNull()
+                ?.takeIf { it.isFinite() }
+                ?.toInt()
+    }
 
     private fun escape(value: String): String =
         value.replace("\\", "\\\\").replace("\"", "\\\"")

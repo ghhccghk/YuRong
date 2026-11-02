@@ -16,6 +16,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -226,6 +228,21 @@ class MainActivity : ComponentActivity() {
             ),
             scope = lifecycleScope,
         )
+        // 小部件不依赖 MainScreen 是否仍在组合中。蓝牙一旦断开就在 Activity
+        // 生命周期内主动刷新云端状态，供车辆页和小部件共同读取。
+        lifecycleScope.launch {
+            combine(
+                vehicleProfileSource.profile
+                    .map { it?.vin.orEmpty() }
+                    .distinctUntilChanged(),
+                vehicleStatus.connected,
+            ) { vin, connected -> vin to connected }
+                .collect { (vin, connected) ->
+                    if (vin.isNotBlank() && !connected) {
+                        cloudStatusController.refresh(vin)
+                    }
+                }
+        }
         VehicleStatusWidgetCoordinator(
             context = applicationContext,
             scope = lifecycleScope,
