@@ -11,6 +11,13 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import top.ghhccghk.yadea.ble.BleConnectionState
+import top.ghhccghk.yadea.widget.refreshVehicleStatusWidgetViews
 
 /**
  * 车辆 BLE 连接前台服务。
@@ -20,9 +27,30 @@ import androidx.core.content.ContextCompat
  */
 class VehicleConnectionService : Service() {
 
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        serviceScope.launch {
+            var wasConnected = false
+            AndroidVehicleBleSession.get(applicationContext).connectionState.collect { state ->
+                when (state) {
+                    BleConnectionState.Connected,
+                    BleConnectionState.Ready,
+                    -> wasConnected = true
+
+                    BleConnectionState.Disconnected,
+                    BleConnectionState.Failed,
+                    -> if (wasConnected) {
+                        wasConnected = false
+                        refreshVehicleStatusWidgetViews(applicationContext)
+                    }
+
+                    else -> Unit
+                }
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -48,6 +76,7 @@ class VehicleConnectionService : Service() {
         synchronized(lock) {
             running = false
         }
+        serviceScope.cancel()
         super.onDestroy()
     }
 

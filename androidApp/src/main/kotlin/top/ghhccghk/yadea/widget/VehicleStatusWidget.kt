@@ -107,6 +107,7 @@ import top.ghhccghk.yadea.vehicle.VehicleControlCommand
 import top.ghhccghk.yadea.vehicle.VehicleInfoFormatter
 import top.ghhccghk.yadea.vehicle.VehiclePowerStateResolver
 import top.ghhccghk.yadea.vehicle.YadeaVehicleCloudControlGateway
+import top.ghhccghk.yadea.vehicle.YadeaVehicleCloudStatusGateway
 import top.ghhccghk.yadea.vehicle.VehicleProfile
 import top.ghhccghk.yadea.vehicle.VehicleProfileSource
 import top.ghhccghk.yadea.vehicle.VehicleStatusSource
@@ -123,6 +124,7 @@ private const val WIDGET_ACTION_POWER_ON = "POWER_ON"
 private const val WIDGET_ACTION_POWER_OFF = "POWER_OFF"
 private const val WIDGET_ACTION_POWER_TOGGLE = "POWER_TOGGLE"
 private const val CONTROL_MESSAGE_VISIBLE_MS = 15_000L
+private const val WIDGET_TAG = "VehicleStatusWidget"
 private val WidgetControlActionKey =
     ActionParameters.Key<String>("vehicle_widget_control_action")
 
@@ -139,6 +141,48 @@ private fun buildOpenAppIntent(context: Context): Intent =
             Intent.FLAG_ACTIVITY_SINGLE_TOP
     }
 
+private fun isWidgetBleConnected(context: Context): Boolean =
+    AndroidVehicleBleSession.get(context).connectionState.value.let { state ->
+        state == BleConnectionState.Connected || state == BleConnectionState.Ready
+    }
+
+private suspend fun loadWidgetCloudStatus(
+    context: Context,
+    preferences: AppPreferences,
+    profile: VehicleWidgetProfileCache,
+): VehicleCloudStatus? {
+    val auth = preferences.readAuth()
+    if (auth.token.isBlank() || profile.vin.isBlank()) return null
+    val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+    val appMarket = context.applicationInfo.metaData
+        ?.getString("BUGLY_APP_CHANNEL")
+        .orEmpty()
+        .ifBlank { "Yadea" }
+    return try {
+        YadeaVehicleCloudStatusGateway(
+            transport = createHttpTransport(),
+            tokenProvider = { auth.token },
+            loginIdProvider = { auth.loginId },
+            clientInfoProvider = {
+                GatewayClientInfo(
+                    appVersion = packageInfo.versionName.orEmpty(),
+                    appVersionNum = packageInfo.versionCode.toString(),
+                    appMarket = appMarket,
+                    appVersionType = "1",
+                    deviceBrand = Build.BRAND,
+                    phoneModel = Build.MODEL,
+                    bikeSeriesCode = profile.seriesCode.ifBlank { "4" },
+                )
+            },
+            timestampProvider = { System.currentTimeMillis() },
+        ).load(profile.vin)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Throwable) {
+        null
+    }
+}
+
 class VehicleStatusWidget : GlanceAppWidget() {
 
     override val sizeMode: SizeMode = SizeMode.Exact
@@ -148,9 +192,36 @@ class VehicleStatusWidget : GlanceAppWidget() {
         AndroidImageCacheContext.init(appContext)
         val appPreferences = AppPreferences(
             store = SharedPreferencesPreferenceStore(appContext),
+            secretStore = AndroidSecretStore(appContext),
         )
         val fallbackAppearance = appPreferences.read()
         val fallbackWidgetProfile = appPreferences.readVehicleWidgetProfile()
+        val liveBleConnected = isWidgetBleConnected(appContext)
+        val liveCloudStatus = if (liveBleConnected) {
+            null
+        } else {
+            loadWidgetCloudStatus(
+                context = appContext,
+                preferences = appPreferences,
+                profile = fallbackWidgetProfile,
+            )
+        }
+        liveCloudStatus
+            ?.soc
+            ?.takeIf { it in 0..100 }
+            ?.let { soc ->
+                updateAppWidgetState(
+                    context = appContext,
+                    glanceId = id,
+                ) { preferences ->
+                    preferences.toMutablePreferences().apply {
+                        this[KEY_HAS_STATUS] = true
+                        this[KEY_CONNECTED] = false
+                        this[KEY_CLOUD_ONLINE] = liveCloudStatus.onlineState == true
+                        this[KEY_BATTERY_LABEL] = "$soc%"
+                    }
+                }
+            }
         val cachedStatus = appPreferences.readVehicleStatus()
         val fallbackStatus = cachedStatus
             ?.let { decodeCachedVehicleStatus(it.packetHex) }
@@ -172,8 +243,33 @@ class VehicleStatusWidget : GlanceAppWidget() {
                 fallbackStatus = fallbackStatus,
                 fallbackBackgroundImageUrl = fallbackBackgroundImageUrl,
                 fallbackVehicleProfile = fallbackWidgetProfile,
+                liveBleConnected = liveBleConnected,
+                liveCloudStatus = liveCloudStatus,
             )
             VehicleStatusWidgetContent(state)
+        }
+    }
+}
+
+internal suspend fun refreshVehicleStatusWidgetViews(context: Context) {
+    val appContext = context.applicationContext
+    val glanceIds = try {
+        GlanceAppWidgetManager(appContext)
+            .getGlanceIds(VehicleStatusWidget::class.java)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (error: Throwable) {
+        Log.w(WIDGET_TAG, "Unable to query vehicle widget instances", error)
+        return
+    }
+    val widget = VehicleStatusWidget()
+    glanceIds.forEach { glanceId ->
+        try {
+            widget.update(appContext, glanceId)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Throwable) {
+            Log.w(WIDGET_TAG, "Unable to refresh vehicle widget $glanceId", error)
         }
     }
 }
@@ -737,22 +833,30 @@ internal data class VehicleStatusWidgetState(
             fallbackStatus: TtpInfo?,
             fallbackBackgroundImageUrl: String = "",
             fallbackVehicleProfile: VehicleWidgetProfileCache = VehicleWidgetProfileCache(),
+            liveBleConnected: Boolean? = null,
+            liveCloudStatus: VehicleCloudStatus? = null,
         ): VehicleStatusWidgetState {
             val fallbackFormatted = fallbackStatus
                 ?.let { VehicleInfoFormatter.format(it, connected = false) }
             val fallbackPowerState = VehiclePowerStateResolver.resolve(fallbackStatus)
-            val hasStatus = preferences[KEY_HAS_STATUS] ?: (fallbackStatus != null)
-            val connected = preferences[KEY_CONNECTED] ?: false
-            val cloudOnline = preferences[KEY_CLOUD_ONLINE] ?: false
-            val connectionLabel = preferences[KEY_CONNECTION_LABEL] ?: when {
+            val hasStatus = preferences[KEY_HAS_STATUS]
+                ?: (fallbackStatus != null || liveCloudStatus != null)
+            val connected = liveBleConnected ?: preferences[KEY_CONNECTED] ?: false
+            val cloudOnline = liveCloudStatus?.onlineState == true ||
+                preferences[KEY_CLOUD_ONLINE] == true
+            val connectionLabel = when {
                 cloudOnline && !connected -> "车联网在线"
+                preferences[KEY_CONNECTION_LABEL] != null ->
+                    preferences[KEY_CONNECTION_LABEL].orEmpty()
                 hasStatus -> fallbackFormatted?.connectionLabel ?: "状态缓存"
                 connected -> "已连接，等待车辆上报"
                 else -> "打开应用连接车辆"
             }
-            val connectionShortLabel = preferences[KEY_CONNECTION_SHORT_LABEL] ?: when {
+            val connectionShortLabel = when {
                 hasStatus && connected -> "在线"
                 cloudOnline -> "云端"
+                preferences[KEY_CONNECTION_SHORT_LABEL] != null ->
+                    preferences[KEY_CONNECTION_SHORT_LABEL].orEmpty()
                 hasStatus -> "缓存"
                 connected -> "等待上报"
                 else -> "打开应用"
@@ -796,9 +900,13 @@ internal data class VehicleStatusWidgetState(
                 keyOn = preferences[KEY_KEY_ON] ?: fallbackPowerState.keyOn,
                 connectionLabel = connectionLabel,
                 connectionShortLabel = connectionShortLabel,
-                batteryLabel = preferences[KEY_BATTERY_LABEL]
-                    ?: fallbackFormatted?.batteryLabel
-                    ?: "—",
+                batteryLabel = VehicleInfoFormatter.preferredBatteryLabel(
+                    bluetoothLabel = preferences[KEY_BATTERY_LABEL]
+                        ?: fallbackFormatted?.batteryLabel
+                        ?: "—",
+                    cloudSoc = liveCloudStatus?.soc,
+                    connected = connected,
+                ),
                 rangeLabel = preferences[KEY_RANGE_LABEL]
                     ?: fallbackFormatted?.rangeLabel
                     ?: "—",
