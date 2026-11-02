@@ -119,6 +119,8 @@ private const val VEHICLE_BACKGROUND_MAX_DIMENSION = 960
 private const val WIDGET_ACTION_UNLOCK = "UNLOCK"
 private const val WIDGET_ACTION_LOCK = "LOCK"
 private const val WIDGET_ACTION_FIND = "FIND"
+private const val WIDGET_ACTION_POWER_ON = "POWER_ON"
+private const val WIDGET_ACTION_POWER_OFF = "POWER_OFF"
 private const val WIDGET_ACTION_POWER_TOGGLE = "POWER_TOGGLE"
 private const val CONTROL_MESSAGE_VISIBLE_MS = 15_000L
 private val WidgetControlActionKey =
@@ -191,6 +193,8 @@ class VehicleWidgetControlAction : ActionCallback {
             WIDGET_ACTION_UNLOCK -> VehicleControlCommand.UNLOCK
             WIDGET_ACTION_LOCK -> VehicleControlCommand.LOCK
             WIDGET_ACTION_FIND -> VehicleControlCommand.FIND
+            WIDGET_ACTION_POWER_ON -> VehicleControlCommand.POWER_ON
+            WIDGET_ACTION_POWER_OFF -> VehicleControlCommand.POWER_OFF
             WIDGET_ACTION_POWER_TOGGLE -> {
                 if (preferences[KEY_KEY_ON] == true) {
                     completeControlAction(
@@ -1261,7 +1265,11 @@ private fun WidgetControls(
         Spacer(GlanceModifier.width(3.dp))
         WidgetControlButton(
             label = if (state.powerOn == true) "关机" else "开机",
-            actionName = WIDGET_ACTION_POWER_TOGGLE,
+            actionName = if (state.powerOn == true) {
+                WIDGET_ACTION_POWER_OFF
+            } else {
+                WIDGET_ACTION_POWER_ON
+            },
             iconRes = R.drawable.ic_widget_power,
             enabled = (state.hasControlChannel || state.hasVehicleIdentity) &&
                 state.keyOn != true,
