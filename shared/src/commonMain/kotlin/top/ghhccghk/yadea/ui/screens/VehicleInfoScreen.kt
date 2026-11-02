@@ -29,6 +29,7 @@ import top.ghhccghk.yadea.vehicle.TtpInfo
 import top.ghhccghk.yadea.vehicle.VehicleInfoFormatter
 import top.ghhccghk.yadea.vehicle.VehicleInfoUiModel
 import top.ghhccghk.yadea.vehicle.IotRenewalLinks
+import top.ghhccghk.yadea.vehicle.VehiclePowerStateResolver
 import top.ghhccghk.yadea.vehicle.VehicleProfile
 import top.ghhccghk.yadea.vehicle.VehicleCloudTheme
 import top.ghhccghk.yadea.vehicle.VehicleCloudStatus
@@ -55,7 +56,20 @@ fun VehicleInfoScreen(
     cloudStatus: VehicleCloudStatus? = null,
     modifier: Modifier = Modifier,
 ) {
-    val model = VehicleInfoFormatter.format(status, connected)
+    val baseModel = VehicleInfoFormatter.format(status, connected)
+    val powerState = VehiclePowerStateResolver.resolve(
+        status = status,
+        cloudPowerState = cloudStatus?.powerState,
+        cloudLockStatus = cloudStatus?.lockStatus,
+        preferCloud = !connected,
+    )
+    val model = baseModel.copy(
+        powerLabel = when (powerState.powerOn) {
+            true -> "已开机"
+            false -> "已关机"
+            null -> baseModel.powerLabel
+        },
+    )
     val cloudRangeLabel = cloudStatus?.remainingMileage
         ?.takeIf { it.isNotBlank() }
         ?.let { if (it.toFloatOrNull() != null) "$it km" else it }
