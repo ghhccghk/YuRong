@@ -123,6 +123,7 @@ data class VehiclePowerToggleState(
 /**
  * 原 App 的电源开关状态来源：
  * - 电源：TTP `onOffStatus` 0..7 为开机、8..16 为关机；无 TTP 时使用云端 `powerState`。
+ * - BLE 未连接时传入 [preferCloud]，避免缓存 TTP 覆盖更新的云端电源状态。
  * - 机械钥匙：TTP `realKeyStatus` / 云端 `lockStatus` 为 1 时视为钥匙已开机。
  */
 object VehiclePowerStateResolver {
@@ -130,14 +131,17 @@ object VehiclePowerStateResolver {
         status: TtpInfo?,
         cloudPowerState: Int? = null,
         cloudLockStatus: Int? = null,
+        preferCloud: Boolean = false,
     ): VehiclePowerToggleState {
         val powerOn = when {
+            preferCloud && cloudPowerState != null -> cloudPowerState == 1
             status != null && status.onOffStatus in 0..7 -> true
             status != null && status.onOffStatus in 8..16 -> false
             cloudPowerState != null -> cloudPowerState == 1
             else -> null
         }
         val keyOn = when {
+            preferCloud && cloudLockStatus != null -> cloudLockStatus == 1
             status != null && status.realKeyStatus == 1 -> true
             status != null && status.realKeyStatus == 0 -> false
             cloudLockStatus != null -> cloudLockStatus == 1

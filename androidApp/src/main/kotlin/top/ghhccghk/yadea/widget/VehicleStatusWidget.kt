@@ -647,6 +647,7 @@ internal class VehicleStatusWidgetCoordinator(
             status = effectiveStatus,
             cloudPowerState = cloudStatus?.powerState,
             cloudLockStatus = cloudStatus?.lockStatus,
+            preferCloud = !connected,
         )
         val darkTheme = resolveDarkTheme(context, appearance.themeMode)
         val matchedCloudTheme = cloudTheme
@@ -680,7 +681,12 @@ internal class VehicleStatusWidgetCoordinator(
             val chargeLabel = formatted.chargeLabel.takeIf {
                 it == "未充电" || it == "充电中"
             }.orEmpty()
-            listOf(formatted.lockLabel, formatted.powerLabel, chargeLabel)
+            val powerLabel = when (powerState.powerOn) {
+                true -> "已开机"
+                false -> "已关机"
+                null -> formatted.powerLabel
+            }
+            listOf(formatted.lockLabel, powerLabel, chargeLabel)
                 .filter { it.isNotBlank() && it != "—" }
                 .joinToString(" · ")
                 .ifBlank { "车辆状态已同步" }
@@ -838,10 +844,15 @@ internal data class VehicleStatusWidgetState(
         ): VehicleStatusWidgetState {
             val fallbackFormatted = fallbackStatus
                 ?.let { VehicleInfoFormatter.format(it, connected = false) }
-            val fallbackPowerState = VehiclePowerStateResolver.resolve(fallbackStatus)
             val hasStatus = preferences[KEY_HAS_STATUS]
                 ?: (fallbackStatus != null || liveCloudStatus != null)
             val connected = liveBleConnected ?: preferences[KEY_CONNECTED] ?: false
+            val fallbackPowerState = VehiclePowerStateResolver.resolve(
+                status = fallbackStatus,
+                cloudPowerState = liveCloudStatus?.powerState,
+                cloudLockStatus = liveCloudStatus?.lockStatus,
+                preferCloud = !connected,
+            )
             val cloudOnline = liveCloudStatus?.onlineState == true ||
                 preferences[KEY_CLOUD_ONLINE] == true
             val connectionLabel = when {
@@ -865,7 +876,12 @@ internal data class VehicleStatusWidgetState(
                 val chargeLabel = formatted.chargeLabel.takeIf {
                     it == "未充电" || it == "充电中"
                 }.orEmpty()
-                listOf(formatted.lockLabel, formatted.powerLabel, chargeLabel)
+                val powerLabel = when (fallbackPowerState.powerOn) {
+                    true -> "已开机"
+                    false -> "已关机"
+                    null -> formatted.powerLabel
+                }
+                listOf(formatted.lockLabel, powerLabel, chargeLabel)
                     .filter { value -> value.isNotBlank() && value != "—" }
                     .joinToString(" · ")
             }?.takeIf(String::isNotBlank)
@@ -896,8 +912,16 @@ internal data class VehicleStatusWidgetState(
                 hasStatus = hasStatus,
                 connected = connected,
                 cloudOnline = cloudOnline,
-                powerOn = preferences[KEY_POWER_ON] ?: fallbackPowerState.powerOn,
-                keyOn = preferences[KEY_KEY_ON] ?: fallbackPowerState.keyOn,
+                powerOn = if (!connected && liveCloudStatus != null) {
+                    fallbackPowerState.powerOn
+                } else {
+                    preferences[KEY_POWER_ON] ?: fallbackPowerState.powerOn
+                },
+                keyOn = if (!connected && liveCloudStatus != null) {
+                    fallbackPowerState.keyOn
+                } else {
+                    preferences[KEY_KEY_ON] ?: fallbackPowerState.keyOn
+                },
                 connectionLabel = connectionLabel,
                 connectionShortLabel = connectionShortLabel,
                 batteryLabel = VehicleInfoFormatter.preferredBatteryLabel(

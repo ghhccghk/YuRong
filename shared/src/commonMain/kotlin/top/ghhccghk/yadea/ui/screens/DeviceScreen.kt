@@ -106,6 +106,7 @@ internal fun VehicleHubScreen(
                 status = status,
                 cloudPowerState = vehicleCloudStatus?.powerState,
                 cloudLockStatus = vehicleCloudStatus?.lockStatus,
+                preferCloud = !connected,
             )
             when (section) {
                 VehicleSection.Info -> VehicleInfoScreen(
