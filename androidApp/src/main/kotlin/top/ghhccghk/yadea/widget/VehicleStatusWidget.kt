@@ -126,6 +126,19 @@ private const val CONTROL_MESSAGE_VISIBLE_MS = 15_000L
 private val WidgetControlActionKey =
     ActionParameters.Key<String>("vehicle_widget_control_action")
 
+/**
+ * 打开应用时保留现有 MainActivity 实例。
+ *
+ * 仅使用 CLEAR_TOP 会销毁并重建标准 launchMode 的 Activity，表现为点击小部件后
+ * 整个应用重新启动；同时加 SINGLE_TOP 才会清除上层页面并复用当前实例。
+ */
+private fun buildOpenAppIntent(context: Context): Intent =
+    Intent(context, MainActivity::class.java).apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+            Intent.FLAG_ACTIVITY_SINGLE_TOP
+    }
+
 class VehicleStatusWidget : GlanceAppWidget() {
 
     override val sizeMode: SizeMode = SizeMode.Exact
@@ -842,9 +855,7 @@ private fun VehicleStatusWidgetContent(state: VehicleStatusWidgetState) {
         )
     }
 
-    val openAppIntent = Intent(context, MainActivity::class.java).apply {
-        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-    }
+    val openAppIntent = buildOpenAppIntent(context)
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
@@ -1179,11 +1190,7 @@ private fun ConnectVehicleBar(
     compact: Boolean,
 ) {
     val context = LocalContext.current
-    val openAppAction = actionStartActivity(
-        Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        },
-    )
+    val openAppAction = actionStartActivity(buildOpenAppIntent(context))
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
