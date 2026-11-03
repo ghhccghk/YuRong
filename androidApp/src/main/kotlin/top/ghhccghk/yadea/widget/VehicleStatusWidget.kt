@@ -1179,7 +1179,12 @@ private fun MiuixWideWidgetContent(
             .fillMaxSize()
             .padding(if (compact) 10.dp else 15.dp),
     ) {
-        MiuixHeader(state, palette, showSubtitle = false)
+        MiuixHeader(
+            state = state,
+            palette = palette,
+            showSubtitle = false,
+            compact = compact,
+        )
         Spacer(GlanceModifier.height(if (compact) 3.dp else 6.dp))
         Row(
             modifier = GlanceModifier
@@ -1227,7 +1232,12 @@ private fun MaterialWideWidgetContent(
             .fillMaxSize()
             .padding(if (compact) 10.dp else 15.dp),
     ) {
-        MaterialHeader(state, palette, showSubtitle = false)
+        MaterialHeader(
+            state = state,
+            palette = palette,
+            showSubtitle = false,
+            compact = compact,
+        )
         Spacer(GlanceModifier.height(if (compact) 3.dp else 6.dp))
         Row(
             modifier = GlanceModifier
@@ -1305,7 +1315,7 @@ private fun WideMetrics(
                     size = 8.sp,
                     weight = FontWeight.Medium,
                 ),
-                maxLines = 1,
+                maxLines = 2,
             )
         }
     } else {
@@ -1335,6 +1345,7 @@ private fun WideMetrics(
                 palette = palette,
                 modifier = GlanceModifier.defaultWeight(),
                 valueSize = 11.sp,
+                maxLines = 2,
             )
         }
     }
@@ -1353,7 +1364,12 @@ private fun MiuixWidgetContent(
             .fillMaxSize()
             .padding(if (compact) 6.dp else 12.dp),
     ) {
-        MiuixHeader(state, palette, showSubtitle = !compact)
+        MiuixHeader(
+            state = state,
+            palette = palette,
+            showSubtitle = !compact,
+            compact = compact,
+        )
         Spacer(GlanceModifier.height(if (compact) 1.dp else 5.dp))
         VehicleStage(
             state = state,
@@ -1368,13 +1384,6 @@ private fun MiuixWidgetContent(
         } else {
             MiuixMetrics(state, palette)
         }
-        Spacer(GlanceModifier.height(if (compact) 1.dp else 2.dp))
-        WidgetActions(
-            state = state,
-            palette = palette,
-            compact = compact,
-            iconOnly = iconOnly,
-        )
         Text(
             text = state.displaySummary(),
             modifier = GlanceModifier.fillMaxWidth(),
@@ -1382,7 +1391,14 @@ private fun MiuixWidgetContent(
                 color = palette.secondaryText,
                 size = if (compact) 8.sp else 10.sp,
             ),
-            maxLines = 1,
+            maxLines = 2,
+        )
+        Spacer(GlanceModifier.defaultWeight())
+        WidgetActions(
+            state = state,
+            palette = palette,
+            compact = compact,
+            iconOnly = iconOnly,
         )
     }
 }
@@ -1400,7 +1416,12 @@ private fun MaterialWidgetContent(
             .fillMaxSize()
             .padding(if (compact) 6.dp else 11.dp),
     ) {
-        MaterialHeader(state, palette, showSubtitle = !compact)
+        MaterialHeader(
+            state = state,
+            palette = palette,
+            showSubtitle = !compact,
+            compact = compact,
+        )
         Spacer(GlanceModifier.height(if (compact) 1.dp else 3.dp))
         VehicleStage(
             state = state,
@@ -1425,13 +1446,6 @@ private fun MaterialWidgetContent(
         } else {
             MaterialMetrics(state, palette)
         }
-        Spacer(GlanceModifier.height(if (compact) 1.dp else 2.dp))
-        WidgetActions(
-            state = state,
-            palette = palette,
-            compact = compact,
-            iconOnly = iconOnly,
-        )
         Text(
             text = state.displaySummary(),
             modifier = GlanceModifier.fillMaxWidth(),
@@ -1439,7 +1453,14 @@ private fun MaterialWidgetContent(
                 color = palette.secondaryText,
                 size = if (compact) 8.sp else 10.sp,
             ),
-            maxLines = 1,
+            maxLines = 2,
+        )
+        Spacer(GlanceModifier.defaultWeight())
+        WidgetActions(
+            state = state,
+            palette = palette,
+            compact = compact,
+            iconOnly = iconOnly,
         )
     }
 }
@@ -1474,7 +1495,7 @@ private fun WidgetActions(
     } else {
         ConnectVehicleBar(palette, compact)
     }
-    Spacer(GlanceModifier.height(1.dp))
+    Spacer(GlanceModifier.height(5.dp))
 }
 
 @Composable
@@ -1508,7 +1529,7 @@ private fun ConnectVehicleBar(
             text = "打开应用连接车辆",
             style = widgetTextStyle(
                 color = palette.primaryText,
-                size = if (compact) 8.sp else 9.sp,
+                size = if (compact) 7.sp else 9.sp,
                 weight = FontWeight.Medium,
             ),
             maxLines = 1,
@@ -1646,7 +1667,7 @@ private fun RowScope.WidgetControlButton(
                 text = label,
                 style = widgetTextStyle(
                     color = if (enabled) palette.primaryText else palette.secondaryText,
-                    size = 8.sp,
+                    size = 7.sp,
                     weight = FontWeight.Medium,
                     textAlign = TextAlign.Center,
                 ),
@@ -1687,6 +1708,7 @@ private fun MiuixHeader(
     state: VehicleStatusWidgetState,
     palette: WidgetPalette,
     showSubtitle: Boolean,
+    compact: Boolean,
 ) {
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
@@ -1697,7 +1719,7 @@ private fun MiuixHeader(
                 text = state.vehicleName,
                 style = widgetTextStyle(
                     color = palette.primaryText,
-                    size = 14.sp,
+                    size = if (compact) 12.sp else 14.sp,
                     weight = FontWeight.Medium,
                 ),
                 maxLines = 1,
@@ -1713,7 +1735,7 @@ private fun MiuixHeader(
                 )
             }
         }
-        Spacer(GlanceModifier.width(5.dp))
+        Spacer(GlanceModifier.width(if (compact) 3.dp else 5.dp))
         Text(
             text = state.connectionShortLabel,
             modifier = GlanceModifier
@@ -1723,10 +1745,13 @@ private fun MiuixHeader(
                     ),
                 )
                 .cornerRadius(12.dp)
-                .padding(horizontal = 6.dp, vertical = 3.dp),
+                .padding(
+                    horizontal = if (compact) 4.dp else 6.dp,
+                    vertical = if (compact) 2.dp else 3.dp,
+                ),
             style = widgetTextStyle(
                 color = if (state.hasControlChannel) palette.onConnected else palette.primaryText,
-                size = 9.sp,
+                size = if (compact) 8.sp else 9.sp,
                 weight = FontWeight.Medium,
             ),
             maxLines = 1,
@@ -1739,6 +1764,7 @@ private fun MaterialHeader(
     state: VehicleStatusWidgetState,
     palette: WidgetPalette,
     showSubtitle: Boolean,
+    compact: Boolean,
 ) {
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
@@ -1749,7 +1775,7 @@ private fun MaterialHeader(
                 text = state.vehicleName,
                 style = widgetTextStyle(
                     color = palette.primaryText,
-                    size = 14.sp,
+                    size = if (compact) 12.sp else 14.sp,
                     weight = FontWeight.Bold,
                 ),
                 maxLines = 1,
@@ -1765,12 +1791,12 @@ private fun MaterialHeader(
                 )
             }
         }
-        Spacer(GlanceModifier.width(6.dp))
+        Spacer(GlanceModifier.width(if (compact) 3.dp else 6.dp))
         Text(
             text = state.connectionShortLabel,
             style = widgetTextStyle(
                 color = if (state.hasControlChannel) palette.connected else palette.secondaryText,
-                size = 9.sp,
+                size = if (compact) 8.sp else 9.sp,
                 weight = FontWeight.Medium,
             ),
             maxLines = 1,
@@ -1896,7 +1922,7 @@ private fun CompactMetrics(
         modifier = GlanceModifier.fillMaxWidth(),
         style = widgetTextStyle(
             color = palette.primaryText,
-            size = 9.sp,
+            size = 7.sp,
             weight = FontWeight.Medium,
         ),
         maxLines = 1,
@@ -1910,6 +1936,7 @@ private fun Metric(
     palette: WidgetPalette,
     modifier: GlanceModifier,
     valueSize: androidx.compose.ui.unit.TextUnit = 12.sp,
+    maxLines: Int = 1,
 ) {
     Column(modifier = modifier) {
         Text(
@@ -1927,7 +1954,7 @@ private fun Metric(
                 size = valueSize,
                 weight = FontWeight.Medium,
             ),
-            maxLines = 1,
+            maxLines = maxLines,
         )
     }
 }
