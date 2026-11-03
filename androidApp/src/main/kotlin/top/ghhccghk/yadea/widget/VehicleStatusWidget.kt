@@ -1655,7 +1655,7 @@ private fun WidgetActions(
     } else {
         ConnectVehicleBar(palette, compact)
     }
-    Spacer(GlanceModifier.height(5.dp))
+    Spacer(GlanceModifier.height(12.dp))
 }
 
 @Composable
