@@ -1087,7 +1087,7 @@ private fun VehicleStatusWidgetContent(state: VehicleStatusWidgetState) {
     val detailedStageHeight = if (widgetSize.height >= 320.dp) {
         (widgetSize.height.value * 0.50f).dp
     } else {
-        64.dp
+        48.dp
     }
     val darkTheme = resolveDarkTheme(context, state.themeMode)
     val seedColor = Color(state.seedColorArgb.toLong() and 0xFFFFFFFFL)
