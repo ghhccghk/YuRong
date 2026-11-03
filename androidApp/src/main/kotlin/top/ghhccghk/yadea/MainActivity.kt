@@ -49,6 +49,7 @@ import top.ghhccghk.yadea.vehicle.MutableVehicleProfileSource
 import top.ghhccghk.yadea.vehicle.VehicleCloudThemeController
 import top.ghhccghk.yadea.vehicle.VehicleProfileController
 import top.ghhccghk.yadea.vehicle.VehicleCloudStatusController
+import top.ghhccghk.yadea.vehicle.VehicleInfoFormatter
 import top.ghhccghk.yadea.vehicle.YadeaVehicleCloudControlGateway
 import top.ghhccghk.yadea.vehicle.VehicleBindingController
 import top.ghhccghk.yadea.vehicle.YadeaVehicleProfileGateway
@@ -242,9 +243,16 @@ class MainActivity : ComponentActivity() {
                     .map { it?.vin.orEmpty() }
                     .distinctUntilChanged(),
                 vehicleStatus.connected,
-            ) { vin, connected -> vin to connected }
-                .collect { (vin, connected) ->
-                    if (vin.isNotBlank() && !connected) {
+                vehicleStatus.status
+                    .map { status ->
+                        status != null &&
+                            VehicleInfoFormatter.format(status, connected = true)
+                                .rangeLabel != "—"
+                    }
+                    .distinctUntilChanged(),
+            ) { vin, connected, hasTtpRange -> Triple(vin, connected, hasTtpRange) }
+                .collect { (vin, connected, hasTtpRange) ->
+                    if (vin.isNotBlank() && (!connected || !hasTtpRange)) {
                         cloudStatusController.refresh(vin)
                     }
                 }

@@ -187,6 +187,30 @@ private fun resolveWidgetLockedState(
     }
 }
 
+private fun hasWidgetRangeLabel(value: String?): Boolean {
+    val normalized = value?.trim()?.removeSuffix("km")?.trim()
+    return !normalized.isNullOrBlank() && normalized != "—"
+}
+
+private fun widgetCloudRangeLabel(value: String?): String {
+    val normalized = value
+        ?.trim()
+        ?.removeSuffix("km")
+        ?.trim()
+        .orEmpty()
+    return if (normalized.isBlank() || normalized == "—") "—" else "$normalized km"
+}
+
+private fun preferredWidgetRangeLabel(
+    ttpLabel: String?,
+    cloudRange: String?,
+    cachedLabel: String? = null,
+): String = listOf(
+    ttpLabel,
+    widgetCloudRangeLabel(cloudRange),
+    cachedLabel,
+).firstOrNull(::hasWidgetRangeLabel) ?: "—"
+
 private suspend fun loadWidgetCloudStatus(
     context: Context,
     preferences: AppPreferences,
@@ -237,15 +261,21 @@ class VehicleStatusWidget : GlanceAppWidget() {
         )
         val fallbackAppearance = appPreferences.read()
         val fallbackWidgetProfile = appPreferences.readVehicleWidgetProfile()
+        val cachedStatus = appPreferences.readVehicleStatus()
+        val fallbackStatus = cachedStatus
+            ?.let { decodeCachedVehicleStatus(it.packetHex) }
         val liveBleConnected = isWidgetBleConnected(appContext)
-        val liveCloudStatus = if (liveBleConnected) {
-            null
-        } else {
+        val hasTtpRange = fallbackStatus
+            ?.let { VehicleInfoFormatter.format(it, connected = false).rangeLabel }
+            ?.let(::hasWidgetRangeLabel) == true
+        val liveCloudStatus = if (!liveBleConnected || !hasTtpRange) {
             loadWidgetCloudStatus(
                 context = appContext,
                 preferences = appPreferences,
                 profile = fallbackWidgetProfile,
             )
+        } else {
+            null
         }
         liveCloudStatus
             ?.soc
@@ -263,9 +293,6 @@ class VehicleStatusWidget : GlanceAppWidget() {
                     }
                 }
             }
-        val cachedStatus = appPreferences.readVehicleStatus()
-        val fallbackStatus = cachedStatus
-            ?.let { decodeCachedVehicleStatus(it.packetHex) }
         val fallbackCloudTheme = cachedStatus
             ?.vin
             ?.takeIf(String::isNotBlank)
@@ -778,11 +805,12 @@ internal class VehicleStatusWidgetCoordinator(
                 cloudSoc = cloudStatus?.soc,
                 connected = connected,
             ),
-            rangeLabel = formatted.rangeLabel.takeIf { it != "—" }
-                ?: cloudStatus?.remainingMileage
-                    ?.takeIf(String::isNotBlank)
-                    ?.let { "$it km" }
-                ?: "—",
+            rangeLabel = preferredWidgetRangeLabel(
+                ttpLabel = formatted.rangeLabel,
+                cloudRange = cloudStatus?.remainingMileage
+                    ?.takeIf(::hasWidgetRangeLabel)
+                    ?: profile?.remainingMileage,
+            ),
             statusSummary = statusSummary,
             uiStyle = appearance.uiStyle,
             themeMode = appearance.themeMode,
@@ -1019,9 +1047,11 @@ internal data class VehicleStatusWidgetState(
                     cloudSoc = liveCloudStatus?.soc,
                     connected = connected,
                 ),
-                rangeLabel = preferences[KEY_RANGE_LABEL]
-                    ?: fallbackFormatted?.rangeLabel
-                    ?: "—",
+                rangeLabel = preferredWidgetRangeLabel(
+                    ttpLabel = fallbackFormatted?.rangeLabel,
+                    cloudRange = liveCloudStatus?.remainingMileage,
+                    cachedLabel = preferences[KEY_RANGE_LABEL],
+                ),
                 statusSummary = fallbackSummary
                     ?: preferences[KEY_STATUS_SUMMARY]
                     ?.ifBlank { "车辆状态已同步" }
@@ -1049,6 +1079,9 @@ private fun VehicleStatusWidgetContent(state: VehicleStatusWidgetState) {
     val widgetSize = LocalSize.current
     val wide = widgetSize.width >= 220.dp
     val compact = widgetSize.height < 150.dp
+    val iconOnly = !wide && compact
+    val vehicleStageScale = if (compact) 0.56f else 0.52f
+    val vehicleStageWidth = (widgetSize.width.value * vehicleStageScale).dp
     val darkTheme = resolveDarkTheme(context, state.themeMode)
     val seedColor = Color(state.seedColorArgb.toLong() and 0xFFFFFFFFL)
     val palette = widgetPalette(
@@ -1105,23 +1138,27 @@ private fun VehicleStatusWidgetContent(state: VehicleStatusWidgetState) {
                     palette,
                     vehicleBitmap,
                     compact,
+                    vehicleStageWidth,
                 )
                 wide -> MaterialWideWidgetContent(
                     state,
                     palette,
                     vehicleBitmap,
                     compact,
+                    vehicleStageWidth,
                 )
                 state.uiStyle == UiThemeStyle.Miuix -> MiuixWidgetContent(
                     state = state,
                     palette = palette,
                     compact = compact,
+                    iconOnly = iconOnly,
                     vehicleBitmap = vehicleBitmap,
                 )
                 else -> MaterialWidgetContent(
                     state = state,
                     palette = palette,
                     compact = compact,
+                    iconOnly = iconOnly,
                     vehicleBitmap = vehicleBitmap,
                 )
             }
@@ -1135,6 +1172,7 @@ private fun MiuixWideWidgetContent(
     palette: WidgetPalette,
     vehicleBitmap: Bitmap?,
     compact: Boolean,
+    vehicleStageWidth: Dp,
 ) {
     Column(
         modifier = GlanceModifier
@@ -1146,7 +1184,7 @@ private fun MiuixWideWidgetContent(
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
-                .height(if (compact) 50.dp else 60.dp),
+                .height(if (compact) 54.dp else 68.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             WideMetrics(
@@ -1159,7 +1197,7 @@ private fun MiuixWideWidgetContent(
             Box(
                 modifier = GlanceModifier
                     .fillMaxHeight()
-                    .defaultWeight(),
+                    .width(vehicleStageWidth),
             ) {
                 VehicleStage(
                     state = state,
@@ -1182,6 +1220,7 @@ private fun MaterialWideWidgetContent(
     palette: WidgetPalette,
     vehicleBitmap: Bitmap?,
     compact: Boolean,
+    vehicleStageWidth: Dp,
 ) {
     Column(
         modifier = GlanceModifier
@@ -1193,7 +1232,7 @@ private fun MaterialWideWidgetContent(
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
-                .height(if (compact) 50.dp else 60.dp),
+                .height(if (compact) 54.dp else 68.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             WideMetrics(
@@ -1206,7 +1245,7 @@ private fun MaterialWideWidgetContent(
             Box(
                 modifier = GlanceModifier
                     .fillMaxHeight()
-                    .defaultWeight(),
+                    .width(vehicleStageWidth),
             ) {
                 VehicleStage(
                     state = state,
@@ -1306,6 +1345,7 @@ private fun MiuixWidgetContent(
     state: VehicleStatusWidgetState,
     palette: WidgetPalette,
     compact: Boolean,
+    iconOnly: Boolean,
     vehicleBitmap: Bitmap?,
 ) {
     Column(
@@ -1314,29 +1354,33 @@ private fun MiuixWidgetContent(
             .padding(if (compact) 6.dp else 12.dp),
     ) {
         MiuixHeader(state, palette, showSubtitle = !compact)
-        Spacer(GlanceModifier.height(if (compact) 2.dp else 5.dp))
+        Spacer(GlanceModifier.height(if (compact) 1.dp else 5.dp))
         VehicleStage(
             state = state,
             bitmap = vehicleBitmap,
             palette = palette,
-            height = if (compact) 28.dp else 58.dp,
-            radius = if (compact) 12.dp else 20.dp,
+            height = if (compact) 44.dp else 58.dp,
+            radius = if (compact) 14.dp else 20.dp,
         )
-        Spacer(GlanceModifier.height(if (compact) 2.dp else 5.dp))
+        Spacer(GlanceModifier.height(if (compact) 1.dp else 5.dp))
         if (compact) {
             CompactMetrics(state, palette)
         } else {
             MiuixMetrics(state, palette)
         }
-        Spacer(GlanceModifier.height(2.dp))
-        WidgetActions(state, palette, compact = compact)
-        Spacer(GlanceModifier.height(1.dp))
+        Spacer(GlanceModifier.height(if (compact) 1.dp else 2.dp))
+        WidgetActions(
+            state = state,
+            palette = palette,
+            compact = compact,
+            iconOnly = iconOnly,
+        )
         Text(
             text = state.displaySummary(),
             modifier = GlanceModifier.fillMaxWidth(),
             style = widgetTextStyle(
                 color = palette.secondaryText,
-                size = if (compact) 9.sp else 10.sp,
+                size = if (compact) 8.sp else 10.sp,
             ),
             maxLines = 1,
         )
@@ -1348,6 +1392,7 @@ private fun MaterialWidgetContent(
     state: VehicleStatusWidgetState,
     palette: WidgetPalette,
     compact: Boolean,
+    iconOnly: Boolean,
     vehicleBitmap: Bitmap?,
 ) {
     Column(
@@ -1361,7 +1406,7 @@ private fun MaterialWidgetContent(
             state = state,
             bitmap = vehicleBitmap,
             palette = palette,
-            height = if (compact) 28.dp else 54.dp,
+            height = if (compact) 42.dp else 54.dp,
             radius = 0.dp,
             useStageColor = false,
         )
@@ -1380,15 +1425,19 @@ private fun MaterialWidgetContent(
         } else {
             MaterialMetrics(state, palette)
         }
-        Spacer(GlanceModifier.height(2.dp))
-        WidgetActions(state, palette, compact = compact)
-        Spacer(GlanceModifier.height(1.dp))
+        Spacer(GlanceModifier.height(if (compact) 1.dp else 2.dp))
+        WidgetActions(
+            state = state,
+            palette = palette,
+            compact = compact,
+            iconOnly = iconOnly,
+        )
         Text(
             text = state.displaySummary(),
             modifier = GlanceModifier.fillMaxWidth(),
             style = widgetTextStyle(
                 color = palette.secondaryText,
-                size = if (compact) 9.sp else 10.sp,
+                size = if (compact) 8.sp else 10.sp,
             ),
             maxLines = 1,
         )
@@ -1413,9 +1462,15 @@ private fun WidgetActions(
     state: VehicleStatusWidgetState,
     palette: WidgetPalette,
     compact: Boolean,
+    iconOnly: Boolean = false,
 ) {
     if (state.hasVehicleIdentity) {
-        WidgetControls(state, palette, compact)
+        WidgetControls(
+            state = state,
+            palette = palette,
+            compact = compact,
+            iconOnly = iconOnly,
+        )
     } else {
         ConnectVehicleBar(palette, compact)
     }
@@ -1466,6 +1521,7 @@ private fun WidgetControls(
     state: VehicleStatusWidgetState,
     palette: WidgetPalette,
     compact: Boolean,
+    iconOnly: Boolean,
 ) {
     val context = LocalContext.current
     val rowModifier = if (compact) {
@@ -1502,6 +1558,7 @@ private fun WidgetControls(
             ),
             palette = palette,
             compact = compact,
+            iconOnly = iconOnly,
         )
         Spacer(GlanceModifier.width(3.dp))
         WidgetControlButton(
@@ -1513,6 +1570,7 @@ private fun WidgetControls(
             ),
             palette = palette,
             compact = compact,
+            iconOnly = iconOnly,
         )
         Spacer(GlanceModifier.width(3.dp))
         WidgetControlButton(
@@ -1530,6 +1588,7 @@ private fun WidgetControls(
             ),
             palette = palette,
             compact = compact,
+            iconOnly = iconOnly,
         )
         Spacer(GlanceModifier.width(3.dp))
         WidgetControlButton(
@@ -1539,6 +1598,7 @@ private fun WidgetControls(
             action = actionStartActivity(buildVehicleInfoIntent(context)),
             palette = palette,
             compact = compact,
+            iconOnly = iconOnly,
         )
     }
 }
@@ -1551,11 +1611,12 @@ private fun RowScope.WidgetControlButton(
     action: Action,
     palette: WidgetPalette,
     compact: Boolean,
+    iconOnly: Boolean,
 ) {
     Box(
         modifier = GlanceModifier
             .defaultWeight()
-            .height(if (compact) 20.dp else 30.dp)
+            .height(if (compact) 22.dp else 30.dp)
             .background(
                 ColorProvider(
                     when {
@@ -1569,7 +1630,18 @@ private fun RowScope.WidgetControlButton(
             .clickable(action),
         contentAlignment = Alignment.Center,
     ) {
-        if (compact) {
+        if (compact && iconOnly) {
+            Image(
+                provider = ImageProvider(iconRes),
+                contentDescription = label,
+                modifier = GlanceModifier.size(14.dp),
+                colorFilter = ColorFilter.tint(
+                    ColorProvider(
+                        if (enabled) palette.primaryText else palette.secondaryText,
+                    ),
+                ),
+            )
+        } else if (compact) {
             Text(
                 text = label,
                 style = widgetTextStyle(
@@ -1737,8 +1809,7 @@ private fun VehicleStage(
                 provider = ImageProvider(bitmap),
                 contentDescription = "${state.vehicleName}车辆外观",
                 modifier = GlanceModifier
-                    .fillMaxSize()
-                    .padding(horizontal = 5.dp, vertical = 1.dp),
+                    .fillMaxSize(),
                 contentScale = ContentScale.Fit,
             )
         } else {
