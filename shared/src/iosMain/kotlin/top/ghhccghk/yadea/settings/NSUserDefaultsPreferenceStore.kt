@@ -10,6 +10,9 @@ class NSUserDefaultsPreferenceStore(
     override fun <T : Any> read(key: PreferenceKey<T>): T {
         val name = storageName(key)
         return try {
+            // NSUserDefaults returns false/0 for absent scalar keys, unlike the other
+            // platform stores. Preserve PreferenceKey.defaultValue for unset values.
+            if (defaults.objectForKey(name) == null) return key.defaultValue
             when (key.type) {
                 PreferenceType.Boolean -> defaults.boolForKey(name)
                 PreferenceType.Int -> defaults.integerForKey(name).toInt()
