@@ -172,6 +172,7 @@ data class EmergencyContactUiState(
 class EmergencyContactController(
     private val gateway: EmergencyContactGateway?,
     private val vinProvider: () -> String,
+    private val ownerMobileFallbackProvider: () -> String = { "" },
     private val scope: CoroutineScope,
 ) {
     private val _state = MutableStateFlow(EmergencyContactUiState())
@@ -184,7 +185,9 @@ class EmergencyContactController(
         if (vin.isBlank() || job?.isActive == true) return
         job = scope.launch {
             _state.value = _state.value.copy(loading = true, message = null)
-            val contacts = runCatching { gateway.load(vin) }.getOrNull()
+            val contacts = runCatching { gateway.load(vin) }
+                .getOrNull()
+                ?.withOwnerMobileFallback(ownerMobileFallbackProvider)
             _state.value = _state.value.copy(
                 loading = false,
                 contacts = contacts ?: _state.value.contacts,
@@ -226,7 +229,10 @@ class EmergencyContactController(
             val saved = runCatching { gateway.save(vin, type, name, mobile) }
                 .getOrDefault(false)
             val contacts = if (saved) {
-                runCatching { gateway.load(vin) }.getOrNull() ?: _state.value.contacts
+                runCatching { gateway.load(vin) }
+                    .getOrNull()
+                    ?.withOwnerMobileFallback(ownerMobileFallbackProvider)
+                    ?: _state.value.contacts
             } else {
                 _state.value.contacts
             }
@@ -238,6 +244,13 @@ class EmergencyContactController(
             )
         }
     }
+
+    private fun EmergencyContacts.withOwnerMobileFallback(fallbackProvider: () -> String): EmergencyContacts =
+        if (ownerMobile.isEmpty()) {
+            copy(ownerMobile = fallbackProvider())
+        } else {
+            this
+        }
 
     fun clearMessage() {
         _state.value = _state.value.copy(message = null)

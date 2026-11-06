@@ -304,6 +304,9 @@ class MainActivity : ComponentActivity() {
                 timestampProvider = { System.currentTimeMillis() },
             ),
             vinProvider = { vehicleProfileSource.profile.value?.vin.orEmpty() },
+            ownerMobileFallbackProvider = {
+                appPreferences.readAuth().user?.mobile.orEmpty()
+            },
             scope = lifecycleScope,
         )
         val authGateway = YadeaAuthGateway(

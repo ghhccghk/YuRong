@@ -2,8 +2,8 @@
 
 ## 当前基线（2026-11-07）
 
-- Git HEAD（本轮修复前基线）：`0e04149 fix(auth): surface local session cleanup failures`
-- 分支状态：`master` 领先 `origin/master` 12 个提交；本轮修复提交后为 13 个
+- Git HEAD（本轮修复前基线）：`3ac4268 fix(vehicle): validate emergency contact input`
+- 分支状态：`master` 领先 `origin/master` 13 个提交；本轮修复提交后为 14 个
 - 已暂存修改：无
 - 未暂存跟踪文件修改：`git status` 显示大量文件，但 `git diff --ignore-space-at-eol --quiet` 成功，已确认均为 CRLF/LF 行尾噪声，没有真实内容修改；本次源码改动另行统计
 - 未跟踪文件：存在，均按受保护工作区内容处理
@@ -24,7 +24,7 @@
 | AUTH-CONTACT-CLEAR-006 | P2 | L2 | COMPLETED | 退出登录与换绑忽略本地清理失败并误报成功；已修复，测试源码编译通过、测试未执行 |
 | CONTACT-VALIDATE-007 | P2 | L2 | COMPLETED | 紧急联系人缺少手机号格式与重复号码校验；已恢复原校验顺序与文案 |
 | CONTACT-REQUEST-VALUES-008 | P3 | L2 | PENDING | 联系人请求错误地对姓名和手机号执行 `trim()` |
-| CONTACT-OWNER-FALLBACK-009 | P2 | L2 | PENDING | 云端车主手机号为空时未回退当前登录用户手机号 |
+| CONTACT-OWNER-FALLBACK-009 | P2 | L2 | COMPLETED | 云端车主手机号为空时未回退当前登录用户手机号；已修复，测试源码编译通过、测试未执行 |
 | CONTACT-INPUT-LIMITS-010 | P3 | L1 | PENDING | 联系人姓名缺少原 30 字符上限和 emoji 过滤 |
 
 ## 验证声明
@@ -48,4 +48,11 @@
 - `:desktopApp:build :androidApp:assembleDebug '-Pkotlin.incremental=false'`：`BUILD SUCCESSFUL`；71 个 task，11 executed、60 up-to-date。
 - 未运行 `jvmTest`、真实登录、云端请求、车辆设置写入、OTA、音效上传或设备操作。
 - 修改只涉及联系人公共校验、保存入口和测试源码；HTTP 参数、车辆命令、BLE、OTA 与投屏协议均未修改。
+- iOS 与真机行为尚未验证。
+
+### 本轮执行记录（CONTACT-OWNER-FALLBACK-009）
+
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm :desktopApp:build :androidApp:assembleDebug '-Pkotlin.incremental=false'`：`BUILD SUCCESSFUL`；79 个 task，17 executed、62 up-to-date。测试源码仅编译，不执行测试。
+- 未运行 `jvmTest`、真实登录、云端请求、车辆设置写入、OTA、音效上传或设备操作。
+- 修改只补充联系人加载结果的登录手机号回退与 Android 注入，不涉及 HTTP 参数、车辆命令、BLE、OTA 或投屏协议。
 - iOS 与真机行为尚未验证。

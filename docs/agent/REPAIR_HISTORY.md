@@ -62,3 +62,13 @@
 - 实际修改文件：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/vehicle/EmergencyContactGateway.kt`、`shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/screens/CarSettingsScreen.kt`、`shared/src/jvmTest/kotlin/top/ghhccghk/yadea/vehicle/EmergencyContactValidationTest.kt`
 - 验证：共享 JVM/JS/WasmJS 编译成功；`:shared:compileTestKotlinJvm` 成功；`:desktopApp:build` 成功；`:androidApp:assembleDebug` 成功。
 - 边界：未运行 `jvmTest`、真实登录、云端请求、车辆写入、OTA、上传或真机验证。
+
+## 2026-11-07 CONTACT-OWNER-FALLBACK-009
+
+- 问题：云端 `userMobile` 为空时，KMP 紧急联系人面板没有像原页面一样预填当前登录用户手机号。
+- Smali 对照：`EmergencyContactActivity.getOwnerInfo()` 与 `SosContactActivity.getOwnerInfo()` 在 `EmergencyContactsData.userMobile` 为 null 或空字符串时读取 `UserInfoBean.mobile`，非空云端值保持优先。
+- 修改：`EmergencyContactController` 在初次加载和保存后刷新时统一应用车主手机号回退；Android 入口通过 `ownerMobileFallbackProvider` 提供认证会话手机号，公共 UI 不直接访问平台存储。
+- 回归测试：新增空云端值使用登录手机号、非空云端值覆盖登录手机号 2 个测试；测试源码编译通过，测试本身未执行。
+- 实际修改文件：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/vehicle/EmergencyContactGateway.kt`、`androidApp/src/main/kotlin/top/ghhccghk/yadea/MainActivity.kt`、`shared/src/jvmTest/kotlin/top/ghhccghk/yadea/vehicle/EmergencyContactValidationTest.kt`
+- 验证：共享 JVM/JS/WasmJS 与 `:shared:compileTestKotlinJvm` 编译成功；`:desktopApp:build` 与 `:androidApp:assembleDebug` 成功。
+- 边界：未运行 `jvmTest`、真实登录、云端请求、车辆写入、OTA、上传或真机验证。

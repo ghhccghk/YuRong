@@ -1,8 +1,11 @@
 package top.ghhccghk.yadea.vehicle
 
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -107,12 +110,61 @@ class EmergencyContactValidationTest {
         controller.dispose()
         scope.cancel()
     }
+
+    @Test
+    fun loadUsesOwnerMobileFallbackOnlyWhenCloudValueIsEmpty() = runBlocking {
+        val gateway = RecordingEmergencyContactGateway().apply {
+            contacts = EmergencyContacts(vin = "VIN123", ownerMobile = "")
+        }
+        val scope = CoroutineScope(Dispatchers.Unconfined)
+        val controller = EmergencyContactController(
+            gateway = gateway,
+            vinProvider = { "VIN123" },
+            ownerMobileFallbackProvider = { "13800138000" },
+            scope = scope,
+        )
+
+        controller.load()
+        val state = withTimeout(5_000) {
+            controller.state.first { it.contacts != null }
+        }
+
+        assertEquals("13800138000", state.contacts?.ownerMobile)
+        controller.dispose()
+        scope.cancel()
+    }
+
+    @Test
+    fun loadKeepsCloudOwnerMobileOverFallback() = runBlocking {
+        val gateway = RecordingEmergencyContactGateway().apply {
+            contacts = EmergencyContacts(vin = "VIN123", ownerMobile = "13900139000")
+        }
+        val scope = CoroutineScope(Dispatchers.Unconfined)
+        val controller = EmergencyContactController(
+            gateway = gateway,
+            vinProvider = { "VIN123" },
+            ownerMobileFallbackProvider = { "13800138000" },
+            scope = scope,
+        )
+
+        controller.load()
+        val state = withTimeout(5_000) {
+            controller.state.first { it.contacts != null }
+        }
+
+        assertEquals("13900139000", state.contacts?.ownerMobile)
+        controller.dispose()
+        scope.cancel()
+    }
 }
 
 private class RecordingEmergencyContactGateway : EmergencyContactGateway {
     var saveCalls = 0
 
-    override suspend fun load(vin: String): EmergencyContacts? = EmergencyContacts(vin = vin)
+    var contacts: EmergencyContacts? = null
+
+    override suspend fun load(vin: String): EmergencyContacts? =
+        contacts ?: EmergencyContacts(vin = vin)
 
     override suspend fun save(
         vin: String,
