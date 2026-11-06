@@ -4,9 +4,10 @@
 - 仓库：`F:\android app code\toupin`
 - 原始 Smali：`F:\android app code\YadeaHook\temp_smali`
 - Git 分支：`master`
-- HEAD：`a23b3d4 fix(mirror): keep camera source resolution unlocked`
-- 上游：`origin/master`，当前分支领先 7 个提交
-- 基线工作区：无已暂存修改，无未暂存跟踪文件修改
+- HEAD：`035750d fix(settings): honor iOS defaults for missing keys`
+- 上游：`origin/master`，当前分支领先 9 个提交
+- 基线工作区：无已暂存修改；`git status` 中大量跟踪文件显示为已修改，但 `git diff --ignore-space-at-eol --quiet` 成功，已确认均为 CRLF/LF 行尾噪声，没有真实内容修改
+- 未跟踪内容：存在用户日志、崩溃记录、APK、JADX 输出、`docs/flutter/` 和审计文档等；全部按受保护内容处理，不清理、不暂存、不提交
 
 ## 审计范围
 
@@ -59,6 +60,7 @@
 - 已读项目根目录 `AGENTS.md`。
 - 已完成 Git 状态、模块、Source Set、Gradle 配置和 Smali 目录的只读检查。
 - 尚未运行任何单元测试、真实登录、云端请求、车辆写入或真机验证。
+- Android Debug 构建在当前 WSL/Linux 环境被本机 SDK 阻塞：`F:\sdk` 的 build-tools 为 Windows 版，仅包含 `.exe`，Linux AGP 无法找到 `aapt`。未修改 SDK 或 `local.properties`。
 - 编译结果只在实际执行后登记，不能由静态检查代替。
 - 本任务不以“代码已存在”等同于“行为已恢复”；每项功能仍需有对应 Smali 调用链或明确跨平台契约证据。
 

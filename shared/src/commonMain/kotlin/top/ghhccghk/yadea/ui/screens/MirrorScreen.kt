@@ -73,6 +73,9 @@ fun MirrorScreen(
     }
 
     val isMirroring = mirrorState == MirrorState.Running
+    // 平台没有任何可用帧源时，底部启动入口与一键投屏都必须 fail closed，
+    // 避免用户进入一个只能以“失败”结束的流程。
+    val hasSupportedSource = sourceCapabilities.any { it.supported }
     val dimensions = AppDesign.dimensions
 
     // 协商阶段的加载弹窗允许手动关闭，避免长时间等待时界面被完全锁死。
@@ -94,6 +97,16 @@ fun MirrorScreen(
                 title = "投屏控制",
                 subtitle = mirrorStatus,
             )
+        }
+
+        if (!hasSupportedSource) {
+            item {
+                AppTip(
+                    kind = AppTipKind.Warning,
+                    title = "当前平台没有可用的投屏源",
+                    message = "摄像头、屏幕、视频和导航源均不可用，投屏入口已禁用。",
+                )
+            }
         }
 
         if (mirrorState == MirrorState.Failed) {
@@ -124,7 +137,7 @@ fun MirrorScreen(
                 ) {
                     AppButton(
                         onClick = { viewModel.startAutoMirror() },
-                        enabled = !autoConnecting,
+                        enabled = !autoConnecting && hasSupportedSource,
                         modifier = Modifier.weight(1f),
                     ) {
                         AppText(if (autoConnecting) "建链中…" else "一键投屏")
@@ -400,7 +413,8 @@ fun MirrorScreen(
                             )
                         },
                         modifier = Modifier.weight(1f).height(56.dp),
-                        enabled = targetHost.isNotEmpty() &&
+                        enabled = hasSupportedSource &&
+                            targetHost.isNotEmpty() &&
                             (selectedSource != 2 && selectedSource != 3 || sourceUri.isNotEmpty()),
                     ) {
                         AppText("▶ 开始投屏", style = AppDesign.typography.button)

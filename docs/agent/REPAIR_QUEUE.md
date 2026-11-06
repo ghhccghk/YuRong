@@ -27,8 +27,24 @@
 - 安全等级：L2
 - 修复方案：先审计 `rememberAppAppearance()`、其他 `AppPreferences.observe()` 调用方和各平台写入路径；若所有用户可见写入都经过本地状态，则不应擅自扩大改动。若确认存在陈旧状态，再采用各平台原生变更通知或统一封装修复。
 - 验证方式：静态调用链审计；仅在无外部请求风险时增加不触发真实服务的测试。
-- 当前状态：ANALYZING
-- 尝试次数：0
+- 当前状态：BLOCKED
+- 尝试次数：1
+- 阻塞原因：`observe()` 的唯一用户可见调用方是 `rememberAppAppearance()`，另一个调用方是 Android 小组件；外观写入先更新 Compose 状态再异步持久化。现有调用链无法证明会出现用户可见陈旧状态，也缺少同进程外存储写入的产品需求证据。未经证据扩大平台观察实现不符合最小修改原则。
+
+## MIRROR-SOURCE-GATE-003
+
+- 唯一 ID：`MIRROR-SOURCE-GATE-003`
+- 原始 Smali 位置：不适用。该项是 KMP 平台能力门控差异；原始 Android App 只包含 Android 帧源路径。
+- KMP 实现位置：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/screens/MirrorScreen.kt`；能力来源为 `AppViewModel.sourceCapabilities` 与各平台 `FrameSourceFactory`。
+- 问题描述：iOS/Web 入口未传入 `FrameSourceFactory` 时 `sourceCapabilities` 为空。各帧源按钮已禁用，但“一键投屏”和“开始投屏”仍可点击，随后进入必然失败的流程。
+- 对照证据：`AppViewModel.sourceCapabilities` 在工厂缺失时返回空列表；帧源按钮通过 `supports()` 禁用；原启动按钮没有统一门控。
+- 优先级：P3
+- 安全等级：L1
+- 修复方案：从能力列表计算 `hasSupportedSource`；无可用源时显示明确警告，并同时禁用“一键投屏”和“开始投屏”。不修改 TCP/UDP、帧发送、BLE、车辆命令或投屏协议。
+- 验证方式：`git diff --check`；共享 JVM/JS/WasmJS 编译；Desktop 构建；Android 构建按实际环境结果记录；真机未验证。
+- 当前状态：COMPLETED
+- 尝试次数：1
+- 完成说明：已于 2026-11-07 完成最小 UI 门控修复。共享 JVM/JS/WasmJS 编译与 Desktop 构建成功；Android Debug 构建因本机 SDK build-tools 为 Windows 版而被阻塞，不能宣称 Android 构建通过。真机行为尚未验证。
 
 ## 观察项（尚未登记为缺陷）
 
