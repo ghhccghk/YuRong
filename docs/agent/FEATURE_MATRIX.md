@@ -19,6 +19,7 @@
 | 云端主题 | `vehicle/VehicleCloudTheme.kt` | 待核验 | 已有 VIN 缓存与背景映射约束 | 禁止真实云端请求 |
 | BLE / OTA / 投屏协议 | 各平台适配与协议层 | 只读审计 | 属于 L3，本轮默认不修改；`NETWORK-PLATFORM-004` 记录非 Android TCP/UDP 未实现且异常未在启动协程内捕获 | 禁止设备操作 |
 | 投屏能力门控 | `ui/screens/MirrorScreen.kt`、`ui/state/AppViewModel.kt` | 已实现，编译验证 | `MIRROR-SOURCE-GATE-003`：无可用帧源时禁用“一键投屏”和“开始投屏”并显示原因；未改变投屏协议 | 共享 JVM/JS/WasmJS 与 Desktop 编译通过；Android 构建受 SDK 阻塞；真机未验证 |
+| 紧急联系人 | `vehicle/EmergencyContactGateway.kt`、`ui/screens/CarSettingsScreen.kt` | 部分实现 | `CONTACT-VALIDATE-007` 已恢复原手机号格式与重复号码校验；`CONTACT-REQUEST-VALUES-008`、`CONTACT-OWNER-FALLBACK-009`、`CONTACT-INPUT-LIMITS-010` 仍待修复 | 测试源码已编译但未执行；禁止真实云端写入或真机验证 |
 | 桌面小组件 | `androidApp/.../widget/` | 待核验 | 已有多项近期提交，需继续对照原行为 | 未做 Android 真机小组件检查 |
 | HTTP 平台能力 | 各平台网络适配 | 已审计，未发现假成功 | 平台不可用时返回 `null`，调用方映射为 `null`、`Failure`、`false` 或空列表；未发现把不可用当成功 | 静态调用链审计；禁止真实请求 |
 | TCP/UDP 平台传输 | `shared/src/{iosMain,jsMain,wasmJsMain}/.../network/Network.*.kt` | 只读审计，阻塞 | 工厂直接抛 `UnsupportedOperationException`；JS/WasmJS 文案误写为 iOS；投屏协议边界，未经授权不修改 | 静态调用链审计；无真机或协议验证 |
@@ -31,4 +32,6 @@
 4. 已完成 `SETTINGS-FUTURE-SCHEMA-005`：未来 schema 下所有 typed 写入域均被阻止，测试源码已编译但测试未执行。
 5. 已完成 `AUTH-CONTACT-CLEAR-006`：退出登录与换绑会正确反映本地清理失败，并重新读取真实会话状态；测试源码编译通过但未执行。
 6. `NETWORK-PLATFORM-004` 涉及投屏 TCP/UDP 与启动协程异常边界，按 L3 阻塞，等待明确授权与平台协议证据。
-7. 继续选择有 Smali 调用链或明确跨平台契约支撑的独立问题，优先处理 P2/P3 行为差异。
+7. 已完成 `CONTACT-VALIDATE-007`：紧急联系人输入校验已恢复；测试源码编译通过但未执行。
+8. 下一步优先处理 `CONTACT-OWNER-FALLBACK-009`，其次为 `CONTACT-REQUEST-VALUES-008` 与 `CONTACT-INPUT-LIMITS-010`。
+9. 继续选择有 Smali 调用链或明确跨平台契约支撑的独立问题，优先处理 P2/P3 行为差异。

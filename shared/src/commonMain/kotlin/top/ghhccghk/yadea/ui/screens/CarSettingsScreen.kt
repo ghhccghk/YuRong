@@ -896,9 +896,8 @@ fun CarSettingsScreen(
                         )
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = ownerName.isNotBlank() &&
-                        ownerMobile.isNotBlank() &&
-                        contactState?.savingType == null,
+                    enabled = contactState?.savingType == null &&
+                        contactState?.loading != true,
                 ) {
                     AppText(
                         if (contactState?.savingType == ContactType.Owner) "保存中…" else "保存车主",
@@ -931,9 +930,8 @@ fun CarSettingsScreen(
                         )
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = emergencyName.isNotBlank() &&
-                        emergencyMobile.isNotBlank() &&
-                        contactState?.savingType == null,
+                    enabled = contactState?.savingType == null &&
+                        contactState?.loading != true,
                 ) {
                     AppText(
                         if (contactState?.savingType == ContactType.Emergency) {

@@ -52,3 +52,13 @@
 - 回归测试：新增换绑清理失败、换绑清理成功、登出清理失败 3 个测试；测试源码编译通过，测试本身未执行。
 - 验证：共享 JVM/JS/WasmJS 编译成功；`:shared:compileTestKotlinJvm` 成功；`:desktopApp:build` 成功；`:androidApp:assembleDebug` 成功。
 - 边界：未运行 `jvmTest`、真实登录、云端请求、车辆写入、OTA、上传或真机验证。
+
+## 2026-11-07 CONTACT-VALIDATE-007
+
+- 问题：紧急联系人保存入口只检查非空，缺少原弹窗的手机号格式和车主/紧急联系人重复号码校验。
+- 对照：`UpdateContactInfoPopup.X()` 依次要求姓名非空、手机号非空、手机号首字符为 `1` 且长度为 11、号码不得等于另一联系人号码。
+- 修改：在 `EmergencyContactController.save()` 的公共业务入口恢复相同顺序和文案；无效输入不调用网关。保存按钮不再以非空条件阻止点击，使空值也能显示原校验提示。
+- 回归测试：新增 `EmergencyContactValidationTest.kt`，覆盖姓名、手机号格式、重复号码、有效输入及无效输入不触发网关；测试源码编译通过，测试本身未执行。
+- 实际修改文件：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/vehicle/EmergencyContactGateway.kt`、`shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/screens/CarSettingsScreen.kt`、`shared/src/jvmTest/kotlin/top/ghhccghk/yadea/vehicle/EmergencyContactValidationTest.kt`
+- 验证：共享 JVM/JS/WasmJS 编译成功；`:shared:compileTestKotlinJvm` 成功；`:desktopApp:build` 成功；`:androidApp:assembleDebug` 成功。
+- 边界：未运行 `jvmTest`、真实登录、云端请求、车辆写入、OTA、上传或真机验证。

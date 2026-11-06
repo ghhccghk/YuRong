@@ -34,6 +34,22 @@ enum class ContactType(val value: String) {
     Emergency("2"),
 }
 
+internal fun emergencyContactValidationError(
+    type: ContactType,
+    name: String,
+    mobile: String,
+    otherMobile: String,
+): String? = when {
+    name.isEmpty() && type == ContactType.Owner -> "请输入您的姓名"
+    name.isEmpty() -> "请输入紧急联系人的姓名"
+    mobile.isEmpty() -> "请输入手机号"
+    mobile.firstOrNull() != '1' || mobile.length != 11 -> "请输入正确的手机号"
+    mobile == otherMobile && type == ContactType.Owner ->
+        "手机号不能与紧急联系人手机号相同"
+    mobile == otherMobile -> "手机号不能与车主手机号相同"
+    else -> null
+}
+
 /**
  * `vehiclebase/bikeEmergencyContact/select` 与 `/insert`。
  *
@@ -182,6 +198,25 @@ class EmergencyContactController(
         val gateway = gateway ?: return
         val vin = vinProvider().trim()
         if (vin.isBlank() || job?.isActive == true) return
+        val contacts = _state.value.contacts
+        val otherMobile = when (type) {
+            ContactType.Owner -> contacts?.emergencyMobile.orEmpty()
+            ContactType.Emergency -> contacts?.ownerMobile.orEmpty()
+        }
+        val validationError = emergencyContactValidationError(
+            type = type,
+            name = name,
+            mobile = mobile,
+            otherMobile = otherMobile,
+        )
+        if (validationError != null) {
+            _state.value = _state.value.copy(
+                savingType = null,
+                message = validationError,
+                success = false,
+            )
+            return
+        }
         job = scope.launch {
             _state.value = _state.value.copy(
                 savingType = type,

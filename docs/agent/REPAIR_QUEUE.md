@@ -91,6 +91,62 @@
 - 尝试次数：1
 - 完成说明：已于 2026-11-07 修复换绑和退出登录的本地清理失败反馈。新增 3 个回归测试源码，覆盖清理失败、成功以及登出失败路径；测试源码编译通过，测试未执行。共享 JVM/JS/WasmJS、Desktop 和 Android Debug 构建均成功；真机行为尚未验证。
 
+## CONTACT-VALIDATE-007
+
+- 唯一 ID：`CONTACT-VALIDATE-007`
+- 原始 Smali 位置：`com/yadea/smartmoto/vehicle/pop/UpdateContactInfoPopup.smali` 的 `X()`（约 560-749）；布局 `dialog_update_contact_info.xml`。
+- KMP 实现位置：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/vehicle/EmergencyContactGateway.kt` 的 `EmergencyContactController.save()`；`shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/screens/CarSettingsScreen.kt` 联系人编辑面板；回归测试为 `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/vehicle/EmergencyContactValidationTest.kt`。
+- 问题描述：KMP 只检查姓名和手机号非空，缺少原弹窗的手机号格式与重复号码校验，会把 `23800138000`、10 位号码或车主/紧急联系人重复号码直接提交到云端。
+- 对照证据：Smali `X()` 依次检查姓名非空、手机号非空、首字符为 `1` 且长度为 11、号码不等于另一联系人号码；错误文案和车主/紧急联系人分支均已从实际指令确认。
+- 优先级：P2
+- 安全等级：L2
+- 修复方案：在公共控制器提交入口按原顺序执行同一组校验；无效输入显示原错误文案且不调用网关；保存按钮在未加载和未保存期间保持可用，以便空值提交也能得到原提示。不修改 HTTP 参数、车辆命令、BLE、OTA 或投屏逻辑。
+- 验证方式：`git diff --check`；共享 JVM/JS/WasmJS 编译；`:shared:compileTestKotlinJvm` 仅编译测试源码；Desktop 构建；Android Debug 构建。
+- 当前状态：COMPLETED
+- 尝试次数：1
+- 完成说明：已于 2026-11-07 恢复联系人输入校验并增加回归测试源码。共享 JVM/JS/WasmJS、测试源码、Desktop 和 Android Debug 均编译成功；测试本身未执行，未发起任何云端或车辆请求。
+
+## CONTACT-REQUEST-VALUES-008
+
+- 唯一 ID：`CONTACT-REQUEST-VALUES-008`
+- 原始 Smali 位置：`EmergencyContactActivity.insertData()` / `SosContactActivity.insertData()`；`VehicleSettingViewModel.s6()`。
+- KMP 实现位置：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/vehicle/EmergencyContactGateway.kt` 的 `save()`。
+- 问题描述：KMP 对 `name`、`mobile` 调用 `trim()` 后才写入请求；Smali 的 `insertData()` 将弹窗返回值原样放入 `name`、`mobile` 参数，没有去空格步骤。
+- 对照证据：Smali `insertData()` 直接 `Map.put("name", p1)`、`Map.put("mobile", p2)`；字段校验也按原始文本长度执行。
+- 优先级：P3
+- 安全等级：L2
+- 修复方案：只移除联系人保存参数的 `trim()`，保留 token/VIN 清理与既有签名编码；增加请求体映射测试，确认前后空格原样进入业务字段。
+- 验证方式：静态请求体测试源码编译；共享 JVM/JS/WasmJS 编译；不执行真实 HTTP。
+- 当前状态：PENDING
+- 尝试次数：0
+
+## CONTACT-OWNER-FALLBACK-009
+
+- 唯一 ID：`CONTACT-OWNER-FALLBACK-009`
+- 原始 Smali 位置：`EmergencyContactActivity.getOwnerInfo()` / `SosContactActivity.getOwnerInfo()` 中 `userMobile` 为空时读取 `UserInfoBean.mobile` 的分支。
+- KMP 实现位置：`EmergencyContactGateway.load()` 与 `CarSettingsScreen` 的联系人表单初始化。
+- 问题描述：云端车主手机号为空时，原页面会用当前登录用户手机号预填车主手机号；KMP 保持为空，用户需要重新输入自己的号码。
+- 对照证据：Smali 在 `EmergencyContactsData.userMobile` 为空或空白时回退 `zm3.B0().mobile`，随后写入 `UpdateContactInfoPopData.tel`。
+- 优先级：P2
+- 安全等级：L2
+- 修复方案：在业务状态映射层提供登录用户手机号回退，不让 UI 直接访问平台认证存储；仍以云端 `userMobile` 非空值优先。
+- 验证方式：纯数据映射测试源码编译；共享编译；禁止真实登录或云端请求。
+- 当前状态：PENDING
+- 尝试次数：0
+
+## CONTACT-INPUT-LIMITS-010
+
+- 唯一 ID：`CONTACT-INPUT-LIMITS-010`
+- 原始 Smali 位置：`UpdateContactInfoPopup.E()` 的 `EmojiFilter`；布局 `dialog_update_contact_info.xml` 的 `et_name`、`et_phone_number`。
+- KMP 实现位置：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/screens/CarSettingsScreen.kt` 联系人表单。
+- 问题描述：原姓名输入限制为最多 30 个字符并过滤 emoji；KMP 姓名输入没有长度上限或 emoji 过滤。手机号的数字与 11 位输入限制已经与原布局一致。
+- 对照证据：Smali 对 `et_name` 设置默认 `EmojiFilter(30)`；布局对 `et_phone_number` 设置 `inputType="number"`、`maxLength="11"`。
+- 优先级：P3
+- 安全等级：L1
+- 修复方案：在公共联系人表单对姓名统一执行 30 字符上限和已确认的 emoji 范围过滤，不复制到两个主题分支。
+- 验证方式：纯输入变换测试；共享编译与双主题静态检查。
+- 当前状态：PENDING
+- 尝试次数：0
 ## 观察项（尚未登记为缺陷）
 
 - iOS/JS/WasmJS HTTP 能力是否以显式 `UnavailableHttpTransport` 表达，以及公共 UI 是否对不可用能力正确隐藏或禁用；需单独对照后才能决定优先级。

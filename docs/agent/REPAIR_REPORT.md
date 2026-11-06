@@ -2,8 +2,8 @@
 
 ## 当前基线（2026-11-07）
 
-- Git HEAD（修复前基线）：`c7d2748 fix(settings): block writes for future schema`
-- 分支状态：`master` 领先 `origin/master` 11 个提交；本轮修复提交后为 12 个
+- Git HEAD（本轮修复前基线）：`0e04149 fix(auth): surface local session cleanup failures`
+- 分支状态：`master` 领先 `origin/master` 12 个提交；本轮修复提交后为 13 个
 - 已暂存修改：无
 - 未暂存跟踪文件修改：`git status` 显示大量文件，但 `git diff --ignore-space-at-eol --quiet` 成功，已确认均为 CRLF/LF 行尾噪声，没有真实内容修改；本次源码改动另行统计
 - 未跟踪文件：存在，均按受保护工作区内容处理
@@ -22,6 +22,10 @@
 | NETWORK-PLATFORM-004 | P3 | L3 | BLOCKED | 非 Android TCP/UDP 未实现且异常位于投屏启动协程异常处理范围之外；协议边界待授权 |
 | SETTINGS-FUTURE-SCHEMA-005 | P3 | L2 | COMPLETED | 未来 schema 下 typed 缓存与设置写入未统一阻止；已修复，测试源码编译通过、测试未执行 |
 | AUTH-CONTACT-CLEAR-006 | P2 | L2 | COMPLETED | 退出登录与换绑忽略本地清理失败并误报成功；已修复，测试源码编译通过、测试未执行 |
+| CONTACT-VALIDATE-007 | P2 | L2 | COMPLETED | 紧急联系人缺少手机号格式与重复号码校验；已恢复原校验顺序与文案 |
+| CONTACT-REQUEST-VALUES-008 | P3 | L2 | PENDING | 联系人请求错误地对姓名和手机号执行 `trim()` |
+| CONTACT-OWNER-FALLBACK-009 | P2 | L2 | PENDING | 云端车主手机号为空时未回退当前登录用户手机号 |
+| CONTACT-INPUT-LIMITS-010 | P3 | L1 | PENDING | 联系人姓名缺少原 30 字符上限和 emoji 过滤 |
 
 ## 验证声明
 
@@ -36,3 +40,12 @@
 - 未运行 `jvmTest`、真实登录、云端请求、车辆设置写入、OTA、音效上传或设备操作。
 - 当前修改目标是认证会话的本地清理失败反馈；JVM/JS/WasmJS、Desktop 与 Android Debug 已验证编译，iOS 与真机行为尚未验证。
 - 当前工作区仍有大量受保护 CRLF/LF 状态噪声和未跟踪用户文件；本项只暂存 7 个明确 pathspec。
+
+### 本轮执行记录（CONTACT-VALIDATE-007）
+
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs '-Pkotlin.incremental=false'`：`BUILD SUCCESSFUL`；15 个 task，7 executed、8 up-to-date。
+- `:shared:compileTestKotlinJvm '-Pkotlin.incremental=false'`：`BUILD SUCCESSFUL`；14 个 task，5 executed、9 up-to-date。仅编译测试源码，不执行测试。
+- `:desktopApp:build :androidApp:assembleDebug '-Pkotlin.incremental=false'`：`BUILD SUCCESSFUL`；71 个 task，11 executed、60 up-to-date。
+- 未运行 `jvmTest`、真实登录、云端请求、车辆设置写入、OTA、音效上传或设备操作。
+- 修改只涉及联系人公共校验、保存入口和测试源码；HTTP 参数、车辆命令、BLE、OTA 与投屏协议均未修改。
+- iOS 与真机行为尚未验证。
