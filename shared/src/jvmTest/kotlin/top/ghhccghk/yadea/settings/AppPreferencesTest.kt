@@ -14,6 +14,7 @@ import top.ghhccghk.yadea.ui.UiThemeStyle
 import top.ghhccghk.yadea.auth.AuthUser
 import top.ghhccghk.yadea.mirror.MirrorQualityPreset
 import top.ghhccghk.yadea.mirror.MirrorQualitySettings
+import top.ghhccghk.yadea.vehicle.VehicleCloudTheme
 
 class AppPreferencesTest {
     @Test
@@ -174,6 +175,39 @@ class AppPreferencesTest {
 
         assertTrue(preferences.clearVehicleSession() is PreferenceWriteResult.Success)
         assertEquals(VehicleWidgetProfileCache(), preferences.readVehicleWidgetProfile())
+    }
+
+    @Test
+    fun newerSchemaBlocksEveryPreferenceWriteDomain() = runBlocking {
+        val store = InMemoryPreferenceStore()
+        val futureVersion = AppPreferenceKeys.SCHEMA_VERSION + 1
+        store.write(AppPreferenceKeys.schemaVersion, futureVersion)
+        store.write(AppPreferenceKeys.vehicleLastMac, "AA:BB")
+        store.write(AppPreferenceKeys.vehicleWidgetVin, "VIN-FUTURE")
+        store.write(AppPreferenceKeys.vehicleCloudThemeVin, "VIN-FUTURE")
+        val preferences = AppPreferences(store)
+
+        assertTrue(
+            preferences.writeVehiclePreferences(autoConnect = true, foregroundService = false) is
+                PreferenceWriteResult.Failure,
+        )
+        assertTrue(
+            preferences.writeVehicleWidgetProfile(
+                VehicleWidgetProfileCache(vin = "VIN-NEW"),
+            ) is PreferenceWriteResult.Failure,
+        )
+        // Interface writes cache state without a result; the final snapshot assertions
+        // verify the future schema prevented this domain from overwriting cache keys.
+        preferences.writeVehicleCloudTheme(
+            VehicleCloudTheme(vin = "VIN-NEW"),
+        )
+        assertTrue(preferences.writeMirrorQuality(MirrorQualitySettings()) is PreferenceWriteResult.Failure)
+        assertTrue(preferences.write(AppAppearance()) is PreferenceWriteResult.Failure)
+
+        assertEquals(futureVersion, store.read(AppPreferenceKeys.schemaVersion))
+        assertEquals("AA:BB", store.read(AppPreferenceKeys.vehicleLastMac))
+        assertEquals("VIN-FUTURE", store.read(AppPreferenceKeys.vehicleWidgetVin))
+        assertEquals("VIN-FUTURE", store.read(AppPreferenceKeys.vehicleCloudThemeVin))
     }
 
     @Test

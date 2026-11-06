@@ -4,10 +4,11 @@
 - 仓库：`F:\android app code\toupin`
 - 原始 Smali：`F:\android app code\YadeaHook\temp_smali`
 - Git 分支：`master`
-- HEAD：`035750d fix(settings): honor iOS defaults for missing keys`
-- 上游：`origin/master`，当前分支领先 9 个提交
+- HEAD：`4a181fe fix(mirror): disable unsupported mirror actions`
+- 上游：`origin/master`，当前分支领先 10 个提交
 - 基线工作区：无已暂存修改；`git status` 中大量跟踪文件显示为已修改，但 `git diff --ignore-space-at-eol --quiet` 成功，已确认均为 CRLF/LF 行尾噪声，没有真实内容修改
 - 未跟踪内容：存在用户日志、崩溃记录、APK、JADX 输出、`docs/flutter/` 和审计文档等；全部按受保护内容处理，不清理、不暂存、不提交
+- 本轮真实源码改动：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/settings/AppPreferences.kt`、`shared/src/jvmTest/kotlin/top/ghhccghk/yadea/settings/AppPreferencesTest.kt`；提交前须与既有行尾噪声分开核验
 
 ## 审计范围
 
@@ -60,6 +61,9 @@
 - 已读项目根目录 `AGENTS.md`。
 - 已完成 Git 状态、模块、Source Set、Gradle 配置和 Smali 目录的只读检查。
 - 尚未运行任何单元测试、真实登录、云端请求、车辆写入或真机验证。
+- 已执行 `:shared:compileTestKotlinJvm`；该任务只编译测试源码，不执行测试。首次编译发现新测试存在不可能的 `is Failure` 断言，已按实际接口契约修正后重新通过。
+- 最近一次共享 JVM/JS/WasmJS 编译和 Desktop 构建成功；Android Debug 构建仍被本机 Windows 版 SDK build-tools 阻塞，iOS 目标需 macOS。
+- 非 Android TCP/UDP 工厂仍直接抛 `UnsupportedOperationException`，且 JS/WasmJS 文案错误地写成 iOS；因网络传输处于投屏协议边界，已登记为 `NETWORK-PLATFORM-004` 并暂停修改。
 - Android Debug 构建在当前 WSL/Linux 环境被本机 SDK 阻塞：`F:\sdk` 的 build-tools 为 Windows 版，仅包含 `.exe`，Linux AGP 无法找到 `aapt`。未修改 SDK 或 `local.properties`。
 - 编译结果只在实际执行后登记，不能由静态检查代替。
 - 本任务不以“代码已存在”等同于“行为已恢复”；每项功能仍需有对应 Smali 调用链或明确跨平台契约证据。
@@ -67,6 +71,8 @@
 ## 跨平台契约要点
 
 `PreferenceStore.read()` 的调用方依赖 `PreferenceKey.defaultValue` 处理键缺失。Android、JVM、JS 和 WasmJS 后端都显式返回默认值；iOS 后端也必须保持相同语义。平台 API 对缺失标量键的零值返回行为不能被直接暴露为业务默认值。
+
+设置写入由 `AppPreferences` 统一保护：存储中的 schema 高于 `AppPreferenceKeys.SCHEMA_VERSION` 时，所有经 `writeTyped()` 的领域写入返回 `Failure`，不得把未来配置降回当前版本。`writeAuth()` 因安全 token 存储不走该入口，保留独立的前置 schema 检查。
 
 ## 持续审计方法
 

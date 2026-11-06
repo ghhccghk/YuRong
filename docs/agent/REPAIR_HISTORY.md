@@ -26,3 +26,19 @@
 - 验证：JVM/JS/WasmJS 共享编译成功；Desktop 构建成功。
 - Android 验证：Android Debug 构建未完成。当前 WSL/Linux 环境读取 `F:\sdk` 的 Windows build-tools（只有 `.exe`），Linux AGP 报缺少 `aapt`；属于本机构建环境阻塞，不是本次源码编译错误。
 - 边界：未运行测试、真实登录、云端请求、车辆写入、OTA、上传或真机验证。
+
+## 2026-11-07 NETWORK-PLATFORM-004
+
+- 问题：iOS/JS/WasmJS 的 TCP/UDP 工厂直接抛 `UnsupportedOperationException`；JS/WasmJS 文案错误地引用 iOS；投屏启动协程在后续 try/catch 之前调用工厂。
+- 对照：三个平台 actual 工厂无可用传输实现；`AppViewModel` 的调用位置位于 TCP 连接异常处理范围之外。
+- 处理：按投屏协议边界标记 `BLOCKED`，未修改源码。错误文案也不单独修改，避免把协议能力缺失伪装成文案问题。
+- 验证：仅完成静态调用链审计；未运行网络测试、真实投屏或真机验证。
+
+## 2026-11-07 SETTINGS-FUTURE-SCHEMA-005
+
+- 问题：未来 schema 保护未覆盖经 `writeTyped()` 写入的车辆、缓存、主题和画质设置，可能把更高版本配置降回当前版本。
+- 修改：在 `writeTyped()` 单一写入入口统一检查未来 schema；删除 `write()`、`writeMirrorQuality()` 的重复检查；`writeAuth()` 保留安全 token 写入前检查。
+- 实际修改文件：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/settings/AppPreferences.kt`、`shared/src/jvmTest/kotlin/top/ghhccghk/yadea/settings/AppPreferencesTest.kt`
+- 回归测试：新增 `newerSchemaBlocksEveryPreferenceWriteDomain`。`writeVehicleCloudTheme` 是无返回值接口方法，测试改为调用后断言缓存键未变化；测试源码编译通过，测试本身未执行。
+- 验证：共享 JVM/JS/WasmJS 编译成功；Desktop 构建成功；`:shared:compileTestKotlinJvm` 成功。
+- 边界：未运行 `jvmTest`；未执行真实登录、云端请求、车辆写入、OTA、上传或真机验证。

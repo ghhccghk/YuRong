@@ -46,7 +46,37 @@
 - 尝试次数：1
 - 完成说明：已于 2026-11-07 完成最小 UI 门控修复。共享 JVM/JS/WasmJS 编译与 Desktop 构建成功；Android Debug 构建因本机 SDK build-tools 为 Windows 版而被阻塞，不能宣称 Android 构建通过。真机行为尚未验证。
 
+## NETWORK-PLATFORM-004
+
+- 唯一 ID：`NETWORK-PLATFORM-004`
+- 原始 Smali 位置：不适用。该项是 KMP 非 Android 平台的 TCP/UDP 实现缺失；原始 Android App 只包含 Android 传输路径。
+- KMP 实现位置：`shared/src/iosMain/.../network/Network.ios.kt`、`shared/src/jsMain/.../network/Network.js.kt`、`shared/src/wasmJsMain/.../network/Network.wasmJs.kt`；调用入口为 `shared/src/commonMain/.../ui/state/AppViewModel.kt` 投屏启动协程。
+- 问题描述：三个平台的 `createTcpTransport()` / `createUdpTransport()` 直接抛 `UnsupportedOperationException`。JS/WasmJS 的错误文案错误地写成 "iOS TCP/UDP not implemented"。`AppViewModel` 在帧源准备完成后、TCP 连接 try/catch 之前调用工厂，因此该异常不在该段异常处理内，可能使投屏启动协程异常结束而非进入 `MirrorState.Failed`。
+- 对照证据：三个平台文件均只有抛异常的单行 actual 实现；`AppViewModel` 约 784-785 行的工厂调用位于后续 try 范围之外。
+- 优先级：P3
+- 安全等级：L3
+- 修复方案：需要先取得明确的投屏协议/平台传输授权和设计证据，再决定实现原生传输，或在公共能力层统一声明不可用并让 UI 在启动前门控。不得只改错误文案扩大协议边界，也不得使用假成功传输替代。
+- 验证方式：若获授权，需按平台补充能力契约测试和静态调用链检查；JVM/JS/WasmJS 编译；真实设备网络能力需单独验证。当前仅完成静态审计。
+- 当前状态：BLOCKED
+- 尝试次数：1
+- 阻塞原因：TCP/UDP 属于投屏协议边界，项目规范默认只读；平台能力缺失与异常边界修复需要架构决策和明确授权，不能由字段或错误文案推断后直接修改。
+
+## SETTINGS-FUTURE-SCHEMA-005
+
+- 唯一 ID：`SETTINGS-FUTURE-SCHEMA-005`
+- 原始 Smali 位置：不适用。该项是 KMP 设置持久化的跨平台契约问题；要求来自项目规范“未知版本不能覆盖有效配置”。
+- KMP 实现位置：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/settings/AppPreferences.kt`；回归测试位于 `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/settings/AppPreferencesTest.kt`。
+- 问题描述：未来 schema 检查原先只覆盖 `write()`、`writeAuth()`、`writeMirrorQuality()`。车辆连接、车辆状态缓存、云主题缓存、小组件缓存等通过 `writeTyped()` 写入时仍可能把更高版本 schema 降回当前版本，违反“未知版本不能覆盖有效配置”。
+- 对照证据：`writeTyped()` 是所有 typed 设置和缓存写入的单一入口；读取路径不会清除或覆盖未来配置。`writeAuth()` 的安全 token 不在 typed 写入漏斗内，需保留独立检查。
+- 优先级：P3
+- 安全等级：L2
+- 修复方案：在 `writeTyped()` 内统一调用 `futureSchemaFailure()`，存储 schema 高于 `AppPreferenceKeys.SCHEMA_VERSION` 时返回 `Failure`；删除 `write()`、`writeMirrorQuality()` 的重复检查；`writeAuth()` 保留安全存储前置检查。新增测试验证车辆连接、小组件缓存、云主题、投屏画质和外观写入均失败且原数据不变。
+- 验证方式：`git diff --check`；共享 JVM/JS/WasmJS 编译；`:desktopApp:build`；`:shared:compileTestKotlinJvm` 仅编译测试源码。未运行 `jvmTest` 或任何真实外部请求。
+- 当前状态：COMPLETED
+- 尝试次数：1
+- 完成说明：已于 2026-11-07 完成统一写入保护。测试源码首次编译发现 `writeVehicleCloudTheme` 为无返回值的接口方法，测试中的 `is Failure` 断言不可能成立；改为调用该方法后用存储快照断言确认未覆盖，随后测试源码编译通过。测试本身未运行。
 ## 观察项（尚未登记为缺陷）
 
 - iOS/JS/WasmJS HTTP 能力是否以显式 `UnavailableHttpTransport` 表达，以及公共 UI 是否对不可用能力正确隐藏或禁用；需单独对照后才能决定优先级。
 - 设置清理范围是否与认证、车辆会话的独立清理入口一致；`AppPreferenceKeys.all` 只覆盖外观与投屏设置，需确认调用方语义后再审议。
+- 非 Android TCP/UDP 的能力声明与异常边界已登记为 `NETWORK-PLATFORM-004`，在明确投屏协议授权前不再拆分处理错误文案。

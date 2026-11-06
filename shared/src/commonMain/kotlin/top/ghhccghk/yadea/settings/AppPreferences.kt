@@ -212,17 +212,6 @@ class AppPreferences(
     }
 
     suspend fun write(appearance: AppAppearance): PreferenceWriteResult {
-        // 未来版本写入的配置不得被当前版本覆盖，避免降级时丢数据。
-        val storedSchemaVersion = store.read(AppPreferenceKeys.schemaVersion)
-        if (storedSchemaVersion > AppPreferenceKeys.SCHEMA_VERSION) {
-            return PreferenceWriteResult.Failure(
-                IllegalStateException(
-                    "Stored settings schema $storedSchemaVersion is newer than supported " +
-                        "${AppPreferenceKeys.SCHEMA_VERSION}.",
-                ),
-            )
-        }
-
         val writes = listOf(
             AppPreferenceKeys.schemaVersion to AppPreferenceKeys.SCHEMA_VERSION,
             AppPreferenceKeys.uiStyle to appearance.uiStyle.storageName,
@@ -263,15 +252,9 @@ class AppPreferences(
 
     /** 保存登录态。`usr_info` 使用与原实现相同的 JSON 字段名。 */
     suspend fun writeAuth(user: AuthUser): PreferenceWriteResult {
-        val storedSchemaVersion = store.read(AppPreferenceKeys.schemaVersion)
-        if (storedSchemaVersion > AppPreferenceKeys.SCHEMA_VERSION) {
-            return PreferenceWriteResult.Failure(
-                IllegalStateException(
-                    "Stored settings schema $storedSchemaVersion is newer than supported " +
-                        "${AppPreferenceKeys.SCHEMA_VERSION}.",
-                ),
-            )
-        }
+        // Check before touching the secure store; token storage is not covered by
+        // the typed preference write funnel.
+        futureSchemaFailure()?.let { return it }
         val currentLoginId = store.read(AppPreferenceKeys.loginId)
             .ifBlank { newLoginId() }
         val tokenResult = writeSecureToken(user.token)
@@ -395,15 +378,6 @@ class AppPreferences(
     suspend fun writeMirrorQuality(
         settings: MirrorQualitySettings,
     ): PreferenceWriteResult {
-        val storedSchemaVersion = store.read(AppPreferenceKeys.schemaVersion)
-        if (storedSchemaVersion > AppPreferenceKeys.SCHEMA_VERSION) {
-            return PreferenceWriteResult.Failure(
-                IllegalStateException(
-                    "Stored settings schema $storedSchemaVersion is newer than supported " +
-                        "${AppPreferenceKeys.SCHEMA_VERSION}.",
-                ),
-            )
-        }
         val normalized = settings.normalized()
         val writes = listOf(
             AppPreferenceKeys.schemaVersion to AppPreferenceKeys.SCHEMA_VERSION,
@@ -553,8 +527,12 @@ class AppPreferences(
         }
     }
 
-    private suspend fun writeTyped(key: PreferenceKey<*>, value: Any): PreferenceWriteResult =
-        when (key.type) {
+    private suspend fun writeTyped(key: PreferenceKey<*>, value: Any): PreferenceWriteResult {
+        // A configuration written by a newer app must never be downgraded in place.
+        // Keep this guard at the single typed-write funnel so every cache and
+        // settings domain follows the same rule.
+        futureSchemaFailure()?.let { return it }
+        return when (key.type) {
             PreferenceType.Boolean -> store.write(key as PreferenceKey<Boolean>, value as Boolean)
             PreferenceType.Int -> store.write(key as PreferenceKey<Int>, value as Int)
             PreferenceType.Long -> store.write(key as PreferenceKey<Long>, value as Long)
@@ -562,6 +540,18 @@ class AppPreferences(
             PreferenceType.String -> store.write(key as PreferenceKey<String>, value as String)
             PreferenceType.StringSet -> store.write(key as PreferenceKey<Set<String>>, value as Set<String>)
         }
+    }
+
+    private fun futureSchemaFailure(): PreferenceWriteResult.Failure? {
+        val storedSchemaVersion = store.read(AppPreferenceKeys.schemaVersion)
+        if (storedSchemaVersion <= AppPreferenceKeys.SCHEMA_VERSION) return null
+        return PreferenceWriteResult.Failure(
+            IllegalStateException(
+                "Stored settings schema $storedSchemaVersion is newer than supported " +
+                    "${AppPreferenceKeys.SCHEMA_VERSION}.",
+            ),
+        )
+    }
 
     private fun decode(
         uiStyle: String,
