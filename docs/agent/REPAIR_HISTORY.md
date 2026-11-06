@@ -72,3 +72,13 @@
 - 实际修改文件：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/vehicle/EmergencyContactGateway.kt`、`androidApp/src/main/kotlin/top/ghhccghk/yadea/MainActivity.kt`、`shared/src/jvmTest/kotlin/top/ghhccghk/yadea/vehicle/EmergencyContactValidationTest.kt`
 - 验证：共享 JVM/JS/WasmJS 与 `:shared:compileTestKotlinJvm` 编译成功；`:desktopApp:build` 与 `:androidApp:assembleDebug` 成功。
 - 边界：未运行 `jvmTest`、真实登录、云端请求、车辆写入、OTA、上传或真机验证。
+
+## 2026-11-07 CONTACT-REQUEST-VALUES-008
+
+- 问题：KMP 联系人保存请求对 `name`、`mobile` 执行 `trim()`，而原 `insertData()` 将弹窗返回值原样传入请求。
+- Smali 对照：`EmergencyContactActivity.insertData()` 与 `SosContactActivity.insertData()` 直接 `Map.put("name", p1)`、`Map.put("mobile", p2)`；`VehicleSettingViewModel.s6()` 不再修改字段值。
+- 修改：只移除 `YadeaEmergencyContactGateway.save()` 中姓名和手机号的 `trim()`；token/VIN 前置检查、签名、请求路径和其他字段不变。
+- 回归测试：新增 `YadeaEmergencyContactGatewayTest.savePreservesContactValueWhitespace`，解密签名 JSON 后确认前后空格原样进入业务字段；测试源码编译通过，测试本身未执行。
+- 实际修改文件：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/vehicle/EmergencyContactGateway.kt`、`shared/src/jvmTest/kotlin/top/ghhccghk/yadea/vehicle/YadeaEmergencyContactGatewayTest.kt`
+- 验证：共享 JVM/JS/WasmJS 编译成功；`:shared:compileTestKotlinJvm` 成功；`:desktopApp:build` 与 `:androidApp:assembleDebug` 成功。
+- 边界：未运行 `jvmTest`、真实登录、云端请求、车辆写入、OTA、上传或真机验证。

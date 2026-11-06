@@ -106,8 +106,8 @@ class YadeaEmergencyContactGateway(
                 mapOf(
                     "_gateway" to "True",
                     "vin" to vin,
-                    "name" to name.trim(),
-                    "mobile" to mobile.trim(),
+                    "name" to name,
+                    "mobile" to mobile,
                     "type" to type.value,
                 ),
             ),
