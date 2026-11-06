@@ -42,3 +42,13 @@
 - 回归测试：新增 `newerSchemaBlocksEveryPreferenceWriteDomain`。`writeVehicleCloudTheme` 是无返回值接口方法，测试改为调用后断言缓存键未变化；测试源码编译通过，测试本身未执行。
 - 验证：共享 JVM/JS/WasmJS 编译成功；Desktop 构建成功；`:shared:compileTestKotlinJvm` 成功。
 - 边界：未运行 `jvmTest`；未执行真实登录、云端请求、车辆写入、OTA、上传或真机验证。
+
+## 2026-11-07 AUTH-CONTACT-CLEAR-006
+
+- 问题：`AuthController.logout()` 与手机号/邮箱换绑后的本地清理忽略 `PreferenceWriteResult`，即使 `usr_token` 或用户资料清理失败仍显示成功提示。
+- Smali 对照：`BindTypeActivity.loginOut()` 设置内存登出标记并发出事件；`MainActivityLogic.l1()` 分别删除 `usr_token`、`usr_info` 并清除标记，未发现“清理失败仍提示成功”的原行为。
+- 修改：退出登录和换绑检查 `session.clear()`/`session.save()` 结果；失败时重新读取真实会话快照，清除成功提示并展示本地清理错误。已成功的远端换绑不回滚。
+- 实际修改文件：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/auth/AuthSession.kt`、`shared/src/jvmTest/kotlin/top/ghhccghk/yadea/auth/AuthControllerTest.kt`
+- 回归测试：新增换绑清理失败、换绑清理成功、登出清理失败 3 个测试；测试源码编译通过，测试本身未执行。
+- 验证：共享 JVM/JS/WasmJS 编译成功；`:shared:compileTestKotlinJvm` 成功；`:desktopApp:build` 成功；`:androidApp:assembleDebug` 成功。
+- 边界：未运行 `jvmTest`、真实登录、云端请求、车辆写入、OTA、上传或真机验证。

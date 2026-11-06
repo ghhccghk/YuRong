@@ -13,7 +13,7 @@
 | 外观设置持久化 | `shared/.../settings/AppPreferences.kt` | 已实现，编译验证 | `PreferenceStore` 契约清楚；iOS 缺失标量键默认值已由 `IOS-PREF-001` 修复；未来 schema 写入保护已由 `SETTINGS-FUTURE-SCHEMA-005` 统一覆盖 | iOS 真机行为未验证 |
 | 平台设置后端 | `shared/src/*Main/.../settings/` | 已实现，编译验证 | Android/JVM/JS/WasmJS 缺失键行为一致；iOS 已补齐声明默认值；未来 schema 的车辆、组件、主题、投屏和外观写入均被阻止 | iOS 真机行为未验证 |
 | 设置观察 | `AppPreferences.observe()` 与各后端 `observe()` | 未发现可证实缺陷 | `PREF-OBSERVE-002` 调用链未发现用户可见陈旧状态；不再扩大实现改动 | 静态调用链审计；未运行测试 |
-| 登录态与设备标识 | `AppPreferences`、认证相关代码 | 待核验 | 存储分离和清理入口存在 | 禁止真实登录 |
+| 登录态与设备标识 | `AppPreferences`、`AuthSession.kt` | 已实现，编译验证 | `AUTH-CONTACT-CLEAR-006`：退出登录与换绑现在会检查本地清理/保存结果；失败时重新读取真实会话并显示错误，不再误报成功 | 共享 JVM/JS/WasmJS、Desktop、Android 构建通过；未运行登录测试或真机验证 |
 | 车辆设置云端映射 | `carsetting/CarSettingsGateway.kt`、`VehicleSettingCommands.kt` | 只读审计 | 命令映射属于 L3，不能基于字段名修改 | 禁止真实车辆写入 |
 | 自定义音效 | `carsetting/CustomSoundGateway.kt` 等 | 只读审计 | 涉及云端资源和音效应用 | 禁止上传、应用和真实请求 |
 | 云端主题 | `vehicle/VehicleCloudTheme.kt` | 待核验 | 已有 VIN 缓存与背景映射约束 | 禁止真实云端请求 |
@@ -29,5 +29,6 @@
 2. `PREF-OBSERVE-002` 因缺少用户可见陈旧状态证据而阻塞，不重写非 Android `observe()`。
 3. 已审计非 Android HTTP 能力的显式降级，未发现假成功路径。
 4. 已完成 `SETTINGS-FUTURE-SCHEMA-005`：未来 schema 下所有 typed 写入域均被阻止，测试源码已编译但测试未执行。
-5. `NETWORK-PLATFORM-004` 涉及投屏 TCP/UDP 与启动协程异常边界，按 L3 阻塞，等待明确授权与平台协议证据。
-6. 继续选择有 Smali 调用链或明确跨平台契约支撑的独立问题，优先处理 P3/P4 平台兼容缺陷。
+5. 已完成 `AUTH-CONTACT-CLEAR-006`：退出登录与换绑会正确反映本地清理失败，并重新读取真实会话状态；测试源码编译通过但未执行。
+6. `NETWORK-PLATFORM-004` 涉及投屏 TCP/UDP 与启动协程异常边界，按 L3 阻塞，等待明确授权与平台协议证据。
+7. 继续选择有 Smali 调用链或明确跨平台契约支撑的独立问题，优先处理 P2/P3 行为差异。

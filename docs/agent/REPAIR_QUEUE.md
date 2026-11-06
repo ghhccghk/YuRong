@@ -75,6 +75,22 @@
 - 当前状态：COMPLETED
 - 尝试次数：1
 - 完成说明：已于 2026-11-07 完成统一写入保护。测试源码首次编译发现 `writeVehicleCloudTheme` 为无返回值的接口方法，测试中的 `is Failure` 断言不可能成立；改为调用该方法后用存储快照断言确认未覆盖，随后测试源码编译通过。测试本身未运行。
+
+## AUTH-CONTACT-CLEAR-006
+
+- 唯一 ID：`AUTH-CONTACT-CLEAR-006`
+- 原始 Smali 位置：`com/yadea/smartmoto/login/view/BindTypeActivity.smali` 的 `loginOut()`（约 1177-1227）；`com/yadea/smartmoto/main/view/MainActivityLogic.smali` 的登出监听与 `l1()`（约 3626-3637、1334-1340、6169-6218）；`zm3.smali` 的 `d()`、`e()`、`C2(Z)`、`X0()`。
+- KMP 实现位置：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/auth/AuthSession.kt`；回归测试位于 `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/auth/AuthControllerTest.kt`。
+- 问题描述：`AuthController.logout()` 和手机号/邮箱换绑后的 `applyContactChange()` 忽略 `AuthSession.clear()` 或 `AuthSession.save()` 的失败结果，仍在 UI 显示“已退出登录”或“已更换，请重新登录”。本地清理失败时用户可能被误导为已安全退出。
+- 对照证据：Smali `loginOut()` 先设置登出标记，再发事件并关闭页面；`MainActivityLogic` 收到事件后调用 `l1()`，分别删除 `usr_token`、`usr_info` 并清除内存登录标记。原实现没有“清理失败仍宣称成功”的分支；KMP `PreferenceWriteResult` 已显式表达失败，但调用方此前丢弃返回值。
+- 优先级：P2
+- 安全等级：L2
+- 修复方案：检查 `session.clear()`/`session.save()` 返回值；成功才显示原成功提示；失败时重新读取真实存储快照，保留可恢复的会话状态并显示失败原因。不修改远端换绑请求、车辆、BLE、OTA 或投屏逻辑。
+- 验证方式：`git diff --check`；共享 JVM/JS/WasmJS 编译；`:shared:compileTestKotlinJvm` 仅编译测试源码；Desktop 与 Android Debug 构建。测试本身不运行，避免未经允许的业务测试。
+- 当前状态：COMPLETED
+- 尝试次数：1
+- 完成说明：已于 2026-11-07 修复换绑和退出登录的本地清理失败反馈。新增 3 个回归测试源码，覆盖清理失败、成功以及登出失败路径；测试源码编译通过，测试未执行。共享 JVM/JS/WasmJS、Desktop 和 Android Debug 构建均成功；真机行为尚未验证。
+
 ## 观察项（尚未登记为缺陷）
 
 - iOS/JS/WasmJS HTTP 能力是否以显式 `UnavailableHttpTransport` 表达，以及公共 UI 是否对不可用能力正确隐藏或禁用；需单独对照后才能决定优先级。

@@ -381,14 +381,22 @@ class AuthController(
     fun logout() {
         countdownJob?.cancel()
         scope.launch {
-            session.clear()
-            _state.value = _state.value.copy(
-                session = session.read(),
-                busy = false,
-                error = null,
-                notice = "已退出登录",
-                smsCountdown = 0,
-            )
+            when (val result = session.clear()) {
+                PreferenceWriteResult.Success -> _state.value = _state.value.copy(
+                    session = session.read(),
+                    busy = false,
+                    error = null,
+                    notice = "已退出登录",
+                    smsCountdown = 0,
+                )
+                is PreferenceWriteResult.Failure -> _state.value = _state.value.copy(
+                    session = session.read(),
+                    busy = false,
+                    notice = null,
+                    error = result.cause?.message ?: "本地登录状态清理失败，请重试",
+                    smsCountdown = 0,
+                )
+            }
         }
     }
 
@@ -421,7 +429,7 @@ class AuthController(
         change: Boolean,
         successMessage: String,
     ) {
-        if (change) {
+        val result = if (change) {
             session.clear()
         } else {
             session.read().user?.let { current ->
@@ -431,14 +439,27 @@ class AuthController(
                         email = email ?: current.email,
                     ),
                 )
-            }
+            } ?: PreferenceWriteResult.Success
         }
-        _state.value = _state.value.copy(
-            session = session.read(),
-            busy = false,
-            error = null,
-            notice = successMessage,
-        )
+        val sessionSnapshot = session.read()
+        _state.value = when (result) {
+            PreferenceWriteResult.Success -> _state.value.copy(
+                session = sessionSnapshot,
+                busy = false,
+                error = null,
+                notice = successMessage,
+            )
+            is PreferenceWriteResult.Failure -> _state.value.copy(
+                session = sessionSnapshot,
+                busy = false,
+                notice = null,
+                error = result.cause?.message ?: if (change) {
+                    "账号已更新，但本地登录状态清理失败，请退出登录后重试"
+                } else {
+                    "账号已更新，但本地资料保存失败"
+                },
+            )
+        }
     }
 
     private fun startCountdown() {
