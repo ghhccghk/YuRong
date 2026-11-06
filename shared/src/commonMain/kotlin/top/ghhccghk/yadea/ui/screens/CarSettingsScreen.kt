@@ -37,6 +37,7 @@ import top.ghhccghk.yadea.carsetting.CustomSoundResource
 import top.ghhccghk.yadea.carsetting.createSoundPreviewPlayer
 import top.ghhccghk.yadea.vehicle.ContactType
 import top.ghhccghk.yadea.vehicle.EmergencyContactController
+import top.ghhccghk.yadea.vehicle.sanitizeContactNameInput
 
 /** 车辆设置页。业务状态由 [CarSettingsController] 提供，页面只负责语义渲染。 */
 @Suppress("DEPRECATION")
@@ -874,7 +875,7 @@ fun CarSettingsScreen(
                 AppText("车主", style = AppDesign.typography.itemTitle)
                 AppTextField(
                     value = ownerName,
-                    onValueChange = { ownerName = it },
+                    onValueChange = { ownerName = sanitizeContactNameInput(it) },
                     label = "车主姓名",
                     modifier = Modifier.fillMaxWidth(),
                     enabled = contactState?.savingType == null && contactState?.loading != true,
@@ -908,7 +909,7 @@ fun CarSettingsScreen(
                 AppText("紧急联系人", style = AppDesign.typography.itemTitle)
                 AppTextField(
                     value = emergencyName,
-                    onValueChange = { emergencyName = it },
+                    onValueChange = { emergencyName = sanitizeContactNameInput(it) },
                     label = "联系人姓名",
                     modifier = Modifier.fillMaxWidth(),
                     enabled = contactState?.savingType == null && contactState?.loading != true,

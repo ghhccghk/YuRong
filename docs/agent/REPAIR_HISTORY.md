@@ -82,3 +82,13 @@
 - 实际修改文件：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/vehicle/EmergencyContactGateway.kt`、`shared/src/jvmTest/kotlin/top/ghhccghk/yadea/vehicle/YadeaEmergencyContactGatewayTest.kt`
 - 验证：共享 JVM/JS/WasmJS 编译成功；`:shared:compileTestKotlinJvm` 成功；`:desktopApp:build` 与 `:androidApp:assembleDebug` 成功。
 - 边界：未运行 `jvmTest`、真实登录、云端请求、车辆写入、OTA、上传或真机验证。
+
+## 2026-11-07 CONTACT-INPUT-LIMITS-010
+
+- 问题：联系人姓名输入缺少原 `EmojiFilter(30)` 的 30 字符上限和 emoji 区间过滤。
+- Smali 对照：`UpdateContactInfoPopup.E()` 对 `et_name` 设置默认 30 字符 `EmojiFilter`；`o91.smali` 过滤 U+1F300..U+1F64F、U+1F680..U+1F6FF、U+2600..U+27BF、U+FE00..U+FE0F、U+1F900..U+1F9FF、U+1FA70..U+1FAFF。
+- 修改：新增公共 `sanitizeContactNameInput()`，按 UTF-16 code unit 与代理对处理同一组 Unicode 区间，并在过滤后限制 30 字符；车主和紧急联系人姓名输入共用该函数。
+- 回归测试：覆盖已确认过滤区间、区间边界保留值和 30 字符截断；测试源码编译通过，测试本身未执行。
+- 实际修改文件：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/vehicle/EmergencyContactGateway.kt`、`shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/screens/CarSettingsScreen.kt`、`shared/src/jvmTest/kotlin/top/ghhccghk/yadea/vehicle/EmergencyContactValidationTest.kt`
+- 验证：共享 JVM/JS/WasmJS 与 `:shared:compileTestKotlinJvm` 编译成功；`:desktopApp:build` 与 `:androidApp:assembleDebug` 成功。
+- 边界：未运行 `jvmTest`、双主题截图、真机输入法验证、真实登录、云端请求、车辆写入、OTA 或上传。

@@ -156,6 +156,33 @@ class EmergencyContactValidationTest {
         controller.dispose()
         scope.cancel()
     }
+
+    @Test
+    fun contactNameInputMatchesConfirmedEmojiRanges() {
+        assertEquals(
+            "车主",
+            sanitizeContactNameInput(
+                "车主😀\u2600\uFE0F🤖🚀\u2700\uD83C\uDF00\uD83E\uDD10\uD83E\uDE70",
+            ),
+        )
+        assertEquals(
+            "\uD83C\uDEFF\uD83D\uDE50\uD83D\uDF00\u27C0\uFE10\uD83E\uDE00\uD83E\uDF00",
+            sanitizeContactNameInput(
+                "\uD83C\uDEFF\uD83C\uDF00\uD83D\uDFFF\uD83D\uDE00\uD83D\uDE4F\uD83D\uDE50" +
+                    "\uD83D\uDE80\uD83D\uDEFF\uD83D\uDF00\u2600\u27BF\u27C0" +
+                    "\uFE00\uFE0F\uFE10\uD83E\uDD00\uD83E\uDDFF\uD83E\uDE00" +
+                    "\uD83E\uDE70\uD83E\uDEFF\uD83E\uDF00",
+            ),
+        )
+    }
+
+    @Test
+    fun contactNameInputLimitsUtf16LengthToThirty() {
+        val input = "12345678901234567890123456789012345"
+
+        assertEquals(input.take(30), sanitizeContactNameInput(input))
+    }
+
 }
 
 private class RecordingEmergencyContactGateway : EmergencyContactGateway {

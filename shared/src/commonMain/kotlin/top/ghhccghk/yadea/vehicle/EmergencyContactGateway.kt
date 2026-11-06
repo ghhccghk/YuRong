@@ -50,6 +50,43 @@ internal fun emergencyContactValidationError(
     else -> null
 }
 
+internal const val CONTACT_NAME_MAX_LENGTH = 30
+
+internal fun sanitizeContactNameInput(input: String): String {
+    val filtered = StringBuilder(input.length)
+    var index = 0
+    while (index < input.length) {
+        val high = input[index]
+        val codePoint: Int
+        val width: Int
+        if (high.code in 0xD800..0xDBFF &&
+            index + 1 < input.length &&
+            input[index + 1].code in 0xDC00..0xDFFF
+        ) {
+            codePoint = 0x10000 +
+                ((high.code - 0xD800) shl 10) +
+                (input[index + 1].code - 0xDC00)
+            width = 2
+        } else {
+            codePoint = high.code
+            width = 1
+        }
+        if (!isFilteredContactEmoji(codePoint)) {
+            filtered.append(input, index, index + width)
+        }
+        index += width
+    }
+    return filtered.toString().take(CONTACT_NAME_MAX_LENGTH)
+}
+
+private fun isFilteredContactEmoji(codePoint: Int): Boolean =
+    codePoint in 0x1F300..0x1F64F ||
+        codePoint in 0x1F680..0x1F6FF ||
+        codePoint in 0x2600..0x27BF ||
+        codePoint in 0xFE00..0xFE0F ||
+        codePoint in 0x1F900..0x1F9FF ||
+        codePoint in 0x1FA70..0x1FAFF
+
 /**
  * `vehiclebase/bikeEmergencyContact/select` 与 `/insert`。
  *
