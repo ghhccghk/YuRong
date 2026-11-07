@@ -228,3 +228,36 @@
   - 普通设置部分字段的 String/Integer 类型仍按 `P4()` 逐项核对。
   - `YApiResult<String>` 业务返回、超时和重试语义属于 VS-009；HTTP 成功不代表车辆已确认，车辆确认属于 VS-005。
   - 真实云端写入和车辆生效均尚未验证。
+
+## VS-009 — CheckReportLossBean.result 与轮询终止语义
+
+- 状态：COMPLETE
+- 问题：KMP 将 `result == 0` 视为成功，但 HTTP/请求错误返回 `null` 后继续轮询；同时把响应顶层 `result` 作为回执，未证明它等同于 `CheckReportLossBean.data.result`。
+- Smali 证据：
+  - `y00.smali:179-218`：状态查询是 `@GET("common-cmd/low-freq/info/param")`，返回 `YApiResult<CheckReportLossBean>`。
+  - `CheckReportLossBean.smali:7-65`：`result` 是 `String`，没有枚举常量。
+  - `MixRequest$checkSettingStatus$1.smali:207-239`：请求 Map 经 `f84.a()` 增加 `_gateway=True`，最终查询字段为 `_gateway/id`。
+  - `MixRequest$checkSettingStatus$3.smali:72-142`：只读取 `data.result`；`"0"` 回调 true，非零或不可解析回调 false，data/result 缺失不回调并继续等待。
+  - `MixRequest$checkSettingStatus$2.smali:72-112`：网络/请求错误回调 false。
+  - `CarSettingsIotPollingHelper.smali:h()` 与 `startPoll$1$1/startPoll$2`：每秒查询，最多 30 次；true/false 立即终止并分别走 success/failure，倒计时耗尽走 timeout。
+- 当前实现：`checkStatus()` 缺少 `_gateway`，HTTP/transport 失败返回 null，且从顶层回退读取 `result`；控制器把异常当 pending。
+- 修复：
+  - 状态查询签名字段使用 `_gateway=True` 与 `id`。
+  - 只读取 `data.result`。
+  - `"0"` → true；非零、空/不可解析 → false；data/result 缺失 → null。
+  - transport 无响应、HTTP 非 2xx、业务失败或查询异常立即 false 并终止轮询。
+  - 保留 30 次、1 秒间隔；持续 null 才进入超时回滚。
+  - 协程取消继续抛出，不被误当查询失败。
+- 修改文件：
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/CarSettingsGateway.kt`
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/CarSettings.kt`
+  - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CloudSettingStatusPollingTest.kt`
+- 测试源码：
+  - fake transport 校验 GET 路径、`_gateway/id` 签名明文和 result 映射。
+  - fake gateway 离线轮询验证 true/false 立即终止、pending 超时、异常终止。
+- 编译结果：
+  - 首次测试编译失败：测试误用不存在的 `CarSettingChannel.CLOUD`，改为已确认的 `CarSettingChannel.IOT`。
+  - 最终共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。
+  - `jvmTest` 未执行；没有真实云端或车辆请求。
+- Git commit ID：`2cfdabb`。
+- 未完成事项：真实接口响应和网络错误样本未验证；HTTP 成功仅代表查询结果，不代表车辆已生效，后者仍属 VS-005。

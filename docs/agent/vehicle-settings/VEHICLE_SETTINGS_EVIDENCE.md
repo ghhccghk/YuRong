@@ -30,6 +30,19 @@
 | `CarSettingsGateway.kt:56-217,281-292,662-761` | KMP 已区分两个路径，对 47/48/60/61/62/76 生成已确认 `id/value/valueJson`，并保留值的 Number/String 类型。 |
 | `CloudCarSettingsApiSemanticsTest.kt` | 使用 fake transport 离线解密网关签名，验证 POST 路径、字段和 `valueJson`；测试源码已编译但本轮未执行。 |
 
+### 状态查询与轮询
+
+| 证据 | 语义 |
+| --- | --- |
+| `y00.smali:179-218` `E()` | `@GET("common-cmd/low-freq/info/param")`，QueryMap 返回 `YApiResult<CheckReportLossBean>`。 |
+| `CheckReportLossBean.smali:7-65` | `result/value/vin` 都是 String，没有枚举类或常量定义。 |
+| `MixRequest$checkSettingStatus$1.smali:207-239` | 参数 Map 经 `f84.a()` 注入 `_gateway=True`，请求字段为 `_gateway/id`。 |
+| `MixRequest$checkSettingStatus$3.smali:72-142` | 只读取 `ObserveResult.data.result`：解析为 `0` 回调 true；非零、空值或不可解析回调 false；data/result 缺失时不回调。 |
+| `MixRequest$checkSettingStatus$2.smali:72-112` | 网络/请求错误回调 false。 |
+| `CarSettingsIotPollingHelper.smali:h()` | 使用 `30` 次、`1000ms` 的 countdown；每个回调终止 Job。 |
+| `CarSettingsIotPollingHelper$startPoll$1$1.smali:64-235` | true 调 `onSuccess`，false 调 `onFailure`；`startPoll$2` 在倒计时结束调 `onTimeout`。 |
+
+因此 KMP `Boolean?` 映射固定为：`true=result==0`，`false=非零/不可解析/请求失败`，`null=data.result 缺失且继续等待`。
 尚未确认：`VehicleSettingViewModel.P4()` 中与主字段一同提交的当前状态字段是否必须逐项保留；`YApiResult<String>` 的业务返回值、超时和重试语义不能从 HTTP 成功推断。
 ## 3. BLE 命令与帧
 
