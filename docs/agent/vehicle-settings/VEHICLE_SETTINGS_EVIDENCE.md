@@ -1,0 +1,117 @@
+# 车辆设置证据索引
+
+所有 Smali 路径均相对于 `F:\android app code\YadeaHook\temp_smali`。KMP 路径均相对于 `F:\android app code\toupin`。
+
+## 1. 清单、分组、排序、权限
+
+| 主题 | 证据 |
+| --- | --- |
+| 清单来源 | `com/yadea/smartmoto/vehicle/peripherals/common/BasePeripheralsModel$getBikeConfigs$1.smali:214` 含 `vehiclebase/bike-setting/selectBikeSettingByVin` |
+| 响应模型 | `com/yadea/smartmoto/common/bean/CarSettingBean.smali:23` 为 `bikeConfigVos:Ljava/util/List;` |
+| 配置字段 | `com/yadea/smartmoto/common/bean/CarSettingBean$BikeConfig.smali:20-50` 含 `confId/confName/copy/briefCopy/newCopy/parentId/parentName/sort/isAuth/isIntelligence/isUserLabFun/izLab/copyType/copyStatus/icon` |
+| KMP 解析 | `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/CarSettingsGateway.kt:154-170`、`586-605` |
+| KMP 分组 | `CarSettingsGateway.kt:1216-1256`，`parentId/parentName` 优先，实验室由 `isUserLabFun || izLab == 0` 判定 |
+| 原权限/可用性 | `com/yadea/smartmoto/vehicle/carsetting/action/CarSettingsItemAvailabilityHelper.smali:1064-1558`，有 `ItemAccess`、`BlockReason`、入口/开关分别判定 |
+| KMP 权限 | `CarSettingsGateway.kt:698-703`；只有 `isAuth=false` 明确禁写，缺失按未禁止 |
+
+## 2. 云端值和写入字段
+
+| 证据 | 说明 |
+| --- | --- |
+| `VehicleSettingViewModel.smali:10091-11832` `P4()` | 同一方法根据 confId 生成 `alarmOn`、`alarmPower`、`sleepMode`、`tamperProofIotEnable`、`seatHeating`、`seatHeatingLevel`、`highestSpeedLimit`、`sosEmergencyCall`、`lowBatTelWarning`、`colorEggSoundEffect`、`emergencyContact`、`dumpAlarm`、`distanceOn`、`distance` 等字段 |
+| `MixRequest.smali:357-500` `g()/h()` | 将 `configId`、Boolean/Integer、当前 VIN 放入 updateBikeSetting 参数 |
+| `MixRequest.smali:504-649` `j()/k()` | 参数型路径使用 `updateBikeSettingParams` |
+| `CarSettingsGateway.kt:102-137` | KMP 当前只确认 TOGGLE/SLIDER/CHOICE 字段子集 |
+| `CarSettingsGateway.kt:67-100` | Toggle 0/1、Slider `toInt()`、Choice `selectedIndex+offset` |
+
+## 3. BLE 命令与帧
+
+| 证据 | 说明 |
+| --- | --- |
+| `com/yadea/blecontrol/data/BleBicycleCommandManager.smali` | 原始命令帧生成器，包含 `5944`、`4B4A` 外层帧、`uj.c` 位域函数和 commandId 分支 |
+| `VehicleSettingCommands.kt:88-664` | confId 到 commandType/commandId/parameter 的 KMP 映射 |
+| `VehicleSettingCommands.kt:666-731` | 拆分条目 ID 分流：60、69、1005、64/89 adaptive |
+| `VehicleSettingFrameEncoder.kt:30-241` | 已映射 commandId 的固定后缀、位域和参数范围 |
+| `CarSettingsInlineOperationHelper.smali:186-1930` | 原设置行内开关的 commandType 与 confId 分流 |
+| `CarSettingsNavigation.smali` | 41/88 共用自定义音效导航，77 为特殊入口 |
+
+### 已确认命令样例
+
+- `2`：0x0F/0x10，边撑感应。
+- `3`：0x11/0x12，携出助力。
+- `17`：0x13/0x14，能量回收开关。
+- `32`：0xA0/0xA1，倾倒提醒。
+- `33`：0x95/0x96，模拟声浪。
+- `38`：0x99/0x9A，ABS。
+- `45`：0xAA/0xAB，定速巡航。
+- `47`：0xC9 开关、0xCA 瓦数。
+- `62`：0xD2 开关、0xD3 档位。
+- `69`：0x13A/0x12D/0x12E，FCW/RCW/BSD。
+- `86`：0x135 开关、0x134 亮度值。
+- `1005`：0x131 短按、0x130 长按。
+
+## 4. TTP 回读字段
+
+| confId | KMP 回填字段 | 原始字段来源 |
+| --- | --- | --- |
+| 2 | `extended.sideBraceStatus` | `TtpInfo.kt` `0x25 bit0-1` |
+| 17/18 | `brakeModePowerRecoverFunctionStatus/GearStatus` | `0x26/0x27` |
+| 19 | `automaticHeadlightFunctionStatus` | `0x34 bit0-1` |
+| 26 | `turnSignalReturnsAutomaticallyStatus` | `0x33 bit6-7` |
+| 27 | `offModeStatus` | `0x1D bit0-1` |
+| 31 | `metricSystemStatus` | `0x41 bit3-4` |
+| 32 | `tiltWarningStatus` | `0x1A bit4-5` |
+| 33 | `simulatedSoundWaveStatus` | `0x6D bit0-1` |
+| 36 | `brakePowerDownFunctionStatus` | `0xA3 bit2-3` |
+| 37 | `tcsWorkMode` | `0xAA bit0-2`，0 开、1..7 关 |
+| 38 | `absFunctionStatus` | `0x6D bit4-5` |
+| 42 | `remainingMileageDebugStatus` | `0x35 bit0-1` |
+| 43/44 | `reversingState/helpCarState` | `0x6E bit2-3/bit4-5` |
+| 45 | `cruiseControl` | TtpInfo 主字段 |
+| 46/49 | `steepSlopeState/rampSlopeState` | TtpExtendedInfo |
+| 47 | `batteryChargingPowerStatus/Value` | `0x70 bit4-5`、powerRaw*2 |
+| 48 | `batteryChargingLimitValue` | `0x70 bit3-5` |
+| 53 | `templeSettingStatus` | TtpExtendedInfo |
+| 54 | `voltageSettingStatus` | TtpExtendedInfo |
+| 55/92 | `customizeThrottleSensitivity/EnergyLevel/EnergyState/Tcs` | TtpExtendedInfo |
+| 60 | `capacitySwitchStatus/capacitySettingStatus` | `0x23 bit6-7` / capacity field |
+| 62 | `seatHeatSwitchStatus/LevelStatus` | `0x75 bit2-3/bit4-5` |
+| 63 | `tPowerStatus` | `0x76 bit2-3` |
+| 64/89 | `helpCarState/customDriveSwitchStatus/customDriveLevelStatus` | `0x6E/0x76/0x79` |
+| 68 | `quickBrakeLightStatus` | `0x88 bit2-3` |
+| 72 | `longEnduranceStatus` | TtpExtendedInfo |
+| 73 | `ambientStatus` | `0x23 bit0-1` |
+| 77 | `sleepModeSwitch` | TtpExtendedInfo |
+| 79 | `seatPowerStatus` | TtpExtendedInfo |
+| 80 | `otdSwitch` | TtpExtendedInfo |
+| 81 | `withGoHomeStatus/TimeStatus` | `0x1B bit3-4/bit5-6` |
+| 84 | `blueLightSwitch` | TtpExtendedInfo |
+| 86 | `brightnessAdjustValue/Switch` | `0x84`、`0x1D bit3-4` |
+| 90 | `trackModeStatus` | TtpExtendedInfo |
+| 94 | `gearMemorySettingFeedback` | TtpExtendedInfo |
+| 1005 | `smartKeysLongClickStatus/ShortClickStatus` 或 `customFunctionLong/Short` | `0x6C bit0-3/bit2-5` |
+
+## 5. 原始 Activity 入口抽样
+
+- `DumpNoticeActivity.getSettingConfigId()` → `16`
+- `DumpWarningActivity.getSettingConfigId()` → `32`
+- `BackLightActivity.getSettingConfigId()` → `21`
+- `RampStopsActivity.getSettingConfigId()` → `49`
+- `SeatCushionSensorActivity.getSettingConfigId()` → `3`
+- `BleMeterTimeSyncActivity.getSettingConfigId()` → `51`
+- `SuddenBrakingActivity.getSettingConfigId()` → `68`
+- `IotTamperProofActivity.getSettingConfigId()` → `75`
+- `LocationSwitchActivity` → `76`
+- `AssistDriveLightActivity.getSettingConfigId()` → `84`
+- `GearMemoryActivity.getSettingConfigId()` → `94`
+
+## 6. KMP 代码位置
+
+- `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/CarSettings.kt`：控制器、乐观更新、TTP 回填、权限入口。
+- `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/CarSettingsGateway.kt`：云端模型、字段映射、分组、排序、拆分条目。
+- `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/VehicleSettingCommands.kt`：BLE 命令映射与 writer。
+- `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/VehicleSettingFrameEncoder.kt`：BLE 帧编码。
+- `shared/src/commonMain/kotlin/top/ghhccghk/yadea/vehicle/TtpInfo.kt`：TTP 字段和位域解析。
+- `shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/screens/CarSettingsScreen.kt`：云端驱动 UI、拆分控件、确认弹窗、试听和联系人入口。
+- `shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/screens/MainScreen.kt:273-304,419-431`：writer/controller 构造、VIN 刷新和 TTP 更新。
+- `androidApp/src/main/kotlin/top/ghhccghk/yadea/AndroidVehicleSettingCommandSink.kt`：Android BLE 命令 sink。
