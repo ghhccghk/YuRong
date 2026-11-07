@@ -53,16 +53,58 @@ interface CarSettingsGateway {
 }
 
 /** 已确认的云端设置写入字段。 */
+enum class CloudCarSettingUpdatePath {
+    BIKE_SETTING,
+    PARAM_SETTING,
+}
+
 data class CloudCarSettingUpdate(
     val configId: String,
-    val fields: Map<String, String>,
+    val fields: Map<String, Any?>,
+    val path: CloudCarSettingUpdatePath = CloudCarSettingUpdatePath.BIKE_SETTING,
 )
 
+private data class VehicleParamValue(
+    val sort: Int,
+    val byteCount: Int,
+    val value: Any?,
+    val dataType: Int,
+)
+
+private fun jsonLiteral(value: Any?): String = when (value) {
+    null -> "null"
+    is Boolean -> value.toString()
+    is Number -> value.toString()
+    else -> "\"" + value.toString().replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+}
+
+private object VehicleParamJson {
+    fun single(value: Any?, dataType: Int = 1): String =
+        listOf(VehicleParamValue(1, 1, value, dataType)).toJson()
+
+    fun capacity(value: Any?): String = listOf(
+        VehicleParamValue(1, 1, null, 1),
+        VehicleParamValue(2, 1, value, 1),
+        VehicleParamValue(3, 1, null, 4),
+        VehicleParamValue(4, 2, null, 4),
+    ).toJson()
+
+    private fun List<VehicleParamValue>.toJson(): String =
+        joinToString(",", "[", "]") { param ->
+            "{" +
+                "\"byteCount\":${param.byteCount}," +
+                "\"dataType\":${param.dataType}," +
+                "\"sort\":${param.sort}," +
+                "\"value\":${jsonLiteral(param.value)}" +
+                "}"
+        }
+}
+
 /**
- * `updateBikeSetting` 的直接字段写入。
+ * `updateBikeSetting` 与 `low-freq/common-cmd/param-setting` 的字段写入。
  *
- * 只收纳 smali 中能确认字段名的布尔设置；需要 `valueJson` 的定位/充电命令
- * 暂不猜测，继续保留为入口或只读项。
+ * 参数型命令保留 Smali `s20.f()` 的 `oper/id/value/valueJson` 结构；
+ * 没有完整 valueJson 证据的项目不进入写入器。
  */
 object CloudCarSettingUpdateBuilder {
     fun supports(configId: String, kind: CarSettingKind): Boolean =
@@ -73,33 +115,107 @@ object CloudCarSettingUpdateBuilder {
         kind: CarSettingKind,
         vin: String,
     ): CloudCarSettingUpdate? {
-        val (field, value) = when (kind) {
+        val fields = linkedMapOf<String, Any?>("_gateway" to "True", "vin" to vin)
+        val path: CloudCarSettingUpdatePath
+        when (kind) {
             is CarSettingKind.Toggle -> {
-                val field = TOGGLE_FIELDS[configId] ?: return null
-                field to if (kind.checked) "1" else "0"
+                val checkedValue = if (kind.checked) 1 else 0
+                when (configId) {
+                    "47" -> {
+                        path = CloudCarSettingUpdatePath.PARAM_SETTING
+                        fields["id"] = "CHARGE_WATT_SWITCH"
+                        fields["value"] = checkedValue
+                    }
+                    "60" -> {
+                        path = CloudCarSettingUpdatePath.PARAM_SETTING
+                        fields["oper"] = "SET_PARAM"
+                        fields["id"] = "BATT_BD_SETTING"
+                        fields["value"] = checkedValue
+                        fields["valueJson"] = VehicleParamJson.single(checkedValue)
+                    }
+                    "62" -> {
+                        path = CloudCarSettingUpdatePath.PARAM_SETTING
+                        fields["seatHeating"] = checkedValue
+                        fields["oper"] = "SET_PARAM"
+                        fields["id"] = "SEAT_HEATING"
+                        fields["value"] = checkedValue
+                        fields["valueJson"] = VehicleParamJson.single(checkedValue)
+                    }
+                    "76" -> {
+                        path = CloudCarSettingUpdatePath.PARAM_SETTING
+                        fields["oper"] = "SET_PARAM"
+                        fields["id"] = "POSITIONING_FUNC"
+                        fields["value"] = checkedValue
+                        fields["valueJson"] = VehicleParamJson.single(checkedValue)
+                    }
+                    else -> {
+                        val field = TOGGLE_FIELDS[configId] ?: return null
+                        path = CloudCarSettingUpdatePath.BIKE_SETTING
+                        fields[field] = checkedValue.toString()
+                    }
+                }
             }
             is CarSettingKind.Slider -> {
-                val field = SLIDER_FIELDS[configId] ?: return null
-                field to kind.value.toInt().toString()
+                val value = kind.value.toInt()
+                when (configId) {
+                    "47" -> {
+                        path = CloudCarSettingUpdatePath.PARAM_SETTING
+                        fields["id"] = "CHARGE_WATT_VAL"
+                        fields["value"] = value
+                    }
+                    "48" -> {
+                        path = CloudCarSettingUpdatePath.PARAM_SETTING
+                        fields["id"] = "CHARGE_UL_VAL"
+                        fields["value"] = value
+                    }
+                    "61" -> {
+                        path = CloudCarSettingUpdatePath.PARAM_SETTING
+                        fields["highestSpeedLimit"] = value
+                        fields["oper"] = "SET_PARAM"
+                        fields["id"] = "HIGHEST_SPEED_LIMIT"
+                        fields["value"] = value
+                        fields["valueJson"] = VehicleParamJson.single(value)
+                    }
+                    else -> {
+                        val field = SLIDER_FIELDS[configId] ?: return null
+                        path = CloudCarSettingUpdatePath.BIKE_SETTING
+                        fields[field] = value.toString()
+                    }
+                }
             }
             is CarSettingKind.Choice -> {
-                val field = CHOICE_FIELDS[configId] ?: return null
-                val value = kind.selectedIndex + field.offset
-                field.field to value.toString()
+                when (configId) {
+                    "60" -> {
+                        val value = BatteryCapacityOptions.valuesAh.getOrNull(kind.selectedIndex)
+                            ?: return null
+                        path = CloudCarSettingUpdatePath.PARAM_SETTING
+                        fields["oper"] = "SET_PARAM"
+                        fields["id"] = "BATT_V_A_CAP_MODEL"
+                        fields["value"] = value
+                        fields["valueJson"] = VehicleParamJson.capacity(value)
+                    }
+                    "62" -> {
+                        val value = (kind.selectedIndex + 1).coerceIn(1, 3)
+                        path = CloudCarSettingUpdatePath.PARAM_SETTING
+                        fields["seatHeatingLevel"] = value
+                        fields["oper"] = "SET_PARAM"
+                        fields["id"] = "SEAT_HEATING_LEVEL"
+                        fields["value"] = value
+                        fields["valueJson"] = VehicleParamJson.single(value)
+                    }
+                    else -> {
+                        val field = CHOICE_FIELDS[configId] ?: return null
+                        path = CloudCarSettingUpdatePath.BIKE_SETTING
+                        fields[field.field] = (kind.selectedIndex + field.offset).toString()
+                    }
+                }
             }
             else -> return null
         }
-        return CloudCarSettingUpdate(
-            configId = configId,
-            fields = mapOf(
-                "_gateway" to "True",
-                field to value,
-                "vin" to vin,
-            ),
-        )
+        return CloudCarSettingUpdate(configId = configId, fields = fields, path = path)
     }
 
-    /** smali `VehicleSettingViewModel.P4` 与设置返回字段能直接对应的开关。 */
+    /** smali `s20.f()` 与 `VehicleSettingViewModel.P4()` 能直接对应的开关。 */
     private val TOGGLE_FIELDS = mapOf(
         "9" to "alarmOn",
         "10" to "distanceOn",
@@ -110,12 +226,9 @@ object CloudCarSettingUpdateBuilder {
         "25" to "passwordUnlockEnable",
         "40" to "colorEggSoundEffect",
         "41" to "userDefinedSoundEffect",
-        "47" to "chargeWattSwitch",
         "52" to "bleUnlockOn",
         "53" to "bleApproachPowerOnEnable",
-        "62" to "seatHeating",
         "75" to "tamperProofIotEnable",
-        "76" to "positioningFunc",
         "77" to "sleepMode",
         "82" to "lowBatTelWarning",
         "91" to "sosEmergencyCall",
@@ -124,17 +237,12 @@ object CloudCarSettingUpdateBuilder {
 
     private val SLIDER_FIELDS = mapOf(
         "10" to "distance",
-        "47" to "chargeWattVal",
-        "48" to "chargeUlVal",
         "52" to "bleDistance",
-        "61" to "highestSpeedLimit",
     )
 
     private data class ChoiceField(val field: String, val offset: Int)
 
-    private val CHOICE_FIELDS = mapOf(
-        "62" to ChoiceField("seatHeatingLevel", offset = 1),
-    )
+    private val CHOICE_FIELDS = mapOf<String, ChoiceField>()
 }
 
 /**
@@ -174,7 +282,10 @@ class YadeaCarSettingsGateway(
         val token = tokenProvider().trim()
         if (token.isBlank() || vin.isBlank()) return false
         val plain = postFields(
-            path = UPDATE_PATH,
+            path = when (update.path) {
+                CloudCarSettingUpdatePath.BIKE_SETTING -> UPDATE_PATH
+                CloudCarSettingUpdatePath.PARAM_SETTING -> PARAM_UPDATE_PATH
+            },
             fields = update.fields + ("vin" to vin),
             token = token,
         ) ?: return false
@@ -549,7 +660,7 @@ class YadeaCarSettingsGateway(
 
     private suspend fun postFields(
         path: String,
-        fields: Map<String, String>,
+        fields: Map<String, Any?>,
         token: String,
     ): String? {
         val url = baseUrl + path
@@ -633,13 +744,12 @@ class YadeaCarSettingsGateway(
         return boolField(json, key)
     }
 
-    private fun sortedJson(fields: Map<String, String>): String = buildString {
+    private fun sortedJson(fields: Map<String, Any?>): String = buildString {
         append('{')
         fields.keys.sorted().forEachIndexed { index, key ->
             if (index > 0) append(',')
-            append('"').append(key).append("\":\"")
-                .append(fields.getValue(key).replace("\\", "\\\\").replace("\"", "\\\""))
-                .append('"')
+            append('"').append(key).append("\":")
+                .append(jsonLiteral(fields.getValue(key)))
         }
         append('}')
     }
@@ -648,6 +758,7 @@ class YadeaCarSettingsGateway(
         const val PATH = "vehiclebase/bike-setting/selectBikeSettingByVin"
         const val UPDATE_PATH = "vehiclebase/bike-setting/updateBikeSetting"
         const val CHECK_STATUS_PATH = "common-cmd/low-freq/info/param"
+        const val PARAM_UPDATE_PATH = "low-freq/common-cmd/param-setting"
         const val DEFAULT_BASE_URL = "https://gw.yadeaiot.com.cn/api/app/"
 
         private val VALUE_KEYS = listOf(

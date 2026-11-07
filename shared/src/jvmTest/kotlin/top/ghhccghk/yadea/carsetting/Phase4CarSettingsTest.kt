@@ -139,7 +139,7 @@ class Phase4CarSettingsTest {
     }
 
     @Test
-    fun cloudFieldsCoverFenceDistanceAndSeatHeating() {
+    fun cloudFieldsCoverConfirmedRequestShapes() {
         assertEquals(
             mapOf(
                 "_gateway" to "True",
@@ -167,7 +167,11 @@ class Phase4CarSettingsTest {
         assertEquals(
             mapOf(
                 "_gateway" to "True",
-                "seatHeatingLevel" to "3",
+                "seatHeatingLevel" to 3,
+                "oper" to "SET_PARAM",
+                "id" to "SEAT_HEATING_LEVEL",
+                "value" to 3,
+                "valueJson" to "[{\"byteCount\":1,\"dataType\":1,\"sort\":1,\"value\":3}]",
                 "vin" to "VIN",
             ),
             CloudCarSettingUpdateBuilder.build(
@@ -179,7 +183,8 @@ class Phase4CarSettingsTest {
         assertEquals(
             mapOf(
                 "_gateway" to "True",
-                "chargeWattSwitch" to "1",
+                "id" to "CHARGE_WATT_SWITCH",
+                "value" to 1,
                 "vin" to "VIN",
             ),
             CloudCarSettingUpdateBuilder.build(
@@ -191,7 +196,8 @@ class Phase4CarSettingsTest {
         assertEquals(
             mapOf(
                 "_gateway" to "True",
-                "chargeWattVal" to "650",
+                "id" to "CHARGE_WATT_VAL",
+                "value" to 650,
                 "vin" to "VIN",
             ),
             CloudCarSettingUpdateBuilder.build(
@@ -203,7 +209,8 @@ class Phase4CarSettingsTest {
         assertEquals(
             mapOf(
                 "_gateway" to "True",
-                "chargeUlVal" to "90",
+                "id" to "CHARGE_UL_VAL",
+                "value" to 90,
                 "vin" to "VIN",
             ),
             CloudCarSettingUpdateBuilder.build(
@@ -213,7 +220,6 @@ class Phase4CarSettingsTest {
             )?.fields,
         )
     }
-
     @Test
     fun mapperCreatesSecondBatchControls() {
         val cloud = CloudCarSettings(
