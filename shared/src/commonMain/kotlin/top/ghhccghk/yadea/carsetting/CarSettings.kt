@@ -1,5 +1,6 @@
 package top.ghhccghk.yadea.carsetting
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -111,6 +112,8 @@ data class CarSettingsState(
     val message: String? = null,
     val loading: Boolean = false,
     val loadedFromCloud: Boolean = false,
+    val vin: String = "",
+    val loadGeneration: Long = 0,
 )
 
 /** 平台侧把设置值翻译成 BLE `CommandTempBean` 或 IoT 请求。 */
@@ -150,6 +153,7 @@ class CarSettingsController(
     private val _state = MutableStateFlow(CarSettingsState(initialItems))
     val state: StateFlow<CarSettingsState> = _state.asStateFlow()
     private var latestVehicleStatus: TtpInfo? = null
+    private var loadGeneration = 0L
 
     val available: Boolean
         get() = writer != null
@@ -163,45 +167,59 @@ class CarSettingsController(
      * 云端清单是唯一的项目/分组/权限来源；本地注册表只用于离线预览和单测。
      */
     suspend fun refresh(): Boolean {
-        if (_state.value.loading) return false
+        val vin = vinProvider().trim()
         val activeGateway = gateway
         if (activeGateway == null) {
-            _state.value = _state.value.copy(
-                loading = false,
-                message = "云端设置服务未接入",
-            )
+            clearForVin(vin, "云端设置服务未接入")
             return false
         }
-        val vin = vinProvider().trim()
         if (vin.isBlank()) {
-            _state.value = _state.value.copy(
-                loading = false,
-                message = "登录并绑定车辆后加载云端设置",
-            )
+            clearForVin(vin, "登录并绑定车辆后加载云端设置")
             return false
         }
-        _state.value = _state.value.copy(loading = true, message = null)
-        val cloud = runCatching { activeGateway.load(vin) }.getOrNull()
+        if (_state.value.loading && _state.value.vin == vin) return false
+
+        val generation = ++loadGeneration
+        _state.value = CarSettingsState(
+            vin = vin,
+            loadGeneration = generation,
+            loading = true,
+        )
+        val cloud = try {
+            activeGateway.load(vin)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
+        if (generation != loadGeneration || vinProvider().trim() != vin) return false
         if (cloud == null) {
-            _state.value = _state.value.copy(
-                loading = false,
-                message = "云端设置加载失败，请稍后重试",
-            )
+            clearForVin(vin, "云端设置加载失败，请稍后重试")
             return false
         }
         val items = CloudCarSettingMapper.toItems(cloud)
         val missingCloudItems = CloudCarSettingMapper.toMissingCloudItems(cloud)
-        _state.value = _state.value.copy(
+        _state.value = CarSettingsState(
             items = items,
             missingCloudItems = missingCloudItems,
             rawConfigJson = cloud.rawJson,
-            pendingIds = emptySet(),
             loading = false,
             loadedFromCloud = true,
+            vin = vin,
+            loadGeneration = generation,
             message = if (items.isEmpty()) "云端未返回可用设置项" else null,
         )
         applyVehicleStatus(latestVehicleStatus)
         return true
+    }
+
+    private fun clearForVin(vin: String, message: String) {
+        val generation = ++loadGeneration
+        _state.value = CarSettingsState(
+            vin = vin,
+            loadGeneration = generation,
+            message = message,
+        )
     }
 
     suspend fun update(id: String, transform: (CarSettingKind) -> CarSettingKind): Boolean {
