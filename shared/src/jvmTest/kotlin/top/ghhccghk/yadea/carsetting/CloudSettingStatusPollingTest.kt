@@ -126,6 +126,10 @@ class CloudSettingStatusPollingTest {
         )
         assertTrue(confirmedController.update("cloud:10") { CarSettingKind.Toggle(true) })
         assertEquals(3, confirmedGateway.calls)
+        assertEquals(
+            CarSettingConfirmationStatus.VEHICLE_CONFIRMED,
+            confirmedController.state.value.confirmationStatuses["cloud:10"],
+        )
 
         val failedGateway = SequenceGateway(listOf(false))
         val failedController = CarSettingsController(
@@ -139,6 +143,10 @@ class CloudSettingStatusPollingTest {
         )
         assertFalse(failedController.update("cloud:10") { CarSettingKind.Toggle(true) })
         assertEquals(1, failedGateway.calls)
+        assertEquals(
+            CarSettingConfirmationStatus.FAILED,
+            failedController.state.value.confirmationStatuses["cloud:10"],
+        )
 
         val pendingGateway = SequenceGateway(listOf(null, null, null))
         val pendingController = CarSettingsController(

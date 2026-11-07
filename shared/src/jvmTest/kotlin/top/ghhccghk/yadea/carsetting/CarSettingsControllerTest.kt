@@ -60,6 +60,79 @@ class CarSettingsControllerTest {
     }
 
     @Test
+    fun bleWriteRemainsUnconfirmedUntilNewMatchingTtp() = runBlocking {
+        val item = CarSettingItem(
+            id = "cloud:37",
+            configId = "37",
+            title = "TCS",
+            summary = "",
+            classification = CarSettingClassification.SECURITY,
+            channel = CarSettingChannel.BLE,
+            kind = CarSettingKind.Toggle(false),
+        )
+        val writer = object : CarSettingWriter {
+            override suspend fun write(target: CarSettingItem): Boolean =
+                writeWithResult(target).success
+
+            override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult =
+                CarSettingWriteResult(
+                    success = true,
+                    channel = CarSettingWriteChannel.BLE,
+                    confirmationStatus = CarSettingConfirmationStatus.LOCAL_UPDATED,
+                )
+        }
+        val controller = CarSettingsController(
+            initialItems = listOf(item),
+            writer = writer,
+            vinProvider = { "VIN" },
+            debounceMs = 0L,
+        )
+
+        assertTrue(controller.update("cloud:37") { CarSettingKind.Toggle(true) })
+        assertEquals(
+            CarSettingConfirmationStatus.LOCAL_UPDATED,
+            controller.state.value.confirmationStatuses["cloud:37"],
+        )
+
+        controller.updateVehicleStatus("VIN", sampleStatus(tcsWorkMode = 1))
+        assertEquals(
+            CarSettingConfirmationStatus.LOCAL_UPDATED,
+            controller.state.value.confirmationStatuses["cloud:37"],
+        )
+
+        controller.updateVehicleStatus("VIN", sampleStatus(tcsWorkMode = 0))
+        assertEquals(
+            CarSettingConfirmationStatus.VEHICLE_CONFIRMED,
+            controller.state.value.confirmationStatuses["cloud:37"],
+        )
+    }
+
+    @Test
+    fun writeResultDefaultsDoNotClaimConfirmation() {
+        assertEquals(
+            CarSettingConfirmationStatus.LOCAL_UPDATED,
+            CarSettingWriteResult(
+                success = true,
+                channel = CarSettingWriteChannel.BLE,
+            ).confirmationStatus,
+        )
+        assertEquals(
+            CarSettingConfirmationStatus.CLOUD_ACCEPTED,
+            CarSettingWriteResult(
+                success = true,
+                channel = CarSettingWriteChannel.CLOUD,
+            ).confirmationStatus,
+        )
+        assertEquals(
+            CarSettingConfirmationStatus.UNKNOWN,
+            CarSettingWriteResult(success = true).confirmationStatus,
+        )
+        assertEquals(
+            CarSettingConfirmationStatus.FAILED,
+            CarSettingWriteResult(success = false).confirmationStatus,
+        )
+    }
+    @Test
     fun success_updatesOptimisticallyAndClearsPending() = runBlocking {
         val writer = FakeWriter(true)
         val controller = CarSettingsController(items(), writer)

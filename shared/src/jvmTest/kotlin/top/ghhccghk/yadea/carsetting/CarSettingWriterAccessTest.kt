@@ -61,6 +61,43 @@ class CarSettingWriterAccessTest {
 
 
     @Test
+    fun mappedWriterSinkSuccessIsOnlyLocalUpdated() = runBlocking {
+        val writer = MappedCarSettingWriter(RecordingSink(result = true))
+        val result = writer.writeWithResult(
+            CarSettingItem(
+                id = "cloud:2",
+                configId = "2",
+                title = "边撑感应",
+                summary = "",
+                classification = CarSettingClassification.POWER,
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Toggle(true),
+            ),
+        )
+
+        assertTrue(result.success)
+        assertEquals(CarSettingConfirmationStatus.LOCAL_UPDATED, result.confirmationStatus)
+    }
+
+    @Test
+    fun mappedWriterSinkFailureIsFailed() = runBlocking {
+        val writer = MappedCarSettingWriter(RecordingSink(result = false))
+        val result = writer.writeWithResult(
+            CarSettingItem(
+                id = "cloud:2",
+                configId = "2",
+                title = "边撑感应",
+                summary = "",
+                classification = CarSettingClassification.POWER,
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Toggle(true),
+            ),
+        )
+
+        assertFalse(result.success)
+        assertEquals(CarSettingConfirmationStatus.FAILED, result.confirmationStatus)
+    }
+    @Test
     fun splitEntryRequiresStableIdAndConfirmedWriteSupport() {
         val unknownSplit = CarSettingItem(
             id = "cloud:47:unknown",
@@ -83,11 +120,13 @@ class CarSettingWriterAccessTest {
         assertFalse(CarSettingItemAccess.canWrite(unsupported))
     }
 
-    private class RecordingSink : VehicleSettingCommandSink {
+    private class RecordingSink(
+        private val result: Boolean = true,
+    ) : VehicleSettingCommandSink {
         var calls = 0
         override suspend fun send(command: VehicleSettingCommand): Boolean {
             calls += 1
-            return true
+            return result
         }
     }
 

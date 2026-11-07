@@ -59,6 +59,7 @@ class CloudCarSettingWriterTest {
         val result = writer.writeWithResult(alarmItem)
         assertTrue(result.success)
         assertEquals(CarSettingWriteChannel.BLE, result.channel)
+        assertEquals(CarSettingConfirmationStatus.LOCAL_UPDATED, result.confirmationStatus)
         assertEquals(1, ble.calls)
         assertEquals(0, gateway.updateCalls)
     }
@@ -77,6 +78,7 @@ class CloudCarSettingWriterTest {
         val result = writer.writeWithResult(alarmItem)
         assertTrue(result.success)
         assertEquals(CarSettingWriteChannel.CLOUD, result.channel)
+        assertEquals(CarSettingConfirmationStatus.CLOUD_ACCEPTED, result.confirmationStatus)
         assertEquals(0, ble.calls)
         assertEquals(1, gateway.updateCalls)
     }
@@ -95,6 +97,7 @@ class CloudCarSettingWriterTest {
         val result = writer.writeWithResult(alarmItem)
         assertTrue(result.success)
         assertEquals(CarSettingWriteChannel.CLOUD, result.channel)
+        assertEquals(CarSettingConfirmationStatus.CLOUD_ACCEPTED, result.confirmationStatus)
         assertEquals(1, ble.calls)
         assertEquals(1, gateway.updateCalls)
     }
@@ -110,7 +113,9 @@ class CloudCarSettingWriterTest {
             bleAvailableProvider = { true },
         )
 
-        assertFalse(writer.write(alarmItem))
+        val result = writer.writeWithResult(alarmItem)
+        assertFalse(result.success)
+        assertEquals(CarSettingConfirmationStatus.FAILED, result.confirmationStatus)
         assertEquals(1, ble.calls)
         assertEquals(1, gateway.updateCalls)
     }

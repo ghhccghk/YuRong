@@ -30,9 +30,15 @@ class MappedCarSettingWriter(
         if (!CarSettingItemAccess.canWrite(item)) return CarSettingWriteResult(false)
         val command = VehicleSettingCommands.forItem(item)
             ?: return CarSettingWriteResult(false)
+        val sent = sink.send(command)
         return CarSettingWriteResult(
-            success = sink.send(command),
+            success = sent,
             channel = CarSettingWriteChannel.BLE,
+            confirmationStatus = if (sent) {
+                CarSettingConfirmationStatus.LOCAL_UPDATED
+            } else {
+                CarSettingConfirmationStatus.FAILED
+            },
         )
     }
 }
@@ -70,6 +76,7 @@ class CloudCarSettingWriter(
             return CarSettingWriteResult(
                 success = true,
                 channel = CarSettingWriteChannel.CLOUD,
+                confirmationStatus = CarSettingConfirmationStatus.CLOUD_ACCEPTED,
             )
         }
         return CarSettingWriteResult(false)

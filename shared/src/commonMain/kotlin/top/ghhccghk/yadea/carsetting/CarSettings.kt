@@ -105,6 +105,14 @@ data class CarSettingItem(
     val configId: String = id,
 )
 
+enum class CarSettingConfirmationStatus {
+    LOCAL_UPDATED,
+    CLOUD_ACCEPTED,
+    VEHICLE_CONFIRMED,
+    FAILED,
+    UNKNOWN,
+}
+
 data class CarSettingsState(
     val items: List<CarSettingItem> = emptyList(),
     /** 本地已知、但本次云端没有下发的设置；仅用于控制页调试与实验性操作。 */
@@ -116,6 +124,7 @@ data class CarSettingsState(
     val loadedFromCloud: Boolean = false,
     val vin: String = "",
     val loadGeneration: Long = 0,
+    val confirmationStatuses: Map<String, CarSettingConfirmationStatus> = emptyMap(),
 )
 
 /** 平台侧把设置值翻译成 BLE `CommandTempBean` 或 IoT 请求。 */
@@ -127,6 +136,12 @@ enum class CarSettingWriteChannel {
 data class CarSettingWriteResult(
     val success: Boolean,
     val channel: CarSettingWriteChannel? = null,
+    val confirmationStatus: CarSettingConfirmationStatus = when {
+        !success -> CarSettingConfirmationStatus.FAILED
+        channel == null -> CarSettingConfirmationStatus.UNKNOWN
+        channel == CarSettingWriteChannel.BLE -> CarSettingConfirmationStatus.LOCAL_UPDATED
+        else -> CarSettingConfirmationStatus.CLOUD_ACCEPTED
+    },
 )
 
 object CarSettingItemAccess {
@@ -193,11 +208,19 @@ class CarSettingsController(
     private val _state = MutableStateFlow(CarSettingsState(initialItems))
     val state: StateFlow<CarSettingsState> = _state.asStateFlow()
     private var latestVehicleStatus: VehicleStatusSnapshot? = null
+    private var vehicleStatusGeneration = 0L
+    private val pendingVehicleConfirmations = mutableMapOf<String, PendingVehicleConfirmation>()
     private var loadGeneration = 0L
 
     private data class VehicleStatusSnapshot(
         val vin: String,
         val status: TtpInfo,
+        val generation: Long,
+    )
+
+    private data class PendingVehicleConfirmation(
+        val kind: CarSettingKind,
+        val observedStatusGeneration: Long,
     )
 
     val available: Boolean
@@ -228,6 +251,7 @@ class CarSettingsController(
         if (_state.value.loading && _state.value.vin == vin) return false
 
         val generation = ++loadGeneration
+        pendingVehicleConfirmations.clear()
         _state.value = CarSettingsState(
             vin = vin,
             loadGeneration = generation,
@@ -265,6 +289,7 @@ class CarSettingsController(
 
     private fun clearForVin(vin: String, message: String) {
         val generation = ++loadGeneration
+        pendingVehicleConfirmations.clear()
         _state.value = CarSettingsState(
             vin = vin,
             loadGeneration = generation,
@@ -310,16 +335,49 @@ class CarSettingsController(
         val writeResult = runCatching { activeWriter.writeWithResult(optimistic) }
             .getOrDefault(CarSettingWriteResult(false))
         val success = writeResult.success
-        val latest = _state.value
         if (!success) {
+            pendingVehicleConfirmations.remove(id)
+            val latest = _state.value
             _state.value = latest
                 .withItem(item)
                 .copy(
                     pendingIds = latest.pendingIds - id,
                     message = "设置保存失败，已恢复原值",
+                    confirmationStatuses = latest.confirmationStatuses +
+                        (id to CarSettingConfirmationStatus.FAILED),
                 )
             return false
         }
+
+        val acceptedStatus = when (writeResult.confirmationStatus) {
+            CarSettingConfirmationStatus.FAILED -> CarSettingConfirmationStatus.UNKNOWN
+            else -> writeResult.confirmationStatus
+        }
+        if (acceptedStatus == CarSettingConfirmationStatus.LOCAL_UPDATED ||
+            acceptedStatus == CarSettingConfirmationStatus.CLOUD_ACCEPTED
+        ) {
+            pendingVehicleConfirmations[id] = PendingVehicleConfirmation(
+                kind = optimistic.kind,
+                observedStatusGeneration = latestVehicleStatus?.generation ?: -1L,
+            )
+        } else {
+            pendingVehicleConfirmations.remove(id)
+        }
+        val accepted = _state.value.copy(
+            pendingIds = _state.value.pendingIds - id,
+            message = when (acceptedStatus) {
+                CarSettingConfirmationStatus.LOCAL_UPDATED ->
+                    "设置命令已发送，等待车辆确认"
+                CarSettingConfirmationStatus.CLOUD_ACCEPTED ->
+                    "设置已提交云端，等待确认"
+                CarSettingConfirmationStatus.UNKNOWN ->
+                    "设置已提交，确认状态未知"
+                else -> null
+            },
+            confirmationStatuses = _state.value.confirmationStatuses +
+                (id to acceptedStatus),
+        )
+        _state.value = accepted
 
         val cloudUpdate = CloudCarSettingUpdateBuilder.supports(
             configId = optimistic.configId,
@@ -343,6 +401,8 @@ class CarSettingsController(
                 if (confirmed != null) break
             }
             if (confirmed != true) {
+                pendingVehicleConfirmations.remove(id)
+                val latest = _state.value
                 _state.value = latest
                     .withItem(item)
                     .copy(
@@ -352,18 +412,29 @@ class CarSettingsController(
                         } else {
                             "设置状态确认超时，已恢复原值"
                         },
+                        confirmationStatuses = latest.confirmationStatuses +
+                            (id to CarSettingConfirmationStatus.FAILED),
                     )
                 return false
             }
+            pendingVehicleConfirmations.remove(id)
+            val latest = _state.value
+            _state.value = latest.copy(
+                message = null,
+                confirmationStatuses = latest.confirmationStatuses +
+                    (id to CarSettingConfirmationStatus.VEHICLE_CONFIRMED),
+            )
         }
 
-        _state.value = latest.copy(
-            pendingIds = latest.pendingIds - id,
-            message = null,
-        )
         if (statusGateway != null && needsCloudConfirmation) {
             if (!refresh()) {
                 _state.value = _state.value.copy(message = "设置已保存，但云端配置刷新失败")
+            } else {
+                val latest = _state.value
+                _state.value = latest.copy(
+                    confirmationStatuses = latest.confirmationStatuses +
+                        (id to CarSettingConfirmationStatus.VEHICLE_CONFIRMED),
+                )
             }
         }
         return true
@@ -387,13 +458,15 @@ class CarSettingsController(
             latestVehicleStatus = null
             return
         }
-        latestVehicleStatus = VehicleStatusSnapshot(normalizedVin, status)
+        val generation = ++vehicleStatusGeneration
+        latestVehicleStatus = VehicleStatusSnapshot(normalizedVin, status, generation)
         if (_state.value.vin.isNotEmpty() && _state.value.vin != normalizedVin) return
         applyVehicleStatus(status)
     }
 
     private fun applyVehicleStatus(status: TtpInfo?) {
         val current = _state.value
+        val generation = latestVehicleStatus?.generation ?: 0L
         if (status == null || current.items.isEmpty()) return
         fun applyStatus(source: List<CarSettingItem>): List<CarSettingItem> = source.map { item ->
             if (item.id in current.pendingIds) return@map item
@@ -558,9 +631,35 @@ class CarSettingsController(
                 else -> item
             }
         }
+        val nextItems = applyStatus(current.items)
+        val nextMissingCloudItems = applyStatus(current.missingCloudItems)
+        val confirmedIds = pendingVehicleConfirmations
+            .filter { (itemId, pending) ->
+                val updated = nextItems.firstOrNull { it.id == itemId }
+                    ?: nextMissingCloudItems.firstOrNull { it.id == itemId }
+                generation > pending.observedStatusGeneration &&
+                    updated?.kind == pending.kind
+            }
+            .keys
+        if (confirmedIds.isNotEmpty()) {
+            confirmedIds.forEach(pendingVehicleConfirmations::remove)
+        }
+        val statuses = if (confirmedIds.isEmpty()) {
+            current.confirmationStatuses
+        } else {
+            current.confirmationStatuses + confirmedIds.associateWith {
+                CarSettingConfirmationStatus.VEHICLE_CONFIRMED
+            }
+        }
         _state.value = current.copy(
-            items = applyStatus(current.items),
-            missingCloudItems = applyStatus(current.missingCloudItems),
+            items = nextItems,
+            missingCloudItems = nextMissingCloudItems,
+            confirmationStatuses = statuses,
+            message = if (confirmedIds.isEmpty()) {
+                current.message
+            } else {
+                "车辆已确认设置"
+            },
         )
     }
 
