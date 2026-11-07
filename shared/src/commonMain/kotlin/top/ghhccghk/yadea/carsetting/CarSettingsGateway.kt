@@ -296,7 +296,7 @@ class YadeaCarSettingsGateway(
     override suspend fun checkStatus(configId: String): Boolean? {
         val token = tokenProvider().trim()
         if (token.isBlank() || configId.isBlank()) return null
-        val businessJson = sortedJson(mapOf("id" to configId))
+        val businessJson = sortedJson(mapOf("_gateway" to "True", "id" to configId))
         val url = baseUrl + CHECK_STATUS_PATH + "?" +
             GatewaySigner.formBody(businessJson, effectiveTimestamp())
         val headers = GatewayRequestHeaders.build(
@@ -310,15 +310,18 @@ class YadeaCarSettingsGateway(
                 url = url,
                 headers = headers,
             ),
-        ) ?: return null
-        if (response.status !in 200..299) return null
+        ) ?: return false
+        if (response.status !in 200..299) return false
         val decoded = Crypto.urlDecode(response.body.trim())
         val plain = Crypto.aesEcbPkcs5Decrypt(GatewaySigner.AES_KEY, decoded) ?: decoded
         if (JsonSupport.boolean(plain, "success") == false) return false
-        val data = JsonSupport.objectField(plain, "data") ?: plain
-        val result = JsonSupport.int(data, "result")
-            ?: JsonSupport.string(data, "result")?.toIntOrNull()
-        return result == 0
+        // `MixRequest$checkSettingStatus$3` only reads `data.result`; missing
+        // data/result means pending and must continue polling.
+        val data = JsonSupport.objectField(plain, "data") ?: return null
+        val resultText = JsonSupport.string(data, "result")
+            ?: JsonSupport.numberText(data, "result")
+            ?: return null
+        return resultText.trim().toIntOrNull()?.let { it == 0 } ?: false
     }
 
     override suspend fun loadCustomSoundState(

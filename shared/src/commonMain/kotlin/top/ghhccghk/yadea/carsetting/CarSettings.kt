@@ -333,8 +333,13 @@ class CarSettingsController(
             var confirmed: Boolean? = null
             for (attempt in 0 until statusPollAttempts) {
                 delay(statusPollIntervalMs)
-                confirmed = runCatching { statusGateway.checkStatus(optimistic.configId) }
-                    .getOrNull()
+                confirmed = try {
+                    statusGateway.checkStatus(optimistic.configId)
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (_: Exception) {
+                    false
+                }
                 if (confirmed != null) break
             }
             if (confirmed != true) {
