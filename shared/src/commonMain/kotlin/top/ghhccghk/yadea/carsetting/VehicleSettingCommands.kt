@@ -433,7 +433,7 @@ object VehicleSettingCommands {
             }
             // CustomizeKeyActivity：默认按短按命令判断可写性，具体条目在 forItem 区分。
             "1005" -> keyFunctionCommand(kind, short = true)
-            "81" -> when (kind) {
+            "21", "81" -> when (kind) {
                 is CarSettingKind.Toggle -> toggle(
                     kind = kind,
                     onType = "COMMAND_WITH_GO_HOME_OPEN",

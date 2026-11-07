@@ -92,3 +92,31 @@
 - 编译结果：共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
 - Git commit ID：`1a68941`。
 - 未完成事项：BLE 帧参数仍属于 VS-012 范围；真实车辆倒车/婴儿车行为未验证。
+
+## VS-007 — confId 21 伴我回家灯
+
+- 状态：COMPLETE
+- 问题：KMP 标题、控件、命令和 TTP 回填均未识别 confId `21`，云端下发后只得到通用 Info。
+- Smali/资源证据：
+  - `BackLightActivity.getSettingConfigId()` 返回 `21`。
+  - `values/strings.xml` 的 `user_car_back_light` 是“伴我回家灯”。
+  - `activity_back_home_light.xml` 同时包含 `YedeaOldSwitch` 与 `IndicatorSeekBar`，`light_time_array` 为 15s/30s/45s/60s。
+  - `BackLightActivity.onSwClick()` 使用 `COMMAND_WITH_GO_HOME_OPEN/CLOSE`；`BackLightActivity$a.a()` 使用 `COMMAND_WITH_GO_HOME_TIME_SETTING`。
+  - `ch.smali:3321-3352,4193-4214,4690-4711` 确认 commandId 0x85/0x83/0x84。
+  - `TtpInfo.extended.withGoHomeStatus/withGoHomeStatus` 提供回读。
+- 当前实现：`TITLES`、`kindOf()`、拆分条目和 `VehicleSettingCommands` 均无 `21`。
+- 修复：
+  - 增加标题“伴我回家灯”和 `LIGHT_IDS` 分类。
+  - 基础条目映射为 Toggle，新增稳定 `cloud:21:time` Choice，选项 15/30/45/60 秒。
+  - `VehicleSettingCommands` 将 `21` 与 `81` 共用已确认的 0x83/0x84/0x85 命令。
+  - TTP 回填同时覆盖 `21` 与 `81`。
+  - 未修改 `VehicleSettingFrameEncoder`，避免扩大 BLE 帧风险。
+- 修改文件：
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/CarSettingsGateway.kt`
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/VehicleSettingCommands.kt`
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/CarSettings.kt`
+  - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CarSettingsConfIdMappingTest.kt`
+- 测试源码：验证 21 的 Toggle、稳定时间条目、时间选项和命令映射。
+- 编译结果：共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
+- Git commit ID：待本次修复提交生成后记录。
+- 未完成事项：完整 golden frame 属于 VS-012；真实车辆伴我回家灯行为未验证。

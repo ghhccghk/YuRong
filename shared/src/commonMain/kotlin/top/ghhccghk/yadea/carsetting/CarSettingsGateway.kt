@@ -949,6 +949,23 @@ object CloudCarSettingMapper {
                     )
                 }
         }
+        cloud.configs.firstOrNull { it.confId.trim() == "21" }?.let { config ->
+            items += CarSettingItem(
+                id = "cloud:21:time",
+                configId = "21",
+                title = "伴我回家灯时间",
+                summary = "关闭车灯后继续照明的时间档位",
+                classification = classificationOf("21", config),
+                group = groupOf(config, classificationOf("21", config)),
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Choice(
+                    selectedIndex = 0,
+                    options = listOf("15 秒", "30 秒", "45 秒", "60 秒"),
+                ),
+                writable = config.isAuth != false,
+                sort = (config.sort.toIntOrNull() ?: 0) + 1,
+            )
+        }
         cloud.configs.firstOrNull { it.confId.trim() == "81" }?.let { config ->
             items += CarSettingItem(
                 id = "cloud:81:time",
@@ -1359,7 +1376,7 @@ object CloudCarSettingMapper {
         "15" -> CarSettingKind.Toggle(
             cloud.boolValue("vehiclePowerDownStatus") == true,
         )
-        "81" -> CarSettingKind.Toggle(false)
+        "21", "81" -> CarSettingKind.Toggle(false)
         "73" -> CarSettingKind.Toggle(false)
         "9" -> CarSettingKind.Toggle(cloud.boolValue("alarmOn") == true)
         "24" -> CarSettingKind.Toggle(cloud.boolValue("emergencyContact") == true)
@@ -1443,7 +1460,7 @@ object CloudCarSettingMapper {
     /** 一键开机/蓝牙校准属于蓝牙车钥匙，不能走普通车辆设置命令。 */
     private val BLUETOOTH_KEY_IDS = setOf("1", "66")
     private val LIGHT_IDS = setOf(
-        "5", "19", "20", "26", "33", "40", "41", "68", "73", "81", "84", "88", "93",
+        "5", "19", "20", "21", "26", "33", "40", "41", "68", "73", "81", "84", "88", "93",
     )
     private val POWER_IDS = setOf(
         "2", "3", "7", "11", "15", "25", "39", "52", "53", "59", "79",
@@ -1493,6 +1510,7 @@ object CloudCarSettingMapper {
         "18" to "能量回收档位",
         "19" to "自动大灯",
         "20" to "车辆音量",
+        "21" to "伴我回家灯",
         "24" to "紧急联系人",
         "25" to "密码解锁",
         "26" to "转向灯自动回位",

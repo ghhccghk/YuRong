@@ -480,7 +480,7 @@ class CarSettingsController(
                     }
                     else -> item
                 }
-                "81" -> when (val kind = item.kind) {
+                "21", "81" -> when (val kind = item.kind) {
                     is CarSettingKind.Toggle -> item.withToggle(
                         status.extended.withGoHomeStatus.flagOrNull(),
                     )
