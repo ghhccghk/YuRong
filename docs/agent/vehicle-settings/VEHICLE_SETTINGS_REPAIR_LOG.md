@@ -25,5 +25,5 @@
   - 旧 VIN 响应不能覆盖新 VIN。
   - 刷新失败不能保留旧 VIN 项目。
 - 编译结果：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm` 成功；`:desktopApp:build :androidApp:assembleDebug` 成功。测试源码已编译，测试未执行。
-- Git commit ID：本条记录所在修复提交。
+- Git commit ID：`b243a59`。
 - 未完成事项：测试源码已编写但按指令未执行 `jvmTest`；真实车辆/云端行为未验证。
