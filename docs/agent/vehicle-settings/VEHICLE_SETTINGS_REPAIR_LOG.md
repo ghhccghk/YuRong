@@ -71,5 +71,5 @@
   - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CarSettingsUiResetKeyTest.kt`
 - 测试源码：验证 VIN、加载代次、`loadedFromCloud` 任一变化都会改变 UI reset key。
 - 编译结果：共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
-- Git commit ID：待本次修复提交生成后记录。
+- Git commit ID：`35b93f8`。
 - 未完成事项：Miuix/M3、明暗、窄屏视觉检查和真机输入行为未验证。
