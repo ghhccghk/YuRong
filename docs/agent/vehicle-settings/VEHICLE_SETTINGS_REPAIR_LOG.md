@@ -49,5 +49,5 @@
   - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CarSettingsControllerTest.kt`
 - 测试源码：旧 VIN 状态不能写入当前 VIN；VIN 切换后缓存状态被清理。
 - 编译结果：共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
-- Git commit ID：待本次修复提交生成后记录。
+- Git commit ID：`60d5d12`。
 - 未完成事项：真实车辆 TTP 切换和真机行为未验证。
