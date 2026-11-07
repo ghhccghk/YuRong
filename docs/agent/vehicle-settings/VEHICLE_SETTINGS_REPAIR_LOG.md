@@ -118,5 +118,5 @@
   - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CarSettingsConfIdMappingTest.kt`
 - 测试源码：验证 21 的 Toggle、稳定时间条目、时间选项和命令映射。
 - 编译结果：共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
-- Git commit ID：待本次修复提交生成后记录。
+- Git commit ID：`8d73500`。
 - 未完成事项：完整 golden frame 属于 VS-012；真实车辆伴我回家灯行为未验证。
