@@ -152,8 +152,13 @@ class CarSettingsController(
 ) {
     private val _state = MutableStateFlow(CarSettingsState(initialItems))
     val state: StateFlow<CarSettingsState> = _state.asStateFlow()
-    private var latestVehicleStatus: TtpInfo? = null
+    private var latestVehicleStatus: VehicleStatusSnapshot? = null
     private var loadGeneration = 0L
+
+    private data class VehicleStatusSnapshot(
+        val vin: String,
+        val status: TtpInfo,
+    )
 
     val available: Boolean
         get() = writer != null
@@ -176,6 +181,9 @@ class CarSettingsController(
         if (vin.isBlank()) {
             clearForVin(vin, "登录并绑定车辆后加载云端设置")
             return false
+        }
+        if (_state.value.vin.isNotEmpty() && _state.value.vin != vin) {
+            latestVehicleStatus = null
         }
         if (_state.value.loading && _state.value.vin == vin) return false
 
@@ -209,7 +217,9 @@ class CarSettingsController(
             loadGeneration = generation,
             message = if (items.isEmpty()) "云端未返回可用设置项" else null,
         )
-        applyVehicleStatus(latestVehicleStatus)
+        latestVehicleStatus?.let { snapshot ->
+            if (snapshot.vin == vin) applyVehicleStatus(snapshot.status)
+        }
         return true
     }
 
@@ -323,7 +333,17 @@ class CarSettingsController(
      * 车辆状态更新后回填开关，避免设置页一直显示为关闭。
      */
     fun updateVehicleStatus(status: TtpInfo?) {
-        latestVehicleStatus = status
+        updateVehicleStatus(vinProvider().trim(), status)
+    }
+
+    fun updateVehicleStatus(vin: String, status: TtpInfo?) {
+        val normalizedVin = vin.trim()
+        if (status == null || normalizedVin.isBlank()) {
+            latestVehicleStatus = null
+            return
+        }
+        latestVehicleStatus = VehicleStatusSnapshot(normalizedVin, status)
+        if (_state.value.vin.isNotEmpty() && _state.value.vin != normalizedVin) return
         applyVehicleStatus(status)
     }
 

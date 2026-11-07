@@ -327,6 +327,64 @@ class CarSettingsControllerTest {
     }
 
     @Test
+    fun oldVinStatusCannotApplyToCurrentVin() = runBlocking {
+        val controller = CarSettingsController(
+            initialItems = listOf(tcsItem()),
+            writer = FakeWriter(true),
+            gateway = object : CarSettingsGateway {
+                override suspend fun load(vin: String): CloudCarSettings? = CloudCarSettings(
+                    configs = listOf(CloudBikeConfig(confId = "37", confName = "TCS")),
+                    values = emptyMap(),
+                )
+            },
+            vinProvider = { "VIN-B" },
+        )
+        assertTrue(controller.refresh())
+
+        controller.updateVehicleStatus("VIN-A", sampleStatus(tcsWorkMode = 0xFF))
+
+        val item = controller.state.value.items.first { it.id == "cloud:37" }
+        assertEquals(false, (item.kind as CarSettingKind.Toggle).checked)
+    }
+
+    @Test
+    fun cachedStatusIsClearedWhenVinChanges() = runBlocking {
+        var currentVin = "VIN-A"
+        val controller = CarSettingsController(
+            initialItems = listOf(tcsItem()),
+            writer = FakeWriter(true),
+            gateway = object : CarSettingsGateway {
+                override suspend fun load(vin: String): CloudCarSettings? = CloudCarSettings(
+                    configs = listOf(CloudBikeConfig(confId = "37", confName = "TCS")),
+                    values = emptyMap(),
+                )
+            },
+            vinProvider = { currentVin },
+        )
+        controller.updateVehicleStatus("VIN-A", sampleStatus(tcsWorkMode = 0xFF))
+        assertEquals(
+            true,
+            (controller.state.value.items.first().kind as CarSettingKind.Toggle).checked,
+        )
+
+        currentVin = "VIN-B"
+        assertTrue(controller.refresh())
+
+        val item = controller.state.value.items.first { it.id == "cloud:37" }
+        assertEquals(false, (item.kind as CarSettingKind.Toggle).checked)
+    }
+
+    private fun tcsItem() = CarSettingItem(
+        id = "cloud:37",
+        configId = "37",
+        title = "TCS",
+        summary = "",
+        classification = CarSettingClassification.SECURITY,
+        channel = CarSettingChannel.BLE,
+        kind = CarSettingKind.Toggle(false),
+    )
+
+    @Test
     fun bleFallbackSuccessDoesNotPollCloudStatus() = runBlocking {
         var statusChecks = 0
         val gateway = object : CarSettingsGateway {

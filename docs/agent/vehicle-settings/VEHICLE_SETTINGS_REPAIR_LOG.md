@@ -27,3 +27,27 @@
 - 编译结果：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm` 成功；`:desktopApp:build :androidApp:assembleDebug` 成功。测试源码已编译，测试未执行。
 - Git commit ID：`b243a59`。
 - 未完成事项：测试源码已编写但按指令未执行 `jvmTest`；真实车辆/云端行为未验证。
+
+## VS-002 — TTP 状态与 VIN 绑定
+
+- 状态：COMPLETE
+- 问题：`latestVehicleStatus` 只保存 `TtpInfo`，旧 VIN 的 TTP 状态可能覆盖新 VIN 设置。
+- Smali 证据：
+  - `com/yadea/smartmoto/vehicle/peripherals/common/BasePeripheralsModel$getBikeConfigs$1.smali:196-212` 明确以当前 `VehicleDataManager.G().getVin()` 获取请求 VIN。
+  - `TtpInfo` 是车辆状态快照，原页面只对当前车辆渲染；`TtpInfoParser` 本身不携带 VIN，因此 KMP 调用方必须绑定当前 VIN。
+  - `YdCarSettingActivity$initNetObserver$2.smali:64-94` 只刷新当前设置页面，不把旧车辆状态跨车辆复用。
+- 当前实现：`CarSettingsController.latestVehicleStatus: TtpInfo?` 与 VIN 无关；`MainScreen` 的 TTP effect 只按 `vehicleStatus.hex` 触发。
+- 修复：
+  - 引入 `VehicleStatusSnapshot(vin, status)`。
+  - 新增显式 `updateVehicleStatus(vin, status)`，旧 VIN 状态不回填当前 VIN。
+  - VIN 变化时清空缓存状态。
+  - `MainScreen` 将 `vehicleProfile.vin` 加入 effect key，并传入显式 VIN。
+  - 云端刷新成功后只应用同 VIN 的缓存状态。
+- 修改文件：
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/CarSettings.kt`
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/screens/MainScreen.kt`
+  - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CarSettingsControllerTest.kt`
+- 测试源码：旧 VIN 状态不能写入当前 VIN；VIN 切换后缓存状态被清理。
+- 编译结果：共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
+- Git commit ID：待本次修复提交生成后记录。
+- 未完成事项：真实车辆 TTP 切换和真机行为未验证。

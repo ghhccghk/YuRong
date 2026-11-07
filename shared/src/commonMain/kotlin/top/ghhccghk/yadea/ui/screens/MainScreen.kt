@@ -426,8 +426,8 @@ fun MainScreen(
             carSettingsController.refresh()
         }
     }
-    LaunchedEffect(vehicleStatus?.hex, carSettingsController) {
-        carSettingsController.updateVehicleStatus(vehicleStatus)
+    LaunchedEffect(vehicleProfile?.vin, vehicleStatus?.hex, carSettingsController) {
+        carSettingsController.updateVehicleStatus(vehicleProfile?.vin.orEmpty(), vehicleStatus)
     }
     var autoConnectAttempted by remember { mutableStateOf(false) }
     LaunchedEffect(authUiState.session.isLoggedIn, vehicleProfile?.vin) {
