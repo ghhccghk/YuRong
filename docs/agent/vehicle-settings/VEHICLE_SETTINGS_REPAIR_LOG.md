@@ -136,5 +136,5 @@
   - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CarSettingWriterAccessTest.kt`
 - 测试源码：只读项不会触发 BLE sink、BLE fallback 或云端 update。
 - 编译结果：共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
-- Git commit ID：待本次修复提交生成后记录。
+- Git commit ID：`59d0175`。
 - 未完成事项：伪造合法 `writable=true` 条目的清单级校验由 VS-011 继续处理；真实车辆权限行为未验证。
