@@ -411,7 +411,7 @@ fun CarSettingsScreen(
             safetyTarget?.let { item ->
                 scope.launch {
                     controller.update(item.id) { current ->
-                        (current as? CarSettingKind.Toggle)?.copy(checked = false) ?: current
+                        (current as? CarSettingKind.Toggle)?.copy(checked = false, valueKnown = true) ?: current
                     }
                 }
             }
@@ -434,12 +434,12 @@ fun CarSettingsScreen(
                         (brace?.kind as? CarSettingKind.Toggle)?.checked == true
                     if (brace != null && !braceOn) {
                         val enabled = controller.update(brace.id) { current ->
-                            (current as? CarSettingKind.Toggle)?.copy(checked = true) ?: current
+                            (current as? CarSettingKind.Toggle)?.copy(checked = true, valueKnown = true) ?: current
                         }
                         if (!enabled) return@launch
                     }
                     controller.update(item.id) { current ->
-                        (current as? CarSettingKind.Toggle)?.copy(checked = true) ?: current
+                        (current as? CarSettingKind.Toggle)?.copy(checked = true, valueKnown = true) ?: current
                     }
                 }
             }
@@ -472,7 +472,7 @@ fun CarSettingsScreen(
                 },
                 onValueChangeFinished = {
                     submitSettingUpdate(sliderTarget) { current ->
-                        (current as? CarSettingKind.Slider)?.copy(value = draft) ?: current
+                        (current as? CarSettingKind.Slider)?.copy(value = draft, valueKnown = true) ?: current
                     }
                 },
                 valueRange = slider.range,
@@ -601,7 +601,7 @@ fun CarSettingsScreen(
                                 scope.launch {
                                     controller.update(item.id) { current ->
                                         (current as? CarSettingKind.Choice)
-                                            ?.copy(selectedIndex = index)
+                                            ?.copy(selectedIndex = index, valueKnown = true)
                                             ?: current
                                     }
                                 }
@@ -1012,37 +1012,40 @@ private fun CarSettingRow(
                 append(it)
             }
             if (!item.writable) append(" · 只读")
+            if (!settingValueKnown(item.kind)) append(" · 状态未知")
         }
     }
     when (val kind = item.kind) {
         is CarSettingKind.Toggle -> AppSwitchPreference(
-            checked = kind.checked,
+            checked = if (kind.valueKnown) kind.checked else false,
             onCheckedChange = { checked ->
-                onUpdate { (it as? CarSettingKind.Toggle)?.copy(checked = checked) ?: it }
+                onUpdate { (it as? CarSettingKind.Toggle)?.copy(checked = checked, valueKnown = true) ?: it }
             },
             title = item.title,
             summary = summary,
-            enabled = enabled,
+            enabled = enabled && kind.valueKnown,
         )
         is CarSettingKind.Choice -> AppPopupPreference(
             title = item.title,
             summary = summary,
             options = kind.options,
-            selectedIndex = kind.selectedIndex,
+            selectedIndex = if (kind.valueKnown) kind.selectedIndex else 0,
             onSelectedIndexChange = { index ->
-                onUpdate { (it as? CarSettingKind.Choice)?.copy(selectedIndex = index) ?: it }
+                onUpdate { (it as? CarSettingKind.Choice)?.copy(selectedIndex = index, valueKnown = true) ?: it }
             },
-            enabled = enabled,
+            enabled = enabled && kind.valueKnown,
         )
         is CarSettingKind.Slider -> AppActionPreference(
             title = item.title,
             summary = summary,
-            value = if (kind.minimumNonZero != null && kind.value == 0f) {
+            value = if (!kind.valueKnown) {
+                "状态未知"
+            } else if (kind.minimumNonZero != null && kind.value == 0f) {
                 "不限速"
             } else {
                 formatSettingValue(kind.value, kind.unit)
             },
-            enabled = enabled,
+            enabled = enabled && kind.valueKnown,
             onClick = onOpenDetail,
         )
         is CarSettingKind.Info -> AppListRow(
@@ -1064,6 +1067,13 @@ private fun CarSettingRow(
             onClick = onOpenDetail,
         )
     }
+}
+
+private fun settingValueKnown(kind: CarSettingKind): Boolean = when (kind) {
+    is CarSettingKind.Toggle -> kind.valueKnown
+    is CarSettingKind.Choice -> kind.valueKnown
+    is CarSettingKind.Slider -> kind.valueKnown
+    else -> true
 }
 
 private fun formatSettingValue(value: Float, unit: String): String {

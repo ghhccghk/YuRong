@@ -1272,42 +1272,51 @@ object CloudCarSettingMapper {
         else -> CarSettingChannel.BLE
     }
 
+    private fun cloudToggle(cloud: CloudCarSettings, key: String): CarSettingKind.Toggle =
+        CarSettingKind.Toggle(
+            checked = cloud.boolValue(key) == true,
+            valueKnown = cloud.boolValue(key) != null,
+        )
+
+    private fun unknownToggle(): CarSettingKind.Toggle =
+        CarSettingKind.Toggle(checked = false, valueKnown = false)
+
     private fun kindOf(confId: String, cloud: CloudCarSettings): CarSettingKind = when (confId) {
         in BLUETOOTH_KEY_IDS -> CarSettingKind.Info("请在原 App 的车钥匙模块中设置")
-        "13" -> CarSettingKind.Toggle(cloud.boolValue("alarmSoundEnable") == true)
-        "16" -> CarSettingKind.Toggle(cloud.boolValue("dumpAlarm") == true)
+        "13" -> cloudToggle(cloud, "alarmSoundEnable")
+        "16" -> cloudToggle(cloud, "dumpAlarm")
         // 携出助力没有云端回读字段，初值保守为关闭。
-        "3" -> CarSettingKind.Toggle(false)
-        "17" -> CarSettingKind.Toggle(cloud.boolValue("resistanceOn") == true)
+        "3" -> unknownToggle()
+        "17" -> cloudToggle(cloud, "resistanceOn")
         "18" -> CarSettingKind.Slider(
             value = 1f,
             range = 1f..3f,
             steps = 1,
             unit = " 档",
         )
-        "40" -> CarSettingKind.Toggle(cloud.boolValue("colorEggSoundEffect") == true)
+        "40" -> cloudToggle(cloud, "colorEggSoundEffect")
         // 41/88 在原 App 都进入自定义音效列表页，统一在下方管理。
         "41" -> CarSettingKind.Info("进入设置")
-        "25" -> CarSettingKind.Toggle(cloud.boolValue("passwordUnlockEnable") == true)
-        "53" -> CarSettingKind.Toggle(cloud.boolValue("bleApproachPowerOnEnable") == true)
-        "10" -> CarSettingKind.Toggle(cloud.boolValue("distanceOn") == true)
-        "52" -> CarSettingKind.Toggle(cloud.boolValue("bleUnlockOn") == true)
-        "62" -> CarSettingKind.Toggle(cloud.boolValue("seatHeating") == true)
-        "63", "72", "79", "80", "90" -> CarSettingKind.Toggle(false)
-        "77" -> CarSettingKind.Toggle(cloud.boolValue("sleepMode") == true)
-        "91" -> CarSettingKind.Toggle(cloud.boolValue("sosEmergencyCall") == true)
-        "95" -> CarSettingKind.Toggle(cloud.boolValue("wxhlBind") == true)
+        "25" -> cloudToggle(cloud, "passwordUnlockEnable")
+        "53" -> cloudToggle(cloud, "bleApproachPowerOnEnable")
+        "10" -> cloudToggle(cloud, "distanceOn")
+        "52" -> cloudToggle(cloud, "bleUnlockOn")
+        "62" -> cloudToggle(cloud, "seatHeating")
+        "63", "72", "79", "80", "90" -> unknownToggle()
+        "77" -> cloudToggle(cloud, "sleepMode")
+        "91" -> cloudToggle(cloud, "sosEmergencyCall")
+        "95" -> cloudToggle(cloud, "wxhlBind")
         // TCS/ABS 的当前值来自车辆 BLE 状态，云端清单只负责下发项目本身；
         // 初值由 CarSettingsController.updateVehicleStatus 回填。
-        "37", "38" -> CarSettingKind.Toggle(false)
+        "37", "38" -> unknownToggle()
         // 模拟声浪、仪表亮度调节同样由子 Activity 读取车辆状态。
-        "33", "86" -> CarSettingKind.Toggle(false)
+        "33", "86" -> unknownToggle()
         // 自动大灯、转向灯回位、刹车断电、陡坡缓降、坡道驻停。
-        "19", "26", "36", "46", "49" -> CarSettingKind.Toggle(false)
+        "19", "26", "36", "46", "49" -> unknownToggle()
         // 急刹爆闪、档位记忆、辅助驾驶小蓝灯使用动态位域命令。
-        "68", "94", "84" -> CarSettingKind.Toggle(false)
-        "76" -> CarSettingKind.Toggle(cloud.boolValue("positioningFunc") == true)
-        "45" -> CarSettingKind.Toggle(false)
+        "68", "94", "84" -> unknownToggle()
+        "76" -> cloudToggle(cloud, "positioningFunc")
+        "45" -> unknownToggle()
         "27" -> CarSettingKind.Choice(
             selectedIndex = 0,
             options = listOf("关机不设防", "关机自动设防"),
@@ -1326,7 +1335,7 @@ object CloudCarSettingMapper {
             options = listOf("主题 1", "主题 2"),
         )
         // HelpPromotePlusActivity：辅助推行开关；档位和自适应模式在下方追加。
-        "64", "89" -> CarSettingKind.Toggle(false)
+        "64", "89" -> unknownToggle()
         // VehicleCustomizeActivity：FREE 模式的四项参数一次下发。
         "55", "92" -> CarSettingKind.Customize()
         // TopSpeedActivity / MaxSpeedSettingActivity：最高车速。
@@ -1347,7 +1356,7 @@ object CloudCarSettingMapper {
         "7" -> CarSettingKind.Toggle(
             cloud.boolValue("bleLeavePowerOffEnable") == true,
         )
-        "11" -> CarSettingKind.Toggle(false)
+        "11" -> unknownToggle()
         // GaugeStyleHandOffActivity：仪表主题，参数 0..2。
         "50" -> CarSettingKind.Choice(
             selectedIndex = 0,
@@ -1362,7 +1371,7 @@ object CloudCarSettingMapper {
         // RadarActivity：雷达分项在下方追加。
         "69" -> CarSettingKind.Info("雷达功能分项设置见下方")
         // QuietModeActivity：关闭超速提示，原实现同时下发新旧两个字段。
-        "93" -> CarSettingKind.Toggle(false)
+        "93" -> unknownToggle()
         // CustomSoundEffectListActivity：列表、开关和应用入口在下方管理。
         "88" -> CarSettingKind.Info("进入设置")
         // CustomizeKeyActivity：短按和长按功能在下方分别设置。
@@ -1370,18 +1379,18 @@ object CloudCarSettingMapper {
         // GaugeSettingsActivity 是仪表蓝牙配对与同步页，不是可写参数。
         "71" -> CarSettingKind.Entrance("请到“连接”页配对仪表")
         // 边撑自动关机：原 App 只给开关，依赖边撑感应（confId 2）。
-        "39" -> CarSettingKind.Toggle(false)
+        "39" -> unknownToggle()
         // 报失模式需要短信验证，统一在“诊断 · 定位与报失”中操作。
         "8" -> CarSettingKind.Info("请到“诊断 · 定位与报失”中操作")
         "15" -> CarSettingKind.Toggle(
             cloud.boolValue("vehiclePowerDownStatus") == true,
         )
-        "21", "81" -> CarSettingKind.Toggle(false)
-        "73" -> CarSettingKind.Toggle(false)
-        "9" -> CarSettingKind.Toggle(cloud.boolValue("alarmOn") == true)
-        "24" -> CarSettingKind.Toggle(cloud.boolValue("emergencyContact") == true)
-        "75" -> CarSettingKind.Toggle(cloud.boolValue("tamperProofIotEnable") == true)
-        "82" -> CarSettingKind.Toggle(cloud.boolValue("lowBatTelWarning") == true)
+        "21", "81" -> unknownToggle()
+        "73" -> unknownToggle()
+        "9" -> cloudToggle(cloud, "alarmOn")
+        "24" -> cloudToggle(cloud, "emergencyContact")
+        "75" -> cloudToggle(cloud, "tamperProofIotEnable")
+        "82" -> cloudToggle(cloud, "lowBatTelWarning")
         "61" -> {
             val max = cloud.intValue("bikeSpeedMax")
                 ?.takeIf { it in 15..120 }
@@ -1403,11 +1412,11 @@ object CloudCarSettingMapper {
             range = 0f..7f,
             steps = 6,
         )
-        "2", "32" -> CarSettingKind.Toggle(false)
-        "42" -> CarSettingKind.Toggle(false)
+        "2", "32" -> unknownToggle()
+        "42" -> unknownToggle()
         // 倒车模式与婴儿车模式由车辆 TTP 状态回填。
-        "43", "44" -> CarSettingKind.Toggle(false)
-        "51" -> CarSettingKind.Toggle(false)
+        "43", "44" -> unknownToggle()
+        "51" -> unknownToggle()
         "47" -> {
             // ChargingPowerActivity：200..1000W，50W 步进；最大值按云端/车型上限 1000W。
             val maxWatt = 1000

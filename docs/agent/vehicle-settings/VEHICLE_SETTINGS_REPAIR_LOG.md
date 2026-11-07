@@ -161,3 +161,28 @@
 - 编译结果：首次测试编译因缺少 `assertTrue` import 失败，补齐后共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
 - Git commit ID：`fc134c8`。
 - 未完成事项：`CloudCarSettingMapper` 的 UI `writable` 展示仍以 `isAuth` 为主；真实云端权限和车辆行为未验证。
+
+## VS-006 — 缺失默认值改为 UNKNOWN
+
+- 状态：PARTIAL
+- 问题：`CloudCarSettings.boolValue()` 返回 null 时，KMP 多数 Toggle 通过 `== true` 变成 false；固定 Choice/Slider 初值也可能伪装为已知状态。
+- Smali 证据：
+  - `CarSettingBean$BikeConfig.smali:20-50` 保留云端原始字段，缺失字段不应等同于关闭值。
+  - `CarSettingsItemAvailabilityHelper.smali` 以 `ItemAccess/BlockReason` 区分可用、不可用和未知前置条件，不把缺失状态直接当作关闭。
+  - TTP 字段使用 `-1` 表示未上报，`TtpInfo.kt` 已明确区分未上报和 0。
+- 当前实现：`Toggle/Choice/Slider` 没有值是否已知的维度；缺失布尔值被渲染为 false。
+- 修复：
+  - `Toggle/Choice/Slider` 增加 `valueKnown`。
+  - 云端布尔值缺失时映射为 `valueKnown=false`，非空值才视为已知。
+  - TTP 可回填的开关初值改为 UNKNOWN，回填后由 `withToggle/withIndex/withSlider` 标记为已知。
+  - UI 在值未知时显示“状态未知”并禁用控件；用户确认提交后标记为已知。
+  - 保留 `0/1` 语义和已确认范围不变。
+- 修改文件：
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/CarSettings.kt`
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/CarSettingsGateway.kt`
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/screens/CarSettingsScreen.kt`
+  - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CarSettingsConfIdMappingTest.kt`
+- 测试源码：缺失布尔值为 UNKNOWN，云端非空值为已知。
+- 编译结果：首次编译暴露 Slider 构造器缺少 `CarSettingKind` 继承声明，补齐后共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
+- Git commit ID：待本次修复提交生成后记录。
+- 未完成事项：Choice/Slider 的所有固定默认值仍需逐项取得 Smali/抓包证据；`Customize` 四字段整体 UNKNOWN 状态和真实车辆回读尚未完成。

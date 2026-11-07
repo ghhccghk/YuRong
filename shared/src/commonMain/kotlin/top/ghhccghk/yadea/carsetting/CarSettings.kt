@@ -61,8 +61,8 @@ internal object BatteryCapacityOptions {
 }
 
 sealed interface CarSettingKind {
-    data class Toggle(val checked: Boolean) : CarSettingKind
-    data class Choice(val selectedIndex: Int, val options: List<String>) : CarSettingKind
+    data class Toggle(val checked: Boolean, val valueKnown: Boolean = true) : CarSettingKind
+    data class Choice(val selectedIndex: Int, val options: List<String>, val valueKnown: Boolean = true) : CarSettingKind
     data class Slider(
         val value: Float,
         val range: ClosedFloatingPointRange<Float>,
@@ -73,7 +73,9 @@ sealed interface CarSettingKind {
          * 滑杆经过 `1..minimumNonZero-1` 时会自动吸附到 0 或该最小值。
          */
         val minimumNonZero: Float? = null,
+        val valueKnown: Boolean = true,
     ) : CarSettingKind
+
     data class Info(val value: String) : CarSettingKind
     /**
      * 自定义骑行参数（confId 55）。原 App 用一个二级页同时下发四个字段，
@@ -572,7 +574,7 @@ class CarSettingsController(
     private fun CarSettingItem.withToggle(value: Boolean?): CarSettingItem {
         val checked = value ?: return this
         val currentKind = kind as? CarSettingKind.Toggle ?: return this
-        return copy(kind = currentKind.copy(checked = checked))
+        return copy(kind = currentKind.copy(checked = checked, valueKnown = true))
     }
 
     private fun CarSettingItem.withIndex(value: Int?): CarSettingItem {
@@ -584,6 +586,7 @@ class CarSettingsController(
                     0,
                     currentKind.options.lastIndex.coerceAtLeast(0),
                 ),
+                valueKnown = true,
             ),
         )
     }
@@ -591,7 +594,7 @@ class CarSettingsController(
     private fun CarSettingItem.withSlider(value: Float?): CarSettingItem {
         val selected = value ?: return this
         val currentKind = kind as? CarSettingKind.Slider ?: return this
-        return copy(kind = currentKind.copy(value = selected))
+        return copy(kind = currentKind.copy(value = selected, valueKnown = true))
     }
 
     private fun List<CarSettingItem>.replace(item: CarSettingItem): List<CarSettingItem> =

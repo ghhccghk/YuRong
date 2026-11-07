@@ -1,6 +1,7 @@
 package top.ghhccghk.yadea.carsetting
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -32,6 +33,27 @@ class CarSettingsConfIdMappingTest {
                 CarSettingKind.Toggle(false),
             ) != null,
         )
+    }
+
+
+    @Test
+    fun missingCloudBooleanIsUnknownInsteadOfFalse() {
+        val unknown = CloudCarSettingMapper.toItems(
+            CloudCarSettings(
+                configs = listOf(CloudBikeConfig(confId = "13", confName = "报警音")),
+                values = emptyMap(),
+            ),
+        ).first { it.configId == "13" }.kind as CarSettingKind.Toggle
+        val known = CloudCarSettingMapper.toItems(
+            CloudCarSettings(
+                configs = listOf(CloudBikeConfig(confId = "13", confName = "报警音")),
+                values = mapOf("alarmSoundEnable" to "1"),
+            ),
+        ).first { it.configId == "13" }.kind as CarSettingKind.Toggle
+
+        assertFalse(unknown.valueKnown)
+        assertTrue(known.valueKnown)
+        assertTrue(known.checked)
     }
 
     @Test
