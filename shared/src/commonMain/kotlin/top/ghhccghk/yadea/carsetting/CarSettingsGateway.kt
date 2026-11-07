@@ -1387,8 +1387,6 @@ object CloudCarSettingMapper {
             steps = 6,
         )
         "2", "32" -> CarSettingKind.Toggle(false)
-        "43", "44" ->
-            CarSettingKind.Info("状态由车辆回读")
         "42" -> CarSettingKind.Toggle(false)
         // 倒车模式与婴儿车模式由车辆 TTP 状态回填。
         "43", "44" -> CarSettingKind.Toggle(false)

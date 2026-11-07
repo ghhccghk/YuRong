@@ -73,3 +73,22 @@
 - 编译结果：共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
 - Git commit ID：`35b93f8`。
 - 未完成事项：Miuix/M3、明暗、窄屏视觉检查和真机输入行为未验证。
+
+## VS-003 — confId 43/44 恢复为可编辑 Toggle
+
+- 状态：COMPLETE
+- 问题：`CloudCarSettingMapper.kindOf()` 先返回 `Info("状态由车辆回读")`，导致后面的 `"43", "44" -> Toggle(false)` 永远不可达，TTP 回填也无法应用到 Info 控件。
+- Smali 证据：
+  - `ReversingFunctionActivity.getSettingConfigId()` 返回 `43`。
+  - `HelpPromoteActivity.getSettingConfigId()` 返回 `44`。
+  - `CarSettingsInlineOperationHelper.s()` 分别生成 `REVERSING_OPEN/CLOSE` 与 `STROLLER_OPEN/CLOSE`。
+  - `TtpInfo.extended` 提供 `reversingState`、`helpCarState` 回读字段。
+- 当前实现：`CarSettingsGateway.kt` 重复匹配 `"43", "44"`，首个 Info 分支遮蔽 Toggle 分支。
+- 修复：删除不可达 Info 分支，保留 Toggle 初值与 `CarSettingsController.applyVehicleStatus()` 的 TTP 回填；未修改命令 ID 或帧编码。
+- 修改文件：
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/CarSettingsGateway.kt`
+  - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CarSettingsConfIdMappingTest.kt`
+- 测试源码：验证 43/44 映射为 Toggle 且存在对应 BLE 命令映射。
+- 编译结果：共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
+- Git commit ID：待本次修复提交生成后记录。
+- 未完成事项：BLE 帧参数仍属于 VS-012 范围；真实车辆倒车/婴儿车行为未验证。
