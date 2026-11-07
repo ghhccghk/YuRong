@@ -1,6 +1,6 @@
 # 车辆设置问题清单
 
-本轮只读审计发现以下可独立确认的问题。状态统一为 `PENDING`，因为本轮按要求不修改业务代码；`UNKNOWN` 项不进入自动修复。
+本轮只读审计发现以下可独立确认的问题。初始状态为 `PENDING`；后续修复按证据、编译和提交结果更新。`UNKNOWN` 项不进入自动修复。
 
 | ID | 优先级 | 安全 | 类别 | 代码位置 | 原始证据 | 当前差异 | 影响 | 建议修复 | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -11,7 +11,7 @@
 | VS-005 | P1 | L3 | 写入确认缺失 | `CarSettings.kt:239-295`、`VehicleSettingCommands.kt:23-36` | 原设置页写入后由车辆状态/回调更新；`TtpInfo.extended` 提供多项反馈 | BLE 写入只看 `sink.send()` 返回值，直接保留乐观值；没有回读确认或失败回滚 | 蓝牙写入成功但车辆未生效时 UI 假装已确认 | 只读审计；修复需命令 ACK/回读策略和超时回滚，不得猜测协议 | PENDING |
 | VS-006 | P2 | L2 | 参数默认值 | `CarSettingsGateway.kt:1258-1425` | `CarSettingBean` 字段值来自云端；原页面子 Activity 对每项有具体初始化 | 多处缺字段时用 `false`、`0`、`1`、`80`、`350` 等本地默认；`CloudCarSettings.boolValue()` 的 null 被 `== true` 转为 false | 云端缺字段时可能把未知状态显示为关闭/固定值 | 建立 per-confId 默认值证据表；无证据保留 UNKNOWN/只读，不写入 | PARTIAL |
 | VS-007 | P2 | L1 | 原功能缺失 | `CarSettingsGateway.kt:1479-1562`、`BackLightActivity.smali:234-242` | 原 `BackLightActivity.getSettingConfigId()` 返回 `21` | KMP `TITLES`、`kindOf()`、命令映射均无 `21`；云端下发 21 时只得到通用 Info | 背光设置无法识别/操作 | 补齐 21 的标题、控件、命令和回读证据；证据不足时至少标记只读 UNKNOWN | COMPLETE |
-| VS-008 | P2 | L2 | 云端写入参数 | `CarSettingsGateway.kt:67-137`、`VehicleSettingViewModel.smali:10091-11832` | `P4()` 对不同 confId 产生字段；`MixRequest.j()/k()` 区分 `updateBikeSetting` 与 `updateBikeSettingParams` | KMP 只有单一 `CloudCarSettingUpdateBuilder`，未表达 `updateBikeSettingParams`/`valueJson` 的完整参数模型 | 参数型设置可能使用错误 API 或丢失字段 | 先从 `s20.g()`、请求适配器和抓包确认每个字段；未确认项保持只读 | PENDING |
+| VS-008 | P2 | L2 | 云端写入参数 | `CarSettingsGateway.kt:56-217,281-292,662-761` | `y00.smali:340,584` 确认两个 POST 路径；`jp6.smali:977-1038,1041-1110` 调用 `f84.b()` 生成 Gson 参数；`s20.f()`/`op6` 确认 47/48/60/61/62/76 的 `id/value/valueJson` | 已区分 `BIKE_SETTING`/`PARAM_SETTING` 并实现已确认 `valueJson`；普通 `P4()` 伴随字段、部分值类型和响应确认语义仍未完整覆盖 | 参数型设置可能仍缺少同请求伴随字段，或把接口接受误当车辆确认 | 保持未确认项只读；继续逐项对照 `P4()`，接口响应和车辆确认由 VS-009/VS-005 处理 | PARTIAL |
 | VS-009 | P2 | L2 | 状态确认语义 | `CarSettingsGateway.kt:185-210`、`MixRequest$checkSettingStatus$3.smali:78-111` | 原回调读取 `CheckReportLossBean.result` | KMP 将 `result == 0` 视为成功，未确认 `result` 枚举、超时和失败重试语义 | 可能把失败/处理中误判为成功或超时回滚 | 以抓包/Smali 枚举确认；按 confId 记录确认字段和轮询终止条件 | PENDING |
 | VS-010 | P2 | L1 | UI 生命周期 | `CarSettingsScreen.kt:63-90,446-485` | 原子页面拥有独立生命周期和刷新 | `selectedClassification`、`showMissingCloudFeatures`、detail draft 由 Composable `remember` 持有；切 VIN 后可能继续显示旧分类/草稿 | 页面重组或切车后 UI 状态与数据不一致 | 以 VIN/loadedFromCloud 为 key 重置 UI 草稿和选中分类 | COMPLETE |
 | VS-011 | P2 | L1 | 权限/隐藏 | `CarSettingsGateway.kt:674-705` | `BikeConfig.isAuth`、`isUserLabFun`、`izLab` 是云端权限/实验室来源 | 主条目 `writable` 统一用 `isAuth != false && (BLE || cloud)`；拆分项只检查 `isAuth`，且 `95` 直接隐藏 | 拆分项、动态项和隐藏项的权限与原可用性 helper 不完全一致 | 对每个条目 ID 复用统一 `ItemAccess`，明确入口可见、可写、隐藏三种状态 | COMPLETE |

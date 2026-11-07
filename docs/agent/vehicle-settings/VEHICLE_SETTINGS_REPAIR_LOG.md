@@ -186,3 +186,45 @@
 - 编译结果：首次编译暴露 Slider 构造器缺少 `CarSettingKind` 继承声明，补齐后共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
 - Git commit ID：`e5aea6c`。
 - 未完成事项：Choice/Slider 的所有固定默认值仍需逐项取得 Smali/抓包证据；`Customize` 四字段整体 UNKNOWN 状态和真实车辆回读尚未完成。
+
+## VS-008 — 云端写入路径与 valueJson 参数语义
+
+- 状态：PARTIAL
+- 问题：KMP 将所有设置写入统一发往 `vehiclebase/bike-setting/updateBikeSetting`，参数型设置没有表达 `low-freq/common-cmd/param-setting`、`oper/id/value/valueJson`，且请求签名 JSON 把所有值统一当字符串。
+- Smali 证据：
+  - `y00.smali:580-585`：`y00.a()` 为 `@FormUrlEncoded @POST("vehiclebase/bike-setting/updateBikeSetting")`，返回 `YApiResult<Boolean>`。
+  - `y00.smali:336-341`：`y00.H()` 为 `@FormUrlEncoded @POST("low-freq/common-cmd/param-setting")`，返回 `YApiResult<String>`。`MixRequest.updateBikeSettingParams` 是调用方法名，不是 HTTP 路径。
+  - `MixRequest.smali:357-500`：`g()/h()` 用 `s20.g()` 生成参数、注入 VIN，再调用 `y00.a()`。
+  - `MixRequest.smali:504-649`：`j()/k()` 同样使用 `s20.g()`，最终调用 `y00.H()`。
+  - `jp6.smali:977-1038,1041-1110`：`jp6.o()` 与 `jp6.p()` 均通过 `f84.b()` 生成参数 JSON，再分别提交到上述两个路径。
+  - `f84.smali:20-52`：`_gateway` 由 `f84.a()` 注入；`f84.b()` 使用 Gson 保留 Map 值对象类型。
+  - `s20.smali:864-1925`：确认 47/48/60/61/62/75/76/82/91 等分支字段。
+  - `op6.smali:39-120,279-363` 与 `VehicleParamBean.smali:7-24,69-90`：确认 single/capacity `valueJson` 的元素、字段顺序、byteCount/dataType/sort/value。
+- 当前实现：`CloudCarSettingUpdate` 只有字段 Map；KMP 所有写入都走 `UPDATE_PATH`，47/48/60/61/62/76 被误写为普通云端字段或缺少 `valueJson`。
+- 修复：
+  - 增加 `CloudCarSettingUpdatePath.BIKE_SETTING/PARAM_SETTING`，按确认路径提交。
+  - 为 47、48、60、61、62、76 生成 Smali 已确认的 `oper/id/value/valueJson`。
+  - 按 `op6` 和 `VehicleParamBean` 生成 single/capacity 参数数组。
+  - `CloudCarSettingUpdate.fields` 改为 `Map<String, Any?>`，网关签名 JSON 保留 Number/String 类型。
+  - 普通设置继续走 `vehiclebase/bike-setting/updateBikeSetting`。
+  - 增加 fake transport 离线请求测试，解密网关签名后检查 URL、字段和 `valueJson`。
+- 修改文件：
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/CarSettingsGateway.kt`
+  - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CloudCarSettingsApiSemanticsTest.kt`
+  - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/Phase4CarSettingsTest.kt`
+- 测试源码：
+  - 普通设置使用 `updateBikeSetting`。
+  - 47/48/60/61/62/76 使用 `low-freq/common-cmd/param-setting`。
+  - 60 capacity `valueJson` 为四元素数组。
+  - 62 switch `valueJson` 为单元素数组。
+  - 请求业务 JSON 保留数值类型。
+- 编译结果：
+  - 首次编译失败：交接时未完成的 `update()` 调用缺少 `fields/token/)`，同时 `CHECK_STATUS_PATH` 被错误覆盖，报 `CarSettingsGateway.kt:291` 语法错误和 `:760` getter/setter 错误；已恢复。
+  - 最终执行 `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm :desktopApp:build :androidApp:assembleDebug` 成功。
+  - 测试源码已编译，`jvmTest` 未执行；没有真实云端或车辆请求。
+- Git commit ID：`a4fc97e`。
+- 未完成事项：
+  - `VehicleSettingViewModel.P4()` 某些主字段会同时提交当前状态伴随字段；KMP 当前只提交用户修改的已确认字段，尚不能证明缺少伴随字段在所有接口版本中等价。
+  - 普通设置部分字段的 String/Integer 类型仍按 `P4()` 逐项核对。
+  - `YApiResult<String>` 业务返回、超时和重试语义属于 VS-009；HTTP 成功不代表车辆已确认，车辆确认属于 VS-005。
+  - 真实云端写入和车辆生效均尚未验证。

@@ -18,12 +18,19 @@
 
 | 证据 | 说明 |
 | --- | --- |
-| `VehicleSettingViewModel.smali:10091-11832` `P4()` | 同一方法根据 confId 生成 `alarmOn`、`alarmPower`、`sleepMode`、`tamperProofIotEnable`、`seatHeating`、`seatHeatingLevel`、`highestSpeedLimit`、`sosEmergencyCall`、`lowBatTelWarning`、`colorEggSoundEffect`、`emergencyContact`、`dumpAlarm`、`distanceOn`、`distance` 等字段 |
-| `MixRequest.smali:357-500` `g()/h()` | 将 `configId`、Boolean/Integer、当前 VIN 放入 updateBikeSetting 参数 |
-| `MixRequest.smali:504-649` `j()/k()` | 参数型路径使用 `updateBikeSettingParams` |
-| `CarSettingsGateway.kt:102-137` | KMP 当前只确认 TOGGLE/SLIDER/CHOICE 字段子集 |
-| `CarSettingsGateway.kt:67-100` | Toggle 0/1、Slider `toInt()`、Choice `selectedIndex+offset` |
+| `y00.smali:580-585` | `y00.a()` 是 `@FormUrlEncoded @POST("vehiclebase/bike-setting/updateBikeSetting")`，返回 `YApiResult<Boolean>`。 |
+| `y00.smali:336-341` | `y00.H()` 是 `@FormUrlEncoded @POST("low-freq/common-cmd/param-setting")`，返回 `YApiResult<String>`；没有名为 `updateBikeSettingParams` 的 Retrofit 路径。 |
+| `MixRequest.smali:357-500` `g()/h()` | `g()` 调用 `s20.g()` 生成参数，`h()` 注入当前 VIN，再由 `MixRequest$updateBikeSetting$1` 调用 `y00.a()`。 |
+| `MixRequest.smali:504-649` `j()/k()` | `j()` 同样使用 `s20.g()`；`k()` 注入当前 VIN，再由 `MixRequest$updateBikeSettingParams$1` 调用 `y00.H()`。方法名 `updateBikeSettingParams` 不等于 HTTP 路径。 |
+| `jp6.smali:977-1038,1041-1110` | `jp6.o()` 用 `f84.b()` 把 `HashMap<String,Object>` 交给 `updateBikeSetting`；`jp6.p()` 使用同一参数 JSON 交给 `low-freq/common-cmd/param-setting`。 |
+| `f84.smali:20-52` | `_gateway` 由 `f84.a()` 加入；`f84.b()` 使用 Gson 序列化原对象类型，因此数字参数不能无依据统一转成字符串。 |
+| `s20.smali:864-1925` `f()` | 已确认分支：47 `CHARGE_WATT_SWITCH/CHARGE_WATT_VAL`，48 `CHARGE_UL_VAL`，60 `BATT_BD_SETTING/BATT_V_A_CAP_MODEL`，61 `HIGHEST_SPEED_LIMIT`，62 `SEAT_HEATING/SEAT_HEATING_LEVEL`，75 `tamperProofIotEnable`，76 `POSITIONING_FUNC`，82 `lowBatTelWarning`，91 `sosEmergencyCall` 等。 |
+| `op6.smali:39-120,279-363` | `single` 生成单元素 `VehicleParamBean(sort=1, byteCount=1, value, dataType=1)`；`capacity` 生成四元素数组，sort/value/dataType 见 `VehicleParamValue`。 |
+| `VehicleParamBean.smali:7-24,69-90` | 字段声明和构造顺序为 `byteCount/dataType/sort/value`，KMP `valueJson` 按该顺序编码。 |
+| `CarSettingsGateway.kt:56-217,281-292,662-761` | KMP 已区分两个路径，对 47/48/60/61/62/76 生成已确认 `id/value/valueJson`，并保留值的 Number/String 类型。 |
+| `CloudCarSettingsApiSemanticsTest.kt` | 使用 fake transport 离线解密网关签名，验证 POST 路径、字段和 `valueJson`；测试源码已编译但本轮未执行。 |
 
+尚未确认：`VehicleSettingViewModel.P4()` 中与主字段一同提交的当前状态字段是否必须逐项保留；`YApiResult<String>` 的业务返回值、超时和重试语义不能从 HTTP 成功推断。
 ## 3. BLE 命令与帧
 
 | 证据 | 说明 |

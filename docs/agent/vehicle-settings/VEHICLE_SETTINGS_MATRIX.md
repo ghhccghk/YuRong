@@ -127,8 +127,8 @@
 | 44 | 无云端值 | Bool | KMP 当前 Info，原 Toggle | isAuth | BLE | `helpCarState` | 映射分支被提前 Info 覆盖 |
 | 45 | 无云端值 | Bool | 0xAA/0xAB | isAuth | BLE | `cruiseControl` | |
 | 46 | 无云端值 | Bool | 动态位域 | isAuth | BLE | `steepSlopeState` | |
-| 47 | `chargeWattSwitch`, `chargeWattVal` | Bool；200..1000 W，50 W 步进 | 0xC9；watt/50 → 0xCA | isAuth | BLE | charging power status/value | 已确认范围 |
-| 48 | `chargeUlVal` | 70..100%，5% 步进 | percent → 0xCB | isAuth | BLE | `batteryChargingLimitValue` | |
+| 47 | `CHARGE_WATT_SWITCH`, `CHARGE_WATT_VAL` | Bool；200..1000 W，50 W 步进 | Integer 0/1、watt → `id/value` | isAuth | BLE / `low-freq/common-cmd/param-setting` | charging power status/value | 云端请求已确认；BLE Golden Frame 属 VS-012 |
+| 48 | `CHARGE_UL_VAL` | 70..100%，5% 步进 | Integer percent → `id/value` | isAuth | BLE / `low-freq/common-cmd/param-setting` | `batteryChargingLimitValue` | 云端请求已确认 |
 | 49 | 无云端值 | Bool | 动态位域 | isAuth | BLE | `rampSlopeState` | |
 | 50 | 无云端值 | Choice 0..2 | index → 0x3F | isAuth | BLE | UNKNOWN | |
 | 51 | 无云端值 | Bool | 0xC1 参数 0/1 | isAuth | BLE | `syncTimeResultStatus` | 参数方向需核验 |
@@ -137,9 +137,9 @@
 | 54 | 无云端值 | Choice 48/60/70V | index+1 → 0xC6 | isAuth | BLE | `voltageSettingStatus-1` | |
 | 55/92 | customize* | 4 个字段，范围 UNKNOWN | 0xC8 打包 | isAuth | BLE | customizeThrottle/Energy/Tcs | 必须整组写入 |
 | 59 | `vehiclePowerDownStatus`, `shutDownTime` | Bool；0..20 | 0x7B/0x7C/0x7D | isAuth | BLE | powerDown | |
-| 60 | `capacity`, `capacitySwitchStatus` | Bool；13/15/22/25/32/38 Ah | 0xD4；capacity → 0xCD | isAuth | BLE | capacitySwitch/capacitySetting | 拆分项 |
-| 61 | `highestSpeedLimit`, `bikeSpeedMax` | 0 或 15..max | 0x36；0=不限速 | isAuth | BLE | `maximumSpeedCurrent` | 约束固定 |
-| 62 | `seatHeating`, `seatHeatingLevel` | Bool；1..3 | 0xD2/0xD3 | isAuth | BLE | seatHeatSwitch/Level | 拆分项 |
+| 60 | `BATT_BD_SETTING`, `BATT_V_A_CAP_MODEL` | Bool；13/15/22/25/32/38 Ah | Integer + single/capacity `valueJson` | isAuth | BLE / `low-freq/common-cmd/param-setting` | capacitySwitch/capacitySetting | 拆分项；云端请求已确认 |
+| 61 | `HIGHEST_SPEED_LIMIT`, `bikeSpeedMax` | 0 或 15..max | Integer + single `valueJson`；0=不限速 | isAuth | BLE / `low-freq/common-cmd/param-setting` | `maximumSpeedCurrent` | 约束固定 |
+| 62 | `SEAT_HEATING`, `SEAT_HEATING_LEVEL` | Bool；1..3 | Integer + single `valueJson` | isAuth | BLE / `low-freq/common-cmd/param-setting` | seatHeatSwitch/Level | 拆分项；云端请求已确认 |
 | 63 | 无云端值 | Bool | 0xCF 参数 0/1 | isAuth | BLE | `tPowerStatus` | |
 | 64/89 | customDrive* | Bool；1..3 | 0xD0/0xD1 | isAuth | BLE | helpCar/customDrive | adaptive 与 level 拆分 |
 | 66 | 无 | 蓝牙钥匙 | 只读 | BLUETOOTH_KEY | 原钥匙流程 | UNKNOWN | |
@@ -149,7 +149,7 @@
 | 72 | 无云端值 | Bool | 0xDD 参数 0/1 | isAuth | BLE | `longEnduranceStatus` | |
 | 73 | 无云端值 | Bool | 0xC3 参数 0/1 | isAuth | BLE | `ambientStatus` | |
 | 75 | `tamperProofIotEnable` | Bool | IOT_REMOVE_ALARM | isAuth | IOT/BLE | UNKNOWN | |
-| 76 | `positioningFunc` | Bool | cloud field | isAuth | IOT | UNKNOWN | |
+| 76 | `POSITIONING_FUNC` | Bool | Integer 0/1 + single `valueJson` | isAuth | `low-freq/common-cmd/param-setting` | UNKNOWN | 云端请求已确认；回读 UNKNOWN |
 | 77 | `sleepMode` | Bool | 0x133 参数 0/1 | isAuth | BLE | `sleepModeSwitch` | |
 | 79 | 无云端值 | Bool | 0xFB1 参数 0/1 | isAuth | BLE | `seatPowerStatus` | |
 | 80 | 无云端值 | Bool | 0x132 反值参数 | isAuth | BLE | `otdSwitch` | 0=开、1=关 |
