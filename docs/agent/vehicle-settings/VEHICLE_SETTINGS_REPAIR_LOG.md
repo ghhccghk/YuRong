@@ -51,3 +51,25 @@
 - 编译结果：共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
 - Git commit ID：`60d5d12`。
 - 未完成事项：真实车辆 TTP 切换和真机行为未验证。
+
+## VS-010 — CarSettingsScreen 临时状态随 VIN/加载会话重置
+
+- 状态：COMPLETE
+- 问题：分类、详情、滑杆草稿、确认弹窗、自定义音效面板和联系人草稿由无 key 的 `remember` 长期持有，切 VIN 或重新加载后可能展示旧页面状态。
+- Smali 证据：
+  - `YdCarSettingActivity` 是独立 Activity 生命周期，进入不同车辆页面时 UI 实例和临时输入不会跨车辆复用。
+  - `YdCarSettingActivity$initNetObserver$2.smali:64-94` 只在收到当前 `CarSettingBean` 后刷新当前页面。
+  - 因此 KMP 的单实例 Compose 页面必须以 VIN/加载会话作为临时状态边界。
+- 当前实现：`CarSettingsScreen.kt:60-91` 的临时状态均使用无 key `remember`，只有滑杆草稿依赖条目 ID/值。
+- 修复：
+  - 引入 `CarSettingsUiResetKey(vin, loadGeneration, loadedFromCloud)`。
+  - 分类、详情、弹窗、音效面板、联系人表单、复制状态和滑杆草稿全部绑定 reset key。
+  - 联系人表单只接受与当前设置 VIN 匹配的联系人数据。
+  - 保留声音试听播放器资源生命周期，不随 UI 草稿重置销毁。
+- 修改文件：
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/ui/screens/CarSettingsScreen.kt`
+  - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CarSettingsUiResetKeyTest.kt`
+- 测试源码：验证 VIN、加载代次、`loadedFromCloud` 任一变化都会改变 UI reset key。
+- 编译结果：共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
+- Git commit ID：待本次修复提交生成后记录。
+- 未完成事项：Miuix/M3、明暗、窄屏视觉检查和真机输入行为未验证。

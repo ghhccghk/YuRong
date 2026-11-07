@@ -31,6 +31,7 @@ import top.ghhccghk.yadea.carsetting.CarSettingClassification
 import top.ghhccghk.yadea.carsetting.CarSettingItem
 import top.ghhccghk.yadea.carsetting.CarSettingKind
 import top.ghhccghk.yadea.carsetting.CarSettingsController
+import top.ghhccghk.yadea.carsetting.CarSettingsState
 import top.ghhccghk.yadea.carsetting.CustomSoundController
 import top.ghhccghk.yadea.carsetting.CustomSoundCategory
 import top.ghhccghk.yadea.carsetting.CustomSoundResource
@@ -57,42 +58,45 @@ fun CarSettingsScreen(
     val customSoundState = customSoundController?.state?.collectAsState()?.value
     val scope = rememberCoroutineScope()
     val dimensions = AppDesign.dimensions
-    var confirmDisable by remember { mutableStateOf<CarSettingItem?>(null) }
-    var confirmBraceDependency by remember { mutableStateOf<CarSettingItem?>(null) }
-    var customizeItem by remember { mutableStateOf<CarSettingItem?>(null) }
-    var customizeDraft by remember(customizeItem?.id) {
+    val uiResetKey = carSettingsUiResetKey(state)
+    var confirmDisable by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
+    var confirmBraceDependency by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
+    var customizeItem by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
+    var customizeDraft by remember(uiResetKey, customizeItem?.id) {
         mutableStateOf(
             (customizeItem?.kind as? CarSettingKind.Customize)
                 ?: CarSettingKind.Customize(),
         )
     }
-    var detailItem by remember { mutableStateOf<CarSettingItem?>(null) }
-    var showCustomSounds by remember { mutableStateOf(false) }
-    var showCustomKeys by remember { mutableStateOf(false) }
-    var selectedSoundCategory by remember { mutableStateOf<CustomSoundCategory?>(null) }
-    var deleteSoundTarget by remember { mutableStateOf<CustomSoundResource?>(null) }
-    var renameSoundTarget by remember { mutableStateOf<CustomSoundResource?>(null) }
-    var renameSoundText by remember { mutableStateOf("") }
-    var newSoundName by remember { mutableStateOf("") }
-    var newSoundUrl by remember { mutableStateOf("") }
-    var playingSoundId by remember { mutableStateOf<String?>(null) }
+    var detailItem by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
+    var showCustomSounds by remember(uiResetKey) { mutableStateOf(false) }
+    var showCustomKeys by remember(uiResetKey) { mutableStateOf(false) }
+    var selectedSoundCategory by remember(uiResetKey) { mutableStateOf<CustomSoundCategory?>(null) }
+    var deleteSoundTarget by remember(uiResetKey) { mutableStateOf<CustomSoundResource?>(null) }
+    var renameSoundTarget by remember(uiResetKey) { mutableStateOf<CustomSoundResource?>(null) }
+    var renameSoundText by remember(uiResetKey) { mutableStateOf("") }
+    var newSoundName by remember(uiResetKey) { mutableStateOf("") }
+    var newSoundUrl by remember(uiResetKey) { mutableStateOf("") }
+    var playingSoundId by remember(uiResetKey) { mutableStateOf<String?>(null) }
     val soundPreviewPlayer = remember { createSoundPreviewPlayer() }
     DisposableEffect(soundPreviewPlayer) {
         onDispose { soundPreviewPlayer.release() }
     }
-    var showEmergencyContacts by remember { mutableStateOf(false) }
-    var ownerName by remember { mutableStateOf("") }
-    var ownerMobile by remember { mutableStateOf("") }
-    var emergencyName by remember { mutableStateOf("") }
-    var emergencyMobile by remember { mutableStateOf("") }
-    var showMissingCloudFeatures by remember { mutableStateOf(false) }
-    var showChannelHelp by remember { mutableStateOf(false) }
-    var selectedClassification by remember { mutableStateOf(CarSettingClassification.SECURITY) }
-    var copiedConfigJson by remember { mutableStateOf(false) }
+    var showEmergencyContacts by remember(uiResetKey) { mutableStateOf(false) }
+    var ownerName by remember(uiResetKey) { mutableStateOf("") }
+    var ownerMobile by remember(uiResetKey) { mutableStateOf("") }
+    var emergencyName by remember(uiResetKey) { mutableStateOf("") }
+    var emergencyMobile by remember(uiResetKey) { mutableStateOf("") }
+    var showMissingCloudFeatures by remember(uiResetKey) { mutableStateOf(false) }
+    var showChannelHelp by remember(uiResetKey) { mutableStateOf(false) }
+    var selectedClassification by remember(uiResetKey) { mutableStateOf(CarSettingClassification.SECURITY) }
+    var copiedConfigJson by remember(uiResetKey) { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
 
-    LaunchedEffect(contactState?.contacts) {
-        contactState?.contacts?.let { contacts ->
+    LaunchedEffect(uiResetKey, contactState?.contacts?.vin) {
+        contactState?.contacts?.takeIf {
+            state.vin.isBlank() || it.vin == state.vin
+        }?.let { contacts ->
             ownerName = contacts.ownerName
             ownerMobile = contacts.ownerMobile
             emergencyName = contacts.emergencyName
@@ -451,7 +455,7 @@ fun CarSettingsScreen(
     ) {
         val slider = sliderTarget?.kind as? CarSettingKind.Slider
         if (sliderTarget != null && slider != null) {
-            var draft by remember(sliderTarget.id, slider.value) {
+            var draft by remember(uiResetKey, sliderTarget.id, slider.value) {
                 mutableStateOf(slider.value)
             }
             AppSliderPreference(
@@ -970,6 +974,19 @@ fun CarSettingsScreen(
         onConfirm = { showChannelHelp = false },
     )
 }
+
+internal data class CarSettingsUiResetKey(
+    val vin: String,
+    val loadGeneration: Long,
+    val loadedFromCloud: Boolean,
+)
+
+internal fun carSettingsUiResetKey(state: CarSettingsState): CarSettingsUiResetKey =
+    CarSettingsUiResetKey(
+        vin = state.vin,
+        loadGeneration = state.loadGeneration,
+        loadedFromCloud = state.loadedFromCloud,
+    )
 
 private val SAFETY_CONFIRM_IDS = setOf("37", "38")
 private val BLE_POWER_SETTING_IDS = setOf("37", "38")
