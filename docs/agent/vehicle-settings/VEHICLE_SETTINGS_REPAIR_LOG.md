@@ -184,5 +184,5 @@
   - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CarSettingsConfIdMappingTest.kt`
 - 测试源码：缺失布尔值为 UNKNOWN，云端非空值为已知。
 - 编译结果：首次编译暴露 Slider 构造器缺少 `CarSettingKind` 继承声明，补齐后共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
-- Git commit ID：待本次修复提交生成后记录。
+- Git commit ID：`e5aea6c`。
 - 未完成事项：Choice/Slider 的所有固定默认值仍需逐项取得 Smali/抓包证据；`Customize` 四字段整体 UNKNOWN 状态和真实车辆回读尚未完成。
