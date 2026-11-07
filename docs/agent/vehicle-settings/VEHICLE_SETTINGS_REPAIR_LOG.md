@@ -159,5 +159,5 @@
   - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CarSettingWriterAccessTest.kt`
 - 测试源码：只读项、未知拆分 ID、无写入支持项被拒绝；确认的 `cloud:47:enable` 可进入写入能力判断。
 - 编译结果：首次测试编译因缺少 `assertTrue` import 失败，补齐后共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
-- Git commit ID：待本次修复提交生成后记录。
+- Git commit ID：`fc134c8`。
 - 未完成事项：`CloudCarSettingMapper` 的 UI `writable` 展示仍以 `isAuth` 为主；真实云端权限和车辆行为未验证。
