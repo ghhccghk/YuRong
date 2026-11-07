@@ -261,3 +261,40 @@
   - `jvmTest` 未执行；没有真实云端或车辆请求。
 - Git commit ID：`2cfdabb`。
 - 未完成事项：真实接口响应和网络错误样本未验证；HTTP 成功仅代表查询结果，不代表车辆已生效，后者仍属 VS-005。
+
+## VS-005 — BLE 写入接受与车辆确认分离
+
+- 状态：COMPLETE
+- 问题：`VehicleSettingCommandSink.send()` 返回 true 只表示本地写入/发送成功，但控制器把它当作设置已保存且没有车辆确认状态；云端接受也被直接当最终成功。
+- Smali 证据：
+  - `CarSettingBaseItemView.smali:977-1070`：`i()` 创建 `CommandTempBean` 并调用返回 `void` 的 `VehiclePlugin.h()`，没有 ACK 字段或回调。
+  - `CarSettingsInlineOperationHelper.smali:1048-1125`：BLE 分支提交命令后没有 success/failure/timeout 车辆回调。
+  - `CarSettingsInlineOperationHelper$performSwitch$1.smali:64-92`：`onCommitUi` 只提交 UI 目标值，不代表车辆生效。
+  - `CarSettingsInlineOperationHelper.smali:1128-1211`：只有 IoT 分支注册 `CarSettingsIotPollingHelper$a`。
+  - `CarSettingsIotPollingHelper$startPoll$1$1.smali:64-235`：`CheckReportLossBean.result=0` 后才执行 success；false 立即失败。
+  - `TtpInfo.extended`：支持回读的设置项可由后续车辆状态匹配确认。
+- 当前实现：`CarSettingWriteResult` 只有 success/channel；BLE sink true 后直接清空提示，没有“已发送未确认”状态。
+- 修复：
+  - 新增 `CarSettingConfirmationStatus`：`LOCAL_UPDATED`、`CLOUD_ACCEPTED`、`VEHICLE_CONFIRMED`、`FAILED`、`UNKNOWN`。
+  - `CarSettingWriteResult` 携带确认状态；BLE sink true 只标记 `LOCAL_UPDATED`，sink false 标记 `FAILED`。
+  - 云端请求成功只标记 `CLOUD_ACCEPTED`，不根据 HTTP 成功声称车辆已生效。
+  - `CarSettingsState.confirmationStatuses` 按稳定条目 ID 保存状态。
+  - BLE/云端未确认时显示“已发送/已提交，等待确认”。
+  - 后续 TTP 必须来自写入后的新状态代次且匹配目标值，才升级为 `VEHICLE_CONFIRMED`。
+  - VS-009 已确认的 `result=0` 查询成功也升级为 `VEHICLE_CONFIRMED`；失败/超时回滚并标记 `FAILED`。
+  - 无通道或自定义 writer 无法判断确认时使用 `UNKNOWN`。
+  - 未修改命令 ID、参数、帧编码或 BLE 协议。
+- 修改文件：
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/CarSettings.kt`
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/VehicleSettingCommands.kt`
+  - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CarSettingsControllerTest.kt`
+  - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CarSettingWriterAccessTest.kt`
+  - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CloudCarSettingWriterTest.kt`
+  - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CloudSettingStatusPollingTest.kt`
+- 测试源码：
+  - fake BLE sink true/false 分别得到 `LOCAL_UPDATED/FAILED`，不会得到 `VEHICLE_CONFIRMED`。
+  - BLE 本地更新在旧/不匹配 TTP 下保持未确认，新 TTP 匹配后才确认。
+  - 云端接受、查询确认、查询失败、未知 writer 状态分别验证。
+- 编译结果：共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。`jvmTest` 未执行；没有真实 BLE 或车辆请求。
+- Git commit ID：`8e36146`。
+- 未完成事项：真实车辆 ACK/回读时序和各设置项确认延迟未验证；没有 TTP 回读的条目会保持 `LOCAL_UPDATED/CLOUD_ACCEPTED`，不会伪造 `VEHICLE_CONFIRMED`。

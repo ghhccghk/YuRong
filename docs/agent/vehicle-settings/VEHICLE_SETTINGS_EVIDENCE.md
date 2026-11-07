@@ -30,6 +30,18 @@
 | `CarSettingsGateway.kt:56-217,281-292,662-761` | KMP 已区分两个路径，对 47/48/60/61/62/76 生成已确认 `id/value/valueJson`，并保留值的 Number/String 类型。 |
 | `CloudCarSettingsApiSemanticsTest.kt` | 使用 fake transport 离线解密网关签名，验证 POST 路径、字段和 `valueJson`；测试源码已编译但本轮未执行。 |
 
+### BLE 写入确认边界
+
+| 证据 | 语义 |
+| --- | --- |
+| `CarSettingBaseItemView.smali:977-1070` `i()` | 封装 `CommandTempBean` 后调用 `VehiclePlugin.h(CommandTempBean)`；该接口返回 `void`，没有命令 ACK 或车辆生效结果。 |
+| `CarSettingsInlineOperationHelper.smali:1048-1125` | BLE 在线分支只提交 `COMMAND_CONST_CHARGING_POWER_STATE`，随后进入本地 UI/埋点流程，没有 `onSuccess/onFailure/onTimeout` 车辆回调。 |
+| `CarSettingsInlineOperationHelper$performSwitch$1.smali:64-92` | `onCommitUi` 仅提交目标 UI 值，不代表车辆确认。 |
+| `CarSettingsInlineOperationHelper.smali:1128-1211` | IoT 分支才注册 `CarSettingsIotPollingHelper$a`，以查询结果区分 success/failure/timeout。 |
+| `CarSettingsIotPollingHelper$startPoll$1$1.smali:64-235` | 查询成功后才同步本地状态并调用 success；失败立即回滚。 |
+| `TtpInfo` / `TtpInfo.extended` | 后续车辆状态快照可对支持回读的条目提供实际值匹配确认。 |
+
+因此 BLE `sink.send()==true` 只能证明本地发送成功，必须标记 `LOCAL_UPDATED`；不能标记 `VEHICLE_CONFIRMED`。
 ### 状态查询与轮询
 
 | 证据 | 语义 |
