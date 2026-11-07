@@ -15,7 +15,7 @@
 | VS-009 | P2 | L2 | 状态确认语义 | `CarSettingsGateway.kt:296-324`、`CarSettings.kt:324-354` | `CheckReportLossBean.result` 是 String；`checkSettingStatus$3` 只有 `"0"` 回调 true，非零/不可解析回调 false，缺失 data/result 不回调；错误回调 false；IoT Polling 以 30×1s 轮询并区分 success/failure/timeout | KMP 此前把 HTTP/异常当 pending、读取顶层 result，可能继续轮询或误判 | 失败可能被当处理中，错误结果可能污染确认状态 | 只读取 `data.result`，请求错误/非零/不可解析立即失败，缺失字段继续轮询；30 次后超时 | COMPLETE |
 | VS-010 | P2 | L1 | UI 生命周期 | `CarSettingsScreen.kt:63-90,446-485` | 原子页面拥有独立生命周期和刷新 | `selectedClassification`、`showMissingCloudFeatures`、detail draft 由 Composable `remember` 持有；切 VIN 后可能继续显示旧分类/草稿 | 页面重组或切车后 UI 状态与数据不一致 | 以 VIN/loadedFromCloud 为 key 重置 UI 草稿和选中分类 | COMPLETE |
 | VS-011 | P2 | L1 | 权限/隐藏 | `CarSettingsGateway.kt:674-705` | `BikeConfig.isAuth`、`isUserLabFun`、`izLab` 是云端权限/实验室来源 | 主条目 `writable` 统一用 `isAuth != false && (BLE || cloud)`；拆分项只检查 `isAuth`，且 `95` 直接隐藏 | 拆分项、动态项和隐藏项的权限与原可用性 helper 不完全一致 | 对每个条目 ID 复用统一 `ItemAccess`，明确入口可见、可写、隐藏三种状态 | COMPLETE |
-| VS-012 | P3 | L3 | BLE 命令一致性 | `VehicleSettingCommands.kt`、`VehicleSettingFrameEncoder.kt`、`BleBicycleCommandManager.smali` | 原 `BleBicycleCommandManager.generateBleCommand` 管理位域、反值和长度 | KMP 多处使用固定 hex/反值参数；部分 commandId 只有函数注释，缺少逐帧 Smali 对照 | 错误位域可能导致车辆参数被错误覆盖 | 只读审计；逐命令导出 Smali 帧样本，建立 golden frame 测试后再修复 | PENDING |
+| VS-012 | P3 | L3 | BLE 命令一致性 | `VehicleSettingFrameEncoder.kt`、`BleBicycleCommandManager.smali:125-189,674-5660` | `generateBleCommand(III)` 使用版本前缀、命令分支、`uj.c` 位域、长度和 SUM8 校验生成完整帧 | KMP 多条命令沿用固定 suffix，但此前没有完整 golden hex；0x141 实际位于 `generateControlCommand`，不在该方法分支 | 未核对位域/字节序可能覆盖错误车辆参数 | 仅对 Smali 能闭环的 0x0F/10/11/12/13/14/36/53/54/62/63/D2/D3 建立 golden frame；其余保持 UNKNOWN，不改协议实现 | PARTIAL |
 
 ## 未判定问题
 

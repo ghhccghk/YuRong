@@ -298,3 +298,32 @@
 - 编译结果：共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。`jvmTest` 未执行；没有真实 BLE 或车辆请求。
 - Git commit ID：`8e36146`。
 - 未完成事项：真实车辆 ACK/回读时序和各设置项确认延迟未验证；没有 TTP 回读的条目会保持 `LOCAL_UPDATED/CLOUD_ACCEPTED`，不会伪造 `VEHICLE_CONFIRMED`。
+
+## VS-012 — BLE Golden Frame 核对
+
+- 状态：PARTIAL
+- 问题：`VehicleSettingFrameEncoder` 有多条固定 suffix/位域实现，但此前测试只验证“能编码”，没有用原始 `BleBicycleCommandManager.generateBleCommand` 的完整十六进制帧做回归。
+- Smali 证据：
+  - `BleBicycleCommandManager.smali:125-189`：`getCheckResult()` 对 `ORDER_ID + LEN + PAYLOAD` 做 SUM8。
+  - `BleBicycleCommandManager.smali:5147-5208`：外层帧为 `5944 + ORDER_ID + payloadLen + payload + check + 4B4A`。
+  - `generateBleCommand():674-721`：使用运行时版本字段拼接 payload 前缀。
+  - `0x0F/0x10/0x11/0x12/0x13/0x14`：`pswitch_data_f62` 与 `:4974-4985` 的固定 suffix。
+  - `0x36`：`:4630-4660`，参数按 `%02x` 写入第 5 个 payload 字节。
+  - `0x53/0x54`：`:3884-3895`。
+  - `0x62/0x63`：`sparse-switch:5473-5475` → `:3655-3665`。
+  - `0xD2/0xD3`：`:2456-2484` 调用 `uj.c(0x35, value, 4..5/6..7)`；`uj.c` 位于 `uj.smali:152-264`。
+  - `0x141` 不在 `generateBleCommand` 分支，而在 `generateControlCommand():6574-6750`，使用 `uj.o/uj.g`。
+- 当前实现：Golden 测试缺失；部分命令仅有编码器注释，无法逐帧证明。
+- 修复：
+  - 新增 `VehicleSettingGoldenFrameTest.kt`，固定 0x0F/10/11/12/13/14、0x36(80)、0x53/54、0x62/63、0xD2(0/1)、0xD3(2) 的完整帧。
+  - 测试同时校验帧头、动态长度、版本/绑定前缀、payload、SUM8 和帧尾。
+  - 未修改 `VehicleSettingCommands`、`VehicleSettingFrameEncoder` 或任何 BLE/OTA/投屏协议。
+  - 其余命令保持 UNKNOWN，不生成猜测帧。
+- 修改文件：
+  - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/VehicleSettingGoldenFrameTest.kt`
+- 编译结果：共享 JVM/JS/WasmJS 与测试源码编译成功。测试源码已编写但 `jvmTest` 未执行；无真实 BLE 写入。
+- Git commit ID：`34da8b5`。
+- 未完成事项：
+  - 其余 `VehicleSettingFrameEncoder` 命令尚未逐条建立 Golden Frame。
+  - `0x141` 需要单独追踪 `generateControlCommand` 的 `uj.o/uj.g` 编码，不能继续声称来自 `generateBleCommand`。
+  - 任何命令在完整 hex、位域、参数范围闭环前继续只读/UNKNOWN。

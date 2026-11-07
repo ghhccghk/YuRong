@@ -82,6 +82,21 @@
 - `86`：0x135 开关、0x134 亮度值。
 - `1005`：0x131 短按、0x130 长按。
 
+### BLE Golden Frame 证据
+
+| 范围 | 证据 | 状态 |
+| --- | --- | --- |
+| 外层帧 | `BleBicycleCommandManager.smali:5147-5208`：`5944 + 3E + payloadLen + payload + SUM8 + 4B4A`；`getCheckResult():125-189` 为 SUM8。 | COMPLETE |
+| 版本/绑定前缀 | `generateBleCommand():674-721` 使用运行时四个版本字段；KMP 保持已确认的 `01000101C8` 静态样本。 | 静态样本 |
+| 0x0F/0x10/0x11/0x12/0x13/0x14 | `pswitch_data_f62` 映射到 `:4974-4985` 的固定 suffix。 | COMPLETE golden |
+| 0x36 | `:4630-4660`：`FFFFFFFF + %02x(parameter) + 20*FF`。 | COMPLETE golden |
+| 0x53/0x54 | `:3884-3895` 固定 suffix。 | COMPLETE golden |
+| 0x62/0x63 | `sparse-switch:5473-5475` → `:3655-3665` 固定 suffix。 | COMPLETE golden |
+| 0xD2/0xD3 | `:2456-2484` 调用 `uj.c(0x35, value, 4..5/6..7)`；`uj.c` 见 `uj.smali:152-264`。 | COMPLETE golden |
+| 其他参数/位域命令 | 尚未逐条导出原分支参数范围、位域、字节序和完整 hex。 | UNKNOWN |
+| 0x141 | 不在 `generateBleCommand` 的 packed/sparse switch；位于 `generateControlCommand(I,HashMap,String)` `:6574-6750`，使用 `uj.o/uj.g` 另一套编码。 | UNKNOWN / 不修改 |
+
+`VehicleSettingGoldenFrameTest.kt` 固化了上述已确认样本。未取得完整证据的命令没有生成猜测帧，也没有修改 `VehicleSettingCommands`/`VehicleSettingFrameEncoder`。
 ## 4. TTP 回读字段
 
 | confId | KMP 回填字段 | 原始字段来源 |
