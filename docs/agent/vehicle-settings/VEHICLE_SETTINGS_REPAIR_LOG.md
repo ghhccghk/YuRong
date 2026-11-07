@@ -120,3 +120,21 @@
 - 编译结果：共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
 - Git commit ID：`8d73500`。
 - 未完成事项：完整 golden frame 属于 VS-012；真实车辆伴我回家灯行为未验证。
+
+## VS-004 — Writer 层阻止只读设置写入
+
+- 状态：COMPLETE
+- 问题：控制器虽检查 `item.writable`，但 `MappedCarSettingWriter` 和 `CloudCarSettingWriter` 可被直接调用并绕过 `isAuth=false`。
+- Smali 证据：
+  - `CarSettingsInlineOperationHelper.smali:2045-2071` 在执行前读取 `BikeConfig.isAuth`，只有 `isAuth == true` 才继续特定分支。
+  - `CarSettingsItemAvailabilityHelper.smali:1453-1559` 先按 `ItemAccess` 计算 `BlockReason`，再决定入口/开关是否可用。
+  - 因此写入通道自身必须拒绝只读项，不能只依赖 UI disabled。
+- 当前实现：两个 concrete writer 直接解析命令/云端字段，没有 `item.writable` 前置检查。
+- 修复：在 BLE writer 和 Cloud/BLE fallback writer 的 `writeWithResult()` 入口拒绝 `writable=false`，确保不会调用 sink、fallback 或云端 gateway。
+- 修改文件：
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/VehicleSettingCommands.kt`
+  - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CarSettingWriterAccessTest.kt`
+- 测试源码：只读项不会触发 BLE sink、BLE fallback 或云端 update。
+- 编译结果：共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
+- Git commit ID：待本次修复提交生成后记录。
+- 未完成事项：伪造合法 `writable=true` 条目的清单级校验由 VS-011 继续处理；真实车辆权限行为未验证。

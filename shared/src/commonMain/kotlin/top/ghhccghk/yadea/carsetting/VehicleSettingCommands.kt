@@ -27,6 +27,7 @@ class MappedCarSettingWriter(
         writeWithResult(item).success
 
     override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult {
+        if (!item.writable) return CarSettingWriteResult(false)
         val command = VehicleSettingCommands.forItem(item)
             ?: return CarSettingWriteResult(false)
         return CarSettingWriteResult(
@@ -52,6 +53,7 @@ class CloudCarSettingWriter(
         writeWithResult(item).success
 
     override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult {
+        if (!item.writable) return CarSettingWriteResult(false)
         val vin = vinProvider().trim()
         if (vin.isBlank()) return CarSettingWriteResult(false)
         val update = CloudCarSettingUpdateBuilder.build(
