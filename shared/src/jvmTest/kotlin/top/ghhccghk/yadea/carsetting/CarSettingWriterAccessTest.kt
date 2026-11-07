@@ -3,6 +3,7 @@ package top.ghhccghk.yadea.carsetting
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CarSettingWriterAccessTest {
@@ -56,6 +57,30 @@ class CarSettingWriterAccessTest {
         assertFalse(result.success)
         assertEquals(0, ble.calls)
         assertEquals(0, gateway.updateCalls)
+    }
+
+
+    @Test
+    fun splitEntryRequiresStableIdAndConfirmedWriteSupport() {
+        val unknownSplit = CarSettingItem(
+            id = "cloud:47:unknown",
+            configId = "47",
+            title = "充电功率",
+            summary = "",
+            classification = CarSettingClassification.BATTERY,
+            channel = CarSettingChannel.BLE,
+            kind = CarSettingKind.Toggle(true),
+        )
+        val confirmedSplit = unknownSplit.copy(id = "cloud:47:enable")
+        val unsupported = unknownSplit.copy(
+            id = "cloud:2:unknown",
+            configId = "2",
+            kind = CarSettingKind.Info("只读"),
+        )
+
+        assertFalse(CarSettingItemAccess.canWrite(unknownSplit))
+        assertTrue(CarSettingItemAccess.canWrite(confirmedSplit))
+        assertFalse(CarSettingItemAccess.canWrite(unsupported))
     }
 
     private class RecordingSink : VehicleSettingCommandSink {

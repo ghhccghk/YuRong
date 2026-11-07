@@ -27,7 +27,7 @@ class MappedCarSettingWriter(
         writeWithResult(item).success
 
     override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult {
-        if (!item.writable) return CarSettingWriteResult(false)
+        if (!CarSettingItemAccess.canWrite(item)) return CarSettingWriteResult(false)
         val command = VehicleSettingCommands.forItem(item)
             ?: return CarSettingWriteResult(false)
         return CarSettingWriteResult(
@@ -53,7 +53,7 @@ class CloudCarSettingWriter(
         writeWithResult(item).success
 
     override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult {
-        if (!item.writable) return CarSettingWriteResult(false)
+        if (!CarSettingItemAccess.canWrite(item)) return CarSettingWriteResult(false)
         val vin = vinProvider().trim()
         if (vin.isBlank()) return CarSettingWriteResult(false)
         val update = CloudCarSettingUpdateBuilder.build(
@@ -80,6 +80,9 @@ object VehicleSettingCommands {
 
     fun supports(configId: String, kind: CarSettingKind): Boolean =
         forConfigId(configId, kind)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
+
+    fun supportsItem(item: CarSettingItem): Boolean =
+        forItem(item)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     /**
      * 云端 `BikeConfig.confId` 对应的已确认命令。

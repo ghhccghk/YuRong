@@ -127,7 +127,45 @@ data class CarSettingWriteResult(
     val channel: CarSettingWriteChannel? = null,
 )
 
+object CarSettingItemAccess {
+    private val splitSuffixes = mapOf(
+        "7" to setOf("time"),
+        "10" to setOf("distance"),
+        "11" to setOf("distance"),
+        "15" to setOf("time"),
+        "21" to setOf("time"),
+        "39" to setOf("time"),
+        "47" to setOf("enable"),
+        "52" to setOf("distance"),
+        "59" to setOf("time"),
+        "60" to setOf("enable", "level"),
+        "62" to setOf("level"),
+        "64" to setOf("adaptive", "level"),
+        "69" to setOf("fcw", "rcw", "bsd"),
+        "81" to setOf("time"),
+        "86" to setOf("value"),
+        "89" to setOf("adaptive", "level"),
+        "1005" to setOf("short", "long"),
+    )
+
+    fun canWrite(item: CarSettingItem): Boolean {
+        if (!item.writable || !isStableEntryId(item)) return false
+        return VehicleSettingCommands.supportsItem(item) ||
+            CloudCarSettingUpdateBuilder.supports(item.configId, item.kind)
+    }
+
+    private fun isStableEntryId(item: CarSettingItem): Boolean {
+        val id = item.id
+        val configId = item.configId
+        if (id == "cloud:$configId" || id == "missing:$configId") return true
+        if (!id.startsWith("cloud:$configId:")) return true
+        val suffix = id.substringAfter("cloud:$configId:")
+        return suffix in splitSuffixes[configId].orEmpty()
+    }
+}
+
 interface CarSettingWriter {
+
     suspend fun write(item: CarSettingItem): Boolean
 
     /** 兼容只返回成功状态的写入器；需要区分实际通道的实现应覆盖此方法。 */

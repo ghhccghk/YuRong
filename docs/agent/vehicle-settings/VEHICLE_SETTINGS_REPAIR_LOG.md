@@ -138,3 +138,26 @@
 - 编译结果：共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
 - Git commit ID：`59d0175`。
 - 未完成事项：伪造合法 `writable=true` 条目的清单级校验由 VS-011 继续处理；真实车辆权限行为未验证。
+
+## VS-011 — 拆分条目稳定 ID 与写入支持校验
+
+- 状态：COMPLETE
+- 问题：拆分条目依赖显示名称/隐式条目，writer 没有统一校验稳定 ID、权限和命令支持；伪造拆分 ID 可能进入写入器。
+- Smali 证据：
+  - `CarSettingsItemAvailabilityHelper.smali:1453-1559` 先解析设置项 `configId`，再通过 `ItemAccess/BlockReason` 判断入口和开关是否可用。
+  - `CarSettingsInlineOperationHelper.smali:2045-2071` 在执行前读取 `BikeConfig.isAuth`。
+  - 原设置项由 Registry 的固定 configId/条目类型组合产生，不接受任意显示名称或未知拆分 ID。
+- 当前实现：split ID 由 mapper 生成，但 writer 只检查 `writable`，没有集中验证拆分后缀、命令映射和云端字段支持。
+- 修复：
+  - 新增 `CarSettingItemAccess`，维护确认过的拆分后缀白名单。
+  - `canWrite()` 同时要求 `writable`、稳定条目 ID、BLE 命令可编码或云端字段可写。
+  - `VehicleSettingCommands.supportsItem()` 以 `forItem()` 和完整帧编码结果判断命令支持。
+  - BLE/Cloud writer 统一调用该访问校验；未知 `cloud:<confId>:<suffix>` 和无命令/无云端字段条目拒绝写入。
+- 修改文件：
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/CarSettings.kt`
+  - `shared/src/commonMain/kotlin/top/ghhccghk/yadea/carsetting/VehicleSettingCommands.kt`
+  - `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/CarSettingWriterAccessTest.kt`
+- 测试源码：只读项、未知拆分 ID、无写入支持项被拒绝；确认的 `cloud:47:enable` 可进入写入能力判断。
+- 编译结果：首次测试编译因缺少 `assertTrue` import 失败，补齐后共享 JVM/JS/WasmJS 与测试源码编译成功；Desktop/Android 构建成功。测试未执行。
+- Git commit ID：待本次修复提交生成后记录。
+- 未完成事项：`CloudCarSettingMapper` 的 UI `writable` 展示仍以 `isAuth` 为主；真实云端权限和车辆行为未验证。
