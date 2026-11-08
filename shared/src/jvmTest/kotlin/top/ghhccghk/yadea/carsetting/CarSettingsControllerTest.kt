@@ -50,12 +50,20 @@ class CarSettingsControllerTest {
         seatHeatSwitchStatus: Int? = null,
         templeSettingRaw: Int? = null,
         sleepModeRaw: Int? = null,
+        customFunctionShort: Int? = null,
+        customFunctionLong: Int? = null,
     ): TtpInfo {
         val bytes = SAMPLE_TTP_HEX.hexToBytes()!!
         tcsWorkMode?.let { bytes[0xAA] = it.toByte() }
         seatHeatSwitchStatus?.let { bytes[0x75] = it.toByte() }
         templeSettingRaw?.let { bytes[0x6F] = it.toByte() }
         sleepModeRaw?.let { bytes[0x88] = it.toByte() }
+        customFunctionLong?.let {
+            bytes[0x6C] = ((bytes[0x6C].toInt() and 0xF0) or (it and 0x0F)).toByte()
+        }
+        customFunctionShort?.let {
+            bytes[0x6C] = ((bytes[0x6C].toInt() and 0x0F) or ((it and 0x0F) shl 4)).toByte()
+        }
         return (VehicleNotifyDispatcher.dispatch(bytes) as VehicleNotify.Ttp).info
     }
 
@@ -107,6 +115,58 @@ class CarSettingsControllerTest {
         )
     }
 
+    @Test
+    fun customKeyFunctionsReadBackFromCustomFunctionBits() {
+        val options = listOf(
+            "ABS 防抱死",
+            "TCS 车身稳定",
+            "雷达功能",
+            "行车记录仪紧急录制",
+            "行车记录仪抓拍",
+            "长续航/性能模式切换",
+            "氛围灯功能",
+            "坐垫加热功能",
+            "AI 语音助手唤醒",
+            "无定义",
+        )
+        val items = listOf(
+            CarSettingItem(
+                id = "cloud:1005:short",
+                configId = "1005",
+                title = "短按功能",
+                summary = "",
+                classification = CarSettingClassification.RIDE_CONTROL,
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Choice(0, options, valueKnown = false),
+            ),
+            CarSettingItem(
+                id = "cloud:1005:long",
+                configId = "1005",
+                title = "长按功能",
+                summary = "",
+                classification = CarSettingClassification.RIDE_CONTROL,
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Choice(0, options, valueKnown = false),
+            ),
+        )
+        val controller = CarSettingsController(items, writer = null)
+
+        controller.updateVehicleStatus(
+            "VIN",
+            sampleStatus(customFunctionShort = 5, customFunctionLong = 14),
+        )
+
+        val short = controller.state.value.items
+            .first { it.id == "cloud:1005:short" }
+            .kind as CarSettingKind.Choice
+        val long = controller.state.value.items
+            .first { it.id == "cloud:1005:long" }
+            .kind as CarSettingKind.Choice
+        assertEquals(5, short.selectedIndex)
+        assertEquals(9, long.selectedIndex)
+        assertTrue(short.valueKnown)
+        assertTrue(long.valueKnown)
+    }
     @Test
     fun writeResultDefaultsDoNotClaimConfirmation() {
         assertEquals(

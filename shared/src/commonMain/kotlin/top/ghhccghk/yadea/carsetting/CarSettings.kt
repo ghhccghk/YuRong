@@ -548,6 +548,14 @@ class CarSettingsController(
                     )
                     else -> item
                 }
+                "1005" -> {
+                    val raw = if (item.id.endsWith(":short")) {
+                        status.extended.customFunctionShort
+                    } else {
+                        status.extended.customFunctionLong
+                    }
+                    item.withIndex(customKeyIndex(raw))
+                }
                 "69" -> item.withToggle(
                     when (item.id) {
                         "cloud:69:fcw" -> status.extended.frontCollisionWarning
@@ -663,6 +671,10 @@ class CarSettingsController(
         )
     }
 
+    private fun customKeyIndex(raw: Int): Int? {
+        if (raw < 0) return null
+        return if (raw in 0..8) raw else 9
+    }
     private fun Int.flagOrNull(): Boolean? = when {
         this < 0 -> null
         this == 1 -> true
