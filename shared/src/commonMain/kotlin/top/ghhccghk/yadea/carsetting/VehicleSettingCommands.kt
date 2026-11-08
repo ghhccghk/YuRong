@@ -409,7 +409,7 @@ object VehicleSettingCommands {
                 is CarSettingKind.Slider -> VehicleSettingCommand(
                     commandType = "COMMAND_CONST_CUSTOM_DRIVE_LEVEL_SETTING",
                     commandId = 0xD1,
-                    parameter = kind.value.toInt().coerceIn(1, 3),
+                    parameter = kind.value.toInt().coerceIn(0, 2),
                 )
                 else -> null
             }
@@ -734,9 +734,9 @@ object VehicleSettingCommands {
                 offType = "COMMAND_CONST_CUSTOM_DRIVE_SWITCH_SETTING",
                 onId = 0xD0,
                 offId = 0xD0,
-                // 原通过 CheckBox 反值下发：勾选 = 0，未勾选 = 1。
+                // HelpPromotePlusActivity(64) 取消值为 1；Plus2(89) 取消值为 2。
                 onParameter = 0,
-                offParameter = 1,
+                offParameter = if (item.configId == "89") 2 else 1,
             )
         }
         forConfigId(item.configId, item.kind)?.let { return it }

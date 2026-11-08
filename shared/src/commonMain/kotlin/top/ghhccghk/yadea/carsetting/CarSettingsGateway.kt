@@ -1129,7 +1129,7 @@ object CloudCarSettingMapper {
                     classification = classificationOf(pushAssistId, config),
                     group = groupOf(config, classificationOf(pushAssistId, config)),
                     channel = CarSettingChannel.BLE,
-                    kind = CarSettingKind.Toggle(false),
+                    kind = CarSettingKind.Toggle(false, valueKnown = false),
                     writable = config.isAuth != false,
                     sort = (config.sort.toIntOrNull() ?: 0) + 1,
                 )
@@ -1142,10 +1142,11 @@ object CloudCarSettingMapper {
                     group = groupOf(config, classificationOf(pushAssistId, config)),
                     channel = CarSettingChannel.BLE,
                     kind = CarSettingKind.Slider(
-                        value = 2f,
-                        range = 1f..3f,
+                        value = 1f,
+                        range = 0f..2f,
                         steps = 1,
-                        unit = " 档",
+                        unit = "",
+                        valueKnown = false,
                     ),
                     writable = config.isAuth != false,
                     sort = (config.sort.toIntOrNull() ?: 0) + 2,

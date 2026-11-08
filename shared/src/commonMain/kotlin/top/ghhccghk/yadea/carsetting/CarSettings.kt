@@ -671,6 +671,15 @@ class CarSettingsController(
         )
     }
 
+    private fun Int.adaptivePushOrNull(configId: String): Boolean? {
+        if (this < 0) return null
+        return when (configId) {
+            "64" -> this == 1
+            "89" -> this == 2
+            else -> null
+        }
+    }
+
     private fun customKeyIndex(raw: Int): Int? {
         if (raw < 0) return null
         return if (raw in 0..8) raw else 9

@@ -52,6 +52,8 @@ class CarSettingsControllerTest {
         sleepModeRaw: Int? = null,
         customFunctionShort: Int? = null,
         customFunctionLong: Int? = null,
+        customDriveSwitchStatus: Int? = null,
+        customDriveLevelStatus: Int? = null,
     ): TtpInfo {
         val bytes = SAMPLE_TTP_HEX.hexToBytes()!!
         tcsWorkMode?.let { bytes[0xAA] = it.toByte() }
@@ -63,6 +65,12 @@ class CarSettingsControllerTest {
         }
         customFunctionShort?.let {
             bytes[0x6C] = ((bytes[0x6C].toInt() and 0x0F) or ((it and 0x0F) shl 4)).toByte()
+        }
+        customDriveSwitchStatus?.let {
+            bytes[0x76] = ((bytes[0x76].toInt() and 0x3F) or ((it and 0x03) shl 6)).toByte()
+        }
+        customDriveLevelStatus?.let {
+            bytes[0x79] = ((bytes[0x79].toInt() and 0xF8) or (it and 0x07)).toByte()
         }
         return (VehicleNotifyDispatcher.dispatch(bytes) as VehicleNotify.Ttp).info
     }
@@ -79,8 +87,8 @@ class CarSettingsControllerTest {
             kind = CarSettingKind.Toggle(false),
         )
         val writer = object : CarSettingWriter {
-            override suspend fun write(target: CarSettingItem): Boolean =
-                writeWithResult(target).success
+            override suspend fun write(item: CarSettingItem): Boolean =
+                writeWithResult(item).success
 
             override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult =
                 CarSettingWriteResult(
@@ -115,6 +123,117 @@ class CarSettingsControllerTest {
         )
     }
 
+    @Test
+    fun adaptivePushUsesVariantSpecificSwitchValuesAndZeroBasedLevel() {
+        fun items(configId: String) = listOf(
+            CarSettingItem(
+                id = "cloud:$configId:adaptive",
+                configId = configId,
+                title = "自适应推行",
+                summary = "",
+                classification = CarSettingClassification.RIDE_CONTROL,
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Toggle(false, valueKnown = false),
+            ),
+            CarSettingItem(
+                id = "cloud:$configId:level",
+                configId = configId,
+                title = "推行速度",
+                summary = "",
+                classification = CarSettingClassification.RIDE_CONTROL,
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Slider(1f, 0f..2f, steps = 1, valueKnown = false),
+            ),
+        )
+        val controller64 = CarSettingsController(items("64"), writer = null)
+        val controller89 = CarSettingsController(items("89"), writer = null)
+
+        controller64.updateVehicleStatus(
+            "VIN",
+            sampleStatus(customDriveSwitchStatus = 1, customDriveLevelStatus = 0),
+        )
+        controller89.updateVehicleStatus(
+            "VIN",
+            sampleStatus(customDriveSwitchStatus = 1, customDriveLevelStatus = 0),
+        )
+        assertEquals(
+            true,
+            (controller64.state.value.items.first().kind as CarSettingKind.Toggle).checked,
+        )
+        assertEquals(
+            false,
+            (controller89.state.value.items.first().kind as CarSettingKind.Toggle).checked,
+        )
+        assertEquals(
+            0f,
+            (controller64.state.value.items.last().kind as CarSettingKind.Slider).value,
+        )
+
+        controller64.updateVehicleStatus(
+            "VIN",
+            sampleStatus(customDriveSwitchStatus = 2, customDriveLevelStatus = 2),
+        )
+        controller89.updateVehicleStatus(
+            "VIN",
+            sampleStatus(customDriveSwitchStatus = 2, customDriveLevelStatus = 2),
+        )
+        assertEquals(
+            false,
+            (controller64.state.value.items.first().kind as CarSettingKind.Toggle).checked,
+        )
+        assertEquals(
+            true,
+            (controller89.state.value.items.first().kind as CarSettingKind.Toggle).checked,
+        )
+        assertEquals(
+            2f,
+            (controller89.state.value.items.last().kind as CarSettingKind.Slider).value,
+        )
+    }
+
+    @Test
+    fun adaptivePushCommandsUseVariantSpecificParameters() {
+        fun item(id: String, configId: String, kind: CarSettingKind) = CarSettingItem(
+            id = id,
+            configId = configId,
+            title = "",
+            summary = "",
+            classification = CarSettingClassification.RIDE_CONTROL,
+            channel = CarSettingChannel.BLE,
+            kind = kind,
+        )
+
+        assertEquals(
+            0,
+            VehicleSettingCommands.forItem(
+                item("cloud:64:adaptive", "64", CarSettingKind.Toggle(true)),
+            )?.parameter,
+        )
+        assertEquals(
+            1,
+            VehicleSettingCommands.forItem(
+                item("cloud:64:adaptive", "64", CarSettingKind.Toggle(false)),
+            )?.parameter,
+        )
+        assertEquals(
+            0,
+            VehicleSettingCommands.forItem(
+                item("cloud:89:adaptive", "89", CarSettingKind.Toggle(true)),
+            )?.parameter,
+        )
+        assertEquals(
+            2,
+            VehicleSettingCommands.forItem(
+                item("cloud:89:adaptive", "89", CarSettingKind.Toggle(false)),
+            )?.parameter,
+        )
+        assertEquals(
+            0,
+            VehicleSettingCommands.forItem(
+                item("cloud:89:level", "89", CarSettingKind.Slider(0f, 0f..2f)),
+            )?.parameter,
+        )
+    }
     @Test
     fun customKeyFunctionsReadBackFromCustomFunctionBits() {
         val options = listOf(
