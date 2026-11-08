@@ -187,9 +187,13 @@ data class TtpExtendedInfo(
     val alarmWarningMode: Int,
     /** 车辆音量。`0x33` bit3-5。 */
     val alarmWarningVolumeLevel: Int,
-    /** 能量回收开关。`0x26` bit5-6。 */
+    /** 滑行能量回收开关。`0x26` bit0-1；普通 EnergyRecoveryActivity 使用。 */
+    val slideModePowerRecoverStatus: Int,
+    /** 滑行能量回收档位。`0x26` bit2-4，原始值 1/2/3。 */
+    val slideModePowerRecoverCurrent: Int,
+    /** 制动回馈开关。`0x26` bit5-6。 */
     val brakeModePowerRecoverFunctionStatus: Int,
-    /** 能量回收档位。`0x27` bit3-5。 */
+    /** 制动回馈档位。`0x27` bit0-2。 */
     val brakeModePowerRecoverGearStatus: Int,
 
     // ---- 电量 / 能耗 ----
@@ -548,8 +552,10 @@ internal object TtpInfoParser {
             turnSignalReturnsAutomaticallyStatus = Ttp.G(d, 0x33, 6),
             alarmWarningMode = Ttp.C(d, 0x33, 0),
             alarmWarningVolumeLevel = Ttp.C(d, 0x33, 3),
+            slideModePowerRecoverStatus = Ttp.G(d, 0x26, 0),
+            slideModePowerRecoverCurrent = Ttp.C(d, 0x26, 2),
             brakeModePowerRecoverFunctionStatus = Ttp.G(d, 0x26, 5),
-            brakeModePowerRecoverGearStatus = Ttp.C(d, 0x27, 3),
+            brakeModePowerRecoverGearStatus = Ttp.C(d, 0x27, 0),
 
             cumulativeCalories = rangedTenths(Ttp.D(d, 0xA4, 0xA5, 0xA6)),
             cumulativeCarbonEmissions = rangedTenths(Ttp.D(d, 0xA7, 0xA8, 0xA9)),

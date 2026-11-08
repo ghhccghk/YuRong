@@ -324,6 +324,19 @@ class TtpInfoParserTest {
     }
 
     @Test
+    fun parse_energyRecoveryUsesSlideModeFields() {
+        val d = packet(0xB0, 0x00)
+        // bit0-1=1, bit2-4=2, bit5-6=2 -> 0b1001001
+        d[0x26] = 0b0100_1001.toByte()
+        d[0x27] = 0b0000_0011.toByte()
+
+        val e = TtpInfoParser.parse(d).extended
+        assertEquals(1, e.slideModePowerRecoverStatus)
+        assertEquals(2, e.slideModePowerRecoverCurrent)
+        assertEquals(2, e.brakeModePowerRecoverFunctionStatus)
+        assertEquals(3, e.brakeModePowerRecoverGearStatus)
+    }
+    @Test
     fun parse_chargingDriveAndNavi_0x70_to_0x7A() {
         val d = packet(0xB0, 0x00)
         d[0x70] = 0b1001_1010.toByte()

@@ -617,10 +617,10 @@ class CarSettingsController(
                 "80" -> item.withToggle(status.extended.otdSwitch.flagOrNull())
                 "90" -> item.withToggle(status.extended.trackModeStatus.flagOrNull())
                 "17" -> item.withToggle(
-                    status.extended.brakeModePowerRecoverFunctionStatus.flagOrNull(),
+                    status.extended.slideModePowerRecoverStatus.flagOrNull(),
                 )
                 "18" -> item.withSlider(
-                    status.extended.brakeModePowerRecoverGearStatus.floatIn(1..3),
+                    status.extended.slideModePowerRecoverCurrent.floatIn(1..3),
                 )
                 "20" -> item.withSlider(
                     status.extended.alarmWarningVolumeLevel.floatIn(0..7),
