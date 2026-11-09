@@ -41,6 +41,8 @@ object VehicleSettingFrameEncoder {
         // PassWordUnlockActivity：密码解锁开关。
         0x80 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7FFFFFFF"
         0x81 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF3FFFFFFF"
+        // PassWordUnlockActivity：云端 set/reset 成功后写入 4 位数字密码。
+        0x82 -> "FF".repeat(29) + hex4(command.parameter.coerceIn(0, 9999))
         // FeelLightSettingActivity：ATMOSPHERE_CONFIG 多参数命令。
         0xF7 -> atmosphereSuffix(command.parameters) ?: return null
         // EnergyRecoveryActivity：能量回收开关。
@@ -284,6 +286,8 @@ object VehicleSettingFrameEncoder {
         putBits(64, parameters[8], 3, 5)
         return bytes.joinToString("") { hex2(it.toInt() and 0xFF) }
     }
+    private fun hex4(value: Int): String = value.coerceIn(0, 9999).toString(16).padStart(4, '0').uppercase()
+
     private fun hex2(value: Int): String =
         (value and 0xFF).toString(16).padStart(2, '0').uppercase()
 

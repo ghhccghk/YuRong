@@ -26,6 +26,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.ghhccghk.yadea.carsetting.CarSettingChannel
@@ -40,6 +41,9 @@ import top.ghhccghk.yadea.carsetting.CustomSoundResource
 import top.ghhccghk.yadea.carsetting.createSoundPreviewPlayer
 import top.ghhccghk.yadea.vehicle.ContactType
 import top.ghhccghk.yadea.vehicle.EmergencyContactController
+import top.ghhccghk.yadea.vehicle.PasswordFlow
+import top.ghhccghk.yadea.vehicle.PasswordWriteState
+import top.ghhccghk.yadea.vehicle.VehiclePasswordController
 import top.ghhccghk.yadea.vehicle.sanitizeContactNameInput
 
 /** 车辆设置页。业务状态由 [CarSettingsController] 提供，页面只负责语义渲染。 */
@@ -51,6 +55,7 @@ fun CarSettingsScreen(
     vehicleConnected: Boolean,
     vehiclePowerOn: Boolean?,
     emergencyContactController: EmergencyContactController? = null,
+    passwordController: VehiclePasswordController? = null,
     onOpenLostMode: (() -> Unit)? = null,
     customSoundController: CustomSoundController? = null,
     modifier: Modifier = Modifier,
@@ -58,6 +63,7 @@ fun CarSettingsScreen(
     val state by controller.state.collectAsState()
     val contactState = emergencyContactController?.state?.collectAsState()?.value
     val customSoundState = customSoundController?.state?.collectAsState()?.value
+    val passwordState = passwordController?.state?.collectAsState()?.value
     val scope = rememberCoroutineScope()
     val dimensions = AppDesign.dimensions
     val uiResetKey = carSettingsUiResetKey(state)
@@ -68,6 +74,10 @@ fun CarSettingsScreen(
     var atmosphereDraft by remember(uiResetKey, atmosphereItem?.id) {
         mutableStateOf((atmosphereItem?.kind as? CarSettingKind.Atmosphere) ?: CarSettingKind.Atmosphere())
     }
+    var showPasswordManager by remember(uiResetKey) { mutableStateOf(false) }
+    var passwordFlow by remember(uiResetKey) { mutableStateOf<PasswordFlow?>(null) }
+    var passwordDraft by remember(uiResetKey) { mutableStateOf("") }
+    var passwordCode by remember(uiResetKey) { mutableStateOf("") }
     var customizeItem by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     var customizeDraft by remember(uiResetKey, customizeItem?.id) {
         mutableStateOf(
@@ -324,6 +334,20 @@ fun CarSettingsScreen(
                                 submitSettingUpdate(item, transform)
                             },
                         )
+                        if (item.id == "cloud:25" && passwordController != null) {
+                            AppActionPreference(
+                                title = "密码管理",
+                                summary = "设置、修改或忘记密码；敏感内容不会写入日志或持久化",
+                                value = "进入",
+                                onClick = {
+                                    passwordController.refresh()
+                                    passwordFlow = null
+                                    passwordDraft = ""
+                                    passwordCode = ""
+                                    showPasswordManager = true
+                                },
+                            )
+                        }
                         if (item.configId in setOf("24", "85") &&
                             emergencyContactController != null
                         ) {
@@ -748,6 +772,156 @@ fun CarSettingsScreen(
         }
     }
 
+    if (passwordController != null) {
+        AppBottomSheet(
+            show = showPasswordManager,
+            onDismissRequest = {
+                showPasswordManager = false
+                passwordFlow = null
+                passwordDraft = ""
+                passwordCode = ""
+            },
+            title = "密码解锁管理",
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+            ) {
+                AppText(
+                    text = buildString {
+                        append("当前密码：")
+                        append(
+                            when (passwordState?.hasPassword) {
+                                true -> "已设置"
+                                false -> "未设置"
+                                null -> "未知"
+                            },
+                        )
+                        append(" · 开关状态：")
+                        append(
+                            when (passwordState?.enabledStatus) {
+                                1 -> "开启"
+                                0 -> "关闭"
+                                else -> "未知"
+                            },
+                        )
+                    },
+                    style = AppDesign.typography.summary,
+                    color = AppDesign.colors.onSurfaceVariant,
+                )
+                passwordState?.message?.let { message ->
+                    AppText(
+                        text = message,
+                        style = AppDesign.typography.summary,
+                        color = if (passwordState.success) {
+                            AppDesign.colors.primary
+                        } else {
+                            AppDesign.colors.error
+                        },
+                    )
+                }
+                val currentFlow = passwordFlow
+                if (currentFlow == null) {
+                    AppOutlinedButton(
+                        onClick = {
+                            passwordFlow = PasswordFlow.Set
+                            passwordController.begin(PasswordFlow.Set)
+                            passwordDraft = ""
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = passwordState?.busy != true,
+                    ) { AppText("设置密码", style = AppDesign.typography.button) }
+                    AppOutlinedButton(
+                        onClick = {
+                            passwordFlow = PasswordFlow.Change
+                            passwordController.begin(PasswordFlow.Change)
+                            passwordDraft = ""
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = passwordState?.busy != true,
+                    ) { AppText("修改密码", style = AppDesign.typography.button) }
+                    AppOutlinedButton(
+                        onClick = {
+                            passwordFlow = PasswordFlow.Forget
+                            passwordController.begin(PasswordFlow.Forget)
+                            passwordDraft = ""
+                            passwordCode = ""
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = passwordState?.busy != true,
+                    ) { AppText("忘记密码", style = AppDesign.typography.button) }
+                } else {
+                    if (currentFlow == PasswordFlow.Change && passwordState?.smsVerified != true) {
+                        AppTextField(
+                            value = passwordDraft,
+                            onValueChange = { passwordDraft = it.filter(Char::isDigit).take(4) },
+                            label = "原密码",
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = passwordState?.busy != true,
+                        )
+                        AppOutlinedButton(
+                            onClick = { passwordController.verifyCurrentPassword(passwordDraft) },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = passwordDraft.length == 4 && passwordState?.busy != true,
+                        ) { AppText("验证原密码", style = AppDesign.typography.button) }
+                    } else if (currentFlow == PasswordFlow.Forget && passwordState?.smsVerified != true) {
+                        AppTextField(
+                            value = passwordCode,
+                            onValueChange = { passwordCode = it.filter(Char::isDigit).take(6) },
+                            label = "短信验证码",
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = passwordState?.busy != true,
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+                        ) {
+                            AppOutlinedButton(
+                                onClick = { passwordController.sendSmsCode() },
+                                modifier = Modifier.weight(1f),
+                                enabled = passwordState?.busy != true,
+                            ) { AppText("发送验证码", style = AppDesign.typography.button) }
+                            AppOutlinedButton(
+                                onClick = { passwordController.verifySmsCode(passwordCode) },
+                                modifier = Modifier.weight(1f),
+                                enabled = passwordCode.isNotEmpty() && passwordState?.busy != true,
+                            ) { AppText("校验验证码", style = AppDesign.typography.button) }
+                        }
+                    } else {
+                        AppTextField(
+                            value = passwordDraft,
+                            onValueChange = { passwordDraft = it.filter(Char::isDigit).take(4) },
+                            label = "新密码（4 位数字）",
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = passwordState?.busy != true,
+                        )
+                        AppOutlinedButton(
+                            onClick = { passwordController.submitPassword(passwordDraft) },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = passwordDraft.length == 4 && passwordState?.busy != true,
+                        ) {
+                            AppText(
+                                if (passwordState?.busy == true) "提交中…" else "保存密码",
+                                style = AppDesign.typography.button,
+                            )
+                        }
+                    }
+                    if (passwordState?.writeState == PasswordWriteState.VEHICLE_CONFIRMED) {
+                        AppText(
+                            text = "车辆已确认密码设置",
+                            style = AppDesign.typography.summary,
+                            color = AppDesign.colors.primary,
+                        )
+                    }
+                }
+            }
+        }
+    }
     if (customSoundController != null) {
         val soundState = customSoundState
         val soundBusy = soundState?.busy == true

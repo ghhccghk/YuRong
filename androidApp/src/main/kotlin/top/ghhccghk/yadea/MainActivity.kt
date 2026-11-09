@@ -61,7 +61,9 @@ import top.ghhccghk.yadea.vehicle.YadeaVehicleFaultGateway
 import top.ghhccghk.yadea.vehicle.YadeaVehicleCloudThemeGateway
 import top.ghhccghk.yadea.vehicle.YadeaLostModeGateway
 import top.ghhccghk.yadea.vehicle.EmergencyContactController
+import top.ghhccghk.yadea.vehicle.VehiclePasswordController
 import top.ghhccghk.yadea.vehicle.YadeaEmergencyContactGateway
+import top.ghhccghk.yadea.vehicle.YadeaVehiclePasswordGateway
 import top.ghhccghk.yadea.wifi.AndroidWifiP2pManager
 import top.ghhccghk.yadea.wifi.AndroidWifiConnectionManager
 import top.ghhccghk.yadea.mirror.source.AndroidFrameSourceFactory
@@ -309,6 +311,19 @@ class MainActivity : ComponentActivity() {
             },
             scope = lifecycleScope,
         )
+        val vehiclePasswordController = VehiclePasswordController(
+            gateway = YadeaVehiclePasswordGateway(
+                transport = httpTransport,
+                tokenProvider = { appPreferences.readAuth().token },
+                deviceIdProvider = deviceIdProvider,
+                clientInfoProvider = clientInfoProvider,
+                timestampProvider = { System.currentTimeMillis() },
+            ),
+            vinProvider = { vehicleProfileSource.profile.value?.vin.orEmpty() },
+            mobileProvider = { appPreferences.readAuth().user?.mobile.orEmpty() },
+            commandSink = AndroidVehicleSettingCommandSink(vehicleBleAdapter),
+            scope = lifecycleScope,
+        )
         val authGateway = YadeaAuthGateway(
             transport = httpTransport,
             timestampProvider = { System.currentTimeMillis() },
@@ -438,6 +453,7 @@ class MainActivity : ComponentActivity() {
                 onRefreshVehicleCloudStatus = cloudStatusController::refresh,
                 vehicleBindingController = vehicleBindingController,
                 emergencyContactController = emergencyContactController,
+                vehiclePasswordController = vehiclePasswordController,
                 vehicleBackgroundContent = { url, modifier ->
                     AndroidVehicleBackgroundImage(url, modifier)
                 },

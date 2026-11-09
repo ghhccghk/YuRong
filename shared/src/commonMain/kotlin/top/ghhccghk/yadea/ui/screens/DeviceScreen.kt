@@ -25,6 +25,7 @@ import top.ghhccghk.yadea.vehicle.VehiclePowerStateResolver
 import top.ghhccghk.yadea.vehicle.VehicleFaultController
 import top.ghhccghk.yadea.vehicle.LostModeController
 import top.ghhccghk.yadea.vehicle.EmergencyContactController
+import top.ghhccghk.yadea.vehicle.VehiclePasswordController
 
 /** 车辆页的子功能。 */
 internal enum class VehicleSection(val label: String) {
@@ -66,6 +67,7 @@ internal fun VehicleHubScreen(
     onRefreshVehicleCloudStatus: ((String) -> Unit)? = null,
     vehicleBindingController: VehicleBindingController? = null,
     emergencyContactController: EmergencyContactController? = null,
+    vehiclePasswordController: VehiclePasswordController? = null,
     currentUser: AuthUser? = null,
     authController: AuthController,
     carSettingsController: CarSettingsController,
@@ -167,6 +169,7 @@ internal fun VehicleHubScreen(
                     vehicleConnected = connected,
                     vehiclePowerOn = powerToggleState.powerOn,
                     emergencyContactController = emergencyContactController,
+                    passwordController = vehiclePasswordController,
                     onOpenLostMode = { onSectionChange(VehicleSection.Diagnostics) },
                     customSoundController = customSoundController,
                 )
