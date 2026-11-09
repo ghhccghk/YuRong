@@ -1705,6 +1705,7 @@ object CloudCarSettingMapper {
             value = 0f,
             range = 0f..7f,
             steps = 6,
+            valueKnown = false,
         )
         "2", "32" -> unknownToggle()
         "42" -> unknownToggle()
