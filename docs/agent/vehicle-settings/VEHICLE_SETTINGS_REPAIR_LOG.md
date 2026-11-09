@@ -384,3 +384,36 @@
 - VS-007：COMPLETE。已为 0x83/0x84/0x85 建立完整 Golden Frame，覆盖开、关和 15/30/45/60 秒参数。
 - VS-012：PARTIAL。新增样本 commit `20b74d7`；其他命令继续 UNKNOWN。
 - VS-011：BLOCKED。`supportsItem()` 仍只能证明 encoder 可编码；全量命令的 Smali/Golden 证据表未建立。直接收紧会禁用用户已实测正常项，直接放宽会违反“无证据不开放写入”，因此本轮不改变写入白名单。
+
+# 第四轮修复记录
+
+## VS-016 — 密码解锁
+
+- 状态：PARTIAL。
+- 已完成：`cloud:25` 使用 `passwordUnlockStatus == 1` 回填；开启/关闭映射 0x80/0x81；解析 `passwordUnlockStatus/passwordUnlockSettingResult`。
+- 未完成：设置、修改、忘记密码和验证码 Popup 流程；0x82 敏感输入转换不接入 KMP。
+- 证据：`PassWordUnlockActivity.smali:63-170`、`qg.smali:1010-1029,3158-3177,5583-5602`、`l76.smali:9714-9725`。
+- Commit：`54effb3`。
+
+## VS-017 — 一键开机
+
+- 状态：COMPLETE（核心开关）。
+- 修正 confId 1 不属于数字车钥匙；拆为 `cloud:1:enable` 与 `cloud:1:distance`。
+- 开关写 0x0D/0x0E，使用 `bleKeyStatus` 回填。
+- 证据：`OneKeyOpenActivity.smali:345-358,390-392`、`qg.smali:4840-4859,6719-6738`、`l76.smali:9240-9247`。
+- Commit：`54effb3`。
+
+## VS-018 — 开机距离设定
+
+- 状态：PARTIAL。
+- 完成 0..7 档 `cloud:1:distance`，写 0x37，按 `bleKeyDistanceLevel` 回填。
+- 未完成 `CustomPowerOnDistancesActivity` 自动/自定义标定状态机。
+- Commit：`54effb3`。
+
+## VS-019/020 — 氛围灯模式与颜色
+
+- 状态：PARTIAL。
+- 新增 `cloud:73:config`、双主题设置面板、RGB 选择、单双色和流水方向。
+- 0xF7 按 `generateMultiBleCommand` 位域编码；RGB 255→254。
+- 配置回读继续 UNKNOWN，不伪造 VEHICLE_CONFIRMED。
+- Commit：`54effb3`。

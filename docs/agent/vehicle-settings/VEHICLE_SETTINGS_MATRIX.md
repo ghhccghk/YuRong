@@ -6,7 +6,7 @@
 
 | confId | 设置名称 | 条目 ID | Smali 来源 | KMP 来源 | 当前状态 | 验证状态 |
 | ---: | --- | --- | --- | --- | --- | --- |
-| 1 | 一键开机/蓝牙车钥匙入口 | cloud:1 | `X1DistanceUnitActivity.getSettingConfigId()`；`CarSettingsPowerRegistry` | `CloudCarSettingMapper`，BLUETOOTH_KEY_IDS | PARTIAL | 静态 |
+| 1 | 一键开机/开机距离 | cloud:1:enable, cloud:1:distance | `OneKeyOpenActivity/OneKeyDistanceActivity.getSettingConfigId()`；`ModeGearView` | 0x0D/0x0E、0x37；TTP `bleKeyStatus/bleKeyDistanceLevel` | PARTIAL | 测试源码已编译，未执行 |
 | 2 | 边撑感应 | cloud:2 | `TempleInductionActivity.getSettingConfigId()`；`CarSettingsPowerRegistry` | `VehicleSettingCommands.forConfigId("2")`；TTP `sideBraceStatus` | COMPLETE | 静态 |
 | 3 | 携出助力 | cloud:3 | `SeatCushionSensorActivity.getSettingConfigId()` | `VehicleSettingCommands.forConfigId("3")` | PARTIAL | 静态 |
 | 4 | 档位设置/最高车速 | cloud:4 | `TopSpeedActivity.getSettingConfigId()` | `VehicleSettingCommands` 0x36；`TtpInfo.maximumSpeedCurrent` | PARTIAL | 静态 |
@@ -26,7 +26,7 @@
 | 20 | 车辆音量 | cloud:20 | `VehicleVolumeActivity.getSettingConfigId()` | 0x46；TTP `alarmWarningVolumeLevel` | PARTIAL | 静态 |
 | 21 | 背光/延时背光入口 | cloud:21 | `BackLightActivity.getSettingConfigId()` | KMP 无标题、kind、写入映射 | MISSING | 静态 |
 | 24 | 紧急联系人 | cloud:24 | `EmergencyContactActivity.getSettingConfigId()` | `emergencyContact` + 联系人网关 | PARTIAL | 静态 |
-| 25 | 密码解锁 | cloud:25 | Registry/动态项 | `passwordUnlockEnable` | PARTIAL | 静态 |
+| 25 | 密码解锁 | cloud:25 | `PassWordUnlockActivity.getSettingConfigId()` | 0x80/0x81；TTP `passwordUnlockStatus/SettingResult` | PARTIAL | 测试源码已编译，未执行 |
 | 26 | 转向灯自动回位 | cloud:26 | `TurnSignalActivity.getSettingConfigId()` | `VehicleSettingCommands` 动态位域；TTP `turnSignalReturnsAutomaticallyStatus` | PARTIAL | 静态 |
 | 27 | 设防模式 | cloud:27 | `ArmedModeActivity.getSettingConfigId()` | 0x8D/0x8E；TTP `offModeStatus` | PARTIAL | 静态 |
 | 31 | 速度单位 | cloud:31 | `SpeedUnitActivity` / `DistanceUnitActivity` | 0x89/0x8A；TTP `metricSystemStatus` | PARTIAL | 静态 |
@@ -64,7 +64,7 @@
 | 69 | 雷达 | cloud:69, cloud:69:fcw, cloud:69:rcw, cloud:69:bsd | `RadarActivity` | 0x13A/0x12D/0x12E；TTP radar* | PARTIAL | 静态 |
 | 71 | 仪表设置 | cloud:71 | `GaugeSettingsActivity.getSettingConfigId()` | 连接页入口，无设置值写入 | COMPLETE | 静态 |
 | 72 | 长续航模式 | cloud:72 | `EnduranceModeActivity.getSettingConfigId()` | 0xDD；TTP `longEnduranceStatus` | PARTIAL | 静态 |
-| 73 | 氛围灯 | cloud:73 | `FeelLightSettingActivity.getSettingConfigId()` | 0xC3；TTP `ambientStatus` | PARTIAL | 静态 |
+| 73 | 氛围灯开关/模式颜色 | cloud:73, cloud:73:config | `FeelLightSettingActivity.getSettingConfigId()`；`FeelLightSettingActivity$c` | 0xC3；0xF7；TTP `ambientStatus` | PARTIAL | 0xF7 测试源码已编译，配置回读 UNKNOWN |
 | 75 | 定位器防盗 | cloud:75 | `IotTamperProofActivity.getSettingConfigId()` | `tamperProofIotEnable`、`IOT_REMOVE_ALARM` | PARTIAL | 静态 |
 | 76 | 定位开关 | cloud:76 | `LocationSwitchActivity` | `positioningFunc`；IOT | PARTIAL | 静态 |
 | 77 | 休眠模式 | cloud:77 | `HibernateModeActivity.getSettingConfigId()` | 0x133；TTP `sleepModeSwitch` | PARTIAL | 静态 |
@@ -91,7 +91,7 @@
 
 | confId | 云端字段 | 参数类型/范围 | 显示值 → 提交值 | 权限 | 写入方式 | 回读字段 | 备注 |
 | ---: | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 无已确认值 | UNKNOWN | 车钥匙入口 | `isAuth` + BLUETOOTH_KEY | 原钥匙流程 | UNKNOWN | KMP 只读入口 |
+| 1 | 云端 confId 1 | Toggle；Slider 0..7 档 | 0x0D/0x0E；0x37 参数 0..7 | `isAuth` | BLE | `bleKeyStatus/bleKeyDistanceLevel` | 不属于数字车钥匙 |
 | 2 | 无已确认值 | Bool | Toggle → 0x0F/0x10 | isAuth | BLE | `sideBraceStatus` | 0/1 位域 |
 | 3 | 无已确认值 | Bool | Toggle → 0x11/0x12 | isAuth | BLE | UNKNOWN | 云端无回读字段 |
 | 4/58 | `bikeSpeedMax`、`bikeModelTopSpeedMax` | 15..120 | Slider int → 0x36 | isAuth | BLE | `maximumSpeedCurrent` | 范围仍需抓包确认 |
@@ -111,7 +111,7 @@
 | 20 | 无云端值 | 0..7 | Slider int → 0x46 | isAuth | BLE | `alarmWarningVolumeLevel` | |
 | 21 | 无 | UNKNOWN | UNKNOWN | UNKNOWN | UNKNOWN | UNKNOWN | 原 BackLightActivity 缺失 |
 | 24 | `emergencyContact` | Bool | 0/1 → cloud field | isAuth | IoT | 联系人查询 | 联系人编辑器为独立网关 |
-| 25 | `passwordUnlockEnable` | Bool | 0/1 → cloud field | isAuth | IoT | UNKNOWN | |
+| 25 | `passwordUnlockEnable` + TTP | Bool | 0x80/0x81 | `isAuth` | BLE/IoT | `passwordUnlockStatus/SettingResult` | 密码设置流程仍 PARTIAL |
 | 26 | 无云端值 | Bool | 动态位域 | isAuth | BLE | `turnSignalReturnsAutomaticallyStatus` | |
 | 27 | 无云端值 | Choice 0..1 | 0x8D/0x8E | isAuth | BLE | `offModeStatus` | |
 | 31 | 无云端值 | Choice 0..1 | 0x89/0x8A | isAuth | BLE | `metricSystemStatus` | |
@@ -147,7 +147,7 @@
 | 69 | radar* | Bool | 0x13A/0x12D/0x12E | isAuth | BLE | frontCollision/rcw/bsd | 三个稳定子 ID |
 | 71 | 无 | 入口 | 不直接写 | isAuth | 连接页 | UNKNOWN | |
 | 72 | 无云端值 | Bool | 0xDD 参数 0/1 | isAuth | BLE | `longEnduranceStatus` | |
-| 73 | 无云端值 | Bool | 0xC3 参数 0/1 | isAuth | BLE | `ambientStatus` | |
+| 73 | 无云端配置值 | Toggle；Atmosphere | 0xC3；0xF7 多参数 | `isAuth` | BLE | `ambientStatus`；配置回读 UNKNOWN | `cloud:73:config` |
 | 75 | `tamperProofIotEnable` | Bool | IOT_REMOVE_ALARM | isAuth | IOT/BLE | UNKNOWN | |
 | 76 | `POSITIONING_FUNC` | Bool | Integer 0/1 + single `valueJson` | isAuth | `low-freq/common-cmd/param-setting` | UNKNOWN | 云端请求已确认；回读 UNKNOWN |
 | 77 | `sleepMode` | Bool | 0x133 参数 0/1 | isAuth | BLE | `sleepModeSwitch` | |
