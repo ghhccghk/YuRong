@@ -615,7 +615,7 @@ fun CarSettingsScreen(
                     val target = atmosphereTarget ?: return@AppOutlinedButton
                     scope.launch {
                         val saved = controller.update(target.id) {
-                            atmosphereDraft.copy(valueKnown = true)
+                            atmosphereDraft.copy(valueKnown = false)
                         }
                         if (saved) atmosphereItem = null
                     }
