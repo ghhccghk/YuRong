@@ -448,3 +448,29 @@
 
 - 完成 VehicleAlarmActivity、VehicleAlarmSensitivityActivity、DumpNoticeActivity、TurnSignalActivity、ArmedModeActivity。
 - 五项写入/读取映射一致，无需修改；未标记 BEHAVIOR_VERIFIED。
+# 第六轮复核记录
+
+## 密码解锁
+
+- 修复第五轮密码控制器的 VIN 切换旧数据污染和取消异常被吞掉问题。
+- 明确区分云端成功、BLE 提交、车辆 `passwordUnlockSettingResult=0` 确认。
+- 0x82 的命令 ID、参数范围、29×FF + 2 字节参数、SUM8 和发送条件已闭环；仍未进行真实 BLE 验证。
+- Commit：`fb7c54b`。
+
+## X1
+
+- 复核 `001/002/003` 与 `1/2/3` 独立字符串语义。
+- 云端缺失时 X1 条目只读；TTP 延迟和旧 VIN 不覆盖当前状态。
+- Commit：`69d9990`。
+
+## 氛围灯
+
+- 本地选择、BLE 提交、车辆确认和车辆回读分离。
+- `cloud:73:config` 保存后仍为 UNKNOWN，不伪造车辆 RGB/模式状态。
+- Commit：`4a5c94b`。
+
+## 第二批 Activity
+
+- 深入审计 3/4/15/20/36/53。
+- 修复 confId 15 时间项：原 App 为 0..20 SeekBar，KMP 错用 Choice。
+- 其余五项命令和回读一致，无代码修改。

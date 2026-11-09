@@ -201,3 +201,28 @@
 | ArmedModeActivity | 27 | READBACK_VERIFIED / WRITE_VERIFIED | 否 |
 
 以上页面的命令、参数和 TTP 回读已核对，但完整异常/并发/车辆切换状态机尚未复核，因此不标记 `BEHAVIOR_VERIFIED`。
+
+## 第六轮复核与第二批深入审计
+
+### 第五轮代码复核
+
+- 密码控制器补上 VIN 切换清理、取消异常传播、旧响应回写阻断。
+- 密码写入状态拆分为 `cloudAccepted`、`bleSent`、`PasswordWriteState`；仅 `passwordUnlockSettingResult=0` 进入 `VEHICLE_CONFIRMED`。
+- 0x82 已按 `generateBleCommand(130,...)` 固定完整 Golden Frame；BLE sink 成功不视为车辆确认。
+- 氛围灯本地草稿不再写成 `valueKnown=true`，车辆回读继续 UNKNOWN。
+- X1 云端缺失配置保持只读，002/003 不再退化为单个可写条目。
+
+### 第二批 Activity
+
+| Activity | confId | 新状态 | 本轮修改 |
+| --- | ---: | --- | --- |
+| SeatCushionSensorActivity | 3 | WRITE_VERIFIED | 否 |
+| TopSpeedActivity | 4 | READBACK_VERIFIED / WRITE_VERIFIED | 否 |
+| ScheduledShutDownActivity | 15 | READBACK_VERIFIED / WRITE_VERIFIED | 是：时间项由 Choice 改为 Slider 0..20 |
+| VehicleVolumeActivity | 20 | READBACK_VERIFIED / WRITE_VERIFIED | 否 |
+| BrakePowerOffActivity | 36 | READBACK_VERIFIED / WRITE_VERIFIED | 否 |
+| BracketPoweredActivity | 53 | READBACK_VERIFIED / WRITE_VERIFIED | 否 |
+
+ScheduledShutDownActivity 的原 App `ScheduledShutDownActivity$a` 直接把 SeekBar progress 写入 `VEHICLE_MANDATORY_POWER_DOWN_TIME`，范围为 0..20，显示值 `0..2` 统一为 `2min`。KMP 原先使用 Choice/错误选项，已局部修正。
+
+以上页面仍未完成完整异常、并发、车辆切换状态机复核，不标记 `BEHAVIOR_VERIFIED`。
