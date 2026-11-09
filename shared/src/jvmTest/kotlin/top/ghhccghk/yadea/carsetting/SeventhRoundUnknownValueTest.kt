@@ -37,4 +37,22 @@ class SeventhRoundUnknownValueTest {
             assertFalse("$itemId must not expose option 0 as a known vehicle value", choice.valueKnown)
         }
     }
+
+    @Test
+    fun readbackBackedChoicesStartUnknownUntilTtpArrives() {
+        val cloud = CloudCarSettings(
+            configs = listOf(
+                CloudBikeConfig(confId = "27", confName = "设防模式"),
+                CloudBikeConfig(confId = "31", confName = "速度单位"),
+                CloudBikeConfig(confId = "54", confName = "电压设置"),
+            ),
+            values = emptyMap(),
+        )
+        val items = CloudCarSettingMapper.toItems(cloud).associateBy { it.configId }
+
+        listOf("27", "31", "54").forEach { configId ->
+            val choice = items.getValue(configId).kind as CarSettingKind.Choice
+            assertFalse("confId $configId must not expose option 0 as a known vehicle value", choice.valueKnown)
+        }
+    }
 }

@@ -1616,14 +1616,17 @@ object CloudCarSettingMapper {
         "27" -> CarSettingKind.Choice(
             selectedIndex = 0,
             options = listOf("关机不设防", "关机自动设防"),
+            valueKnown = false,
         )
         "31" -> CarSettingKind.Choice(
             selectedIndex = 0,
             options = listOf("km/h", "mph"),
+            valueKnown = false,
         )
         "54" -> CarSettingKind.Choice(
             selectedIndex = 0,
             options = listOf("48V", "60V", "70V"),
+            valueKnown = false,
         )
         // OldVehicleSoundEffectsActivity：两个报警音主题，参数 0/1。
         "5" -> CarSettingKind.Choice(
