@@ -190,3 +190,12 @@
 | special:footer_intelligence | — | 用户智能识别入口 | 本地/子页面 | UNKNOWN | UNKNOWN |
 | special:footer_lab | — | 实验室入口 | 本地/子页面 | UNKNOWN | UNKNOWN |
 | footer_device_detail | — | 设备详情入口 | 本地/子页面 | UNKNOWN | UNKNOWN |
+## 第五轮映射补充
+
+| ID | 原 App 页面 | KMP 条目 | 命令 | 回读 | 状态 |
+| --- | --- | --- | --- | --- | --- |
+| 001 | X1DistanceUnitActivity | cloud:001 | METRIC_SYSTEM_SETTING 0x89 / BRITISH_SYSTEM_SETTING 0x8A | `metricSystemStatus` | COMPLETE（静态） |
+| 002 | BleNearlyAutoUnlockActivity | cloud:002:enable, cloud:002:level | 0x5C/0x5D；AUTO_TURN_ON_OFF 0x5E | `bleAutoTurnOnOffStatus/GearStatus` | COMPLETE（静态） |
+| 003 | X1EnergyRecoveryActivity | cloud:003:enable, cloud:003:level | 0x15/0x16；BRAKE_RECOVER_LEVEL 0x3D | `brakeModePowerRecoverFunctionStatus/GearStatus` | COMPLETE（静态） |
+
+注意：`001/002/003` 是字符串 ID，不是 `1/2/3` 的格式化等价值。

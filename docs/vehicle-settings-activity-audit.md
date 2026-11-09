@@ -175,3 +175,29 @@
 
 - 代码提交：`54effb3`。
 - 本文档与第四轮报告：随文档提交。
+
+## 第五轮补充审计
+
+### 密码解锁
+
+- `PassWordUnlockActivity`、`SetNewPwdPopup`、`VerifyOriPwdPopup`、`SendCodeConfirmPopup` 已完成调用链审计。
+- 设置/修改流程为云端 `unlock/password/set` 成功后写 BLE 0x82；忘记密码为发送短信 → 验证短信 → `unlock/password/reset` → BLE 0x82。
+- 密码规则来自 `am4.a()`：4 位数字，拒绝全重复、连续递增和连续递减；云端字段使用 `:: + AES/ECB/PKCS5/Base64`，不记录明文。
+
+### X1 配置映射
+
+- `"001"`、`"002"`、`"003"` 是 `X1VehicleSettingViewModel` 的独立字符串 configId，不等于 `"1"`、`"2"`、`"3"`。
+- `001` 是距离单位；`002` 是感应自动开关机与 0..2 档；`003` 是制动能量回收与 1..3 档。
+- KMP 已按字符串保留 ID，不进行整数转换。
+
+### 深入审计批次 1
+
+| Activity | confId | 新状态 | 本轮修改 |
+| --- | ---: | --- | --- |
+| VehicleAlarmActivity | 13 | WRITE_VERIFIED | 否 |
+| VehicleAlarmSensitivityActivity | 14 | READBACK_VERIFIED / WRITE_VERIFIED | 否 |
+| DumpNoticeActivity | 16 | WRITE_VERIFIED | 否 |
+| TurnSignalActivity | 26 | READBACK_VERIFIED / WRITE_VERIFIED | 否 |
+| ArmedModeActivity | 27 | READBACK_VERIFIED / WRITE_VERIFIED | 否 |
+
+以上页面的命令、参数和 TTP 回读已核对，但完整异常/并发/车辆切换状态机尚未复核，因此不标记 `BEHAVIOR_VERIFIED`。

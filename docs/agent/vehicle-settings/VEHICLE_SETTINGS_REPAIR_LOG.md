@@ -417,3 +417,34 @@
 - 0xF7 按 `generateMultiBleCommand` 位域编码；RGB 255→254。
 - 配置回读继续 UNKNOWN，不伪造 VEHICLE_CONFIRMED。
 - Commit：`54effb3`。
+# 第五轮修复记录
+
+## VS-016 密码解锁
+
+- 状态：PARTIAL。
+- 已实现设置、修改、忘记密码、短信验证、状态读取和错误反馈；密码只在内存中短暂存在，不写日志或持久化。
+- 云端 set/reset 成功后写 BLE 0x82，但车辆确认依赖 `passwordUnlockSettingResult` 回读。
+- Commit：`be87730`。
+
+## X1 001/002/003
+
+- 状态：COMPLETE（静态证据）。
+- 证明 X1 字符串 ID 与普通 1/2/3 不同，拆分并映射各自命令和 TTP 字段。
+- Commit：`bc0ff4a`。
+
+## VS-018 基础距离
+
+- 状态：COMPLETE（基础档位）。
+- 保持普通车型 `cloud:1:distance` 0..7 档及 VIN 隔离；自定义标定继续只读审计。
+- Commit：`afae7c1`。
+
+## VS-019/020 氛围灯回读
+
+- 状态：BLOCKED。
+- `FeelLightSettingActivity` 没有把 `atmosphere*` TTP 字段回填到模式/RGB1/RGB2；写帧与状态报文位置不一致，不能建立确认链。
+- 本轮未修改回读字段。
+
+## 深入审计批次 1
+
+- 完成 VehicleAlarmActivity、VehicleAlarmSensitivityActivity、DumpNoticeActivity、TurnSignalActivity、ArmedModeActivity。
+- 五项写入/读取映射一致，无需修改；未标记 BEHAVIOR_VERIFIED。
