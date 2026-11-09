@@ -1058,13 +1058,15 @@ object CloudCarSettingMapper {
                 id = "cloud:15:time",
                 configId = "15",
                 title = "离车定时关机时间",
-                summary = "车辆静止超过设定时间后自动关机",
+                summary = "车辆静止超过设定时间后自动关机；原 App 中 0..2 分钟统一显示为 2min",
                 classification = classificationOf("15", config),
                 group = groupOf(config, classificationOf("15", config)),
                 channel = CarSettingChannel.BLE,
-                kind = CarSettingKind.Choice(
-                    selectedIndex = timeIndex,
-                    options = SHUTDOWN_TIME_OPTIONS,
+                kind = CarSettingKind.Slider(
+                    value = timeIndex.toFloat(),
+                    range = 0f..20f,
+                    steps = 20,
+                    unit = " min",
                 ),
                 writable = config.isAuth != false,
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,
@@ -1317,6 +1319,49 @@ object CloudCarSettingMapper {
             .filter { (configId) -> configId.all(Char::isDigit) }
             .filterNot { (configId) -> configId in issuedConfigIds }
             .flatMap { (configId, title) ->
+                if (configId in setOf("001", "002", "003")) {
+                    val classification = classificationOf(configId)
+                    val group = CarSettingGroup(
+                        id = "missing:${classification.name}",
+                        title = classification.label,
+                        sort = classification.ordinal,
+                    )
+                    val items = mutableListOf(
+                        CarSettingItem(
+                            id = "missing:$configId",
+                            configId = configId,
+                            title = title,
+                            summary = "云端本次未下发；X1 配置保持只读，避免写入未授权车辆",
+                            classification = classification,
+                            group = group,
+                            channel = CarSettingChannel.BLE,
+                            kind = kindOf(configId, cloud),
+                            writable = false,
+                            sort = configId.trimStart('0').toIntOrNull() ?: Int.MAX_VALUE,
+                        ),
+                    )
+                    if (configId != "001") {
+                        items += CarSettingItem(
+                            id = "cloud:$configId:level",
+                            configId = configId,
+                            title = if (configId == "002") "感应距离档位" else "制动回收档位",
+                            summary = "云端本次未下发；档位保持只读",
+                            classification = classification,
+                            group = group,
+                            channel = CarSettingChannel.BLE,
+                            kind = CarSettingKind.Slider(
+                                value = if (configId == "002") 0f else 1f,
+                                range = if (configId == "002") 0f..2f else 1f..3f,
+                                steps = 1,
+                                unit = " 档",
+                                valueKnown = false,
+                            ),
+                            writable = false,
+                            sort = 900,
+                        )
+                    }
+                    return@flatMap items.asSequence()
+                }
                 if (configId == "60") {
                     val classification = CarSettingClassification.BATTERY
                     val group = CarSettingGroup(
