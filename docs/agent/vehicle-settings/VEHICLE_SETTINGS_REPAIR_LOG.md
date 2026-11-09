@@ -474,3 +474,24 @@
 - 深入审计 3/4/15/20/36/53。
 - 修复 confId 15 时间项：原 App 为 0..20 SeekBar，KMP 错用 Choice。
 - 其余五项命令和回读一致，无代码修改。
+
+
+# 第七轮修复记录
+
+## 当前设置未实现选项审计
+
+- 以 `CarSettingsScreen` / `CloudCarSettingMapper` 为入口建立 81 个数字 confId、5 个特殊入口和拆分条目清单。
+- 结果文档：`docs/vehicle-settings/unimplemented-settings-audit.md`。
+- ConfigSettingActivity 已由 confId 19/31 覆盖；SmartBootActivity 属外设绑定，不计入车辆设置迁移。
+- CustomPowerOnDistance、LowPower、Multifunction、StartLight、TemperatureUnit 因帧/状态机/保存通道或安全边界不足继续 BLOCKED/只读。
+
+## UNKNOWN 初值修复
+
+- 状态：COMPLETE（静态）。
+- 修复 14/20 Slider：TTP 未到达前不再把 0 显示为车辆已知值。
+- 修复 21/81 延时灯时间 Choice：TTP 未到达前不再把第一项显示为车辆当前值。
+- 修复 27/31/54 Choice：TTP 未到达前不再把第一项显示为车辆当前值。
+- 不修改任何命令 ID、参数、帧或 TTP 字段。
+- 测试源码：`SeventhRoundUnknownValueTest.kt`，已编译、未执行。
+- Commits：`55cdd5b`、`1b2c248`、`719103f`。
+- 未完成：50 仪表风格缺少回读，直接标 UNKNOWN 会让 UI 永久禁用，需先分离草稿值与车辆回读状态。

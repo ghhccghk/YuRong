@@ -88,7 +88,7 @@
 | 47 | 充电功率 | 拆分 Toggle + 200..1000W | TTP/云端 | BLE 0xC9/0xCA | `batteryChargingPower*` | COMPLETE | 固定约束 200..1000W |
 | 48 | 充电上限 | Slider 70..100% | 云端 | BLE/云端 | 无车辆回读 | WRITE_ONLY | 云端值不能伪装车辆确认 |
 | 49 | 坡道驻停 | Toggle | TTP | BLE | `rampSlopeState` | COMPLETE | |
-| 50 | 仪表风格切换 | Choice 3 项 | 云端默认值 | BLE 0x3F | 无 TTP 字段 | WRITE_ONLY | 本轮修正初值未知；回读 BLOCKED |
+| 50 | 仪表风格切换 | Choice 3 项 | 云端默认值 | BLE 0x3F | 无 TTP 字段 | WRITE_ONLY | 本轮未修改：需先分离“未知回读”与“允许编辑草稿”，否则直接设为 UNKNOWN 会使控件永久禁用；回读 BLOCKED |
 | 51 | 仪表时间同步 | Toggle/操作入口 | TTP 结果位 | BLE | `syncTimeResultStatus` | PARTIAL | 结果位不等于当前设置值 |
 | 52 | 手动距离自定义 | Toggle + 1..12m Slider | 云端 | BLE/云端 | 无车辆回读 | PARTIAL | 自定义距离标定不开放 |
 | 53 | 边撑开机 | Toggle | TTP | BLE 0xC7 | `templeSettingStatus` | COMPLETE | |
@@ -181,3 +181,33 @@
 ## 6. 保护范围
 
 本轮不修改 VS-013、VS-014、VS-015、密码解锁、X1 `001/002/003`、普通一键距离档、氛围灯未知协议字段、定时关机、自定义音效等已保护实现。未发现证据充分且风险可控的“完全未实现业务”可直接迁移；后续修复只处理上节的本地状态语义问题。
+
+
+## 7. 第七轮修复结果
+
+本节记录审计后的实际代码修改。
+
+| 设置 | 根因 | 修改 | 状态 |
+| --- | ---: | --- | --- |
+| 14 车辆报警灵敏度 | Slider 初值 0 被当作车辆已知值 | `valueKnown=false`，等待 `alarmWarningMode` TTP 回填 | COMPLETE（静态） |
+| 20 车辆音量 | Slider 初值 0 被当作车辆已知值 | `valueKnown=false`，等待 `alarmWarningVolumeLevel` TTP 回填 | COMPLETE（静态） |
+| 21 伴我回家灯时间 | Choice 初值“15 秒”被当作车辆已知值 | `cloud:21:time` 使用 `valueKnown=false`，等待 `withGoHomeTimeStatus` | COMPLETE（静态） |
+| 81 大灯延时时间 | Choice 初值 5 被当作车辆已知值 | `cloud:81:time` 使用 `valueKnown=false`，等待 `withGoHomeTimeStatus` | COMPLETE（静态） |
+| 27 设防模式 | Choice 初值“关机不设防”被当作车辆已知值 | `valueKnown=false`，等待 `offModeStatus` | COMPLETE（静态） |
+| 31 速度单位 | Choice 初值 km/h 被当作车辆已知值 | `valueKnown=false`，等待 `metricSystemStatus` | COMPLETE（静态） |
+| 54 电压设置 | Choice 初值 48V 被当作车辆已知值 | `valueKnown=false`，等待 `voltageSettingStatus` | COMPLETE（静态） |
+
+测试源码位于 `shared/src/jvmTest/kotlin/top/ghhccghk/yadea/carsetting/SeventhRoundUnknownValueTest.kt`。测试源码已编译但未执行。
+
+### 未修改
+
+- `50` 仪表风格切换：缺少车辆回读字段；直接把 `valueKnown` 设为 false 会让当前 UI 控件永久禁用。需要先建立“未知车辆值 + 用户草稿值 + 提交状态”的独立状态模型，本轮不扩大状态架构。
+- 自定义距离标定、低功耗、多功能键、启动灯、温度单位：证据或安全边界不足，继续 BLOCKED/只读。
+
+### 验证
+
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs`：通过。
+- `:shared:compileTestKotlinJvm`：通过。
+- `:androidApp:assembleDebug :desktopApp:build`：通过。
+- `:shared:jvmTest`：未执行。
+- 真实云端、BLE、车辆：未验证。
