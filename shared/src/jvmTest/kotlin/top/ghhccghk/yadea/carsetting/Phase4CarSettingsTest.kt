@@ -221,6 +221,63 @@ class Phase4CarSettingsTest {
         )
     }
     @Test
+    fun cloudToggleTypesMatchP4() {
+        val tamper = requireNotNull(
+            CloudCarSettingUpdateBuilder.build(
+                configId = "75",
+                kind = CarSettingKind.Toggle(true),
+                vin = "VIN",
+            ),
+        )
+        assertEquals(1, tamper.fields["tamperProofIotEnable"])
+
+        val lowBattery = requireNotNull(
+            CloudCarSettingUpdateBuilder.build(
+                configId = "82",
+                kind = CarSettingKind.Toggle(true),
+                vin = "VIN",
+            ),
+        )
+        assertEquals(1, lowBattery.fields["lowBatTelWarning"])
+
+        val sleep = requireNotNull(
+            CloudCarSettingUpdateBuilder.build(
+                configId = "77",
+                kind = CarSettingKind.Toggle(true),
+                vin = "VIN",
+            ),
+        )
+        assertEquals(CloudCarSettingUpdatePath.PARAM_SETTING, sleep.path)
+        assertEquals(1, sleep.fields["sleepMode"])
+        assertEquals("SLEEP_MODE_SWITCH", sleep.fields["id"])
+        assertEquals(0, sleep.fields["value"])
+        assertEquals(
+            "[{\"byteCount\":1,\"dataType\":1,\"sort\":1,\"value\":0}]",
+            sleep.fields["valueJson"],
+        )
+
+        val soundOn = requireNotNull(
+            CloudCarSettingUpdateBuilder.build(
+                configId = "40",
+                kind = CarSettingKind.Toggle(true),
+                vin = "VIN",
+            ),
+        )
+        assertEquals(CloudCarSettingUpdatePath.BIKE_SETTING, soundOn.path)
+        assertEquals("1", soundOn.fields["colorEggSoundEffect"])
+
+        val soundOff = requireNotNull(
+            CloudCarSettingUpdateBuilder.build(
+                configId = "40",
+                kind = CarSettingKind.Toggle(false),
+                vin = "VIN",
+            ),
+        )
+        assertEquals(CloudCarSettingUpdatePath.PARAM_SETTING, soundOff.path)
+        assertEquals("CLEAR_SOUND_EFFECT", soundOff.fields["id"])
+        assertEquals(0, soundOff.fields["value"])
+    }
+    @Test
     fun mapperCreatesSecondBatchControls() {
         val cloud = CloudCarSettings(
             configs = listOf(

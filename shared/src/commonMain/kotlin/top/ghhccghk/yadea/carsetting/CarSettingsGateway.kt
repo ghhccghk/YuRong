@@ -121,6 +121,21 @@ object CloudCarSettingUpdateBuilder {
             is CarSettingKind.Toggle -> {
                 val checkedValue = if (kind.checked) 1 else 0
                 when (configId) {
+                    "40" -> {
+                        path = if (kind.checked) {
+                            CloudCarSettingUpdatePath.BIKE_SETTING
+                        } else {
+                            CloudCarSettingUpdatePath.PARAM_SETTING
+                        }
+                        if (kind.checked) {
+                            fields["colorEggSoundEffect"] = checkedValue.toString()
+                        } else {
+                            fields["oper"] = "SET_PARAM"
+                            fields["id"] = "CLEAR_SOUND_EFFECT"
+                            fields["value"] = 0
+                            fields["valueJson"] = VehicleParamJson.single(0)
+                        }
+                    }
                     "47" -> {
                         path = CloudCarSettingUpdatePath.PARAM_SETTING
                         fields["id"] = "CHARGE_WATT_SWITCH"
@@ -148,10 +163,23 @@ object CloudCarSettingUpdateBuilder {
                         fields["value"] = checkedValue
                         fields["valueJson"] = VehicleParamJson.single(checkedValue)
                     }
+                    "77" -> {
+                        path = CloudCarSettingUpdatePath.PARAM_SETTING
+                        fields["sleepMode"] = checkedValue
+                        fields["oper"] = "SET_PARAM"
+                        fields["id"] = "SLEEP_MODE_SWITCH"
+                        val commandValue = 1 - checkedValue
+                        fields["value"] = commandValue
+                        fields["valueJson"] = VehicleParamJson.single(commandValue)
+                    }
                     else -> {
                         val field = TOGGLE_FIELDS[configId] ?: return null
                         path = CloudCarSettingUpdatePath.BIKE_SETTING
-                        fields[field] = checkedValue.toString()
+                        fields[field] = if (configId in TOGGLE_INTEGER_FIELDS) {
+                            checkedValue
+                        } else {
+                            checkedValue.toString()
+                        }
                     }
                 }
             }
@@ -234,6 +262,8 @@ object CloudCarSettingUpdateBuilder {
         "91" to "sosEmergencyCall",
         "95" to "wxhlBind",
     )
+
+    private val TOGGLE_INTEGER_FIELDS = setOf("75", "82")
 
     private val SLIDER_FIELDS = mapOf(
         "10" to "distance",
