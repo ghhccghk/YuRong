@@ -80,6 +80,37 @@ class VehicleSettingGoldenFrameTest {
     }
 
     @Test
+    fun backHomeLightGoldenFramesMatchOriginalFrames() {
+        assertFrame(
+            0x83,
+            expected = "59443E1E01000101C8FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFE4B4A",
+        )
+        assertFrame(
+            0x84,
+            expected = "59443E1E01000101C8FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE7FFFFFFFFFFFFF64B4A",
+        )
+        assertFrame(
+            0x85,
+            parameter = 0,
+            expected = "59443E1E01000101C8FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF1FFFFFFFFFFFFF2E4B4A",
+        )
+        assertFrame(
+            0x85,
+            parameter = 1,
+            expected = "59443E1E01000101C8FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF3FFFFFFFFFFFFF4E4B4A",
+        )
+        assertFrame(
+            0x85,
+            parameter = 2,
+            expected = "59443E1E01000101C8FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5FFFFFFFFFFFFF6E4B4A",
+        )
+        assertFrame(
+            0x85,
+            parameter = 3,
+            expected = "59443E1E01000101C8FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7FFFFFFFFFFFFF8E4B4A",
+        )
+    }
+    @Test
     fun parameterCommandGoldenFramesMatchOriginalFrames() {
         assertFrame(
             0x36,
