@@ -428,6 +428,9 @@ fun MainScreen(
             carSettingsController.refresh()
         }
     }
+    LaunchedEffect(vehicleProfile?.vin, vehiclePasswordController) {
+        vehiclePasswordController?.onVinChanged(vehicleProfile?.vin.orEmpty())
+    }
     LaunchedEffect(vehicleProfile?.vin, vehicleStatus?.hex, carSettingsController) {
         carSettingsController.updateVehicleStatus(vehicleProfile?.vin.orEmpty(), vehicleStatus)
         vehiclePasswordController?.onVehiclePasswordResult(

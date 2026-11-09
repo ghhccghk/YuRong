@@ -1,5 +1,6 @@
 package top.ghhccghk.yadea.vehicle
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -271,6 +272,8 @@ data class VehiclePasswordState(
     val codeSent: Boolean = false,
     val smsVerified: Boolean = false,
     val writeState: PasswordWriteState = PasswordWriteState.UNKNOWN,
+    val cloudAccepted: Boolean = false,
+    val bleSent: Boolean = false,
     val message: String? = null,
     val success: Boolean = false,
 )
@@ -285,7 +288,18 @@ class VehiclePasswordController(
     private val _state = MutableStateFlow(VehiclePasswordState())
     val state: StateFlow<VehiclePasswordState> = _state.asStateFlow()
     private var job: Job? = null
+    private var currentVin: String? = null
     private var pendingValidCode: String? = null
+
+    fun onVinChanged(vin: String) {
+        val normalized = vin.trim()
+        if (currentVin == normalized) return
+        job?.cancel()
+        job = null
+        pendingValidCode = null
+        currentVin = normalized
+        _state.value = VehiclePasswordState()
+    }
 
     fun refresh() {
         val vin = vinProvider().trim()
@@ -293,12 +307,14 @@ class VehiclePasswordController(
             _state.value = _state.value.copy(message = "请先绑定车辆")
             return
         }
+        currentVin = vin
         if (job?.isActive == true) return
         job = scope.launch {
             _state.value = _state.value.copy(loading = true, message = null)
-            val enable = runCatching { gateway.getEnableState(vin) }
+            val enable = requestCatching { gateway.getEnableState(vin) }
                 .getOrDefault(PasswordEnableState())
-            val exists = runCatching { gateway.exists(vin) }.getOrNull()
+            val exists = requestCatching { gateway.exists(vin) }.getOrNull()
+            if (!currentVinMatches(vin)) return@launch
             _state.value = _state.value.copy(
                 loading = false,
                 hasPassword = exists ?: enable.hasPassword,
@@ -314,6 +330,8 @@ class VehiclePasswordController(
             codeSent = false,
             smsVerified = flow != PasswordFlow.Forget,
             writeState = PasswordWriteState.UNKNOWN,
+            cloudAccepted = false,
+            bleSent = false,
             message = null,
             success = false,
         )
@@ -330,8 +348,9 @@ class VehiclePasswordController(
         if (job?.isActive == true) return
         job = scope.launch {
             _state.value = _state.value.copy(busy = true, message = null)
-            val result = runCatching { gateway.sendSmsCode(vin, mobile) }
+            val result = requestCatching { gateway.sendSmsCode(vin, mobile) }
                 .getOrDefault(PasswordRequestResult(false, "网络异常"))
+            if (!currentVinMatches(vin)) return@launch
             _state.value = _state.value.copy(
                 busy = false,
                 codeSent = result.success,
@@ -350,8 +369,9 @@ class VehiclePasswordController(
         if (job?.isActive == true) return
         job = scope.launch {
             _state.value = _state.value.copy(busy = true, message = null)
-            val result = runCatching { gateway.verifySmsCode(vin, mobile, code) }
+            val result = requestCatching { gateway.verifySmsCode(vin, mobile, code) }
                 .getOrDefault(PasswordSmsVerifyResult(false, message = "网络异常"))
+            if (!currentVinMatches(vin)) return@launch
             pendingValidCode = result.validCode.ifBlank { null }
             _state.value = _state.value.copy(
                 busy = false,
@@ -370,8 +390,9 @@ class VehiclePasswordController(
         if (job?.isActive == true) return
         job = scope.launch {
             _state.value = _state.value.copy(busy = true, message = null)
-            val result = runCatching { gateway.verify(vin, password) }
+            val result = requestCatching { gateway.verify(vin, password) }
                 .getOrDefault(PasswordVerifyResult(false, message = "网络异常"))
+            if (!currentVinMatches(vin)) return@launch
             _state.value = _state.value.copy(
                 busy = false,
                 smsVerified = result.valid,
@@ -402,15 +423,18 @@ class VehiclePasswordController(
                 busy = true,
                 message = null,
                 writeState = PasswordWriteState.UNKNOWN,
+                cloudAccepted = false,
+                bleSent = false,
                 success = false,
             )
-            val result = runCatching {
+            val result = requestCatching {
                 if (flow == PasswordFlow.Forget) {
                     gateway.reset(vin, password, validCode.orEmpty())
                 } else {
                     gateway.set(vin, password)
                 }
             }.getOrDefault(PasswordRequestResult(false, "网络异常"))
+            if (!currentVinMatches(vin)) return@launch
             if (!result.success) {
                 _state.value = _state.value.copy(
                     busy = false,
@@ -419,7 +443,8 @@ class VehiclePasswordController(
                 )
                 return@launch
             }
-            val sent = runCatching {
+            if (!currentVinMatches(vin)) return@launch
+            val sent = requestCatching {
                 commandSink?.send(
                     VehicleSettingCommand(
                         commandType = "COMMAND_PASSWORD_UNLOCK_SETTING",
@@ -428,14 +453,21 @@ class VehiclePasswordController(
                     ),
                 ) == true
             }.getOrDefault(false)
+            if (!currentVinMatches(vin)) return@launch
             _state.value = _state.value.copy(
                 busy = false,
                 success = true,
-                writeState = if (sent) PasswordWriteState.CLOUD_ACCEPTED else PasswordWriteState.CLOUD_ACCEPTED,
-                message = if (sent) {
-                    "云端已接受，等待车辆确认"
+                cloudAccepted = true,
+                bleSent = sent,
+                writeState = if (sent) {
+                    PasswordWriteState.LOCAL_UPDATED
                 } else {
-                    "云端已接受，当前平台未发送车辆确认命令"
+                    PasswordWriteState.CLOUD_ACCEPTED
+                },
+                message = if (sent) {
+                    "云端已接受，BLE 已提交，等待车辆确认"
+                } else {
+                    "云端已接受，BLE 尚未确认发送"
                 },
             )
             pendingValidCode = null
@@ -448,8 +480,9 @@ class VehiclePasswordController(
         if (job?.isActive == true) return
         job = scope.launch {
             _state.value = _state.value.copy(busy = true, message = null)
-            val result = runCatching { gateway.updateEnable(vin, enabled) }
+            val result = requestCatching { gateway.updateEnable(vin, enabled) }
                 .getOrDefault(PasswordRequestResult(false, "网络异常"))
+            if (!currentVinMatches(vin)) return@launch
             _state.value = _state.value.copy(
                 busy = false,
                 enabledStatus = if (result.success) if (enabled) 1 else 0 else _state.value.enabledStatus,
@@ -458,8 +491,11 @@ class VehiclePasswordController(
         }
     }
 
+    private fun currentVinMatches(vin: String): Boolean =
+        currentVin == vin && vinProvider().trim() == vin
+
     fun onVehiclePasswordResult(result: Int) {
-        if (result < 0 || _state.value.writeState != PasswordWriteState.CLOUD_ACCEPTED) return
+        if (result < 0 || !_state.value.bleSent || _state.value.writeState == PasswordWriteState.VEHICLE_CONFIRMED) return
         _state.value = _state.value.copy(
             writeState = if (result == 0) PasswordWriteState.VEHICLE_CONFIRMED else PasswordWriteState.FAILED,
             message = if (result == 0) "车辆已确认密码设置" else "车辆未确认密码设置",
@@ -478,6 +514,15 @@ internal fun isValidPassword(value: String): Boolean {
     val descending = (1 until value.length).all { value[it].code == value[it - 1].code - 1 }
     return !ascending && !descending
 }
+
+private suspend fun <T> requestCatching(block: suspend () -> T): Result<T> =
+    try {
+        Result.success(block())
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Throwable) {
+        Result.failure(failure)
+    }
 
 private fun passwordError(value: String): String = when {
     value.length < 4 -> "请输入 4 位数字密码"
