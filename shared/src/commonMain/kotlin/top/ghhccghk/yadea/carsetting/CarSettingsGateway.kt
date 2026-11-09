@@ -1021,6 +1021,7 @@ object CloudCarSettingMapper {
                     kind = CarSettingKind.Choice(
                         selectedIndex = KEY_FUNCTION_OPTIONS.lastIndex,
                         options = KEY_FUNCTION_OPTIONS,
+                        valueKnown = false,
                     ),
                     writable = config.isAuth != false,
                     sort = (config.sort.toIntOrNull() ?: 0) + index + 1,
@@ -1057,6 +1058,7 @@ object CloudCarSettingMapper {
                         kind = CarSettingKind.Choice(
                             selectedIndex = KEY_FUNCTION_OPTIONS.lastIndex,
                             options = KEY_FUNCTION_OPTIONS,
+                            valueKnown = false,
                         ),
                         writable = true,
                         sort = 96 + index,
@@ -1408,6 +1410,7 @@ object CloudCarSettingMapper {
             range = 1f..3f,
             steps = 1,
             unit = " 档",
+            valueKnown = false,
         )
         "40" -> cloudToggle(cloud, "colorEggSoundEffect")
         // 41/88 在原 App 都进入自定义音效列表页，统一在下方管理。

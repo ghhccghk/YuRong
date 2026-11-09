@@ -35,7 +35,25 @@ class CarSettingsConfIdMappingTest {
         )
     }
 
+    @Test
+    fun unverifiedEnergyAndCustomKeyValuesStartUnknown() {
+        val items = CloudCarSettingMapper.toItems(
+            CloudCarSettings(
+                configs = listOf(
+                    CloudBikeConfig(confId = "18", confName = "能量回收档位"),
+                    CloudBikeConfig(confId = "1005", confName = "自定义按键"),
+                ),
+                values = emptyMap(),
+            ),
+        ).associateBy { it.id }
 
+        val energy = items.getValue("cloud:18").kind as CarSettingKind.Slider
+        val shortKey = items.getValue("cloud:1005:short").kind as CarSettingKind.Choice
+        val longKey = items.getValue("cloud:1005:long").kind as CarSettingKind.Choice
+        assertFalse(energy.valueKnown)
+        assertFalse(shortKey.valueKnown)
+        assertFalse(longKey.valueKnown)
+    }
     @Test
     fun missingCloudBooleanIsUnknownInsteadOfFalse() {
         val unknown = CloudCarSettingMapper.toItems(
