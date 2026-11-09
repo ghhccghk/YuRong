@@ -1201,6 +1201,7 @@ object CloudCarSettingMapper {
                 kind = CarSettingKind.Choice(
                     selectedIndex = 0,
                     options = listOf("15 秒", "30 秒", "45 秒", "60 秒"),
+                    valueKnown = false,
                 ),
                 writable = config.isAuth != false,
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,
@@ -1218,6 +1219,7 @@ object CloudCarSettingMapper {
                 kind = CarSettingKind.Choice(
                     selectedIndex = 0,
                     options = listOf("5", "10", "15", "30"),
+                    valueKnown = false,
                 ),
                 writable = config.isAuth != false,
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,

@@ -20,4 +20,21 @@ class SeventhRoundUnknownValueTest {
             assertFalse("confId $configId must not expose 0 as a known vehicle value", slider.valueKnown)
         }
     }
+
+    @Test
+    fun delayedLightTimesStartUnknownUntilTtpArrives() {
+        val cloud = CloudCarSettings(
+            configs = listOf(
+                CloudBikeConfig(confId = "21", confName = "伴我回家灯"),
+                CloudBikeConfig(confId = "81", confName = "大灯延时"),
+            ),
+            values = emptyMap(),
+        )
+        val items = CloudCarSettingMapper.toItems(cloud).associateBy { it.id }
+
+        listOf("cloud:21:time", "cloud:81:time").forEach { itemId ->
+            val choice = items.getValue(itemId).kind as CarSettingKind.Choice
+            assertFalse("$itemId must not expose option 0 as a known vehicle value", choice.valueKnown)
+        }
+    }
 }
