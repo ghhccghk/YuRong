@@ -17,6 +17,9 @@
 | VS-011 | P2 | L3 | 写入证据分层 | `CarSettingItemAccess.canWrite()`、`VehicleSettingCommands.supportsItem()` | 稳定 ID、云路径、编码器、Smali 命令、Golden Frame 是五个不同条件 | `supportsItem()` 当前仅证明 encoder 可生成；全量证据表尚不存在 | 直接收紧会禁用用户已实测正常项，直接放宽会开放无证据命令 | BLOCKED：需逐命令证据/授权清单；本轮不改变写入白名单 | BLOCKED |
 | VS-012 | P3 | L3 | BLE 命令一致性 | `VehicleSettingGoldenFrameTest.kt`、`BleBicycleCommandManager.smali` | 外层帧和 SUM8 已确认 | 已补 0x83/84/85，连同既有样本覆盖部分命令；其余仍 UNKNOWN，0x141 属 `generateControlCommand` | 未核对命令可能覆盖错误参数 | 只补有完整证据的帧，不改协议实现 | PARTIAL |
 
+| VS-013 | P2 | L2 | 能量回收回读 | `EnergyRecoveryActivity`、`VehicleSettingViewModel.smali:22282-22485`、`l76.smali:9535-9567` | 普通能量回收使用 `slideModePowerRecoverStatus/Current`，0x26 bit0-1/bit2-4 | KMP 错用 `brakeModePowerRecover*`，gear 位域也错 | 实测回读异常 | 新增 slide 字段并改 17/18 回填；修正 0x27 bit0-2 | COMPLETE |
+| VS-014 | P2 | L2 | 自定义按键回读 | `CustomizeKeyActivity`、`VehicleSettingViewModel.smali:24730-24828`、`l76.smali:12284-12300` | 1005 短/长按来自 `customFunctionShort/Long`，0x6C 高/低 4 位 | KMP 解析字段但控制器无 1005 回填；“辅助推行”名称到函数 ID 无 Smali 证据 | 部分按键回读错误/不更新 | 补 1005 通用回填和 ID 映射；具体“辅助推行”ID 保持 UNKNOWN | PARTIAL |
+| VS-015 | P2 | L2 | 自适应推行回读 | `HelpPromotePlusActivity/2`、`VehicleSettingViewModel.smali:23662-23732` | 64 勾选状态=1；89 勾选状态=2；速度参数 0..2；89 取消值=2 | KMP 统一按 0/1 和 1..3，89 回读/写入错误 | 实测回读异常 | 按变体拆分状态值、写入值和 0..2 档位 | COMPLETE |
 ## 未判定问题
 
 - `TtpInfo.extended` 中仍有许多字段未被 `CarSettingsController` 消费；在没有明确设置项映射前保持 `UNKNOWN`。
