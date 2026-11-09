@@ -677,6 +677,47 @@ object VehicleSettingCommands {
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
         when (item.id) {
+            "cloud:001" -> {
+                val choice = item.kind as? CarSettingKind.Choice ?: return null
+                return VehicleSettingCommand(
+                    commandType = if (choice.selectedIndex == 0) {
+                        "METRIC_SYSTEM_SETTING"
+                    } else {
+                        "BRITISH_SYSTEM_SETTING"
+                    },
+                    commandId = if (choice.selectedIndex == 0) 0x89 else 0x8A,
+                )
+            }
+            "cloud:002:enable" -> return toggle(
+                kind = item.kind,
+                onType = "AUTO_TURN_ON_OFF_OPEN",
+                offType = "AUTO_TURN_ON_OFF_CLOSE",
+                onId = 0x5C,
+                offId = 0x5D,
+            )
+            "cloud:002:level" -> {
+                val slider = item.kind as? CarSettingKind.Slider ?: return null
+                return VehicleSettingCommand(
+                    commandType = "AUTO_TURN_ON_OFF",
+                    commandId = 0x5E,
+                    parameter = slider.value.toInt().coerceIn(0, 2),
+                )
+            }
+            "cloud:003:enable" -> return toggle(
+                kind = item.kind,
+                onType = "BRAKE_RECOVER_OPEN",
+                offType = "BRAKE_RECOVER_CLOSE",
+                onId = 0x15,
+                offId = 0x16,
+            )
+            "cloud:003:level" -> {
+                val slider = item.kind as? CarSettingKind.Slider ?: return null
+                return VehicleSettingCommand(
+                    commandType = "BRAKE_RECOVER_LEVEL",
+                    commandId = 0x3D,
+                    parameter = slider.value.toInt().coerceIn(1, 3),
+                )
+            }
             "cloud:1:enable" -> return toggle(
                 kind = item.kind,
                 onType = "NEAR_UNLOCK_OPEN",

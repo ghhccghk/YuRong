@@ -829,6 +829,8 @@ object CloudCarSettingMapper {
             // confId 1 在原 App 中由 OneKeyOpenActivity 与 OneKeyDistanceActivity
             // 共用，下面拆成语义稳定的一键开机开关和距离档位两项。
             if (confId == "1") return@mapNotNull null
+            // X1 002/003 各自包含开关与档位，下面拆成稳定条目；001 是独立单位选择。
+            if (confId == "002" || confId == "003") return@mapNotNull null
             val classification = classificationOf(confId, config)
             val kind = kindOf(confId, cloud)
             val title = titleOf(config)
@@ -887,6 +889,44 @@ object CloudCarSettingMapper {
                 writable = config.isAuth != false,
                 sort = sort + 1,
             )
+        }
+        for (x1Id in listOf("002", "003")) {
+            cloud.configs.firstOrNull { it.confId.trim() == x1Id }?.let { config ->
+                val classification = classificationOf(x1Id, config)
+                val group = groupOf(config, classification)
+                val sort = config.sort.toIntOrNull() ?: 0
+                val levelTitle = if (x1Id == "002") "感应距离档位" else "制动回收档位"
+                items += CarSettingItem(
+                    id = "cloud:$x1Id:enable",
+                    configId = x1Id,
+                    title = titleOf(config),
+                    summary = summaryOf(config, titleOf(config)),
+                    classification = classification,
+                    group = group,
+                    channel = CarSettingChannel.BLE,
+                    kind = CarSettingKind.Toggle(false, valueKnown = false),
+                    writable = config.isAuth != false,
+                    sort = sort,
+                )
+                items += CarSettingItem(
+                    id = "cloud:$x1Id:level",
+                    configId = x1Id,
+                    title = levelTitle,
+                    summary = if (x1Id == "002") "原 App 使用 0..2 档" else "原 App 使用 1..3 档",
+                    classification = classification,
+                    group = group,
+                    channel = CarSettingChannel.BLE,
+                    kind = CarSettingKind.Slider(
+                        value = if (x1Id == "002") 0f else 1f,
+                        range = if (x1Id == "002") 0f..2f else 1f..3f,
+                        steps = 1,
+                        unit = " 档",
+                        valueKnown = false,
+                    ),
+                    writable = config.isAuth != false,
+                    sort = sort + 1,
+                )
+            }
         }
         cloud.configs.firstOrNull { it.confId.trim() == "47" }?.let { config ->
             val classification = CarSettingClassification.BATTERY
@@ -1453,6 +1493,9 @@ object CloudCarSettingMapper {
 
     private fun classificationOf(confId: String): CarSettingClassification =
         when (confId) {
+            "001" -> CarSettingClassification.METER
+            "002" -> CarSettingClassification.POWER
+            "003" -> CarSettingClassification.RIDE_CONTROL
             in BLUETOOTH_KEY_IDS -> CarSettingClassification.POWER
             in BATTERY_IDS -> CarSettingClassification.BATTERY
             in LIGHT_IDS -> CarSettingClassification.LIGHT
@@ -1497,6 +1540,12 @@ object CloudCarSettingMapper {
         "40" -> cloudToggle(cloud, "colorEggSoundEffect")
         // 41/88 在原 App 都进入自定义音效列表页，统一在下方管理。
         "41" -> CarSettingKind.Info("进入设置")
+        "001" -> CarSettingKind.Choice(
+            selectedIndex = 0,
+            options = listOf("km/h", "mph"),
+            valueKnown = false,
+        )
+        "002", "003" -> unknownToggle()
         "25" -> cloudToggle(cloud, "passwordUnlockEnable")
         "53" -> cloudToggle(cloud, "bleApproachPowerOnEnable")
         "10" -> cloudToggle(cloud, "distanceOn")
@@ -1701,6 +1750,9 @@ object CloudCarSettingMapper {
     )
 
     private val TITLES = mapOf(
+        "001" to "X1 距离单位",
+        "002" to "X1 感应自动开关机",
+        "003" to "X1 制动能量回收",
         "1" to "一键开机",
         "2" to "边撑感应",
         "3" to "携出助力",

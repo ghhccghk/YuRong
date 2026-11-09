@@ -174,6 +174,8 @@ object CarSettingItemAccess {
         "52" to setOf("distance"),
         "59" to setOf("time"),
         "1" to setOf("enable", "distance"),
+        "002" to setOf("enable", "level"),
+        "003" to setOf("enable", "level"),
         "73" to setOf("config"),
         "60" to setOf("enable", "level"),
         "62" to setOf("level"),
@@ -642,6 +644,27 @@ class CarSettingsController(
                     )
                     item.kind is CarSettingKind.Slider -> item.withSlider(
                         status.extended.bleKeyDistanceLevel.floatIn(0..7),
+                    )
+                    else -> item
+                }
+                "001" -> item.withIndex(
+                    status.extended.metricSystemStatus.takeIf { it in 0..1 },
+                )
+                "002" -> when {
+                    item.id.endsWith(":enable") -> item.withToggle(
+                        status.extended.bleAutoTurnOnOffStatus.flagOrNull(),
+                    )
+                    item.kind is CarSettingKind.Slider -> item.withSlider(
+                        status.extended.bleAutoTurnOnOffGearStatus.floatIn(0..2),
+                    )
+                    else -> item
+                }
+                "003" -> when {
+                    item.id.endsWith(":enable") -> item.withToggle(
+                        status.extended.brakeModePowerRecoverFunctionStatus.flagOrNull(),
+                    )
+                    item.kind is CarSettingKind.Slider -> item.withSlider(
+                        status.extended.brakeModePowerRecoverGearStatus.floatIn(1..3),
                     )
                     else -> item
                 }

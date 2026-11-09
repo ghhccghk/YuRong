@@ -46,6 +46,9 @@ object VehicleSettingFrameEncoder {
         // FeelLightSettingActivity：ATMOSPHERE_CONFIG 多参数命令。
         0xF7 -> atmosphereSuffix(command.parameters) ?: return null
         // EnergyRecoveryActivity：能量回收开关。
+        // X1EnergyRecoveryActivity：BRAKE_RECOVER_OPEN / CLOSE。
+        0x15 -> "FFFFFFFFFFFFF7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        0x16 -> "FFFFFFFFFFFFF3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
         0x13 -> "FFFFFFFFFFFFFDFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
         0x14 -> "FFFFFFFFFFFFFCFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
         // SeatCushionSensorActivity：携出助力。

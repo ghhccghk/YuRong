@@ -304,6 +304,10 @@ data class TtpExtendedInfo(
     val autoBleRangingBaseValue: Int,
     val autoBleRangingEnvironmentalFactor: Int,
     val powerOnPwd: Int,
+    /** X1 自动开关机状态，`0x1A` bit6-7；原实现只把 `1` 视为开启。 */
+    val bleAutoTurnOnOffStatus: Int,
+    /** X1 自动开关机距离档位，`0x1B` bit0-2，原值 `0..2`。 */
+    val bleAutoTurnOnOffGearStatus: Int,
     /** 一键开机开关，`0x15` bit0-1；原实现只把 `1` 视为开启。 */
     val bleKeyStatus: Int,
     /** 一键开机距离档位，`0x16` bit0-2，原值 `0..7`。 */
@@ -677,6 +681,8 @@ internal object TtpInfoParser {
             autoBleRangingBaseValue = Ttp.m(d, 0x85),
             autoBleRangingEnvironmentalFactor = Ttp.H(d, 0x86, 0x87),
             powerOnPwd = Ttp.H(d, 0x99, 0x9A),
+            bleAutoTurnOnOffStatus = Ttp.G(d, 0x1A, 6),
+            bleAutoTurnOnOffGearStatus = Ttp.C(d, 0x1B, 0),
             bleKeyStatus = Ttp.G(d, 0x15, 0),
             bleKeyDistanceLevel = Ttp.C(d, 0x16, 0),
             passwordUnlockStatus = Ttp.G(d, 0x31, 2),
