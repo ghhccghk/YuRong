@@ -23,11 +23,26 @@ object VehicleSettingFrameEncoder {
         versionPrefix: String = DEFAULT_VERSION_PREFIX,
     ): ByteArray? {
         val suffix = suffixOf(command) ?: return null
-        val payload = versionPrefix + suffix
+        val prefix = when (command.commandId) {
+            // generateBleCommand(13/14) 只改变 8 位版本/绑定前缀中的高 2 位。
+            0x0D -> versionPrefix.dropLast(2) + "48"
+            0x0E -> versionPrefix.dropLast(2) + "08"
+            else -> versionPrefix
+        }
+        val payload = prefix + suffix
         return VehicleFrame.build(VehicleFrame.ORDER_ID, payload)?.hexToBytes()
     }
 
     private fun suffixOf(command: VehicleSettingCommand): String? = when (command.commandId) {
+        // OneKeyOpenActivity：NEAR_UNLOCK_OPEN / CLOSE，只有版本/绑定前缀不同。
+        0x0D, 0x0E -> "FF".repeat(25)
+        // OneKeyOpenActivity / OneKeyDistanceActivity：距离档位 0..7。
+        0x37 -> hex2((command.parameter.coerceIn(0, 7) + 0xF8)) + "FF".repeat(24)
+        // PassWordUnlockActivity：密码解锁开关。
+        0x80 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7FFFFFFF"
+        0x81 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF3FFFFFFF"
+        // FeelLightSettingActivity：ATMOSPHERE_CONFIG 多参数命令。
+        0xF7 -> atmosphereSuffix(command.parameters) ?: return null
         // EnergyRecoveryActivity：能量回收开关。
         0x13 -> "FFFFFFFFFFFFFDFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
         0x14 -> "FFFFFFFFFFFFFCFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
@@ -241,6 +256,34 @@ object VehicleSettingFrameEncoder {
         else -> null
     }
 
+    /**
+     * `BleBicycleCommandManager.generateMultiBleCommand(247, ...)` 的 65 字节 suffix。
+     *
+     * 参数顺序与 `FeelLightSettingActivity$c` 一致：show/color、RGB1、RGB2、operation。
+     * `-1` 表示原实现不写该字段；颜色 `255` 已在命令映射层改为 `254`。
+     */
+    private fun atmosphereSuffix(parameters: List<Int>): String? {
+        if (parameters.size < 9) return null
+        val bytes = ByteArray(65) { 0xFF.toByte() }
+        fun putBits(index: Int, value: Int, fromBit: Int, toBit: Int) {
+            if (value < 0) return
+            bytes[index] = applyBits(bytes[index].toInt() and 0xFF, value, fromBit, toBit).toByte()
+        }
+        fun putByte(index: Int, value: Int) {
+            if (value < 0) return
+            bytes[index] = (value and 0xFF).toByte()
+        }
+        putBits(16, parameters[1], 0, 1)
+        putByte(57, parameters[2])
+        putByte(58, parameters[3])
+        putByte(59, parameters[4])
+        putByte(61, parameters[5])
+        putByte(62, parameters[6])
+        putByte(63, parameters[7])
+        putBits(64, parameters[0], 0, 2)
+        putBits(64, parameters[8], 3, 5)
+        return bytes.joinToString("") { hex2(it.toInt() and 0xFF) }
+    }
     private fun hex2(value: Int): String =
         (value and 0xFF).toString(16).padStart(2, '0').uppercase()
 

@@ -304,6 +304,14 @@ data class TtpExtendedInfo(
     val autoBleRangingBaseValue: Int,
     val autoBleRangingEnvironmentalFactor: Int,
     val powerOnPwd: Int,
+    /** 一键开机开关，`0x15` bit0-1；原实现只把 `1` 视为开启。 */
+    val bleKeyStatus: Int,
+    /** 一键开机距离档位，`0x16` bit0-2，原值 `0..7`。 */
+    val bleKeyDistanceLevel: Int,
+    /** 密码解锁状态，`0x31` bit2-3；原页面把 `1` 视为开启。 */
+    val passwordUnlockStatus: Int,
+    /** 密码设置结果，`0x31` bit4-5；`0` 表示设置成功。 */
+    val passwordUnlockSettingResult: Int,
     val workMode: Int,
     val rangingStatus: Int,
     val otaCode: Int,
@@ -669,6 +677,10 @@ internal object TtpInfoParser {
             autoBleRangingBaseValue = Ttp.m(d, 0x85),
             autoBleRangingEnvironmentalFactor = Ttp.H(d, 0x86, 0x87),
             powerOnPwd = Ttp.H(d, 0x99, 0x9A),
+            bleKeyStatus = Ttp.G(d, 0x15, 0),
+            bleKeyDistanceLevel = Ttp.C(d, 0x16, 0),
+            passwordUnlockStatus = Ttp.G(d, 0x31, 2),
+            passwordUnlockSettingResult = Ttp.G(d, 0x31, 4),
             workMode = Ttp.G(d, 0x24, 0),
             rangingStatus = Ttp.G(d, 0x88, 0),
             otaCode = Ttp.H(d, 0x9D, 0x9E),

@@ -677,6 +677,50 @@ object VehicleSettingCommands {
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
         when (item.id) {
+            "cloud:1:enable" -> return toggle(
+                kind = item.kind,
+                onType = "NEAR_UNLOCK_OPEN",
+                offType = "NEAR_UNLOCK_CLOSE",
+                onId = 0x0D,
+                offId = 0x0E,
+            )
+            "cloud:1:distance" -> {
+                val slider = item.kind as? CarSettingKind.Slider ?: return null
+                return VehicleSettingCommand(
+                    commandType = "NEARBY_BLE_UNLOCK",
+                    commandId = 0x37,
+                    parameter = slider.value.toInt().coerceIn(0, 7),
+                )
+            }
+            "cloud:25" -> return toggle(
+                kind = item.kind,
+                onType = "COMMAND_PASSWORD_UNLOCK_OPEN",
+                offType = "BLE_CONFIG_COMMAND_PASSWORD_UNLOCK",
+                onId = 0x80,
+                offId = 0x81,
+            )
+            "cloud:73:config" -> {
+                val config = item.kind as? CarSettingKind.Atmosphere ?: return null
+                val colorMode = if (config.singleColor) 0 else 1
+                val operationMode = if (config.showMode == 3) config.runMode.coerceIn(0, 5) else -1
+                return VehicleSettingCommand(
+                    commandType = "ATMOSPHERE_CONFIG",
+                    commandId = 0xF7,
+                    parameters = listOf(
+                        config.showMode.coerceIn(0, 3),
+                        colorMode,
+                        config.red1.validRgbForCommand(),
+                        config.green1.validRgbForCommand(),
+                        config.blue1.validRgbForCommand(),
+                        config.red2.validRgbForCommand(),
+                        config.green2.validRgbForCommand(),
+                        config.blue2.validRgbForCommand(),
+                        operationMode,
+                    ),
+                )
+            }
+        }
+        when (item.id) {
             "cloud:60:enable" -> return toggle(
                 kind = item.kind,
                 onType = "COMMAND_CONST_CAPACITY_SWITCH_SETTING",
@@ -809,6 +853,9 @@ object VehicleSettingCommands {
         )
         else -> null
     }
+
+    private fun Int.validRgbForCommand(): Int =
+        if (this == 255) 254 else coerceIn(0, 255)
 
     private fun toggle(
         kind: CarSettingKind,

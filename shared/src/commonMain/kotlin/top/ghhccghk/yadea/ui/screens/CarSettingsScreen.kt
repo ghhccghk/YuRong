@@ -20,6 +20,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
@@ -61,6 +63,11 @@ fun CarSettingsScreen(
     val uiResetKey = carSettingsUiResetKey(state)
     var confirmDisable by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     var confirmBraceDependency by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
+    var atmosphereItem by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
+    var atmospherePickerTarget by remember(uiResetKey) { mutableStateOf<Int?>(null) }
+    var atmosphereDraft by remember(uiResetKey, atmosphereItem?.id) {
+        mutableStateOf((atmosphereItem?.kind as? CarSettingKind.Atmosphere) ?: CarSettingKind.Atmosphere())
+    }
     var customizeItem by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     var customizeDraft by remember(uiResetKey, customizeItem?.id) {
         mutableStateOf(
@@ -294,7 +301,9 @@ fun CarSettingsScreen(
                             pending = item.id in state.pendingIds,
                             disabledReason = settingDisabledReason(item),
                             onOpenDetail = {
-                                if (item.kind is CarSettingKind.Customize) {
+                                if (item.kind is CarSettingKind.Atmosphere) {
+                                    atmosphereItem = item
+                                } else if (item.kind is CarSettingKind.Customize) {
                                     customizeItem = item
                                 } else if (item.configId == "8" && onOpenLostMode != null) {
                                     onOpenLostMode()
@@ -505,6 +514,129 @@ fun CarSettingsScreen(
         onConfirm = { detailItem = null },
     )
 
+    val atmosphereTarget = atmosphereItem
+    AppBottomSheet(
+        show = atmosphereTarget != null,
+        onDismissRequest = { atmosphereItem = null },
+        title = "氛围灯模式与颜色",
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
+        ) {
+            AppText(
+                text = "保存时会一次性下发模式、运行方向和颜色。当前车辆状态只有在后续回读匹配后才会标记为已确认。",
+                style = AppDesign.typography.summary,
+                color = AppDesign.colors.onSurfaceVariant,
+            )
+            AppPopupPreference(
+                title = "灯光模式",
+                summary = "模式 ID 0..3 与原 App 的常亮、呼吸、闪烁、流水一一对应",
+                options = listOf("常亮", "呼吸", "闪烁", "流水"),
+                selectedIndex = atmosphereDraft.showMode.coerceIn(0, 3),
+                onSelectedIndexChange = {
+                    atmosphereDraft = atmosphereDraft.copy(showMode = it)
+                },
+            )
+            if (atmosphereDraft.showMode == 3) {
+                AppPopupPreference(
+                    title = "流水方向",
+                    summary = "仅流水模式显示",
+                    options = listOf(
+                        "正序",
+                        "逆序",
+                        "中间到两边",
+                        "两边到中间",
+                        "先正序后逆序",
+                        "先逆序后正序",
+                    ),
+                    selectedIndex = atmosphereDraft.runMode.coerceIn(0, 5),
+                    onSelectedIndexChange = {
+                        atmosphereDraft = atmosphereDraft.copy(runMode = it)
+                    },
+                )
+            }
+            AppSwitchPreference(
+                title = "单色模式",
+                summary = "关闭后使用颜色 A 与颜色 B 双色组合",
+                checked = atmosphereDraft.singleColor,
+                onCheckedChange = {
+                    atmosphereDraft = atmosphereDraft.copy(singleColor = it)
+                },
+            )
+            AppActionPreference(
+                title = "颜色 A",
+                summary = "原 App 通过 RGB 分量下发，255 会在发送前改为 254",
+                value = atmosphereHex(
+                    atmosphereDraft.red1,
+                    atmosphereDraft.green1,
+                    atmosphereDraft.blue1,
+                ),
+                onClick = { atmospherePickerTarget = 1 },
+            )
+            if (!atmosphereDraft.singleColor) {
+                AppActionPreference(
+                    title = "颜色 B",
+                    summary = "双色模式使用的第二组 RGB 分量",
+                    value = atmosphereHex(
+                        atmosphereDraft.red2,
+                        atmosphereDraft.green2,
+                        atmosphereDraft.blue2,
+                    ),
+                    onClick = { atmospherePickerTarget = 2 },
+                )
+            }
+            AppOutlinedButton(
+                onClick = {
+                    val target = atmosphereTarget ?: return@AppOutlinedButton
+                    scope.launch {
+                        val saved = controller.update(target.id) {
+                            atmosphereDraft.copy(valueKnown = true)
+                        }
+                        if (saved) atmosphereItem = null
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = atmosphereTarget != null && atmosphereTarget.id !in state.pendingIds,
+            ) {
+                AppText(
+                    if (atmosphereTarget?.id in state.pendingIds) "保存中…" else "保存氛围灯设置",
+                    style = AppDesign.typography.button,
+                )
+            }
+        }
+    }
+
+    val atmosphereColorTarget = atmospherePickerTarget
+    AppColorPickerDialog(
+        show = atmosphereColorTarget != null,
+        initialColor = if (atmosphereColorTarget == 2) {
+            atmosphereColor(
+                atmosphereDraft.red2,
+                atmosphereDraft.green2,
+                atmosphereDraft.blue2,
+            )
+        } else {
+            atmosphereColor(
+                atmosphereDraft.red1,
+                atmosphereDraft.green1,
+                atmosphereDraft.blue1,
+            )
+        },
+        onConfirm = { color ->
+            val argb = color.toArgb()
+            val red = (argb shr 16) and 0xFF
+            val green = (argb shr 8) and 0xFF
+            val blue = argb and 0xFF
+            atmosphereDraft = if (atmosphereColorTarget == 2) {
+                atmosphereDraft.copy(red2 = red, green2 = green, blue2 = blue)
+            } else {
+                atmosphereDraft.copy(red1 = red, green1 = green, blue1 = blue)
+            }
+            atmospherePickerTarget = null
+        },
+        onDismissRequest = { atmospherePickerTarget = null },
+    )
     val customizeTarget = customizeItem
     AppBottomSheet(
         show = customizeTarget != null,
@@ -1048,6 +1180,12 @@ private fun CarSettingRow(
             enabled = enabled && kind.valueKnown,
             onClick = onOpenDetail,
         )
+        is CarSettingKind.Atmosphere -> AppListRow(
+            title = item.title,
+            summary = summary,
+            value = "设置",
+            onClick = onOpenDetail,
+        )
         is CarSettingKind.Info -> AppListRow(
             title = item.title,
             summary = item.summary,
@@ -1073,7 +1211,20 @@ private fun settingValueKnown(kind: CarSettingKind): Boolean = when (kind) {
     is CarSettingKind.Toggle -> kind.valueKnown
     is CarSettingKind.Choice -> kind.valueKnown
     is CarSettingKind.Slider -> kind.valueKnown
+    is CarSettingKind.Atmosphere -> kind.valueKnown
     else -> true
+}
+
+private fun atmosphereColor(red: Int, green: Int, blue: Int): Color =
+    Color(
+        red = red.coerceIn(0, 255),
+        green = green.coerceIn(0, 255),
+        blue = blue.coerceIn(0, 255),
+    )
+
+private fun atmosphereHex(red: Int, green: Int, blue: Int): String {
+    fun part(value: Int) = value.coerceIn(0, 255).toString(16).padStart(2, '0').uppercase()
+    return "#${part(red)}${part(green)}${part(blue)}"
 }
 
 private fun formatSettingValue(value: Float, unit: String): String {

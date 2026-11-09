@@ -826,6 +826,9 @@ object CloudCarSettingMapper {
             if (confId.isBlank()) return@mapNotNull null
             // 微信互联当前无法可靠控制，先临时隐藏，保留映射以便后续恢复。
             if (confId == "95") return@mapNotNull null
+            // confId 1 在原 App 中由 OneKeyOpenActivity 与 OneKeyDistanceActivity
+            // 共用，下面拆成语义稳定的一键开机开关和距离档位两项。
+            if (confId == "1") return@mapNotNull null
             val classification = classificationOf(confId, config)
             val kind = kindOf(confId, cloud)
             val title = titleOf(config)
@@ -850,6 +853,41 @@ object CloudCarSettingMapper {
         }.toMutableList()
         // ChargingPowerActivity 是“开关 + 瓦数滑杆”的二级页；云端只给一个
         // confId 47，这里拆成两个语义项，开关走 0xC9，滑杆走 0xCA。
+        cloud.configs.firstOrNull { it.confId.trim() == "1" }?.let { config ->
+            val classification = classificationOf("1", config)
+            val group = groupOf(config, classification)
+            val sort = config.sort.toIntOrNull() ?: 0
+            items += CarSettingItem(
+                id = "cloud:1:enable",
+                configId = "1",
+                title = "一键开机",
+                summary = "开启后可在蓝牙感应范围内使用一键开机",
+                classification = classification,
+                group = group,
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Toggle(false, valueKnown = false),
+                writable = config.isAuth != false,
+                sort = sort,
+            )
+            items += CarSettingItem(
+                id = "cloud:1:distance",
+                configId = "1",
+                title = "开机距离档位",
+                summary = "原 App 使用 0..7 档，不是米数",
+                classification = classification,
+                group = group,
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Slider(
+                    value = 0f,
+                    range = 0f..7f,
+                    steps = 6,
+                    unit = " 档",
+                    valueKnown = false,
+                ),
+                writable = config.isAuth != false,
+                sort = sort + 1,
+            )
+        }
         cloud.configs.firstOrNull { it.confId.trim() == "47" }?.let { config ->
             val classification = CarSettingClassification.BATTERY
             val enabled = cloud.boolValue("chargeWattSwitch") == true
@@ -864,6 +902,20 @@ object CloudCarSettingMapper {
                 kind = CarSettingKind.Toggle(enabled),
                 writable = config.isAuth != false,
                 sort = (config.sort.toIntOrNull() ?: 0) - 1,
+            )
+        }
+        cloud.configs.firstOrNull { it.confId.trim() == "73" }?.let { config ->
+            items += CarSettingItem(
+                id = "cloud:73:config",
+                configId = "73",
+                title = "氛围灯模式与颜色",
+                summary = "模式、运行方向和颜色由原 App 的 ATMOSPHERE_CONFIG 一次性下发",
+                classification = classificationOf("73", config),
+                group = groupOf(config, classificationOf("73", config)),
+                channel = CarSettingChannel.BLE,
+                kind = CarSettingKind.Atmosphere(),
+                writable = config.isAuth != false,
+                sort = (config.sort.toIntOrNull() ?: 0) + 1,
             )
         }
         cloud.configs.firstOrNull { it.confId.trim() == "60" }?.let { config ->
@@ -1614,8 +1666,8 @@ object CloudCarSettingMapper {
     )
 
     private val BATTERY_IDS = setOf("9", "47", "48", "54")
-    /** 一键开机/蓝牙校准属于蓝牙车钥匙，不能走普通车辆设置命令。 */
-    private val BLUETOOTH_KEY_IDS = setOf("1", "66")
+    /** 蓝牙校准属于车钥匙链路；confId 1 已由原 App 的一键开机页面独立处理。 */
+    private val BLUETOOTH_KEY_IDS = setOf("66")
     private val LIGHT_IDS = setOf(
         "5", "19", "20", "21", "26", "33", "40", "41", "68", "73", "81", "84", "88", "93",
     )

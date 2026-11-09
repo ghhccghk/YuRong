@@ -89,6 +89,24 @@ sealed interface CarSettingKind {
     ) : CarSettingKind
     /** 云端下发、需要进入二级页面的入口；当前只展示云端提示。 */
     data class Entrance(val hint: String = "进入设置") : CarSettingKind
+
+    /**
+     * 氛围灯模式与颜色配置。原 App 通过 `ATMOSPHERE_CONFIG` 一次性提交，
+     * 颜色内部使用 RGB 分量；`255` 在原 App 发送前会改为 `254`，因为 `0xFF`
+     * 在状态报文中表示无效值。
+     */
+    data class Atmosphere(
+        val showMode: Int = 0,
+        val runMode: Int = 0,
+        val singleColor: Boolean = true,
+        val red1: Int = 254,
+        val green1: Int = 254,
+        val blue1: Int = 254,
+        val red2: Int = 254,
+        val green2: Int = 254,
+        val blue2: Int = 254,
+        val valueKnown: Boolean = false,
+    ) : CarSettingKind
 }
 
 data class CarSettingItem(
@@ -155,6 +173,8 @@ object CarSettingItemAccess {
         "47" to setOf("enable"),
         "52" to setOf("distance"),
         "59" to setOf("time"),
+        "1" to setOf("enable", "distance"),
+        "73" to setOf("config"),
         "60" to setOf("enable", "level"),
         "62" to setOf("level"),
         "64" to setOf("adaptive", "level"),
@@ -616,6 +636,16 @@ class CarSettingsController(
                     )
                     else -> item
                 }
+                "1" -> when {
+                    item.id.endsWith(":enable") -> item.withToggle(
+                        status.extended.bleKeyStatus.flagOrNull(),
+                    )
+                    item.kind is CarSettingKind.Slider -> item.withSlider(
+                        status.extended.bleKeyDistanceLevel.floatIn(0..7),
+                    )
+                    else -> item
+                }
+                "25" -> item.withToggle(status.extended.passwordUnlockStatus.flagOrNull())
                 "73" -> item.withToggle(status.extended.ambientStatus.flagOrNull())
                 "51" -> item.withToggle(status.extended.syncTimeResultStatus.flagOrNull())
                 "53" -> item.withToggle(status.extended.templeSettingStatus.flagOrNull())
