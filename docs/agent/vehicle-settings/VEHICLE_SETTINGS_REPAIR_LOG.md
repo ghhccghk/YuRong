@@ -327,3 +327,60 @@
   - 其余 `VehicleSettingFrameEncoder` 命令尚未逐条建立 Golden Frame。
   - `0x141` 需要单独追踪 `generateControlCommand` 的 `uj.o/uj.g` 编码，不能继续声称来自 `generateBleCommand`。
   - 任何命令在完整 hex、位域、参数范围闭环前继续只读/UNKNOWN。
+
+# 第二轮修复记录
+
+## VS-013 — 能量回收使用滑行回馈字段
+
+- 状态：COMPLETE
+- 根因：普通 `EnergyRecoveryActivity` 的开关/档位由 `slideModePowerRecoverStatus/Current` 回填；KMP 错用了 `brakeModePowerRecoverFunctionStatus/GearStatus`。同时 `l76.z()` 的制动回馈档位是 `0x27 bit0-2`，KMP 原解析为 bit3-5。
+- Smali 证据：`EnergyRecoveryActivity.smali:88,480-642`、`VehicleSettingViewModel.smali:22282-22485`、`l76.smali:9535-9567`。
+- 修改：`TtpInfo` 新增 `slideModePowerRecoverStatus/Current`，按 `G(0x26,0)`、`C(0x26,2)` 解析；17/18 回填改用新字段；修正制动回馈档位偏移。
+- 测试：`TtpInfoParserTest.parse_energyRecoveryUsesSlideModeFields`。测试源码已编译，未执行。
+- Commit：`27afae7`。
+- 未完成：真实车辆回读由用户后续验证。
+
+## VS-014 — 自定义按键 TTP 回填
+
+- 状态：PARTIAL
+- 根因：`customFunctionShort/Long` 已解析，但 `CarSettingsController.applyVehicleStatus()` 没有 config `1005` 分支，短按/长按不回填。
+- Smali 证据：`CustomizeKeyActivity.getFunctionId/getFunctionName:107-370`、`VehicleSettingViewModel.smali:24730-24828`、`l76.smali:12284-12300`。
+- 修改：1005 短按读 `customFunctionShort`、长按读 `customFunctionLong`；函数 ID 0..8 原序映射，14/其他映射“无定义”，-1 保持 UNKNOWN。
+- 测试：`CarSettingsControllerTest.customKeyFunctionsReadBackFromCustomFunctionBits`。
+- Commit：`72c3b1a`。
+- 证据缺口：当前 Smali 选项中没有“辅助推行”字符串，无法把该名称绑定到特定函数 ID；该项名称映射继续 UNKNOWN，不猜测 ID。
+
+## VS-015 — 自适应推行变体语义
+
+- 状态：COMPLETE
+- 根因：config 64 与 89 不是同一组 0/1 语义。
+- Smali 证据：
+  - `HelpPromotePlusActivity.onCbClick():94-121`：64 勾选写 0、取消写 1。
+  - `HelpPromotePlus2Activity.onCbClick():94-129`：89 勾选写 0、取消写 2。
+  - 两者的 SeekBar listener 直接写 `thumbPosition` 0..2。
+  - Binding：64 CheckBox 读 `customDriveSwitchStatus == 1`；89 CheckBox 读 `== 2`。
+- 修改：64/89 分别按 1/2 映射勾选状态；89 取消写 2；推行速度改为 0..2，初值 UNKNOWN。
+- 测试：变体回读、64/89 开关参数、0 档写入测试。
+- Commit：`0e1f8c9`。
+- 未完成：真实车辆回读由用户后续验证。
+
+## 第二轮 VS-006 补充
+
+- 状态：PARTIAL
+- 已将 18、1005、64/89 等无即时证据初值标记 UNKNOWN；Customize 四字段确认来自 TTP `customizeThrottleSensitivity/customizeEnergyLevel/customizeEnergyState/customizeTcs`。
+- 其余固定 Choice/Slider 默认值仍需逐项 Smali 证据。
+- Commit：`48c1afa`。
+
+## 第二轮 VS-008 补充
+
+- 状态：PARTIAL
+- 按 `P4()` 修正 75/82 Integer 类型；77 同时写 `sleepMode` 并以反值写 `SLEEP_MODE_SWITCH`；40 开启写 `colorEggSoundEffect`、关闭走 `CLEAR_SOUND_EFFECT`。
+- `Map<String, Any?>` 已保留 Number/String 类型。
+- 9/10/82 等伴随字段仍需要当前 `CarSettingBean` 状态，当前 item/writer 接口无法完整携带。
+- Commit：`e57caeb`。
+
+## VS-007 与 VS-011 复核
+
+- VS-007：COMPLETE。已为 0x83/0x84/0x85 建立完整 Golden Frame，覆盖开、关和 15/30/45/60 秒参数。
+- VS-012：PARTIAL。新增样本 commit `20b74d7`；其他命令继续 UNKNOWN。
+- VS-011：BLOCKED。`supportsItem()` 仍只能证明 encoder 可编码；全量命令的 Smali/Golden 证据表未建立。直接收紧会禁用用户已实测正常项，直接放宽会违反“无证据不开放写入”，因此本轮不改变写入白名单。

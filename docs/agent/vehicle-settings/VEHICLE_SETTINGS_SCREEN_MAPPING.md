@@ -56,13 +56,13 @@
 | 骑行控制 | FREE 自由模式 | 二级面板 | `VehicleCustomizeActivity/2` | config 55/92、`CUSTOMIZE_SETTING` | `cloud:55`, `cloud:92` | `customizeThrottleSensitivity`, `customizeEnergyLevel`, `customizeEnergyState`, `customizeTcs` | BLE 0xC8 | PARTIAL |
 | 骑行控制 | 超级狂暴模式 | Switch | `TPowerActivity` | config 63 | `cloud:63` | `tPowerStatus` | BLE 0xCF | COMPLETE-static |
 | 骑行控制 | 辅助推行总开关 | Switch | `HelpPromotePlusActivity/2` | config 64/89、`STROLLER_OPEN/CLOSE` | `cloud:64`, `cloud:89` | `pushModeStatus` / `helpCarState`（需按版本确认） | BLE 0xA8/0xA9 | UNKNOWN-readback |
-| 骑行控制 | 自适应推行 | CheckBox | `HelpPromotePlusActivity/2` | `COMMAND_CONST_CUSTOM_DRIVE_SWITCH_SETTING` | `cloud:64:adaptive`, `cloud:89:adaptive` | `customDriveSwitchStatus`；64 映射 ==1，89 映射 ==2 | BLE 0xD0 | BROKEN-89 |
-| 骑行控制 | 推行速度 | 三点 Slider | `HelpPromotePlusActivity/2` | `COMMAND_CONST_CUSTOM_DRIVE_LEVEL_SETTING` | `cloud:64:level`, `cloud:89:level` | `customDriveLevelStatus` 0..2 | BLE 0xD1 | BROKEN-offset |
+| 骑行控制 | 自适应推行 | CheckBox | `HelpPromotePlusActivity/2` | `COMMAND_CONST_CUSTOM_DRIVE_SWITCH_SETTING` | `cloud:64:adaptive`, `cloud:89:adaptive` | `customDriveSwitchStatus`；64 映射 ==1，89 映射 ==2 | BLE 0xD0 | COMPLETE |
+| 骑行控制 | 推行速度 | 三点 Slider | `HelpPromotePlusActivity/2` | `COMMAND_CONST_CUSTOM_DRIVE_LEVEL_SETTING` | `cloud:64:level`, `cloud:89:level` | `customDriveLevelStatus` 0..2 | BLE 0xD1 | COMPLETE |
 | 骑行控制 | 陡坡缓降 | Switch | `SlopeDescentActivity` | config 46 | `cloud:46` | `steepSlopeState` | BLE 动态位域 | PARTIAL |
 | 骑行控制 | 坡道驻停 | Switch | Ride Registry | config 49 | `cloud:49` | `rampSlopeState` | BLE 动态位域 | PARTIAL |
-| 骑行控制 | 能量回收 | Switch + 三点 Slider | `EnergyRecoveryActivity` | config 17/18、`ENERGY_RECOVER_*` | `cloud:17`, `cloud:18` | `slideModePowerRecoverStatus/Current` | BLE 0x13/0x14、0x3D | BROKEN-field |
+| 骑行控制 | 能量回收 | Switch + 三点 Slider | `EnergyRecoveryActivity` | config 17/18、`ENERGY_RECOVER_*` | `cloud:17`, `cloud:18` | `slideModePowerRecoverStatus/Current` | BLE 0x13/0x14、0x3D | COMPLETE |
 | 骑行控制 | 安全限速 | Slider/入口 | `MaxSpeedLimitActivity` | config 61 | `cloud:61` | `maximumSpeedCurrent` | BLE 0x36 / param-setting | COMPLETE-golden |
-| 骑行控制 | 自定义按键 | 短按/长按 Choice | `CustomizeKeyActivity` | config 1005、`CUSTOMIZE_KEYS_CONFIG_*` | `cloud:1005:short/long` | `customFunctionShort/Long` | BLE 0x131/0x130 | BROKEN-readback |
+| 骑行控制 | 自定义按键 | 短按/长按 Choice | `CustomizeKeyActivity` | config 1005、`CUSTOMIZE_KEYS_CONFIG_*` | `cloud:1005:short/long` | `customFunctionShort/Long` | BLE 0x131/0x130 | PARTIAL-name-gap |
 | 智慧充电 | 充电功率 | 二级入口 | `ChargingPowerActivity` | config 47、`CHARGE_WATT_*` | `cloud:47`, `cloud:47:enable` | `batteryChargingPowerStatus/Value` | BLE 0xC9/0xCA / param-setting | PARTIAL |
 | 智慧充电 | 低电量提醒 | 入口 | `LowPowerActivity` | config 82/9 | `cloud:82`, `cloud:9` | `lowBatTelWarning` | cloud/IoT | PARTIAL |
 | 智能仪表 | 仪表亮度调节 | Switch + Slider | `BrightnessAdjustmentActivity` | config 86 | `cloud:86`, `cloud:86:value` | `brightnessAdjustSwitch/Value` | BLE 0x135/0x134 | PARTIAL |
@@ -87,7 +87,7 @@
 - 原写入：`CUSTOMIZE_KEYS_CONFIG_SHORT/LONG`，函数 ID 由 `getFunctionId()` 映射。
 - 原回读：`customFunctionShort/customFunctionLong`，均来自 `0x6C`；短按 bit4-7、长按 bit0-3。
 - 当前 KMP：TTP 已解析这些字段，但 `CarSettingsController.applyVehicleStatus()` 完全没有 `1005` 分支，短按/长按永远不回填。
-- 证据缺口：当前 Smali 的 `getFunctionName()` 只包含 ABS/TCS/雷达/记录仪/长续航/氛围灯/坐垫加热/AI/无定义，没有“辅助推行”字符串。因此可以修复 1005 通用回读，但不能凭名称把“辅助推行”绑定到某个函数 ID；该名称到 ID 的关系继续标为 UNKNOWN。
+- 证据缺口：当前 Smali 的 `getFunctionName()` 只包含 ABS/TCS/雷达/记录仪/长续航/氛围灯/坐垫加热/AI/无定义，没有“辅助推行”字符串。已修复 1005 通用回读，但不能凭名称把“辅助推行”绑定到某个函数 ID；该名称到 ID 的关系继续标为 UNKNOWN。
 
 ### VS-015 自适应推行
 
@@ -104,7 +104,7 @@
   - 64/89 都使用 `flagOrNull()`，89 的 `2` 被映射为 false。
   - 89 取消仍写 `1`，不是 `2`。
   - 速度模型使用 1..3，导致 0 值被过滤、写入整体偏移 1。
-- 根因：两个车型变体的状态值和写入值不同，KMP 统一按 Boolean 0/1 和 1..3 处理。
+- 根因：两个车型变体的状态值和写入值不同，KMP 统一按 Boolean 0/1 和 1..3 处理。已按变体修复为 64/89 分别读 1/2、取消值 1/2，速度 0..2。
 
 ## 4. 保护范围
 
