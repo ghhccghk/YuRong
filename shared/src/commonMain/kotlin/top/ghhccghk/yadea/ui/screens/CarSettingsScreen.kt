@@ -38,6 +38,8 @@ import top.ghhccghk.yadea.carsetting.CarSettingValueState
 import top.ghhccghk.yadea.carsetting.VehicleSettingValue
 import top.ghhccghk.yadea.carsetting.SettingWriteState
 import top.ghhccghk.yadea.carsetting.SettingConfirmationState
+import top.ghhccghk.yadea.carsetting.CarSettingWriteChannel
+import top.ghhccghk.yadea.carsetting.SettingReadbackState
 import top.ghhccghk.yadea.carsetting.CarSettingsController
 import top.ghhccghk.yadea.carsetting.CarSettingsState
 import top.ghhccghk.yadea.carsetting.CustomSoundController
@@ -1349,7 +1351,8 @@ private fun CarSettingRow(
             SettingWriteState.PREPARING -> " · 准备提交"
             SettingWriteState.SUBMITTING -> " · 提交中"
             SettingWriteState.CLOUD_ACCEPTED -> " · 云端已接受"
-            SettingWriteState.LOCAL_UPDATED -> " · 已发送，未代表车辆执行"
+            SettingWriteState.LOCAL_UPDATED -> if (valueState.writeChannel == CarSettingWriteChannel.BLE)
+                " · 蓝牙通道已接收，未代表车辆执行" else " · 本次选择已提交，通道未知"
             SettingWriteState.FAILED -> " · 写入失败"
             SettingWriteState.CANCELLED -> " · 操作已取消"
             SettingWriteState.IDLE -> ""
@@ -1364,7 +1367,9 @@ private fun CarSettingRow(
         })
         valueState.error?.let { append(" · $it") }
     }
-    val observed = (valueState.vehicleValue as? VehicleSettingValue.Known)?.takeIf { it.live }?.kind
+    val observed = (valueState.vehicleValue as? VehicleSettingValue.Known)?.takeIf {
+        it.live && valueState.readbackState == SettingReadbackState.VALID
+    }?.kind
     when (val kind = observed ?: item.kind) {
         is CarSettingKind.Toggle -> if (observed == null) AppActionPreference(
             title = item.title, summary = summary, value = "未知", enabled = enabled, onClick = onOpenDetail,
@@ -1431,7 +1436,8 @@ private fun CarSettingRow(
 
 private fun vehicleValueLabel(state: CarSettingValueState): String {
     val known = state.vehicleValue as? VehicleSettingValue.Known ?: return "UNKNOWN"
-    return if (known.live) settingKindLabel(known.kind) else "UNKNOWN（历史回读：${settingKindLabel(known.kind)}）"
+    return if (known.live && state.readbackState == SettingReadbackState.VALID) settingKindLabel(known.kind)
+        else "UNKNOWN（历史回读：${settingKindLabel(known.kind)}）"
 }
 
 private fun settingKindLabel(kind: CarSettingKind): String = when (kind) {

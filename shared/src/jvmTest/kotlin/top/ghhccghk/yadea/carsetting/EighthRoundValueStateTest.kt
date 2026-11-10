@@ -145,6 +145,7 @@ class EighthRoundValueStateTest {
         result.complete(true)
         job.join()
         assertEquals(SettingConfirmationState.CONFIRMED_BY_RESULT, c.value("cloud:10").confirmationState)
+        assertEquals(CarSettingConfirmationStatus.CLOUD_ACCEPTED, c.state.value.confirmationStatuses["cloud:10"])
         assertEquals(VehicleSettingValue.Unknown, c.value("cloud:10").vehicleValue)
     }
 
@@ -177,5 +178,13 @@ class EighthRoundValueStateTest {
         c.updateVehicleStatus("VIN-A", TtpInfoParser.parse(data))
         assertEquals(SettingConfirmationState.READBACK_MATCHED, c.value(item.id).confirmationState)
         assertEquals(1, ((c.value(item.id).vehicleValue as VehicleSettingValue.Known).kind as CarSettingKind.Choice).selectedIndex)
+    }
+
+    @Test fun timeSyncResultFlagIsNotActualSettingOrTransactionConfirmation() = runBlocking {
+        val c = controller(listOf("51"))
+        c.update("cloud:51") { CarSettingKind.Toggle(true) }
+        c.updateVehicleStatus("VIN-A", unknown.copy(extended = unknown.extended.copy(syncTimeResultStatus = 1)))
+        assertEquals(VehicleSettingValue.Unknown, c.value("cloud:51").vehicleValue)
+        assertEquals(SettingConfirmationState.WAITING_READBACK, c.value("cloud:51").confirmationState)
     }
 }

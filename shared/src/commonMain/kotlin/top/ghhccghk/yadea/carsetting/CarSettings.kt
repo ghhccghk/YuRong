@@ -161,13 +161,14 @@ data class CarSettingValueState(
     val submittedValue: CarSettingKind? = null,
     val operationId: Long? = null,
     val writeState: SettingWriteState = SettingWriteState.IDLE,
+    val writeChannel: CarSettingWriteChannel? = null,
     val confirmationState: SettingConfirmationState = SettingConfirmationState.UNKNOWN,
     val error: String? = null,
 ) {
     val busy: Boolean get() = writeState in setOf(SettingWriteState.PREPARING, SettingWriteState.SUBMITTING)
 
     val confirmationStatus: CarSettingConfirmationStatus get() = when {
-        confirmationState in setOf(SettingConfirmationState.READBACK_MATCHED, SettingConfirmationState.CONFIRMED_BY_RESULT) ->
+        confirmationState == SettingConfirmationState.READBACK_MATCHED ->
             CarSettingConfirmationStatus.VEHICLE_CONFIRMED
         writeState == SettingWriteState.FAILED -> CarSettingConfirmationStatus.FAILED
         writeState == SettingWriteState.CANCELLED -> CarSettingConfirmationStatus.UNKNOWN
@@ -480,7 +481,8 @@ class CarSettingsController(
         val submitted = item.copy(kind = target)
         changeValueState(id) {
             it.copy(draftValue = null, submittedValue = target, operationId = operation.id,
-                writeState = SettingWriteState.PREPARING, confirmationState = SettingConfirmationState.UNKNOWN, error = null)
+                writeState = SettingWriteState.PREPARING, writeChannel = null,
+                confirmationState = SettingConfirmationState.UNKNOWN, error = null)
         }
         _state.value = _state.value.copy(pendingIds = current.pendingIds + id, message = null)
 
@@ -512,7 +514,8 @@ class CarSettingsController(
             }
             pendingVehicleConfirmations[id] = PendingVehicleConfirmation(target, observedGeneration, operation.id)
             changeValueState(id) {
-                it.copy(writeState = phase, confirmationState = SettingConfirmationState.WAITING_READBACK)
+                it.copy(writeState = phase, writeChannel = writeResult.channel,
+                    confirmationState = SettingConfirmationState.WAITING_READBACK)
             }
             reconcileObservation(id)
             _state.value = _state.value.copy(message = "设置已提交，尚需车辆确认")
@@ -848,10 +851,10 @@ class CarSettingsController(
             }
             // Helpers return the original instance when a field is missing/invalid.
             // Composite values require every field; defaults must not complete an observation.
-            val complete = updated.kind !is CarSettingKind.Customize ||
+            val complete = item.configId != "51" && (updated.kind !is CarSettingKind.Customize ||
                 (status.extended.customizeThrottleSensitivity in 0..2 &&
                     status.extended.customizeEnergyLevel in 0..2 &&
-                    status.extended.customizeEnergyState in 0..1 && status.extended.customizeTcs in 0..1)
+                    status.extended.customizeEnergyState in 0..1 && status.extended.customizeTcs in 0..1))
             if (updated !== item && complete) observations[item.id] = updated.kind
             updated
         }
