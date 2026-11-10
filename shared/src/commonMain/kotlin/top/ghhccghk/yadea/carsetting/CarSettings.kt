@@ -451,6 +451,19 @@ class CarSettingsController(
         _state.value = _state.value.copy(pendingIds = _state.value.pendingIds - id, message = message)
     }
 
+    private fun finishConfirmationFailure(
+        id: String,
+        message: String,
+        confirmation: SettingConfirmationState,
+    ) {
+        pendingVehicleConfirmations.remove(id)
+        changeValueState(id) {
+            // Keep the write receipt separate: confirmation timeout does not undo CLOUD_ACCEPTED.
+            it.copy(draftValue = null, submittedValue = null, confirmationState = confirmation, error = message)
+        }
+        _state.value = _state.value.copy(pendingIds = _state.value.pendingIds - id, message = message)
+    }
+
     suspend fun update(id: String, transform: (CarSettingKind) -> CarSettingKind): Boolean {
         val current = _state.value
         val regularItem = current.items.firstOrNull { it.id == id }
@@ -545,22 +558,37 @@ class CarSettingsController(
                     if (confirmed != null) break
                 }
                 if (confirmed != true) {
-                    finishFailure(id, if (confirmed == false) "设置结果确认失败，已撤销本次选择" else "设置确认超时，已撤销本次选择",
+                    finishConfirmationFailure(id, if (confirmed == false) "设置结果确认失败，车辆状态仍以回读为准" else "设置确认超时，车辆状态仍以回读为准",
                         if (confirmed == false) SettingConfirmationState.FAILED else SettingConfirmationState.TIMED_OUT)
                     return false
                 }
                 pendingVehicleConfirmations.remove(id)
-                changeValueState(id) { it.copy(confirmationState = SettingConfirmationState.CONFIRMED_BY_RESULT) }
+                changeValueState(id) {
+                    if (it.confirmationState == SettingConfirmationState.READBACK_MISMATCH) it
+                    else it.copy(confirmationState = SettingConfirmationState.CONFIRMED_BY_RESULT)
+                }
                 _state.value = _state.value.copy(message = "设置结果已确认；车辆值仍以回读为准")
             }
 
             return true
         } catch (cancelled: CancellationException) {
             if (isCurrentOperation(id, operation)) {
-                pendingVehicleConfirmations.remove(id)
-                changeValueState(id) { it.copy(draftValue = null, submittedValue = null,
-                    writeState = SettingWriteState.CANCELLED, confirmationState = SettingConfirmationState.UNKNOWN, error = null) }
-                _state.value = _state.value.copy(message = "设置操作已取消")
+                val value = _state.value.valueState(id)
+                val hasWriteReceipt = value.writeState == SettingWriteState.CLOUD_ACCEPTED ||
+                    value.writeState == SettingWriteState.LOCAL_UPDATED
+                if (hasWriteReceipt) {
+                    // Stop polling, but retain the receipt and pending readback reconciliation.
+                    changeValueState(id) {
+                        if (it.confirmationState == SettingConfirmationState.READBACK_MATCHED) it
+                        else it.copy(confirmationState = SettingConfirmationState.UNKNOWN, error = null)
+                    }
+                    _state.value = _state.value.copy(message = "确认等待已取消；写入结果保留，车辆状态仍未确认")
+                } else {
+                    pendingVehicleConfirmations.remove(id)
+                    changeValueState(id) { it.copy(draftValue = null, submittedValue = null,
+                        writeState = SettingWriteState.CANCELLED, confirmationState = SettingConfirmationState.UNKNOWN, error = null) }
+                    _state.value = _state.value.copy(message = "设置操作已取消")
+                }
             }
             throw cancelled
         } finally {

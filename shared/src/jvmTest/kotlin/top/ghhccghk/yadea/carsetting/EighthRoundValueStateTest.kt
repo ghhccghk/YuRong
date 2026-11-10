@@ -149,6 +149,28 @@ class EighthRoundValueStateTest {
         assertEquals(VehicleSettingValue.Unknown, c.value("cloud:10").vehicleValue)
     }
 
+    @Test fun cancellingCloudConfirmationRetainsAcceptanceAndAllowsLaterTtpConfirmation() = runBlocking {
+        val waiting = CompletableDeferred<Boolean?>()
+        val gateway = object : CarSettingsGateway {
+            override suspend fun load(vin: String) = CloudCarSettings(listOf(CloudBikeConfig(confId = "17")), emptyMap())
+            override suspend fun checkStatus(configId: String): Boolean? = waiting.await()
+        }
+        val writer = object : CarSettingWriter {
+            override suspend fun write(item: CarSettingItem) = true
+            override suspend fun writeWithResult(item: CarSettingItem) = CarSettingWriteResult(true, CarSettingWriteChannel.CLOUD)
+        }
+        val c = CarSettingsController(writer = writer, gateway = gateway, vinProvider = { "VIN-A" }, debounceMs = 0, statusPollIntervalMs = 0)
+        c.refresh()
+        val job = launch(start = CoroutineStart.UNDISPATCHED) { c.update("cloud:17") { CarSettingKind.Toggle(true) } }
+        assertEquals(SettingWriteState.CLOUD_ACCEPTED, c.value("cloud:17").writeState)
+        job.cancel(); job.join()
+        assertEquals(SettingWriteState.CLOUD_ACCEPTED, c.value("cloud:17").writeState)
+        assertEquals(SettingConfirmationState.UNKNOWN, c.value("cloud:17").confirmationState)
+        c.updateVehicleStatus("VIN-A", unknown.copy(extended = unknown.extended.copy(slideModePowerRecoverStatus = 1)))
+        assertEquals(SettingWriteState.CLOUD_ACCEPTED, c.value("cloud:17").writeState)
+        assertEquals(SettingConfirmationState.READBACK_MATCHED, c.value("cloud:17").confirmationState)
+    }
+
     @Test fun invalidTargetDoesNotInvokeWriterOrLeakBusyOperation() = runBlocking {
         val c = controller(listOf("20"))
         assertFalse(c.update("cloud:20") { (it as CarSettingKind.Slider).copy(value = Float.NaN) })

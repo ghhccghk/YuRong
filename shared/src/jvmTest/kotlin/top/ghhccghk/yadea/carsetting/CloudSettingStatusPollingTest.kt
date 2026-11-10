@@ -148,9 +148,11 @@ class CloudSettingStatusPollingTest {
         assertFalse(failedController.update("cloud:10") { CarSettingKind.Toggle(true) })
         assertEquals(1, failedGateway.calls)
         assertEquals(
-            CarSettingConfirmationStatus.FAILED,
+            CarSettingConfirmationStatus.CLOUD_ACCEPTED,
             failedController.state.value.confirmationStatuses["cloud:10"],
         )
+        assertEquals(SettingConfirmationState.FAILED,
+            failedController.state.value.valueState("cloud:10").confirmationState)
 
         val pendingGateway = SequenceGateway(listOf(null, null, null))
         val pendingController = CarSettingsController(
@@ -164,7 +166,11 @@ class CloudSettingStatusPollingTest {
         )
         assertFalse(pendingController.update("cloud:10") { CarSettingKind.Toggle(true) })
         assertEquals(3, pendingGateway.calls)
-        assertEquals("设置确认超时，已撤销本次选择", pendingController.state.value.message)
+        assertEquals(CarSettingConfirmationStatus.CLOUD_ACCEPTED,
+            pendingController.state.value.confirmationStatuses["cloud:10"])
+        assertEquals(SettingConfirmationState.TIMED_OUT,
+            pendingController.state.value.valueState("cloud:10").confirmationState)
+        assertEquals("设置确认超时，车辆状态仍以回读为准", pendingController.state.value.message)
     }
 
     @Test
