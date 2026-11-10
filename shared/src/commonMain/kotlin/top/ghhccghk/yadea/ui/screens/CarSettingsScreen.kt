@@ -568,7 +568,7 @@ fun CarSettingsScreen(
         }
     }
 
-    val optionTarget = detailItem?.takeIf { it.kind is CarSettingKind.Choice || it.kind is CarSettingKind.Toggle }
+    val optionTarget = detailItem?.takeIf { it.kind is CarSettingKind.Choice }
     AppBottomSheet(
         show = optionTarget != null,
         onDismissRequest = { optionTarget?.let { controller.cancelDraft(it.id) }; detailItem = null },
@@ -576,13 +576,12 @@ fun CarSettingsScreen(
     ) {
         if (optionTarget != null) {
             AppText("车辆当前值：" + vehicleValueLabel(state.valueState(optionTarget.id)), style = AppDesign.typography.summary)
-            val options = (optionTarget.kind as? CarSettingKind.Choice)?.options ?: listOf("关闭", "开启")
+            val options = (optionTarget.kind as CarSettingKind.Choice).options
             options.forEachIndexed { index, label ->
                 AppActionPreference(title = label, enabled = settingControlEnabled(optionTarget), onClick = {
                     submitSettingUpdate(optionTarget) { kind ->
                         when (kind) {
                             is CarSettingKind.Choice -> kind.copy(selectedIndex = index, valueKnown = true)
-                            is CarSettingKind.Toggle -> kind.copy(checked = index == 1, valueKnown = true)
                             else -> kind
                         }
                     }
@@ -1391,6 +1390,9 @@ internal fun carSettingsUiResetKey(state: CarSettingsState): CarSettingsUiResetK
 private val SAFETY_CONFIRM_IDS = setOf("37", "38")
 private val BLE_POWER_SETTING_IDS = setOf("37", "38")
 
+internal fun settingSwitchTarget(state: CarSettingValueState, targetChecked: Boolean): CarSettingKind.Toggle? =
+    (state.displayKind() as? CarSettingKind.Toggle)?.copy(checked = targetChecked, valueKnown = true)
+
 internal fun isAuditedThreeTickSlider(item: CarSettingItem): Boolean =
     item.id == "cloud:14" || item.id == "cloud:64:level" || item.id == "cloud:89:level"
 
@@ -1474,16 +1476,14 @@ private fun CarSettingRow(
     }
     val observed = valueState.displayKind()
     when (val kind = observed ?: item.kind) {
-        is CarSettingKind.Toggle -> if (observed == null) AppActionPreference(
-            title = item.title, summary = summary, value = "未知", enabled = enabled, onClick = onOpenDetail,
-        ) else AppSwitchPreference(
-            checked = kind.checked,
+        is CarSettingKind.Toggle -> AppSwitchPreference(
+            checked = (observed as? CarSettingKind.Toggle)?.checked ?: false,
             onCheckedChange = { checked ->
-                onUpdate { (it as? CarSettingKind.Toggle)?.copy(checked = checked, valueKnown = true) ?: it }
+                settingSwitchTarget(valueState, checked)?.let { target -> onUpdate { target } }
             },
             title = item.title,
-            summary = summary,
-            enabled = enabled,
+            summary = if (observed == null) "$summary · 状态未知，等待配置或回读" else summary,
+            enabled = enabled && observed is CarSettingKind.Toggle,
         )
         is CarSettingKind.Choice -> if (observed == null) AppActionPreference(
             title = item.title, summary = summary, value = "未知", enabled = enabled, onClick = onOpenDetail,
