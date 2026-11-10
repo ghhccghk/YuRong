@@ -142,4 +142,23 @@ class SettingsCacheRecoveryTest {
         assertEquals(VehicleSettingValue.Unknown, value.vehicleValue)
         assertEquals(SettingConfirmationState.UNKNOWN, value.confirmationState)
     }
+
+    @Test fun retainedListCannotStartWriteOrDraftDuringManifestRefresh() = runBlocking {
+        val g = Gateway(cloud)
+        var writes = 0
+        val c = CarSettingsController(writer = object : CarSettingWriter {
+            override suspend fun write(item: CarSettingItem): Boolean { writes++; return true }
+        }, gateway = g, vinProvider = { "A" }, debounceMs = 0)
+        c.refresh()
+        g.wait = CompletableDeferred()
+        val refresh = async { c.refresh() }
+        yield()
+        assertFalse(c.editDraft("cloud:13") { CarSettingKind.Toggle(false) })
+        assertFalse(c.update("cloud:13") { CarSettingKind.Toggle(false) })
+        assertEquals(0, writes)
+        g.wait!!.complete(cloud)
+        refresh.await()
+        assertTrue(c.editDraft("cloud:13") { CarSettingKind.Toggle(false) })
+    }
+
 }

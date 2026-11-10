@@ -420,7 +420,13 @@ class CarSettingsController(
             message = if (items.isEmpty()) "云端未返回可用设置项" else null,
             valueStates = items.associate { item ->
                 val retained = _state.value.valueState(item.id)
-                item.id to retained.copy(configuredValue = CloudCarSettingMapper.configuredValue(cloud, item))
+                val observed = (retained.vehicleValue as? VehicleSettingValue.Known)
+                    ?.takeIf { validTarget(item.kind, it.kind) }
+                item.id to retained.copy(
+                    vehicleValue = observed ?: VehicleSettingValue.Unknown,
+                    cachedValue = retained.cachedValue?.takeIf { validTarget(item.kind, it.kind) },
+                    configuredValue = CloudCarSettingMapper.configuredValue(cloud, item),
+                )
             },
         )
         latestCachedStatus?.takeIf { it.vin == vin }?.let(::applyVehicleStatus)
@@ -466,6 +472,7 @@ class CarSettingsController(
     }
 
     fun editDraft(id: String, transform: (CarSettingKind) -> CarSettingKind): Boolean {
+        if (_state.value.loading) return false
         val item = findItem(id) ?: return false
         if (!CarSettingItemAccess.canWrite(item) || id in activeOperations) return false
         if (_state.value.vin.isNotBlank() && _state.value.vin != vinProvider().trim()) return false
@@ -520,6 +527,7 @@ class CarSettingsController(
 
     suspend fun update(id: String, transform: (CarSettingKind) -> CarSettingKind): Boolean {
         val current = _state.value
+        if (current.loading) return false
         val regularItem = current.items.firstOrNull { it.id == id }
         val missingItem = current.missingCloudItems.firstOrNull { it.id == id }
         val item = regularItem ?: missingItem ?: return false

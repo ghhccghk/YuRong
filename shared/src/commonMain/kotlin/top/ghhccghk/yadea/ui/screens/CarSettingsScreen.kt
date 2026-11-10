@@ -188,7 +188,9 @@ fun CarSettingsScreen(
         ?.kind
         .let { (it as? CarSettingKind.Toggle)?.checked == true }
     val settingDisabledReason: (CarSettingItem) -> String? = { item ->
-        if (item.configId in BLE_POWER_SETTING_IDS &&
+        if (state.loading) {
+            "正在刷新设置"
+        } else if (item.configId in BLE_POWER_SETTING_IDS &&
             (!vehicleConnected || vehiclePowerOn != true)
         ) {
             "请先连接车辆并开机"
