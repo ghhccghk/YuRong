@@ -1448,6 +1448,8 @@ private fun CarSettingRow(
         }
         append(" · 车辆当前值：")
         append(vehicleValueLabel(valueState))
+        valueState.cachedValue?.let { append(" · 本地缓存：${settingKindLabel(it.kind)}（历史值）") }
+        valueState.configuredValue?.let { append(" · 配置记录：${settingKindLabel(it)}（非实时）") }
         valueState.draftValue?.let { append(" · 草稿：${settingKindLabel(it)}") }
         valueState.submittedValue?.let { append(" · 本次选择：${settingKindLabel(it)}") }
         append(when (valueState.writeState) {
@@ -1470,9 +1472,7 @@ private fun CarSettingRow(
         })
         valueState.error?.let { append(" · $it") }
     }
-    val observed = (valueState.vehicleValue as? VehicleSettingValue.Known)?.takeIf {
-        it.live && valueState.readbackState == SettingReadbackState.VALID
-    }?.kind
+    val observed = valueState.displayKind()
     when (val kind = observed ?: item.kind) {
         is CarSettingKind.Toggle -> if (observed == null) AppActionPreference(
             title = item.title, summary = summary, value = "未知", enabled = enabled, onClick = onOpenDetail,

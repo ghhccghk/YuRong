@@ -177,7 +177,7 @@ enum class SettingConfirmationState {
 }
 
 enum class SettingReadbackState { UNKNOWN, VALID, MISSING_OR_INVALID, UNSUPPORTED }
-enum class SettingValueSource { LIVE_TTP }
+enum class SettingValueSource { LIVE_TTP, CACHED_TTP }
 
 sealed interface VehicleSettingValue {
     data object Unknown : VehicleSettingValue
@@ -193,6 +193,8 @@ sealed interface VehicleSettingValue {
 /** Only a successfully decoded live TTP field creates a vehicle value. */
 data class CarSettingValueState(
     val vehicleValue: VehicleSettingValue = VehicleSettingValue.Unknown,
+    val cachedValue: VehicleSettingValue.Known? = null,
+    val configuredValue: CarSettingKind? = null,
     val readbackState: SettingReadbackState = SettingReadbackState.UNKNOWN,
     val draftValue: CarSettingKind? = null,
     val submittedValue: CarSettingKind? = null,
@@ -214,8 +216,10 @@ data class CarSettingValueState(
         else -> CarSettingConfirmationStatus.UNKNOWN
     }
 
-    fun editableKind(fallback: CarSettingKind): CarSettingKind =
-        draftValue ?: submittedValue ?: (vehicleValue as? VehicleSettingValue.Known)?.kind ?: fallback
+    fun displayKind(): CarSettingKind? = draftValue ?: submittedValue ?:
+        (vehicleValue as? VehicleSettingValue.Known)?.kind ?: cachedValue?.kind ?: configuredValue
+
+    fun editableKind(fallback: CarSettingKind): CarSettingKind = displayKind() ?: fallback
 }
 
 data class CarSettingsState(
@@ -321,6 +325,7 @@ class CarSettingsController(
     private val _state = MutableStateFlow(CarSettingsState(initialItems))
     val state: StateFlow<CarSettingsState> = _state.asStateFlow()
     private var latestVehicleStatus: VehicleStatusSnapshot? = null
+    private var latestCachedStatus: VehicleStatusSnapshot? = null
     private var vehicleStatusGeneration = 0L
     private val pendingVehicleConfirmations = mutableMapOf<String, PendingVehicleConfirmation>()
     private var loadGeneration = 0L
@@ -338,6 +343,7 @@ class CarSettingsController(
         val vin: String,
         val status: TtpInfo,
         val generation: Long,
+        val live: Boolean = true,
     )
 
     private data class PendingVehicleConfirmation(
@@ -370,16 +376,21 @@ class CarSettingsController(
         }
         if (_state.value.vin.isNotEmpty() && _state.value.vin != vin) {
             latestVehicleStatus = null
+            latestCachedStatus = null
         }
         if (_state.value.loading && _state.value.vin == vin) return false
 
         val generation = ++loadGeneration
         pendingVehicleConfirmations.clear()
         activeOperations.clear()
-        _state.value = CarSettingsState(
-            vin = vin,
-            loadGeneration = generation,
-            loading = true,
+        val previous = _state.value.takeIf { it.vin == vin && it.loadedFromCloud }
+        _state.value = (previous ?: CarSettingsState(vin = vin)).copy(
+            loadGeneration = generation, loading = true, pendingIds = emptySet(), message = null,
+            valueStates = previous?.valueStates.orEmpty().mapValues { (_, value) ->
+                value.copy(draftValue = null, submittedValue = null, operationId = null,
+                    writeState = SettingWriteState.IDLE, writeChannel = null,
+                    confirmationState = SettingConfirmationState.UNKNOWN, error = null)
+            },
         )
         val cloud = try {
             activeGateway.load(vin)
@@ -393,7 +404,7 @@ class CarSettingsController(
         }
         if (generation != loadGeneration || vinProvider().trim() != vin) return false
         if (cloud == null) {
-            clearForVin(vin, "云端设置加载失败，请稍后重试")
+            _state.value = _state.value.copy(loading = false, message = "云端设置加载失败，请稍后重试")
             return false
         }
         val items = CloudCarSettingMapper.toItems(cloud)
@@ -407,9 +418,14 @@ class CarSettingsController(
             vin = vin,
             loadGeneration = generation,
             message = if (items.isEmpty()) "云端未返回可用设置项" else null,
+            valueStates = items.associate { item ->
+                val retained = _state.value.valueState(item.id)
+                item.id to retained.copy(configuredValue = CloudCarSettingMapper.configuredValue(cloud, item))
+            },
         )
+        latestCachedStatus?.takeIf { it.vin == vin }?.let(::applyVehicleStatus)
         latestVehicleStatus?.let { snapshot ->
-            if (snapshot.vin == vin) applyVehicleStatus(snapshot.status)
+            if (snapshot.vin == vin) applyVehicleStatus(snapshot)
         }
         return true
     }
@@ -419,6 +435,7 @@ class CarSettingsController(
         pendingVehicleConfirmations.clear()
         activeOperations.clear()
         latestVehicleStatus = null
+        latestCachedStatus = null
         _state.value = CarSettingsState(
             vin = vin,
             loadGeneration = generation,
@@ -678,6 +695,13 @@ class CarSettingsController(
         lastSourceSequence = observation.sequence
         if (observation.origin != VehicleStatusOrigin.LIVE_TTP) {
             invalidateLiveValues()
+            if (observation.origin == VehicleStatusOrigin.CACHED_TTP && observation.info != null &&
+                (_state.value.vin.isBlank() || _state.value.vin == observation.vin)
+            ) {
+                val snapshot = VehicleStatusSnapshot(observation.vin, observation.info, observation.sequence, live = false)
+                latestCachedStatus = snapshot
+                applyVehicleStatus(snapshot)
+            }
             return
         }
         updateVehicleStatus(observation.vin, observation.info)
@@ -703,13 +727,14 @@ class CarSettingsController(
         }
         val generation = ++vehicleStatusGeneration
         latestVehicleStatus = VehicleStatusSnapshot(normalizedVin, status, generation)
-        applyVehicleStatus(status)
+        applyVehicleStatus(latestVehicleStatus!!)
     }
 
-    private fun applyVehicleStatus(status: TtpInfo?) {
+    private fun applyVehicleStatus(snapshot: VehicleStatusSnapshot) {
+        val status = snapshot.status
         val current = _state.value
-        val generation = latestVehicleStatus?.generation ?: 0L
-        if (status == null || current.items.isEmpty()) return
+        val generation = snapshot.generation
+        if (current.items.isEmpty()) return
         val observations = mutableMapOf<String, CarSettingKind>()
         fun applyStatus(source: List<CarSettingItem>): List<CarSettingItem> = source.map { item ->
             val updated = when (item.configId) {
@@ -925,6 +950,15 @@ class CarSettingsController(
         }
         val nextItems = applyStatus(current.items)
         val nextMissingCloudItems = applyStatus(current.missingCloudItems)
+        if (!snapshot.live) {
+            // Decode with the existing mappings, but never create a vehicle observation or receipt.
+            _state.value = current.copy(valueStates = current.valueStates + observations.mapValues { (id, kind) ->
+                current.valueState(id).copy(cachedValue = VehicleSettingValue.Known(
+                    kind, snapshot.vin, generation, source = SettingValueSource.CACHED_TTP, live = false,
+                ))
+            })
+            return
+        }
         _state.value = current.copy(
             items = nextItems,
             missingCloudItems = nextMissingCloudItems,
@@ -933,7 +967,7 @@ class CarSettingsController(
                     value.copy(readbackState = SettingReadbackState.MISSING_OR_INVALID)
                 } else value
             } + observations.mapValues { (id, kind) ->
-                current.valueState(id).copy(vehicleValue = VehicleSettingValue.Known(kind, latestVehicleStatus!!.vin, generation),
+                current.valueState(id).copy(vehicleValue = VehicleSettingValue.Known(kind, snapshot.vin, generation),
                     readbackState = SettingReadbackState.VALID)
             },
         )

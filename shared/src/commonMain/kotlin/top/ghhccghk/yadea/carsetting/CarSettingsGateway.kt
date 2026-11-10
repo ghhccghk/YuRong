@@ -842,6 +842,37 @@ class YadeaCarSettingsGateway(
 
 /** 将云端清单转换为现有设置控件模型。 */
 object CloudCarSettingMapper {
+    /** Existing cloud toggle fields are display configuration, never live vehicle observations. */
+    internal fun configuredValue(cloud: CloudCarSettings, item: CarSettingItem): CarSettingKind? {
+        val toggle = item.kind as? CarSettingKind.Toggle ?: return null
+        val key = when (item.id) {
+            "cloud:47:enable" -> "chargeWattSwitch"
+            else -> when (item.configId) {
+                "7" -> "bleLeavePowerOffEnable"
+                "9" -> "alarmOn"
+                "10" -> "distanceOn"
+                "13" -> "alarmSoundEnable"
+                "15", "59" -> "vehiclePowerDownStatus"
+                "16" -> "dumpAlarm"
+                "17" -> "resistanceOn"
+                "24" -> "emergencyContact"
+                "25" -> "passwordUnlockEnable"
+                "40" -> "colorEggSoundEffect"
+                "52" -> "bleUnlockOn"
+                "53" -> "bleApproachPowerOnEnable"
+                "62" -> "seatHeating"
+                "75" -> "tamperProofIotEnable"
+                "76" -> "positioningFunc"
+                "77" -> "sleepMode"
+                "82" -> "lowBatTelWarning"
+                "91" -> "sosEmergencyCall"
+                "95" -> "wxhlBind"
+                else -> return null
+            }
+        }
+        return cloud.boolValue(key)?.let { toggle.copy(checked = it, valueKnown = true) }
+    }
+
     /** 设置目录中的 confId 回退显示名；云端返回 confName 时始终优先使用云端值。 */
     fun titleForConfigId(configId: String): String? = TITLES[configId.trim()]
 
