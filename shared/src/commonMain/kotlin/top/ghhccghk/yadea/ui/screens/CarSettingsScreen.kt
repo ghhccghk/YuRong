@@ -190,7 +190,7 @@ fun CarSettingsScreen(
         ) {
             "请先连接车辆并开机"
         } else {
-            null
+            adaptivePushUiDisabledReason(item, state, vehicleConnected, vehiclePowerOn)
         }
     }
     val settingControlEnabled: (CarSettingItem) -> Boolean = { item ->
@@ -1368,6 +1368,25 @@ internal fun carSettingsUiResetKey(state: CarSettingsState): CarSettingsUiResetK
 
 private val SAFETY_CONFIRM_IDS = setOf("37", "38")
 private val BLE_POWER_SETTING_IDS = setOf("37", "38")
+
+internal fun adaptivePushUiDisabledReason(
+    item: CarSettingItem,
+    state: CarSettingsState,
+    connected: Boolean,
+    powerOn: Boolean?,
+): String? {
+    if (item.configId !in setOf("64", "89")) return null
+    if (!connected || powerOn != true) return "请先连接车辆并开机"
+    if (!item.id.endsWith(":adaptive") && !item.id.endsWith(":level")) return null
+    val mainId = "cloud:${item.configId}"
+    if (mainId in state.pendingIds) return "请先等待辅助推行开关提交完成"
+    val main = state.valueState(mainId)
+    val observed = main.vehicleValue as? VehicleSettingValue.Known
+    if (observed == null || !observed.live || observed.vin != state.vin ||
+        main.readbackState != SettingReadbackState.VALID
+    ) return "请先等待辅助推行状态回读"
+    return if ((observed.kind as? CarSettingKind.Toggle)?.checked == true) null else "请先开启辅助推行"
+}
 
 @Composable
 private fun CarSettingRow(
