@@ -219,6 +219,7 @@ fun MainScreen(
         vehicleStatusSource ?: EmptyVehicleStatusSource()
     }
     val vehicleStatus by resolvedVehicleSource.status.collectAsState()
+    val vehicleObservation by resolvedVehicleSource.observation.collectAsState()
     val vehicleConnected by resolvedVehicleSource.connected.collectAsState()
     val resolvedProfileSource = remember(vehicleProfileSource) {
         vehicleProfileSource ?: EmptyVehicleProfileSource()
@@ -432,8 +433,11 @@ fun MainScreen(
     LaunchedEffect(vehicleProfile?.vin, vehiclePasswordController) {
         vehiclePasswordController?.onVinChanged(vehicleProfile?.vin.orEmpty())
     }
-    LaunchedEffect(vehicleProfile?.vin, vehicleStatus?.hex, carSettingsController) {
-        carSettingsController.updateVehicleStatus(vehicleProfile?.vin.orEmpty(), vehicleStatus)
+    LaunchedEffect(vehicleProfile?.vin, vehicleObservation, carSettingsController) {
+        carSettingsController.onVinChanged(vehicleProfile?.vin.orEmpty())
+        carSettingsController.updateVehicleObservation(vehicleObservation)
+    }
+    LaunchedEffect(vehicleProfile?.vin, vehicleStatus?.hex, vehiclePasswordController) {
         vehiclePasswordController?.onVehiclePasswordResult(
             vehicleStatus?.extended?.passwordUnlockSettingResult ?: -1,
         )

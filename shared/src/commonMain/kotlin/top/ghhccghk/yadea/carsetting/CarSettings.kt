@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.delay
 import top.ghhccghk.yadea.vehicle.TtpInfo
+import top.ghhccghk.yadea.vehicle.VehicleStatusObservation
+import top.ghhccghk.yadea.vehicle.VehicleStatusOrigin
 
 enum class CarSettingClassification(val label: String) {
     SECURITY("安全守护"),
@@ -147,6 +149,7 @@ sealed interface VehicleSettingValue {
         val vin: String,
         val sequence: Long,
         val source: SettingValueSource = SettingValueSource.LIVE_TTP,
+        val live: Boolean = true,
     ) : VehicleSettingValue
 }
 
@@ -284,6 +287,7 @@ class CarSettingsController(
     private val pendingVehicleConfirmations = mutableMapOf<String, PendingVehicleConfirmation>()
     private var loadGeneration = 0L
     private var nextOperationId = 0L
+    private var lastSourceSequence = -1L
     private val activeOperations = mutableMapOf<String, WriteOperation>()
 
     private data class WriteOperation(
@@ -576,7 +580,7 @@ class CarSettingsController(
         val pending = pendingVehicleConfirmations[id] ?: return
         val state = _state.value.valueState(id)
         val observed = state.vehicleValue as? VehicleSettingValue.Known ?: return
-        if (state.operationId != pending.operationId || observed.sequence <= pending.observedStatusGeneration) return
+        if (!observed.live || state.operationId != pending.operationId || observed.sequence <= pending.observedStatusGeneration) return
         val matches = sameValue(observed.kind, pending.kind)
         changeValueState(id) {
             it.copy(confirmationState = if (matches) SettingConfirmationState.READBACK_MATCHED else SettingConfirmationState.READBACK_MISMATCH,
@@ -597,13 +601,36 @@ class CarSettingsController(
         updateVehicleStatus(vinProvider().trim(), status)
     }
 
+    fun updateVehicleObservation(observation: VehicleStatusObservation?) {
+        if (observation == null) {
+            invalidateLiveValues()
+            return
+        }
+        if (observation.vin != vinProvider().trim() || observation.sequence <= lastSourceSequence) return
+        lastSourceSequence = observation.sequence
+        if (observation.origin != VehicleStatusOrigin.LIVE_TTP) {
+            invalidateLiveValues()
+            return
+        }
+        updateVehicleStatus(observation.vin, observation.info)
+    }
+
+    private fun invalidateLiveValues() {
+        latestVehicleStatus = null
+        val current = _state.value
+        _state.value = current.copy(valueStates = current.valueStates.mapValues { (_, value) ->
+            val known = value.vehicleValue as? VehicleSettingValue.Known
+            if (known == null) value else value.copy(vehicleValue = known.copy(live = false))
+        })
+    }
+
     fun updateVehicleStatus(vin: String, status: TtpInfo?) {
         val normalizedVin = vin.trim()
         val activeVin = vinProvider().trim()
         if (normalizedVin.isNotBlank() && activeVin.isNotBlank() && normalizedVin != activeVin) return
         if (_state.value.vin.isNotEmpty() && _state.value.vin != normalizedVin) return
         if (status == null || normalizedVin.isBlank()) {
-            latestVehicleStatus = null
+            invalidateLiveValues()
             return
         }
         val generation = ++vehicleStatusGeneration

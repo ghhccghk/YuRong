@@ -14,13 +14,25 @@ import kotlin.math.abs
 interface VehicleStatusSource {
     val status: StateFlow<TtpInfo?>
     val connected: StateFlow<Boolean>
+    val observation: StateFlow<VehicleStatusObservation?>
 }
+
+enum class VehicleStatusOrigin { LIVE_TTP, CACHED_TTP, STALE }
+
+/** VIN and provenance travel with the packet, never supplied later by a UI collector. */
+data class VehicleStatusObservation(
+    val vin: String,
+    val info: TtpInfo?,
+    val origin: VehicleStatusOrigin,
+    val sequence: Long,
+)
 
 class EmptyVehicleStatusSource : VehicleStatusSource {
     private val _status = MutableStateFlow<TtpInfo?>(null)
     private val _connected = MutableStateFlow(false)
     override val status: StateFlow<TtpInfo?> = _status.asStateFlow()
     override val connected: StateFlow<Boolean> = _connected.asStateFlow()
+    override val observation: StateFlow<VehicleStatusObservation?> = MutableStateFlow(null)
 }
 
 /** 车辆信息页的格式化结果。 */

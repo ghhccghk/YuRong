@@ -1364,7 +1364,7 @@ private fun CarSettingRow(
         })
         valueState.error?.let { append(" · $it") }
     }
-    val observed = (valueState.vehicleValue as? VehicleSettingValue.Known)?.kind
+    val observed = (valueState.vehicleValue as? VehicleSettingValue.Known)?.takeIf { it.live }?.kind
     when (val kind = observed ?: item.kind) {
         is CarSettingKind.Toggle -> if (observed == null) AppActionPreference(
             title = item.title, summary = summary, value = "未知", enabled = enabled, onClick = onOpenDetail,
@@ -1429,8 +1429,10 @@ private fun CarSettingRow(
     }
 }
 
-private fun vehicleValueLabel(state: CarSettingValueState): String =
-    (state.vehicleValue as? VehicleSettingValue.Known)?.kind?.let(::settingKindLabel) ?: "UNKNOWN"
+private fun vehicleValueLabel(state: CarSettingValueState): String {
+    val known = state.vehicleValue as? VehicleSettingValue.Known ?: return "UNKNOWN"
+    return if (known.live) settingKindLabel(known.kind) else "UNKNOWN（历史回读：${settingKindLabel(known.kind)}）"
+}
 
 private fun settingKindLabel(kind: CarSettingKind): String = when (kind) {
     is CarSettingKind.Toggle -> if (kind.checked) "开启" else "关闭"
