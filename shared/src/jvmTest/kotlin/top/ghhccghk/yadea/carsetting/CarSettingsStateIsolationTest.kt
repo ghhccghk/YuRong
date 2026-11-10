@@ -60,6 +60,7 @@ class CarSettingsStateIsolationTest {
         }
         currentVin = "VIN-B"
         assertTrue(controller.refresh())
+        val newVehicleState = controller.state.value
         oldResponse.complete(
             CloudCarSettings(
                 configs = listOf(
@@ -73,7 +74,9 @@ class CarSettingsStateIsolationTest {
         val state = controller.state.value
         assertEquals(false, oldResult)
         assertEquals("VIN-B", state.vin)
-        assertEquals(listOf("cloud:31"), state.items.map { it.id })
+        assertEquals(newVehicleState, state)
+        assertTrue(state.items.any { it.id == "cloud:31" })
+        assertFalse(state.items.any { it.id == "cloud:2" })
     }
 
     @Test
