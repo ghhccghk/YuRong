@@ -360,7 +360,7 @@ class YadeaCarSettingsGateway(
     ): CustomSoundState? {
         val token = tokenProvider().trim()
         if (token.isBlank() || vin.isBlank()) return null
-        val resourcePlain = postFields(
+        val resourcePlain = postSoundFields(
             path = "resource/queryResourceList",
             fields = mapOf(
                 "_gateway" to "True",
@@ -373,7 +373,7 @@ class YadeaCarSettingsGateway(
             ?.takeIf { JsonSupport.boolean(it, "success") != false }
             ?.let(::parseCustomSoundResources)
             .orEmpty()
-        val bikePlain = postFields(
+        val bikePlain = postSoundFields(
             path = "resourceBike/queryResourceBikeList",
             fields = mapOf("_gateway" to "True", "vin" to vin),
             token = token,
@@ -382,7 +382,7 @@ class YadeaCarSettingsGateway(
             ?.takeIf { JsonSupport.boolean(it, "success") != false }
             ?.let(::soundDataObjects)
             .orEmpty()
-        val configPlain = postFields(
+        val configPlain = postSoundFields(
             path = "vehiclebase/bike-model/selectConfigListByVin",
             fields = mapOf(
                 "_gateway" to "True",
@@ -391,7 +391,7 @@ class YadeaCarSettingsGateway(
             ),
             token = token,
         )
-        val countPlain = postFields(
+        val countPlain = postSoundFields(
             path = "resourcesBike/queryCountSetResourceBike",
             fields = mapOf(
                 "_gateway" to "True",
@@ -410,6 +410,16 @@ class YadeaCarSettingsGateway(
             boolField(it, "isSelected") || intField(it, "resourceType") == 1
         }
         val selectedId = selected?.let { textOrNumber(it, "resourceId") }.orEmpty()
+        val fields = buildSet {
+            if (soundResponseHasData(resourcePlain)) add(CustomSoundData.RESOURCES)
+            if (configPlain?.let { JsonSupport.boolean(it, "success") } == true && categoryData.parentId.isNotBlank()) add(CustomSoundData.CATEGORIES)
+            if (soundResponseHasData(bikePlain)) {
+                if (CustomSoundData.CATEGORIES in this) add(CustomSoundData.SELECTION)
+                if (selected != null && (boolFieldOrNull(selected, "isSelected") != null || intField(selected, "soundEffectSendType") != null)) add(CustomSoundData.ENABLED)
+            }
+            if (countPlain?.let { JsonSupport.boolean(it, "success") } == true && count?.first != null && count.second != null) add(CustomSoundData.COUNT)
+        }
+        if (fields.isEmpty()) return null
         return CustomSoundState(
             enabled = selected?.let {
                 boolField(it, "isSelected") ||
@@ -439,13 +449,14 @@ class YadeaCarSettingsGateway(
             parentConfName = categoryData.parentName.ifBlank { "自定义音效" },
             sonConfId = categoryData.categories.firstOrNull()?.sonConfId
                 ?: selected?.let { textOrNumber(it, "sonConfId") }.orEmpty(),
+            loadedFields = fields,
         )
     }
 
     override suspend fun setCustomSoundEnabled(vin: String, enabled: Boolean): Boolean {
         val token = tokenProvider().trim()
         if (token.isBlank() || vin.isBlank()) return false
-        val plain = postFields(
+        val plain = postSoundFields(
             path = "protocol/control-vehicle/user_defined_sound_effect",
             fields = mapOf(
                 "_gateway" to "True",
@@ -454,6 +465,7 @@ class YadeaCarSettingsGateway(
             ),
             token = token,
         ) ?: return false
+        recordCustomSoundReceipt(accepted = JsonSupport.boolean(plain, "success"))
         if (JsonSupport.boolean(plain, "success") == false) return false
         return pollSoundResult(
             token = token,
@@ -471,7 +483,7 @@ class YadeaCarSettingsGateway(
         val token = tokenProvider().trim()
         if (token.isBlank() || vin.isBlank()) return false
         if (state.parentConfId.isBlank() || category.sonConfId.isBlank()) return false
-        val plain = postFields(
+        val plain = postSoundFields(
             path = "resourcesBike/setResourceBike",
             fields = mapOf(
                 "_gateway" to "True",
@@ -485,6 +497,7 @@ class YadeaCarSettingsGateway(
             ),
             token = token,
         ) ?: return false
+        recordCustomSoundReceipt(accepted = JsonSupport.boolean(plain, "success"))
         if (JsonSupport.boolean(plain, "success") == false) return false
         return pollSoundResult(
             token = token,
@@ -496,7 +509,7 @@ class YadeaCarSettingsGateway(
     override suspend fun deleteCustomSound(vin: String, resourceId: String): Boolean {
         val token = tokenProvider().trim()
         if (token.isBlank() || vin.isBlank() || resourceId.isBlank()) return false
-        val plain = postFields(
+        val plain = postSoundFields(
             path = "resource/deleteUserResource",
             fields = mapOf(
                 "_gateway" to "True",
@@ -517,7 +530,7 @@ class YadeaCarSettingsGateway(
         if (token.isBlank() || vin.isBlank() || resourceId.isBlank() || name.isBlank()) {
             return false
         }
-        val plain = postFields(
+        val plain = postSoundFields(
             path = "resource/renameUserResource",
             fields = mapOf(
                 "_gateway" to "True",
@@ -540,7 +553,7 @@ class YadeaCarSettingsGateway(
         if (token.isBlank() || vin.isBlank() || name.isBlank() || resourceUrl.isBlank()) {
             return false
         }
-        val plain = postFields(
+        val plain = postSoundFields(
             path = "resource/addUserResource",
             fields = mapOf(
                 "_gateway" to "True",
@@ -559,6 +572,10 @@ class YadeaCarSettingsGateway(
         val parentName: String = "",
         val categories: List<CustomSoundCategory> = emptyList(),
     )
+
+    private fun soundResponseHasData(plain: String?): Boolean = plain != null &&
+        JsonSupport.boolean(plain, "success") == true &&
+        (JsonSupport.objectField(plain, "data") != null || Regex("\"data\"\\s*:\\s*\\[").containsMatchIn(plain))
 
     private fun soundCategories(
         plain: String?,
@@ -666,7 +683,7 @@ class YadeaCarSettingsGateway(
         if (otaSendId.isBlank()) return true
         repeat(15) { attempt ->
             if (attempt > 0) delay(1_000L)
-            val plain = postFields(
+            val plain = postSoundFields(
                 path = "resourcesBike/queryResultSetResourceBike",
                 fields = mapOf(
                     "_gateway" to "True",
@@ -677,7 +694,9 @@ class YadeaCarSettingsGateway(
             ) ?: return@repeat
             if (JsonSupport.boolean(plain, "success") == false) return false
             val data = JsonSupport.objectField(plain, "data") ?: plain
-            when (val status = intField(data, "status")) {
+            val status = intField(data, "status")
+            recordCustomSoundReceipt(status = status)
+            when (status) {
                 0 -> return true
                 3 -> return false
                 null -> if (attempt >= 2) return true
@@ -685,6 +704,12 @@ class YadeaCarSettingsGateway(
             }
         }
         return false
+    }
+
+    // Limit lifecycle checks to custom sound, without changing other settings or transport.
+    private suspend fun postSoundFields(path: String, fields: Map<String, Any?>, token: String): String? {
+        checkCustomSoundRequest()
+        return postFields(path, fields, token).also { checkCustomSoundRequest() }
     }
 
     private var timestampOffsetMs: Long = 0L

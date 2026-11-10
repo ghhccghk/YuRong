@@ -315,6 +315,12 @@ fun MainScreen(
             )
         }
     }
+    DisposableEffect(customSoundController) {
+        onDispose { customSoundController?.dispose() }
+    }
+    LaunchedEffect(vehicleProfile?.vin, vehicleProfile?.bikeModelId, customSoundController) {
+        customSoundController?.onVehicleChanged()
+    }
     val otaController = remember(otaGateway) {
         OtaController(
             gateway = otaGateway,

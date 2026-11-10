@@ -45,6 +45,8 @@ import top.ghhccghk.yadea.carsetting.CarSettingsState
 import top.ghhccghk.yadea.carsetting.CustomSoundController
 import top.ghhccghk.yadea.carsetting.CustomSoundCategory
 import top.ghhccghk.yadea.carsetting.CustomSoundResource
+import top.ghhccghk.yadea.carsetting.CustomSoundData
+import top.ghhccghk.yadea.carsetting.CustomSoundOperationStatus
 import top.ghhccghk.yadea.carsetting.createSoundPreviewPlayer
 import top.ghhccghk.yadea.vehicle.ContactType
 import top.ghhccghk.yadea.vehicle.EmergencyContactController
@@ -104,6 +106,20 @@ fun CarSettingsScreen(
     var newSoundUrl by remember(uiResetKey) { mutableStateOf("") }
     var playingSoundId by remember(uiResetKey) { mutableStateOf<String?>(null) }
     val soundPreviewPlayer = remember { createSoundPreviewPlayer() }
+    DisposableEffect(customSoundController) {
+        onDispose { customSoundController?.cancelPending() }
+    }
+    LaunchedEffect(customSoundState?.vin, customSoundState?.modelId, customSoundState?.generation) {
+        showCustomSounds = false
+        selectedSoundCategory = null
+        deleteSoundTarget = null
+        renameSoundTarget = null
+        renameSoundText = ""
+        newSoundName = ""
+        newSoundUrl = ""
+        soundPreviewPlayer.stop()
+        playingSoundId = null
+    }
     DisposableEffect(soundPreviewPlayer) {
         onDispose { soundPreviewPlayer.release() }
     }
@@ -947,14 +963,18 @@ fun CarSettingsScreen(
     }
     if (customSoundController != null) {
         val soundState = customSoundState
-        val soundBusy = soundState?.busy == true
+        val soundBusy = soundState?.busy == true || soundState?.loading == true || soundState?.reconciliationRequired == true
         AppBottomSheet(
             show = showCustomSounds,
             onDismissRequest = {
                 showCustomSounds = false
                 selectedSoundCategory = null
                 renameSoundTarget = null
+                deleteSoundTarget = null
+                customSoundController.cancelPending()
                 customSoundController.clearMessage()
+                soundPreviewPlayer.stop()
+                playingSoundId = null
             },
             title = "自定义音效",
         ) {
@@ -969,13 +989,38 @@ fun CarSettingsScreen(
                         color = AppDesign.colors.onSurfaceVariant,
                     )
                 }
-                AppSwitchPreference(
+                val localEnabled = soundState?.draftEnabled ?: soundState?.submittedEnabled?.takeIf {
+                    soundState.operationStatus == CustomSoundOperationStatus.SUCCESS
+                }
+                val enabledKnown = CustomSoundData.ENABLED in soundState?.loadedFields.orEmpty()
+                if (enabledKnown || localEnabled != null) AppSwitchPreference(
                     title = "自定义音效开关",
-                    summary = "关闭后车辆使用默认开机音效",
-                    checked = soundState?.enabled == true,
+                    summary = if (enabledKnown && soundState != null) {
+                        "云端记录：${if (soundState.enabled) "开启" else "关闭"}；车辆回读：UNKNOWN"
+                    } else "云端状态：UNKNOWN；车辆回读：UNKNOWN",
+                    checked = localEnabled ?: (soundState?.enabled == true),
                     onCheckedChange = { customSoundController.setEnabled(it) },
-                    enabled = !soundBusy,
+                    enabled = !soundBusy && soundState?.cloudLoaded == true,
                 )
+                else {
+                    AppText("自定义音效开关：UNKNOWN", style = AppDesign.typography.summary)
+                    AppActionPreference(title = "开启自定义音效", enabled = !soundBusy && soundState?.cloudLoaded == true,
+                        onClick = { customSoundController.setEnabled(true) })
+                    AppActionPreference(title = "关闭自定义音效", enabled = !soundBusy && soundState?.cloudLoaded == true,
+                        onClick = { customSoundController.setEnabled(false) })
+                }
+                if (soundState?.reconciliationRequired == true) {
+                    AppText("上次请求已取消等待，需重新查询云端状态", style = AppDesign.typography.summary)
+                }
+                soundState?.submittedEnabled?.let { target ->
+                    AppText("本次选择：${if (target) "开启" else "关闭"}；${soundState.operationStatus}", style = AppDesign.typography.summary)
+                }
+                soundState?.submittedSelection?.let { target ->
+                    AppText("本次选择：${target.category.name} / ${target.resource.name}；${soundState.operationStatus}", style = AppDesign.typography.summary)
+                }
+                if (soundState?.requestAccepted != null || soundState?.serverStatus != null) {
+                    AppText("云端接受：${soundState.requestAccepted ?: "UNKNOWN"}；服务端结果码：${soundState.serverStatus ?: "UNKNOWN"}；车辆未确认", style = AppDesign.typography.summary)
+                }
                 soundState?.message?.takeIf { it.isNotBlank() }?.let { message ->
                     AppText(
                         text = message,
@@ -1001,8 +1046,8 @@ fun CarSettingsScreen(
                 categories.forEach { category ->
                     AppListRow(
                         title = category.name,
-                        summary = "点击选择或更换音效",
-                        value = category.selectedName.ifBlank { "未设置" },
+                        summary = "云端配置记录，非车辆实时回读",
+                        value = if (CustomSoundData.SELECTION in soundState?.loadedFields.orEmpty()) category.selectedName.ifBlank { "未设置" } else "UNKNOWN",
                         onClick = { selectedSoundCategory = category },
                     )
                 }
@@ -1069,17 +1114,21 @@ fun CarSettingsScreen(
                             AppEmptyState("云端暂无可用音效")
                         }
                         resources.forEach { resource ->
-                            val selected = resource.id == category.selectedResourceId
+                            val localSelection = soundState?.submittedSelection?.takeIf {
+                                soundState.operationStatus == CustomSoundOperationStatus.SUCCESS && it.category.sonConfId == category.sonConfId
+                            }
+                            val selected = if (localSelection != null) resource.id == localSelection.resource.id
+                                else CustomSoundData.SELECTION in soundState?.loadedFields.orEmpty() && resource.id == category.selectedResourceId
                             AppListRow(
                                 title = resource.name,
                                 summary = if (selected) {
-                                    "当前分类正在使用"
+                                    if (localSelection != null) "本次选择，车辆未确认" else "当前分类云端记录"
                                 } else {
                                     "点击应用到「${category.name}」"
                                 },
-                                value = if (selected) "使用中" else "应用",
+                                value = if (selected) { if (localSelection != null) "本次选择" else "云端已选" } else "应用",
                                 onClick = {
-                                    if (!selected) {
+                                    if (!selected && !soundBusy) {
                                         soundPreviewPlayer.stop()
                                         playingSoundId = null
                                         customSoundController.apply(category, resource)
