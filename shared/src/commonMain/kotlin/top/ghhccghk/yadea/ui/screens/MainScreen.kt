@@ -424,6 +424,7 @@ fun MainScreen(
         authUiState.session.token,
         carSettingsGateway,
     ) {
+        carSettingsController.onVinChanged(vehicleProfile?.vin.orEmpty())
         if (authUiState.session.token.isNotBlank() && !vehicleProfile?.vin.isNullOrBlank()) {
             carSettingsController.refresh()
         }

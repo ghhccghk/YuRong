@@ -70,9 +70,12 @@ class CloudCarSettingWriter(
         val bleAvailable = bleAvailableProvider()
         if (bleAvailable) {
             val fallback = bleFallback?.writeWithResult(item)
+            if (vinProvider().trim() != vin) return CarSettingWriteResult(false)
             if (fallback?.success == true) return fallback
         }
+        if (vinProvider().trim() != vin) return CarSettingWriteResult(false)
         if (update != null && gateway.update(vin, update)) {
+            if (vinProvider().trim() != vin) return CarSettingWriteResult(false)
             return CarSettingWriteResult(
                 success = true,
                 channel = CarSettingWriteChannel.CLOUD,
