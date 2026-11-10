@@ -747,6 +747,9 @@ class CarSettingsController(
                 "31" -> item.withIndex(
                     status.extended.metricSystemStatus.takeIf { it in 0..1 },
                 )
+                "50" -> item.withIndex(
+                    status.extended.panelThemeCurrent.takeIf { it in 0..1 },
+                )
                 "54" -> item.withIndex(
                     (status.extended.voltageSettingStatus - 1)
                         .takeIf { status.extended.voltageSettingStatus in 1..3 },

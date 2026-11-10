@@ -156,4 +156,26 @@ class EighthRoundValueStateTest {
         assertTrue(c.submitDraft("cloud:20"))
         assertEquals(VehicleSettingValue.Unknown, c.value("cloud:20").vehicleValue)
     }
+
+    @Test fun panelStyleUsesProvenTtpBitsAndOnlyOriginalPageOptions() = runBlocking {
+        val c = controller(listOf("50"))
+        val item = c.state.value.items.single()
+        assertEquals(2, (item.kind as CarSettingKind.Choice).options.size)
+        assertFalse(item.kind.valueKnown)
+        assertTrue(c.editDraft(item.id) { (it as CarSettingKind.Choice).copy(selectedIndex = 1) })
+        assertEquals(VehicleSettingValue.Unknown, c.value(item.id).vehicleValue)
+        assertTrue(c.submitDraft(item.id))
+        assertEquals(VehicleSettingValue.Unknown, c.value(item.id).vehicleValue)
+        for (raw in listOf(2, 3)) {
+            val data = ByteArray(256) { -1 }.also { it[0x2E] = (0xFC or raw).toByte() }
+            val parsed = TtpInfoParser.parse(data)
+            assertEquals(if (raw == 3) -1 else raw, parsed.extended.panelThemeCurrent)
+            c.updateVehicleStatus("VIN-A", parsed)
+            assertEquals(VehicleSettingValue.Unknown, c.value(item.id).vehicleValue)
+        }
+        val data = ByteArray(256) { -1 }.also { it[0x2E] = 0xFD.toByte() }
+        c.updateVehicleStatus("VIN-A", TtpInfoParser.parse(data))
+        assertEquals(SettingConfirmationState.READBACK_MATCHED, c.value(item.id).confirmationState)
+        assertEquals(1, ((c.value(item.id).vehicleValue as VehicleSettingValue.Known).kind as CarSettingKind.Choice).selectedIndex)
+    }
 }

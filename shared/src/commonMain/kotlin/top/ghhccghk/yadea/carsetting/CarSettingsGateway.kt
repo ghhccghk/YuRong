@@ -1656,10 +1656,11 @@ object CloudCarSettingMapper {
             cloud.boolValue("bleLeavePowerOffEnable") == true,
         )
         "11" -> unknownToggle()
-        // GaugeStyleHandOffActivity：仪表主题，参数 0..2。
+        // GaugeStyleHandOffActivity.onCheckChange: rb_1=0, rb_2=1.
         "50" -> CarSettingKind.Choice(
             selectedIndex = 0,
-            options = listOf("风格 1", "风格 2", "风格 3"),
+            options = listOf("风格 1", "风格 2"),
+            valueKnown = false,
         )
         // ScheduledShutDown2Activity 与 confId 15 使用同一组定时关机命令。
         "59" -> CarSettingKind.Toggle(

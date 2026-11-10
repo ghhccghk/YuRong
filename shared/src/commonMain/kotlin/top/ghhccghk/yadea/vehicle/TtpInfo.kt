@@ -353,6 +353,8 @@ data class TtpExtendedInfo(
     val iotRemoveAlarm: Int,
     val laterIotStatus: Int,
     val removeAlarm: Int,
+    /** l76.z -> panelThemeCurrent: byte 0x2E bits 0..1; 3 is invalid. */
+    val panelThemeCurrent: Int = Ttp.INVALID_I,
 )
 
 /**
@@ -721,6 +723,7 @@ internal object TtpInfoParser {
             iotRemoveAlarm = Ttp.G(d, 0x2E, 6),
             laterIotStatus = Ttp.G(d, 0x2E, 4),
             removeAlarm = Ttp.G(d, 0x2E, 6),
+            panelThemeCurrent = Ttp.G(d, 0x2E, 0),
         )
     }
 
