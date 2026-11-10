@@ -30,6 +30,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import top.ghhccghk.yadea.carsetting.CarSettingChannel
 import top.ghhccghk.yadea.carsetting.CarSettingClassification
 import top.ghhccghk.yadea.carsetting.CarSettingItem
@@ -524,15 +525,18 @@ fun CarSettingsScreen(
                 summary = sliderTarget.summary,
                 value = draft,
                 onValueChange = { raw ->
+                    if (isAuditedThreeTickSlider(sliderTarget) && !settingControlEnabled(sliderTarget)) return@AppSliderPreference
+                    val uiValue = settingSliderDraftValue(sliderTarget, raw) ?: return@AppSliderPreference
                     val minimum = slider.minimumNonZero
-                    val next = if (minimum != null && raw > 0f && raw < minimum) {
-                        if (raw < minimum / 2f) 0f else minimum
+                    val next = if (minimum != null && uiValue > 0f && uiValue < minimum) {
+                        if (uiValue < minimum / 2f) 0f else minimum
                     } else {
-                        raw
+                        uiValue
                     }
                     controller.editDraft(sliderTarget.id) { slider.copy(value = next, valueKnown = true) }
                 },
                 onValueChangeFinished = {
+                    if (isAuditedThreeTickSlider(sliderTarget) && !settingControlEnabled(sliderTarget)) return@AppSliderPreference
                     settingScope.launch { controller.submitDraft(sliderTarget.id) }
                 },
                 valueRange = slider.range,
@@ -545,6 +549,19 @@ fun CarSettingsScreen(
                 enabled = settingControlEnabled(sliderTarget),
             )
             AppText("车辆当前值：" + vehicleValueLabel(state.valueState(sliderTarget.id)), style = AppDesign.typography.summary)
+            if (isAuditedThreeTickSlider(sliderTarget)) {
+                AppButton(
+                    enabled = settingControlEnabled(sliderTarget),
+                    onClick = {
+                        val next = settingSliderDraftValue(sliderTarget, draft)
+                        if (next != null && settingControlEnabled(sliderTarget) &&
+                            controller.editDraft(sliderTarget.id) { slider.copy(value = next, valueKnown = true) }
+                        ) {
+                            settingScope.launch { controller.submitDraft(sliderTarget.id) }
+                        }
+                    },
+                ) { AppText("保存") }
+            }
             AppOutlinedButton(onClick = { controller.cancelDraft(sliderTarget.id); detailItem = null }) {
                 AppText("取消编辑")
             }
@@ -1373,6 +1390,19 @@ internal fun carSettingsUiResetKey(state: CarSettingsState): CarSettingsUiResetK
 
 private val SAFETY_CONFIRM_IDS = setOf("37", "38")
 private val BLE_POWER_SETTING_IDS = setOf("37", "38")
+
+internal fun isAuditedThreeTickSlider(item: CarSettingItem): Boolean =
+    item.id == "cloud:14" || item.id == "cloud:64:level" || item.id == "cloud:89:level"
+
+/** Normalize UI input only; observed values and command validation remain unchanged. */
+internal fun settingSliderDraftValue(item: CarSettingItem, raw: Float): Float? {
+    if (!isAuditedThreeTickSlider(item)) return raw
+    val slider = item.kind as? CarSettingKind.Slider ?: return null
+    val expectedRange = if (item.configId == "14") 0f..100f else 0f..2f
+    if (slider.range != expectedRange || slider.steps != 1 || !raw.isFinite() || raw !in expectedRange) return null
+    val interval = (expectedRange.endInclusive - expectedRange.start) / 2f
+    return expectedRange.start + ((raw - expectedRange.start) / interval).roundToInt() * interval
+}
 
 internal fun adaptivePushUiDisabledReason(
     item: CarSettingItem,
