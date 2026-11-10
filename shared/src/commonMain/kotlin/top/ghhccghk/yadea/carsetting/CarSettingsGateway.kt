@@ -1731,11 +1731,18 @@ object CloudCarSettingMapper {
                 minimumNonZero = 15f,
             )
         }
-        // 车辆音量和报警灵敏度都是 0..7 的档位，原 App 使用滑杆。
-        "20", "14" -> CarSettingKind.Slider(
+        // VehicleVolumeActivity keeps its independent 0..7 range.
+        "20" -> CarSettingKind.Slider(
             value = 0f,
             range = 0f..7f,
             steps = 6,
+            valueKnown = false,
+        )
+        // Original alarm layout has three ticks on the default 0..100 progress range.
+        "14" -> CarSettingKind.Slider(
+            value = 0f,
+            range = 0f..100f,
+            steps = 1,
             valueKnown = false,
         )
         "2", "32" -> unknownToggle()

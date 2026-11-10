@@ -62,6 +62,23 @@ internal object BatteryCapacityOptions {
     val labels = valuesAh.map { "${it}Ah" }
 }
 
+/** Original alarm page: raw 0/1/2 -> progress 0/50/100; writes use the tick, not progress. */
+internal object AlarmSensitivityMapping {
+    fun progressFromRaw(raw: Int): Float? = when (raw) {
+        0 -> 0f
+        1 -> 50f
+        2 -> 100f
+        else -> null
+    }
+
+    fun tickFromProgress(progress: Float): Int? = when (progress) {
+        0f -> 0
+        50f -> 1
+        100f -> 2
+        else -> null
+    }
+}
+
 sealed interface CarSettingKind {
     data class Toggle(val checked: Boolean, val valueKnown: Boolean = true) : CarSettingKind
     data class Choice(val selectedIndex: Int, val options: List<String>, val valueKnown: Boolean = true) : CarSettingKind
@@ -873,7 +890,7 @@ class CarSettingsController(
                     status.extended.alarmWarningVolumeLevel.floatIn(0..7),
                 )
                 "14" -> item.withSlider(
-                    status.extended.alarmWarningMode.floatIn(0..7),
+                    AlarmSensitivityMapping.progressFromRaw(status.extended.alarmSensitivityStatus),
                 )
                 else -> item
             }

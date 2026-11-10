@@ -606,13 +606,13 @@ object VehicleSettingCommands {
                     parameter = slider.value.toInt().coerceIn(0, 7),
                 )
             }
-            // VehicleAlarmSensitivityActivity：0..7 档。
+            // VehicleAlarmSensitivityActivity sends thumbPosition, not 0/50/100 progress.
             "14" -> {
                 val slider = kind as? CarSettingKind.Slider ?: return null
                 VehicleSettingCommand(
                     commandType = "ALARM_SENSITIVITY_GEAR",
                     commandId = 0x5F,
-                    parameter = slider.value.toInt().coerceIn(0, 7),
+                    parameter = AlarmSensitivityMapping.tickFromProgress(slider.value) ?: return null,
                 )
             }
             // EnergyRecoveryActivity：1..3 档，命令值直接是档位。

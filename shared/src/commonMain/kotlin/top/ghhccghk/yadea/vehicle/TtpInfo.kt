@@ -355,6 +355,8 @@ data class TtpExtendedInfo(
     val removeAlarm: Int,
     /** l76.z -> panelThemeCurrent: byte 0x2E bits 0..1; 3 is invalid. */
     val panelThemeCurrent: Int = Ttp.INVALID_I,
+    /** l76.z -> alarmSensitivityStatus: C(data, 0x1C, 2); raw 7 is invalid. */
+    val alarmSensitivityStatus: Int = Ttp.INVALID_I,
 )
 
 /**
@@ -565,6 +567,7 @@ internal object TtpInfoParser {
             automaticHeadlightFunctionStatus = Ttp.G(d, 0x34, 0),
             turnSignalReturnsAutomaticallyStatus = Ttp.G(d, 0x33, 6),
             alarmWarningMode = Ttp.C(d, 0x33, 0),
+            alarmSensitivityStatus = Ttp.C(d, 0x1C, 2),
             alarmWarningVolumeLevel = Ttp.C(d, 0x33, 3),
             slideModePowerRecoverStatus = Ttp.G(d, 0x26, 0),
             slideModePowerRecoverCurrent = Ttp.C(d, 0x26, 2),

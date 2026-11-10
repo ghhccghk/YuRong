@@ -36,7 +36,7 @@ class EighthRoundValueStateTest {
         c.updateVehicleStatus("VIN-A", unknown)
         ids.forEach { assertEquals(VehicleSettingValue.Unknown, c.value(it).vehicleValue) }
         val valid = unknown.copy(extended = unknown.extended.copy(
-            alarmWarningMode = 3, alarmWarningVolumeLevel = 4, withGoHomeTimeStatus = 2,
+            alarmSensitivityStatus = 1, alarmWarningVolumeLevel = 4, withGoHomeTimeStatus = 2,
             offModeStatus = 1, metricSystemStatus = 1, voltageSettingStatus = 2,
         ))
         c.updateVehicleStatus("VIN-OLD", valid)
