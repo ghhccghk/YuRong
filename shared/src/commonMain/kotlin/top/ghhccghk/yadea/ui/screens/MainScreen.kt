@@ -96,6 +96,9 @@ private enum class MainDestination(
     Settings("设置", MiuixIcons.Settings),
 }
 
+internal fun carSettingsModelKey(profile: VehicleProfile?) =
+    Triple(profile?.bikeModelId, profile?.modelNo, profile?.seriesCode)
+
 private fun MainScreenStartDestination.toMainDestination(): MainDestination = when (this) {
     MainScreenStartDestination.Connection -> MainDestination.Connection
     MainScreenStartDestination.Vehicle -> MainDestination.Device
@@ -297,6 +300,7 @@ fun MainScreen(
         resolvedCarSettingWriter,
         carSettingsGateway,
         resolvedProfileSource,
+        carSettingsModelKey(vehicleProfile),
     ) {
         CarSettingsController(
             initialItems = emptyList(),

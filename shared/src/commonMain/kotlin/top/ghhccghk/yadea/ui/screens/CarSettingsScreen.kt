@@ -15,6 +15,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -75,7 +76,8 @@ fun CarSettingsScreen(
     val passwordState = passwordController?.state?.collectAsState()?.value
     val scope = rememberCoroutineScope()
     val dimensions = AppDesign.dimensions
-    val uiResetKey = carSettingsUiResetKey(state)
+    val uiResetKey = carSettingsUiSessionKey(controller, state)
+    val settingScope = key(uiResetKey) { rememberCoroutineScope() }
     var confirmDisable by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     var confirmBraceDependency by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     var atmosphereItem by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
@@ -177,7 +179,7 @@ fun CarSettingsScreen(
                 confirmBraceDependency = item
             }
         } else {
-            scope.launch { controller.update(item.id, transform) }
+            settingScope.launch { controller.update(item.id, transform) }
         }
     }
     val capacitySwitchOn = (state.items + state.missingCloudItems)
@@ -531,7 +533,7 @@ fun CarSettingsScreen(
                     controller.editDraft(sliderTarget.id) { slider.copy(value = next, valueKnown = true) }
                 },
                 onValueChangeFinished = {
-                    scope.launch { controller.submitDraft(sliderTarget.id) }
+                    settingScope.launch { controller.submitDraft(sliderTarget.id) }
                 },
                 valueRange = slider.range,
                 steps = slider.steps,
@@ -1358,6 +1360,9 @@ internal data class CarSettingsUiResetKey(
     val loadGeneration: Long,
     val loadedFromCloud: Boolean,
 )
+
+internal fun carSettingsUiSessionKey(controller: CarSettingsController, state: CarSettingsState) =
+    controller to carSettingsUiResetKey(state)
 
 internal fun carSettingsUiResetKey(state: CarSettingsState): CarSettingsUiResetKey =
     CarSettingsUiResetKey(
