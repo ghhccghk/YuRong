@@ -540,14 +540,10 @@ fun CarSettingsScreen(
                 },
                 valueRange = slider.range,
                 steps = slider.steps,
-                valueText = if (slider.minimumNonZero != null && draft == 0f) {
-                    "不限速"
-                } else {
-                    formatSettingValue(draft, slider.unit)
-                },
+                valueText = settingSliderValueLabel(state.valueState(sliderTarget.id).displayKind() as? CarSettingKind.Slider),
                 enabled = settingControlEnabled(sliderTarget),
             )
-            AppText("车辆当前值：" + vehicleValueLabel(state.valueState(sliderTarget.id)), style = AppDesign.typography.summary)
+            AppText(settingValueSourceSummary(state.valueState(sliderTarget.id)), style = AppDesign.typography.summary)
             if (isAuditedThreeTickSlider(sliderTarget)) {
                 AppButton(
                     enabled = settingControlEnabled(sliderTarget),
@@ -574,7 +570,7 @@ fun CarSettingsScreen(
         title = optionTarget?.title.orEmpty(),
     ) {
         if (optionTarget != null) {
-            AppText("车辆当前值：" + vehicleValueLabel(state.valueState(optionTarget.id)), style = AppDesign.typography.summary)
+            AppText(settingValueSourceSummary(state.valueState(optionTarget.id)), style = AppDesign.typography.summary)
             val options = (optionTarget.kind as CarSettingKind.Choice).options
             options.forEachIndexed { index, label ->
                 AppActionPreference(title = label, enabled = settingControlEnabled(optionTarget), onClick = {
@@ -1380,10 +1376,8 @@ internal fun carSettingSummary(
             }
             if (!item.writable) append(" · 只读")
         }
-        append(" · 车辆当前值：")
-        append(vehicleValueLabel(valueState))
-        valueState.cachedValue?.let { append(" · 本地缓存：${settingKindLabel(it.kind)}（历史值）") }
-        valueState.configuredValue?.let { append(" · 配置记录：${settingKindLabel(it)}（非实时）") }
+        append(" · ")
+        append(settingValueSourceSummary(valueState))
         valueState.draftValue?.let { append(" · 草稿：${settingKindLabel(it)}") }
         valueState.submittedValue?.let { append(" · 本次选择：${settingKindLabel(it)}") }
         append(when (valueState.writeState) {
@@ -1393,7 +1387,7 @@ internal fun carSettingSummary(
             SettingWriteState.LOCAL_UPDATED -> if (valueState.writeChannel == CarSettingWriteChannel.BLE)
                 " · 蓝牙通道已接收，未代表车辆执行" else " · 本次选择已提交，通道未知"
             SettingWriteState.FAILED -> " · 写入失败"
-            SettingWriteState.CANCELLED -> " · 操作已取消"
+            SettingWriteState.CANCELLED -> " · 本次等待已取消，不代表远端操作撤销"
             SettingWriteState.IDLE -> ""
         })
         append(when (valueState.confirmationState) {
@@ -1444,13 +1438,7 @@ private fun CarSettingRow(
         is CarSettingKind.Slider -> AppActionPreference(
             title = item.title,
             summary = summary,
-            value = if (observed == null) {
-                "状态未知"
-            } else if (kind.minimumNonZero != null && kind.value == 0f) {
-                "不限速"
-            } else {
-                formatSettingValue(kind.value, kind.unit)
-            },
+            value = settingSliderValueLabel(observed as? CarSettingKind.Slider),
             enabled = enabled,
             onClick = onOpenDetail,
         )
@@ -1479,6 +1467,20 @@ private fun CarSettingRow(
             onClick = onOpenDetail,
         )
     }
+}
+
+internal fun settingValueSourceSummary(state: CarSettingValueState): String = buildList {
+    if (state.configuredValue == null || state.vehicleValue is VehicleSettingValue.Known) {
+        add("车辆当前值：${vehicleValueLabel(state)}")
+    }
+    state.cachedValue?.let { add("本地缓存：${settingKindLabel(it.kind)}（历史值）") }
+    state.configuredValue?.let { add("云端配置：${settingKindLabel(it)}（非车辆回读）") }
+}.joinToString(" · ")
+
+internal fun settingSliderValueLabel(kind: CarSettingKind.Slider?): String = when {
+    kind == null -> "状态未知"
+    kind.minimumNonZero != null && kind.value == 0f -> "不限速"
+    else -> formatSettingValue(kind.value, kind.unit)
 }
 
 private fun vehicleValueLabel(state: CarSettingValueState): String {

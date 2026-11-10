@@ -778,9 +778,7 @@ class YadeaCarSettingsGateway(
         JsonSupport.string(json, key) ?: JsonSupport.numberText(json, key)
 
     private fun readValue(json: String, key: String): String? =
-        JsonSupport.string(json, key)
-            ?: JsonSupport.numberText(json, key)
-            ?: JsonSupport.boolean(json, key)?.toString()
+        JsonSupport.topLevelScalarText(json, key)
 
     private fun intField(json: String, key: String): Int? =
         JsonSupport.int(json, key) ?: JsonSupport.string(json, key)?.toIntOrNull()
@@ -829,7 +827,7 @@ class YadeaCarSettingsGateway(
             "colorEggSoundEffect", "cutPowerOn", "distance", "distanceOn",
             "dumpAlarm", "emergencyContact", "highestSpeedLimit", "lowBatTelWarning",
             "lowBatWarningEndTime", "lowBatWarningStartTime", "modeOn", "nfcOn",
-            "offlineLock", "offlineLockValue", "onOffSound", "positioningFunc",
+            "offlineLock", "offlineLockValue", "onOffSound", "passwordUnlockEnable", "positioningFunc",
             "rechargeAppointment", "rechargeAppointmentBeginTime",
             "rechargeAppointmentEndTime", "resistanceOn", "sendBikeRecDynaOn",
             "shakeOn", "shutDownTime", "sleepMode", "sosEmergencyCall",
@@ -842,8 +840,39 @@ class YadeaCarSettingsGateway(
 
 /** 将云端清单转换为现有设置控件模型。 */
 object CloudCarSettingMapper {
-    /** Existing cloud toggle fields are display configuration, never live vehicle observations. */
+    /** Explicit response fields only; item defaults never establish a configuration value. */
     internal fun configuredValue(cloud: CloudCarSettings, item: CarSettingItem): CarSettingKind? {
+        val slider = item.kind as? CarSettingKind.Slider
+        if (slider != null) {
+            val key = when (item.id) {
+                "cloud:10:distance" -> "distance"
+                "cloud:52:distance" -> "bleDistance"
+                else -> when (item.configId) {
+                    "47" -> "chargeWattVal"
+                    "48" -> "chargeUlVal"
+                    "61" -> "highestSpeedLimit"
+                    else -> return null
+                }
+            }
+            val value = cloud.values[key]?.trim()?.toIntOrNull()?.toFloat() ?: return null
+            if (value !in slider.range ||
+                (slider.minimumNonZero != null && value != 0f && value < slider.minimumNonZero)
+            ) return null
+            return slider.copy(value = value, valueKnown = true)
+        }
+        val choice = item.kind as? CarSettingKind.Choice
+        if (choice != null) {
+            val index = when (item.id) {
+                "cloud:60:level" -> BatteryCapacityOptions.valuesAh.indexOf(
+                    cloud.values["capacity"]?.trim()?.toIntOrNull(),
+                )
+                "cloud:62:level" -> cloud.values["seatHeatingLevel"]?.trim()?.toIntOrNull()
+                    ?.minus(1) ?: return null
+                else -> return null
+            }
+            return index.takeIf { it in choice.options.indices }
+                ?.let { choice.copy(selectedIndex = it, valueKnown = true) }
+        }
         val toggle = item.kind as? CarSettingKind.Toggle ?: return null
         val key = when (item.id) {
             "cloud:47:enable" -> "chargeWattSwitch"
@@ -1051,7 +1080,7 @@ object CloudCarSettingMapper {
             )
         }
         cloud.configs.firstOrNull { it.confId.trim() == "10" }?.let { config ->
-            val distance = cloud.intValue("distance")?.coerceIn(50, 1_000) ?: 200
+            val distance = cloud.values["distance"]?.trim()?.toIntOrNull()?.takeIf { it in 50..1_000 }
             items += CarSettingItem(
                 id = "cloud:10:distance",
                 configId = "10",
@@ -1061,10 +1090,11 @@ object CloudCarSettingMapper {
                 group = groupOf(config, classificationOf("10", config)),
                 channel = CarSettingChannel.IOT,
                 kind = CarSettingKind.Slider(
-                    value = distance.toFloat(),
+                    value = distance?.toFloat() ?: 50f,
                     range = 50f..1_000f,
                     steps = 18,
                     unit = " m",
+                    valueKnown = distance != null,
                 ),
                 writable = config.isAuth != false,
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,

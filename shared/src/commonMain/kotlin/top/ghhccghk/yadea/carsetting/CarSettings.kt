@@ -379,17 +379,25 @@ class CarSettingsController(
             latestCachedStatus = null
         }
         if (_state.value.loading && _state.value.vin == vin) return false
-
         val generation = ++loadGeneration
-        pendingVehicleConfirmations.clear()
-        activeOperations.clear()
         val previous = _state.value.takeIf { it.vin == vin && it.loadedFromCloud }
+        val invalidatedIds = activeOperations.keys.toSet()
+        activeOperations.clear()
+        invalidatedIds.forEach(pendingVehicleConfirmations::remove)
+        if (previous == null) {
+            pendingVehicleConfirmations.clear()
+        }
         _state.value = (previous ?: CarSettingsState(vin = vin)).copy(
             loadGeneration = generation, loading = true, pendingIds = emptySet(), message = null,
-            valueStates = previous?.valueStates.orEmpty().mapValues { (_, value) ->
-                value.copy(draftValue = null, submittedValue = null, operationId = null,
-                    writeState = SettingWriteState.IDLE, writeChannel = null,
-                    confirmationState = SettingConfirmationState.UNKNOWN, error = null)
+            valueStates = previous?.valueStates.orEmpty().mapValues { (id, value) ->
+                when {
+                    id !in invalidatedIds -> value
+                    value.busy -> value.copy(
+                        writeState = SettingWriteState.CANCELLED,
+                        confirmationState = SettingConfirmationState.UNKNOWN,
+                    )
+                    else -> value.copy(confirmationState = SettingConfirmationState.UNKNOWN, error = null)
+                }
             },
         )
         val cloud = try {
@@ -419,7 +427,10 @@ class CarSettingsController(
             loadGeneration = generation,
             message = if (items.isEmpty()) "云端未返回可用设置项" else null,
             valueStates = items.associate { item ->
-                val retained = _state.value.valueState(item.id)
+                val retained = _state.value.valueState(item.id).takeIf { value ->
+                    (value.draftValue == null || validTarget(item.kind, value.draftValue)) &&
+                        (value.submittedValue == null || validTarget(item.kind, value.submittedValue))
+                } ?: CarSettingValueState()
                 val observed = (retained.vehicleValue as? VehicleSettingValue.Known)
                     ?.takeIf { validTarget(item.kind, it.kind) }
                 item.id to retained.copy(
@@ -428,6 +439,9 @@ class CarSettingsController(
                     configuredValue = CloudCarSettingMapper.configuredValue(cloud, item),
                 )
             },
+        )
+        pendingVehicleConfirmations.keys.retainAll(
+            _state.value.valueStates.filterValues { it.submittedValue != null }.keys,
         )
         latestCachedStatus?.takeIf { it.vin == vin }?.let(::applyVehicleStatus)
         latestVehicleStatus?.let { snapshot ->
