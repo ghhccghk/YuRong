@@ -399,7 +399,7 @@ fun CarSettingsScreen(
             AppSection(title = "设置通道与诊断") {
                 AppActionPreference(
                     title = "本机、蓝牙、车联网",
-                    summary = "本机＝App 内处理 · 蓝牙＝连接车辆后生效 · 车联网＝云端下发",
+                    summary = "本机＝App 内处理 · 蓝牙＝连接车辆后生效",
                     value = "说明",
                     onClick = { showChannelHelp = true },
                 )
@@ -522,7 +522,7 @@ fun CarSettingsScreen(
             val draft = (state.valueState(sliderTarget.id).editableKind(slider) as CarSettingKind.Slider).value
             AppSliderPreference(
                 title = sliderTarget.title,
-                summary = sliderTarget.summary,
+                summary = settingDescriptionSummary(sliderTarget),
                 value = draft,
                 onValueChange = { raw ->
                     if (isAuditedThreeTickSlider(sliderTarget) && !settingControlEnabled(sliderTarget)) return@AppSliderPreference
@@ -597,7 +597,7 @@ fun CarSettingsScreen(
             detailTarget.kind !is CarSettingKind.Choice && detailTarget.kind !is CarSettingKind.Toggle,
         title = detailTarget?.title.orEmpty(),
         message = buildString {
-            append(detailTarget?.summary.orEmpty())
+            append(detailTarget?.let(::settingDescriptionSummary).orEmpty())
             append("\n\n")
             append(
                 "该功能在原 App 中通过独立子页面完成，当前版本尚未确认完整的云端写入或 BLE 参数，因此保持只读，避免向车辆发送不确定命令。",
@@ -1425,23 +1425,28 @@ internal fun adaptivePushUiDisabledReason(
     return if ((observed.kind as? CarSettingKind.Toggle)?.checked == true) null else "请先开启辅助推行"
 }
 
-@Composable
-private fun CarSettingRow(
+internal fun settingDescriptionSummary(item: CarSettingItem): String =
+    item.summary.takeUnless { it.trim() == "云端车辆设置项" }.orEmpty()
+
+internal fun carSettingSummary(
     item: CarSettingItem,
     valueState: CarSettingValueState,
-    enabled: Boolean,
     pending: Boolean,
     disabledReason: String?,
-    onOpenDetail: () -> Unit,
-    onUpdate: ((CarSettingKind) -> CarSettingKind) -> Unit,
-) {
-    val summary = buildString {
+): String = buildString {
         if (pending) {
             append("正在保存…")
         } else {
-            append(item.summary)
-            append(" · ")
-            append(item.channel.label)
+            append(settingDescriptionSummary(item))
+            val channel = when (item.channel) {
+                CarSettingChannel.IOT -> null
+                CarSettingChannel.BOTH -> CarSettingChannel.BLE.label
+                else -> item.channel.label
+            }
+            channel?.let {
+                if (isNotEmpty()) append(" · ")
+                append(it)
+            }
             disabledReason?.let {
                 append(" · ")
                 append(it)
@@ -1473,7 +1478,19 @@ private fun CarSettingRow(
             else -> ""
         })
         valueState.error?.let { append(" · $it") }
-    }
+}.removePrefix(" · ")
+
+@Composable
+private fun CarSettingRow(
+    item: CarSettingItem,
+    valueState: CarSettingValueState,
+    enabled: Boolean,
+    pending: Boolean,
+    disabledReason: String?,
+    onOpenDetail: () -> Unit,
+    onUpdate: ((CarSettingKind) -> CarSettingKind) -> Unit,
+) {
+    val summary = carSettingSummary(item, valueState, pending, disabledReason)
     val observed = valueState.displayKind()
     when (val kind = observed ?: item.kind) {
         is CarSettingKind.Toggle -> AppSwitchPreference(
@@ -1518,19 +1535,19 @@ private fun CarSettingRow(
         )
         is CarSettingKind.Info -> AppListRow(
             title = item.title,
-            summary = item.summary,
+            summary = settingDescriptionSummary(item),
             value = kind.value,
             onClick = onOpenDetail,
         )
         is CarSettingKind.Customize -> AppListRow(
             title = item.title,
-            summary = item.summary,
+            summary = settingDescriptionSummary(item),
             value = "设置",
             onClick = onOpenDetail,
         )
         is CarSettingKind.Entrance -> AppListRow(
             title = item.title,
-            summary = item.summary,
+            summary = settingDescriptionSummary(item),
             value = kind.hint,
             onClick = onOpenDetail,
         )
