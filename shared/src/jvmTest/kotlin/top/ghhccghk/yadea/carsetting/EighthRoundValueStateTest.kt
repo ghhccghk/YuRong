@@ -159,7 +159,7 @@ class EighthRoundValueStateTest {
 
     @Test fun panelStyleUsesProvenTtpBitsAndOnlyOriginalPageOptions() = runBlocking {
         val c = controller(listOf("50"))
-        val item = c.state.value.items.single()
+        val item = c.state.value.items.single { it.id == "cloud:50" }
         assertEquals(2, (item.kind as CarSettingKind.Choice).options.size)
         assertFalse(item.kind.valueKnown)
         assertTrue(c.editDraft(item.id) { (it as CarSettingKind.Choice).copy(selectedIndex = 1) })
