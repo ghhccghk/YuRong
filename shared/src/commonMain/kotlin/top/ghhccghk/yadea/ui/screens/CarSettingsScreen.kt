@@ -21,8 +21,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
@@ -82,7 +80,6 @@ fun CarSettingsScreen(
     var confirmDisable by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     var confirmBraceDependency by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     var atmosphereItem by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
-    var atmospherePickerTarget by remember(uiResetKey) { mutableStateOf<Int?>(null) }
     val atmosphereDraft = atmosphereItem?.let { state.valueState(it.id).editableKind(it.kind) as? CarSettingKind.Atmosphere }
         ?: CarSettingKind.Atmosphere()
     fun editAtmosphere(transform: (CarSettingKind.Atmosphere) -> CarSettingKind.Atmosphere) {
@@ -614,124 +611,52 @@ fun CarSettingsScreen(
     AppBottomSheet(
         show = atmosphereTarget != null,
         onDismissRequest = { atmosphereItem?.let { controller.cancelDraft(it.id) }; atmosphereItem = null },
-        title = "氛围灯模式与颜色",
+        title = "氛围灯设置",
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
-        ) {
-            AppText(
-                text = "保存时会一次性下发模式、运行方向和颜色。当前车辆状态只有在后续回读匹配后才会标记为已确认。",
-                style = AppDesign.typography.summary,
-                color = AppDesign.colors.onSurfaceVariant,
-            )
-            AppPopupPreference(
-                title = "灯光模式",
-                summary = "模式 ID 0..3 与原 App 的常亮、呼吸、闪烁、流水一一对应",
-                options = listOf("常亮", "呼吸", "闪烁", "流水"),
-                selectedIndex = atmosphereDraft.showMode.coerceIn(0, 3),
-                onSelectedIndexChange = {
-                    editAtmosphere { draft -> draft.copy(showMode = it) }
-                },
-            )
-            if (atmosphereDraft.showMode == 3) {
-                AppPopupPreference(
-                    title = "流水方向",
-                    summary = "仅流水模式显示",
-                    options = listOf(
-                        "正序",
-                        "逆序",
-                        "中间到两边",
-                        "两边到中间",
-                        "先正序后逆序",
-                        "先逆序后正序",
-                    ),
-                    selectedIndex = atmosphereDraft.runMode.coerceIn(0, 5),
-                    onSelectedIndexChange = {
-                        editAtmosphere { draft -> draft.copy(runMode = it) }
-                    },
-                )
-            }
-            AppSwitchPreference(
-                title = "单色模式",
-                summary = "关闭后使用颜色 A 与颜色 B 双色组合",
-                checked = atmosphereDraft.singleColor,
-                onCheckedChange = {
-                    editAtmosphere { draft -> draft.copy(singleColor = it) }
-                },
-            )
-            AppActionPreference(
-                title = "颜色 A",
-                summary = "原 App 通过 RGB 分量下发，255 会在发送前改为 254",
-                value = atmosphereHex(
-                    atmosphereDraft.red1,
-                    atmosphereDraft.green1,
-                    atmosphereDraft.blue1,
+        if (atmosphereTarget != null) key(uiResetKey, atmosphereTarget.id) {
+            val valueState = state.valueState(atmosphereTarget.id)
+            val customization = (state.items + state.missingCloudItems).firstOrNull { it.id == "cloud:73" }
+            AtmosphereSettingsEditor(
+                draft = atmosphereDraft,
+                hasSelection = valueState.displayKind() is CarSettingKind.Atmosphere,
+                enabled = settingControlEnabled(atmosphereTarget) && customization?.id !in state.pendingIds,
+                pending = atmosphereTarget.id in state.pendingIds,
+                status = carSettingSummary(
+                    atmosphereTarget.copy(summary = ""), valueState.copy(error = null),
+                    atmosphereTarget.id in state.pendingIds, settingDisabledReason(atmosphereTarget),
                 ),
-                onClick = { atmospherePickerTarget = 1 },
-            )
-            if (!atmosphereDraft.singleColor) {
-                AppActionPreference(
-                    title = "颜色 B",
-                    summary = "双色模式使用的第二组 RGB 分量",
-                    value = atmosphereHex(
-                        atmosphereDraft.red2,
-                        atmosphereDraft.green2,
-                        atmosphereDraft.blue2,
-                    ),
-                    onClick = { atmospherePickerTarget = 2 },
-                )
-            }
-            AppOutlinedButton(
-                onClick = {
-                    val target = atmosphereTarget ?: return@AppOutlinedButton
-                    scope.launch {
-                        val saved = controller.update(target.id) {
-                            atmosphereDraft.copy(valueKnown = false)
-                        }
-                        if (saved) atmosphereItem = null
+                error = valueState.error,
+                onEdit = ::editAtmosphere,
+                onApply = {
+                    settingScope.launch {
+                        controller.update(atmosphereTarget.id) { atmosphereDraft.copy(valueKnown = false) }
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = atmosphereTarget != null && atmosphereTarget.id !in state.pendingIds,
-            ) {
-                AppText(
-                    if (atmosphereTarget?.id in state.pendingIds) "保存中…" else "保存氛围灯设置",
-                    style = AppDesign.typography.button,
-                )
-            }
+                customizationSwitch = {
+                    customization?.let { item ->
+                        val switchState = state.valueState(item.id)
+                        val toggle = switchState.displayKind() as? CarSettingKind.Toggle
+                        AppSwitchPreference(
+                            title = "氛围灯自定义",
+                            summary = when {
+                                item.id in state.pendingIds -> "正在提交…"
+                                switchState.error != null -> switchState.error.orEmpty()
+                                toggle == null -> "状态未知，等待配置或回读"
+                                else -> "车辆当前值：${vehicleValueLabel(switchState)}"
+                            },
+                            checked = toggle?.checked ?: false,
+                            enabled = toggle != null && settingControlEnabled(item) && atmosphereTarget.id !in state.pendingIds,
+                            onCheckedChange = { checked ->
+                                settingSwitchTarget(switchState, checked)?.let { target ->
+                                    submitSettingUpdate(item) { target }
+                                }
+                            },
+                        )
+                    }
+                },
+            )
         }
     }
-
-    val atmosphereColorTarget = atmospherePickerTarget
-    AppColorPickerDialog(
-        show = atmosphereColorTarget != null,
-        initialColor = if (atmosphereColorTarget == 2) {
-            atmosphereColor(
-                atmosphereDraft.red2,
-                atmosphereDraft.green2,
-                atmosphereDraft.blue2,
-            )
-        } else {
-            atmosphereColor(
-                atmosphereDraft.red1,
-                atmosphereDraft.green1,
-                atmosphereDraft.blue1,
-            )
-        },
-        onConfirm = { color ->
-            val argb = color.toArgb()
-            val red = (argb shr 16) and 0xFF
-            val green = (argb shr 8) and 0xFF
-            val blue = argb and 0xFF
-            editAtmosphere { draft ->
-                if (atmosphereColorTarget == 2) draft.copy(red2 = red, green2 = green, blue2 = blue)
-                else draft.copy(red1 = red, green1 = green, blue1 = blue)
-            }
-            atmospherePickerTarget = null
-        },
-        onDismissRequest = { atmospherePickerTarget = null },
-    )
     val customizeTarget = customizeItem
     AppBottomSheet(
         show = customizeTarget != null,
@@ -1570,13 +1495,6 @@ private fun settingKindLabel(kind: CarSettingKind): String = when (kind) {
     is CarSettingKind.Atmosphere -> "模式 ${kind.showMode} / RGB1 ${atmosphereHex(kind.red1, kind.green1, kind.blue1)}"
     else -> "UNKNOWN"
 }
-
-private fun atmosphereColor(red: Int, green: Int, blue: Int): Color =
-    Color(
-        red = red.coerceIn(0, 255),
-        green = green.coerceIn(0, 255),
-        blue = blue.coerceIn(0, 255),
-    )
 
 private fun atmosphereHex(red: Int, green: Int, blue: Int): String {
     fun part(value: Int) = value.coerceIn(0, 255).toString(16).padStart(2, '0').uppercase()
