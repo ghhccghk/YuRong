@@ -131,6 +131,52 @@ enum class CarSettingConfirmationStatus {
     UNKNOWN,
 }
 
+enum class SettingWriteState { IDLE, PREPARING, SUBMITTING, CLOUD_ACCEPTED, LOCAL_UPDATED, FAILED, CANCELLED }
+
+enum class SettingConfirmationState {
+    UNKNOWN, WAITING_READBACK, READBACK_MATCHED, READBACK_MISMATCH, CONFIRMED_BY_RESULT, FAILED, TIMED_OUT,
+}
+
+enum class SettingReadbackState { UNKNOWN, VALID, MISSING_OR_INVALID, UNSUPPORTED }
+enum class SettingValueSource { LIVE_TTP }
+
+sealed interface VehicleSettingValue {
+    data object Unknown : VehicleSettingValue
+    data class Known(
+        val kind: CarSettingKind,
+        val vin: String,
+        val sequence: Long,
+        val source: SettingValueSource = SettingValueSource.LIVE_TTP,
+    ) : VehicleSettingValue
+}
+
+/** Only a successfully decoded live TTP field creates a vehicle value. */
+data class CarSettingValueState(
+    val vehicleValue: VehicleSettingValue = VehicleSettingValue.Unknown,
+    val readbackState: SettingReadbackState = SettingReadbackState.UNKNOWN,
+    val draftValue: CarSettingKind? = null,
+    val submittedValue: CarSettingKind? = null,
+    val operationId: Long? = null,
+    val writeState: SettingWriteState = SettingWriteState.IDLE,
+    val confirmationState: SettingConfirmationState = SettingConfirmationState.UNKNOWN,
+    val error: String? = null,
+) {
+    val busy: Boolean get() = writeState in setOf(SettingWriteState.PREPARING, SettingWriteState.SUBMITTING)
+
+    val confirmationStatus: CarSettingConfirmationStatus get() = when {
+        confirmationState in setOf(SettingConfirmationState.READBACK_MATCHED, SettingConfirmationState.CONFIRMED_BY_RESULT) ->
+            CarSettingConfirmationStatus.VEHICLE_CONFIRMED
+        writeState == SettingWriteState.FAILED -> CarSettingConfirmationStatus.FAILED
+        writeState == SettingWriteState.CANCELLED -> CarSettingConfirmationStatus.UNKNOWN
+        writeState == SettingWriteState.CLOUD_ACCEPTED -> CarSettingConfirmationStatus.CLOUD_ACCEPTED
+        writeState == SettingWriteState.LOCAL_UPDATED -> CarSettingConfirmationStatus.LOCAL_UPDATED
+        else -> CarSettingConfirmationStatus.UNKNOWN
+    }
+
+    fun editableKind(fallback: CarSettingKind): CarSettingKind =
+        draftValue ?: submittedValue ?: (vehicleValue as? VehicleSettingValue.Known)?.kind ?: fallback
+}
+
 data class CarSettingsState(
     val items: List<CarSettingItem> = emptyList(),
     /** 本地已知、但本次云端没有下发的设置；仅用于控制页调试与实验性操作。 */
@@ -142,8 +188,13 @@ data class CarSettingsState(
     val loadedFromCloud: Boolean = false,
     val vin: String = "",
     val loadGeneration: Long = 0,
-    val confirmationStatuses: Map<String, CarSettingConfirmationStatus> = emptyMap(),
-)
+    val valueStates: Map<String, CarSettingValueState> = emptyMap(),
+) {
+    val confirmationStatuses: Map<String, CarSettingConfirmationStatus>
+        get() = valueStates.filterValues { it.operationId != null }.mapValues { it.value.confirmationStatus }
+
+    fun valueState(id: String): CarSettingValueState = valueStates[id] ?: CarSettingValueState()
+}
 
 /** 平台侧把设置值翻译成 BLE `CommandTempBean` 或 IoT 请求。 */
 enum class CarSettingWriteChannel {
@@ -215,8 +266,7 @@ interface CarSettingWriter {
 /**
  * 车辆设置写入控制器。
  *
- * 更新采用乐观切换：先更新 UI，写入失败再回滚。这样开关不会在等待 BLE
- * 往返时卡住；失败信息保留到下一次操作或手动清除。
+ * 草稿/提交目标独立于车辆回读。发送失败只撤销目标，不恢复过期的车辆快照。
  */
 class CarSettingsController(
     initialItems: List<CarSettingItem> = emptyList(),
@@ -251,6 +301,7 @@ class CarSettingsController(
     private data class PendingVehicleConfirmation(
         val kind: CarSettingKind,
         val observedStatusGeneration: Long,
+        val operationId: Long,
     )
 
     val available: Boolean
@@ -347,20 +398,61 @@ class CarSettingsController(
             vinProvider().trim() == operation.vin &&
             (_state.value.vin.isBlank() || _state.value.vin == operation.vin)
 
+    private fun findItem(id: String): CarSettingItem? =
+        (_state.value.items + _state.value.missingCloudItems).firstOrNull { it.id == id }
+
+    private fun changeValueState(id: String, transform: (CarSettingValueState) -> CarSettingValueState) {
+        val current = _state.value
+        _state.value = current.copy(valueStates = current.valueStates + (id to transform(current.valueState(id))))
+    }
+
+    fun editDraft(id: String, transform: (CarSettingKind) -> CarSettingKind): Boolean {
+        val item = findItem(id) ?: return false
+        if (!CarSettingItemAccess.canWrite(item) || id in activeOperations) return false
+        if (_state.value.vin.isNotBlank() && _state.value.vin != vinProvider().trim()) return false
+        val target = transform(_state.value.valueState(id).editableKind(item.kind))
+        if (!validTarget(item.kind, target)) return false
+        changeValueState(id) { it.copy(draftValue = target, error = null) }
+        return true
+    }
+
+    fun cancelDraft(id: String) {
+        if (id !in activeOperations) changeValueState(id) { it.copy(draftValue = null) }
+    }
+
+    suspend fun submitDraft(id: String): Boolean {
+        val draft = _state.value.valueState(id).draftValue ?: return false
+        return update(id) { draft }
+    }
+
+    private fun validTarget(original: CarSettingKind, target: CarSettingKind): Boolean = when {
+        original is CarSettingKind.Toggle && target is CarSettingKind.Toggle -> true
+        original is CarSettingKind.Choice && target is CarSettingKind.Choice ->
+            target.options == original.options && target.selectedIndex in original.options.indices
+        original is CarSettingKind.Slider && target is CarSettingKind.Slider ->
+            target.range == original.range && target.value.isFinite() && target.value in original.range &&
+                (original.minimumNonZero == null || target.value == 0f || target.value >= original.minimumNonZero)
+        original is CarSettingKind.Customize && target is CarSettingKind.Customize -> true
+        original is CarSettingKind.Atmosphere && target is CarSettingKind.Atmosphere -> true
+        else -> false
+    }
+
+    private fun finishFailure(id: String, message: String, confirmation: SettingConfirmationState) {
+        pendingVehicleConfirmations.remove(id)
+        changeValueState(id) {
+            it.copy(draftValue = null, submittedValue = null, writeState = SettingWriteState.FAILED,
+                confirmationState = confirmation, error = message)
+        }
+        _state.value = _state.value.copy(pendingIds = _state.value.pendingIds - id, message = message)
+    }
+
     suspend fun update(id: String, transform: (CarSettingKind) -> CarSettingKind): Boolean {
         val current = _state.value
         val regularItem = current.items.firstOrNull { it.id == id }
         val missingItem = current.missingCloudItems.firstOrNull { it.id == id }
         val item = regularItem ?: missingItem ?: return false
         val isMissingCloudItem = regularItem == null
-        fun CarSettingsState.withItem(target: CarSettingItem): CarSettingsState =
-            if (isMissingCloudItem) {
-                copy(missingCloudItems = missingCloudItems.replace(target))
-            } else {
-                copy(items = items.replace(target))
-            }
-
-        if (!item.writable) {
+        if (!CarSettingItemAccess.canWrite(item)) {
             _state.value = current.copy(message = "该设置项当前不可写")
             return false
         }
@@ -373,24 +465,30 @@ class CarSettingsController(
 
         val vin = vinProvider().trim()
         if (current.vin.isNotBlank() && current.vin != vin) return false
+        val target = transform(current.valueState(id).editableKind(item.kind))
+        if (!validTarget(item.kind, target)) {
+            _state.value = current.copy(message = "设置值无效")
+            return false
+        }
         val operation = WriteOperation(++nextOperationId, vin, loadGeneration)
         activeOperations[id] = operation
-
-        val optimistic = item.copy(kind = transform(item.kind))
-        _state.value = current
-            .withItem(optimistic)
-            .copy(
-                pendingIds = current.pendingIds + id,
-                message = null,
-            )
+        pendingVehicleConfirmations.remove(id)
+        val submitted = item.copy(kind = target)
+        changeValueState(id) {
+            it.copy(draftValue = null, submittedValue = target, operationId = operation.id,
+                writeState = SettingWriteState.PREPARING, confirmationState = SettingConfirmationState.UNKNOWN, error = null)
+        }
+        _state.value = _state.value.copy(pendingIds = current.pendingIds + id, message = null)
 
         try {
-            if (optimistic.kind is CarSettingKind.Toggle && debounceMs > 0) {
+            if (target is CarSettingKind.Toggle && debounceMs > 0) {
                 delay(debounceMs)
             }
             if (!isCurrentOperation(id, operation)) return false
+            val observedGeneration = vehicleStatusGeneration
+            changeValueState(id) { it.copy(writeState = SettingWriteState.SUBMITTING) }
             val writeResult = try {
-                activeWriter.writeWithResult(optimistic)
+                activeWriter.writeWithResult(submitted)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -399,52 +497,25 @@ class CarSettingsController(
             if (!isCurrentOperation(id, operation)) return false
             val success = writeResult.success
             if (!success) {
-                pendingVehicleConfirmations.remove(id)
-                val latest = _state.value
-                _state.value = latest
-                    .withItem(item)
-                    .copy(
-                        pendingIds = latest.pendingIds - id,
-                        message = "设置保存失败，已恢复原值",
-                        confirmationStatuses = latest.confirmationStatuses +
-                            (id to CarSettingConfirmationStatus.FAILED),
-                    )
+                finishFailure(id, "设置保存失败，已撤销本次选择", SettingConfirmationState.FAILED)
                 return false
             }
 
-            val acceptedStatus = when (writeResult.confirmationStatus) {
-                CarSettingConfirmationStatus.FAILED -> CarSettingConfirmationStatus.UNKNOWN
-                else -> writeResult.confirmationStatus
+            // A writer receipt is never proof of execution, including legacy boolean writers.
+            val phase = when (writeResult.channel) {
+                CarSettingWriteChannel.CLOUD -> SettingWriteState.CLOUD_ACCEPTED
+                else -> SettingWriteState.LOCAL_UPDATED
             }
-            if (acceptedStatus == CarSettingConfirmationStatus.LOCAL_UPDATED ||
-                acceptedStatus == CarSettingConfirmationStatus.CLOUD_ACCEPTED
-            ) {
-                pendingVehicleConfirmations[id] = PendingVehicleConfirmation(
-                    kind = optimistic.kind,
-                    observedStatusGeneration = latestVehicleStatus?.generation ?: -1L,
-                )
-            } else {
-                pendingVehicleConfirmations.remove(id)
+            pendingVehicleConfirmations[id] = PendingVehicleConfirmation(target, observedGeneration, operation.id)
+            changeValueState(id) {
+                it.copy(writeState = phase, confirmationState = SettingConfirmationState.WAITING_READBACK)
             }
-            val accepted = _state.value.copy(
-                pendingIds = _state.value.pendingIds - id,
-                message = when (acceptedStatus) {
-                    CarSettingConfirmationStatus.LOCAL_UPDATED ->
-                        "设置命令已发送，等待车辆确认"
-                    CarSettingConfirmationStatus.CLOUD_ACCEPTED ->
-                        "设置已提交云端，等待确认"
-                    CarSettingConfirmationStatus.UNKNOWN ->
-                        "设置已提交，确认状态未知"
-                    else -> null
-                },
-                confirmationStatuses = _state.value.confirmationStatuses +
-                    (id to acceptedStatus),
-            )
-            _state.value = accepted
+            reconcileObservation(id)
+            _state.value = _state.value.copy(message = "设置已提交，尚需车辆确认")
 
             val cloudUpdate = CloudCarSettingUpdateBuilder.supports(
-                configId = optimistic.configId,
-                kind = optimistic.kind,
+                configId = submitted.configId,
+                kind = submitted.kind,
             )
             val statusGateway = gateway
             val needsCloudConfirmation = writeResult.channel == CarSettingWriteChannel.CLOUD &&
@@ -456,57 +527,62 @@ class CarSettingsController(
                     delay(statusPollIntervalMs)
                     if (!isCurrentOperation(id, operation)) return false
                     confirmed = try {
-                        statusGateway.checkStatus(optimistic.configId)
+                        statusGateway.checkStatus(submitted.configId)
                     } catch (cancellation: CancellationException) {
                         throw cancellation
                     } catch (_: Exception) {
                         false
                     }
                     if (!isCurrentOperation(id, operation)) return false
+                    if (_state.value.valueState(id).confirmationState == SettingConfirmationState.READBACK_MATCHED) return true
                     if (confirmed != null) break
                 }
                 if (confirmed != true) {
-                    pendingVehicleConfirmations.remove(id)
-                    val latest = _state.value
-                    _state.value = latest
-                        .withItem(item)
-                        .copy(
-                            pendingIds = latest.pendingIds - id,
-                            message = if (confirmed == false) {
-                                "车辆未确认设置，已恢复原值"
-                            } else {
-                                "设置状态确认超时，已恢复原值"
-                            },
-                            confirmationStatuses = latest.confirmationStatuses +
-                                (id to CarSettingConfirmationStatus.FAILED),
-                        )
+                    finishFailure(id, if (confirmed == false) "设置结果确认失败，已撤销本次选择" else "设置确认超时，已撤销本次选择",
+                        if (confirmed == false) SettingConfirmationState.FAILED else SettingConfirmationState.TIMED_OUT)
                     return false
                 }
                 pendingVehicleConfirmations.remove(id)
-                val latest = _state.value
-                _state.value = latest.copy(
-                    message = null,
-                    confirmationStatuses = latest.confirmationStatuses +
-                        (id to CarSettingConfirmationStatus.VEHICLE_CONFIRMED),
-                )
+                changeValueState(id) { it.copy(confirmationState = SettingConfirmationState.CONFIRMED_BY_RESULT) }
+                _state.value = _state.value.copy(message = "设置结果已确认；车辆值仍以回读为准")
             }
 
             return true
         } catch (cancelled: CancellationException) {
             if (isCurrentOperation(id, operation)) {
                 pendingVehicleConfirmations.remove(id)
-                val latest = _state.value
-                _state.value = latest.withItem(item).copy(
-                    pendingIds = latest.pendingIds - id,
-                    confirmationStatuses = latest.confirmationStatuses +
-                        (id to CarSettingConfirmationStatus.UNKNOWN),
-                    message = "设置操作已取消",
-                )
+                changeValueState(id) { it.copy(draftValue = null, submittedValue = null,
+                    writeState = SettingWriteState.CANCELLED, confirmationState = SettingConfirmationState.UNKNOWN, error = null) }
+                _state.value = _state.value.copy(message = "设置操作已取消")
             }
             throw cancelled
         } finally {
-            if (activeOperations[id] == operation) activeOperations.remove(id)
+            if (activeOperations[id] == operation) {
+                activeOperations.remove(id)
+                _state.value = _state.value.copy(pendingIds = _state.value.pendingIds - id)
+            }
         }
+    }
+
+    private fun sameValue(left: CarSettingKind, right: CarSettingKind): Boolean = when {
+        left is CarSettingKind.Toggle && right is CarSettingKind.Toggle -> left.checked == right.checked
+        left is CarSettingKind.Choice && right is CarSettingKind.Choice -> left.selectedIndex == right.selectedIndex
+        left is CarSettingKind.Slider && right is CarSettingKind.Slider -> left.value == right.value
+        left is CarSettingKind.Customize && right is CarSettingKind.Customize -> left == right
+        else -> false
+    }
+
+    private fun reconcileObservation(id: String) {
+        val pending = pendingVehicleConfirmations[id] ?: return
+        val state = _state.value.valueState(id)
+        val observed = state.vehicleValue as? VehicleSettingValue.Known ?: return
+        if (state.operationId != pending.operationId || observed.sequence <= pending.observedStatusGeneration) return
+        val matches = sameValue(observed.kind, pending.kind)
+        changeValueState(id) {
+            it.copy(confirmationState = if (matches) SettingConfirmationState.READBACK_MATCHED else SettingConfirmationState.READBACK_MISMATCH,
+                submittedValue = if (matches) null else it.submittedValue)
+        }
+        if (matches) pendingVehicleConfirmations.remove(id)
     }
 
     fun clearMessage() {
@@ -539,9 +615,9 @@ class CarSettingsController(
         val current = _state.value
         val generation = latestVehicleStatus?.generation ?: 0L
         if (status == null || current.items.isEmpty()) return
+        val observations = mutableMapOf<String, CarSettingKind>()
         fun applyStatus(source: List<CarSettingItem>): List<CarSettingItem> = source.map { item ->
-            if (item.id in current.pendingIds) return@map item
-            when (item.configId) {
+            val updated = when (item.configId) {
                 // 原 App：tcsWorkMode == 0 为开启，1..7 为关闭，-1 表示未上报。
                 "37" -> item.withToggle(status.extended.tcsWorkMode.zeroIsOnOrNull())
                 "38" -> item.withToggle(status.extended.absFunctionStatus.flagOrNull())
@@ -740,37 +816,30 @@ class CarSettingsController(
                 )
                 else -> item
             }
+            // Helpers return the original instance when a field is missing/invalid.
+            // Composite values require every field; defaults must not complete an observation.
+            val complete = updated.kind !is CarSettingKind.Customize ||
+                (status.extended.customizeThrottleSensitivity in 0..2 &&
+                    status.extended.customizeEnergyLevel in 0..2 &&
+                    status.extended.customizeEnergyState in 0..1 && status.extended.customizeTcs in 0..1)
+            if (updated !== item && complete) observations[item.id] = updated.kind
+            updated
         }
         val nextItems = applyStatus(current.items)
         val nextMissingCloudItems = applyStatus(current.missingCloudItems)
-        val confirmedIds = pendingVehicleConfirmations
-            .filter { (itemId, pending) ->
-                val updated = nextItems.firstOrNull { it.id == itemId }
-                    ?: nextMissingCloudItems.firstOrNull { it.id == itemId }
-                generation > pending.observedStatusGeneration &&
-                    updated?.kind == pending.kind
-            }
-            .keys
-        if (confirmedIds.isNotEmpty()) {
-            confirmedIds.forEach(pendingVehicleConfirmations::remove)
-        }
-        val statuses = if (confirmedIds.isEmpty()) {
-            current.confirmationStatuses
-        } else {
-            current.confirmationStatuses + confirmedIds.associateWith {
-                CarSettingConfirmationStatus.VEHICLE_CONFIRMED
-            }
-        }
         _state.value = current.copy(
             items = nextItems,
             missingCloudItems = nextMissingCloudItems,
-            confirmationStatuses = statuses,
-            message = if (confirmedIds.isEmpty()) {
-                current.message
-            } else {
-                "车辆已确认设置"
+            valueStates = current.valueStates.mapValues { (id, value) ->
+                if (id !in observations && value.vehicleValue is VehicleSettingValue.Known) {
+                    value.copy(readbackState = SettingReadbackState.MISSING_OR_INVALID)
+                } else value
+            } + observations.mapValues { (id, kind) ->
+                current.valueState(id).copy(vehicleValue = VehicleSettingValue.Known(kind, latestVehicleStatus!!.vin, generation),
+                    readbackState = SettingReadbackState.VALID)
             },
         )
+        observations.keys.forEach(::reconcileObservation)
     }
 
     private fun Int.adaptivePushOrNull(configId: String): Boolean? {

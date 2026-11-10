@@ -33,6 +33,11 @@ import top.ghhccghk.yadea.carsetting.CarSettingChannel
 import top.ghhccghk.yadea.carsetting.CarSettingClassification
 import top.ghhccghk.yadea.carsetting.CarSettingItem
 import top.ghhccghk.yadea.carsetting.CarSettingKind
+import top.ghhccghk.yadea.carsetting.CarSettingItemAccess
+import top.ghhccghk.yadea.carsetting.CarSettingValueState
+import top.ghhccghk.yadea.carsetting.VehicleSettingValue
+import top.ghhccghk.yadea.carsetting.SettingWriteState
+import top.ghhccghk.yadea.carsetting.SettingConfirmationState
 import top.ghhccghk.yadea.carsetting.CarSettingsController
 import top.ghhccghk.yadea.carsetting.CarSettingsState
 import top.ghhccghk.yadea.carsetting.CustomSoundController
@@ -71,19 +76,20 @@ fun CarSettingsScreen(
     var confirmBraceDependency by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     var atmosphereItem by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     var atmospherePickerTarget by remember(uiResetKey) { mutableStateOf<Int?>(null) }
-    var atmosphereDraft by remember(uiResetKey, atmosphereItem?.id) {
-        mutableStateOf((atmosphereItem?.kind as? CarSettingKind.Atmosphere) ?: CarSettingKind.Atmosphere())
+    val atmosphereDraft = atmosphereItem?.let { state.valueState(it.id).editableKind(it.kind) as? CarSettingKind.Atmosphere }
+        ?: CarSettingKind.Atmosphere()
+    fun editAtmosphere(transform: (CarSettingKind.Atmosphere) -> CarSettingKind.Atmosphere) {
+        atmosphereItem?.let { item -> controller.editDraft(item.id) { transform(it as CarSettingKind.Atmosphere) } }
     }
     var showPasswordManager by remember(uiResetKey) { mutableStateOf(false) }
     var passwordFlow by remember(uiResetKey) { mutableStateOf<PasswordFlow?>(null) }
     var passwordDraft by remember(uiResetKey) { mutableStateOf("") }
     var passwordCode by remember(uiResetKey) { mutableStateOf("") }
     var customizeItem by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
-    var customizeDraft by remember(uiResetKey, customizeItem?.id) {
-        mutableStateOf(
-            (customizeItem?.kind as? CarSettingKind.Customize)
-                ?: CarSettingKind.Customize(),
-        )
+    val customizeDraft = customizeItem?.let { state.valueState(it.id).editableKind(it.kind) as? CarSettingKind.Customize }
+        ?: CarSettingKind.Customize()
+    fun editCustomize(transform: (CarSettingKind.Customize) -> CarSettingKind.Customize) {
+        customizeItem?.let { item -> controller.editDraft(item.id) { transform(it as CarSettingKind.Customize) } }
     }
     var detailItem by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     var showCustomSounds by remember(uiResetKey) { mutableStateOf(false) }
@@ -171,7 +177,7 @@ fun CarSettingsScreen(
     }
     val settingControlEnabled: (CarSettingItem) -> Boolean = { item ->
         controller.available &&
-            item.writable &&
+            CarSettingItemAccess.canWrite(item) &&
             item.id !in state.pendingIds &&
             settingDisabledReason(item) == null &&
             (item.id != "cloud:60:level" || capacitySwitchOn)
@@ -275,6 +281,7 @@ fun CarSettingsScreen(
                     selectedMissingCloudItems.forEach { item ->
                         CarSettingRow(
                             item = item,
+                            valueState = state.valueState(item.id),
                             enabled = settingControlEnabled(item),
                             pending = item.id in state.pendingIds,
                             disabledReason = settingDisabledReason(item),
@@ -307,6 +314,7 @@ fun CarSettingsScreen(
                         .forEach { item ->
                         CarSettingRow(
                             item = item,
+                            valueState = state.valueState(item.id),
                             enabled = settingControlEnabled(item),
                             pending = item.id in state.pendingIds,
                             disabledReason = settingDisabledReason(item),
@@ -480,33 +488,32 @@ fun CarSettingsScreen(
         onDismissRequest = { confirmBraceDependency = null },
     )
 
-    val sliderTarget = detailItem?.takeIf { it.kind is CarSettingKind.Slider }
+    val sliderTarget = detailItem?.id?.let { id ->
+        (state.items + state.missingCloudItems).firstOrNull { it.id == id && it.kind is CarSettingKind.Slider }
+    }
     AppBottomSheet(
         show = sliderTarget != null,
-        onDismissRequest = { detailItem = null },
+        onDismissRequest = { detailItem?.let { controller.cancelDraft(it.id) }; detailItem = null },
         title = sliderTarget?.title.orEmpty(),
     ) {
         val slider = sliderTarget?.kind as? CarSettingKind.Slider
         if (sliderTarget != null && slider != null) {
-            var draft by remember(uiResetKey, sliderTarget.id, slider.value) {
-                mutableStateOf(slider.value)
-            }
+            val draft = (state.valueState(sliderTarget.id).editableKind(slider) as CarSettingKind.Slider).value
             AppSliderPreference(
                 title = sliderTarget.title,
                 summary = sliderTarget.summary,
                 value = draft,
                 onValueChange = { raw ->
                     val minimum = slider.minimumNonZero
-                    draft = if (minimum != null && raw > 0f && raw < minimum) {
+                    val next = if (minimum != null && raw > 0f && raw < minimum) {
                         if (raw < minimum / 2f) 0f else minimum
                     } else {
                         raw
                     }
+                    controller.editDraft(sliderTarget.id) { slider.copy(value = next, valueKnown = true) }
                 },
                 onValueChangeFinished = {
-                    submitSettingUpdate(sliderTarget) { current ->
-                        (current as? CarSettingKind.Slider)?.copy(value = draft, valueKnown = true) ?: current
-                    }
+                    scope.launch { controller.submitDraft(sliderTarget.id) }
                 },
                 valueRange = slider.range,
                 steps = slider.steps,
@@ -515,16 +522,43 @@ fun CarSettingsScreen(
                 } else {
                     formatSettingValue(draft, slider.unit)
                 },
-                enabled = controller.available &&
-                    sliderTarget.writable &&
-                    sliderTarget.id !in state.pendingIds,
+                enabled = settingControlEnabled(sliderTarget),
             )
+            AppText("车辆当前值：" + vehicleValueLabel(state.valueState(sliderTarget.id)), style = AppDesign.typography.summary)
+            AppOutlinedButton(onClick = { controller.cancelDraft(sliderTarget.id); detailItem = null }) {
+                AppText("取消编辑")
+            }
+        }
+    }
+
+    val optionTarget = detailItem?.takeIf { it.kind is CarSettingKind.Choice || it.kind is CarSettingKind.Toggle }
+    AppBottomSheet(
+        show = optionTarget != null,
+        onDismissRequest = { optionTarget?.let { controller.cancelDraft(it.id) }; detailItem = null },
+        title = optionTarget?.title.orEmpty(),
+    ) {
+        if (optionTarget != null) {
+            AppText("车辆当前值：" + vehicleValueLabel(state.valueState(optionTarget.id)), style = AppDesign.typography.summary)
+            val options = (optionTarget.kind as? CarSettingKind.Choice)?.options ?: listOf("关闭", "开启")
+            options.forEachIndexed { index, label ->
+                AppActionPreference(title = label, enabled = settingControlEnabled(optionTarget), onClick = {
+                    submitSettingUpdate(optionTarget) { kind ->
+                        when (kind) {
+                            is CarSettingKind.Choice -> kind.copy(selectedIndex = index, valueKnown = true)
+                            is CarSettingKind.Toggle -> kind.copy(checked = index == 1, valueKnown = true)
+                            else -> kind
+                        }
+                    }
+                    detailItem = null
+                })
+            }
         }
     }
 
     val detailTarget = detailItem
     AppAlertDialog(
-        show = detailTarget != null && detailTarget.kind !is CarSettingKind.Slider,
+        show = detailTarget != null && detailTarget.kind !is CarSettingKind.Slider &&
+            detailTarget.kind !is CarSettingKind.Choice && detailTarget.kind !is CarSettingKind.Toggle,
         title = detailTarget?.title.orEmpty(),
         message = buildString {
             append(detailTarget?.summary.orEmpty())
@@ -541,7 +575,7 @@ fun CarSettingsScreen(
     val atmosphereTarget = atmosphereItem
     AppBottomSheet(
         show = atmosphereTarget != null,
-        onDismissRequest = { atmosphereItem = null },
+        onDismissRequest = { atmosphereItem?.let { controller.cancelDraft(it.id) }; atmosphereItem = null },
         title = "氛围灯模式与颜色",
     ) {
         Column(
@@ -559,7 +593,7 @@ fun CarSettingsScreen(
                 options = listOf("常亮", "呼吸", "闪烁", "流水"),
                 selectedIndex = atmosphereDraft.showMode.coerceIn(0, 3),
                 onSelectedIndexChange = {
-                    atmosphereDraft = atmosphereDraft.copy(showMode = it)
+                    editAtmosphere { draft -> draft.copy(showMode = it) }
                 },
             )
             if (atmosphereDraft.showMode == 3) {
@@ -576,7 +610,7 @@ fun CarSettingsScreen(
                     ),
                     selectedIndex = atmosphereDraft.runMode.coerceIn(0, 5),
                     onSelectedIndexChange = {
-                        atmosphereDraft = atmosphereDraft.copy(runMode = it)
+                        editAtmosphere { draft -> draft.copy(runMode = it) }
                     },
                 )
             }
@@ -585,7 +619,7 @@ fun CarSettingsScreen(
                 summary = "关闭后使用颜色 A 与颜色 B 双色组合",
                 checked = atmosphereDraft.singleColor,
                 onCheckedChange = {
-                    atmosphereDraft = atmosphereDraft.copy(singleColor = it)
+                    editAtmosphere { draft -> draft.copy(singleColor = it) }
                 },
             )
             AppActionPreference(
@@ -652,10 +686,9 @@ fun CarSettingsScreen(
             val red = (argb shr 16) and 0xFF
             val green = (argb shr 8) and 0xFF
             val blue = argb and 0xFF
-            atmosphereDraft = if (atmosphereColorTarget == 2) {
-                atmosphereDraft.copy(red2 = red, green2 = green, blue2 = blue)
-            } else {
-                atmosphereDraft.copy(red1 = red, green1 = green, blue1 = blue)
+            editAtmosphere { draft ->
+                if (atmosphereColorTarget == 2) draft.copy(red2 = red, green2 = green, blue2 = blue)
+                else draft.copy(red1 = red, green1 = green, blue1 = blue)
             }
             atmospherePickerTarget = null
         },
@@ -664,7 +697,7 @@ fun CarSettingsScreen(
     val customizeTarget = customizeItem
     AppBottomSheet(
         show = customizeTarget != null,
-        onDismissRequest = { customizeItem = null },
+        onDismissRequest = { customizeItem?.let { controller.cancelDraft(it.id) }; customizeItem = null },
         title = "FREE 自由模式参数",
     ) {
         Column(
@@ -682,7 +715,7 @@ fun CarSettingsScreen(
                 options = listOf("迅猛", "平稳", "缓慢"),
                 selectedIndex = customizeDraft.throttleLevel,
                 onSelectedIndexChange = {
-                    customizeDraft = customizeDraft.copy(throttleLevel = it)
+                    editCustomize { draft -> draft.copy(throttleLevel = it) }
                 },
             )
             AppPopupPreference(
@@ -691,7 +724,7 @@ fun CarSettingsScreen(
                 options = listOf("弱", "中", "强"),
                 selectedIndex = customizeDraft.energyLevel,
                 onSelectedIndexChange = {
-                    customizeDraft = customizeDraft.copy(energyLevel = it)
+                    editCustomize { draft -> draft.copy(energyLevel = it) }
                 },
             )
             AppSwitchPreference(
@@ -699,7 +732,7 @@ fun CarSettingsScreen(
                 summary = "关闭后 FREE 模式不进行能量回收",
                 checked = customizeDraft.energyState,
                 onCheckedChange = {
-                    customizeDraft = customizeDraft.copy(energyState = it)
+                    editCustomize { draft -> draft.copy(energyState = it) }
                 },
             )
             AppSwitchPreference(
@@ -707,7 +740,7 @@ fun CarSettingsScreen(
                 summary = "FREE 模式下保持车身稳定辅助",
                 checked = customizeDraft.tcs,
                 onCheckedChange = {
-                    customizeDraft = customizeDraft.copy(tcs = it)
+                    editCustomize { draft -> draft.copy(tcs = it) }
                 },
             )
             AppOutlinedButton(
@@ -746,27 +779,15 @@ fun CarSettingsScreen(
                 AppEmptyState("当前车辆没有下发自定义按键配置")
             } else {
                 keyItems.forEach { item ->
-                    val choice = item.kind as? CarSettingKind.Choice
-                    if (choice != null) {
-                        AppPopupPreference(
-                            title = if (item.id.endsWith(":short")) "短按功能" else "长按功能",
-                            summary = item.summary,
-                            options = choice.options,
-                            selectedIndex = choice.selectedIndex,
-                            onSelectedIndexChange = { index ->
-                                scope.launch {
-                                    controller.update(item.id) { current ->
-                                        (current as? CarSettingKind.Choice)
-                                            ?.copy(selectedIndex = index, valueKnown = true)
-                                            ?: current
-                                    }
-                                }
-                            },
-                            enabled = controller.available &&
-                                item.writable &&
-                                item.id !in state.pendingIds,
-                        )
-                    }
+                    CarSettingRow(
+                        item = item,
+                        valueState = state.valueState(item.id),
+                        enabled = settingControlEnabled(item),
+                        pending = item.id in state.pendingIds,
+                        disabledReason = settingDisabledReason(item),
+                        onOpenDetail = { showCustomKeys = false; detailItem = item },
+                        onUpdate = { submitSettingUpdate(item, it) },
+                    )
                 }
             }
         }
@@ -1300,6 +1321,7 @@ private val BLE_POWER_SETTING_IDS = setOf("37", "38")
 @Composable
 private fun CarSettingRow(
     item: CarSettingItem,
+    valueState: CarSettingValueState,
     enabled: Boolean,
     pending: Boolean,
     disabledReason: String?,
@@ -1318,40 +1340,66 @@ private fun CarSettingRow(
                 append(it)
             }
             if (!item.writable) append(" · 只读")
-            if (!settingValueKnown(item.kind)) append(" · 状态未知")
         }
+        append(" · 车辆当前值：")
+        append(vehicleValueLabel(valueState))
+        valueState.draftValue?.let { append(" · 草稿：${settingKindLabel(it)}") }
+        valueState.submittedValue?.let { append(" · 本次选择：${settingKindLabel(it)}") }
+        append(when (valueState.writeState) {
+            SettingWriteState.PREPARING -> " · 准备提交"
+            SettingWriteState.SUBMITTING -> " · 提交中"
+            SettingWriteState.CLOUD_ACCEPTED -> " · 云端已接受"
+            SettingWriteState.LOCAL_UPDATED -> " · 已发送，未代表车辆执行"
+            SettingWriteState.FAILED -> " · 写入失败"
+            SettingWriteState.CANCELLED -> " · 操作已取消"
+            SettingWriteState.IDLE -> ""
+        })
+        append(when (valueState.confirmationState) {
+            SettingConfirmationState.READBACK_MATCHED -> " · 回读一致"
+            SettingConfirmationState.READBACK_MISMATCH -> " · 回读与目标不一致"
+            SettingConfirmationState.CONFIRMED_BY_RESULT -> " · 结果接口已确认"
+            SettingConfirmationState.TIMED_OUT -> " · 确认超时"
+            SettingConfirmationState.WAITING_READBACK -> " · 等待车辆回读（能力未知时保持未确认）"
+            else -> ""
+        })
+        valueState.error?.let { append(" · $it") }
     }
-    when (val kind = item.kind) {
-        is CarSettingKind.Toggle -> AppSwitchPreference(
-            checked = if (kind.valueKnown) kind.checked else false,
+    val observed = (valueState.vehicleValue as? VehicleSettingValue.Known)?.kind
+    when (val kind = observed ?: item.kind) {
+        is CarSettingKind.Toggle -> if (observed == null) AppActionPreference(
+            title = item.title, summary = summary, value = "未知", enabled = enabled, onClick = onOpenDetail,
+        ) else AppSwitchPreference(
+            checked = kind.checked,
             onCheckedChange = { checked ->
                 onUpdate { (it as? CarSettingKind.Toggle)?.copy(checked = checked, valueKnown = true) ?: it }
             },
             title = item.title,
             summary = summary,
-            enabled = enabled && kind.valueKnown,
+            enabled = enabled,
         )
-        is CarSettingKind.Choice -> AppPopupPreference(
+        is CarSettingKind.Choice -> if (observed == null) AppActionPreference(
+            title = item.title, summary = summary, value = "未知", enabled = enabled, onClick = onOpenDetail,
+        ) else AppPopupPreference(
             title = item.title,
             summary = summary,
             options = kind.options,
-            selectedIndex = if (kind.valueKnown) kind.selectedIndex else 0,
+            selectedIndex = kind.selectedIndex,
             onSelectedIndexChange = { index ->
                 onUpdate { (it as? CarSettingKind.Choice)?.copy(selectedIndex = index, valueKnown = true) ?: it }
             },
-            enabled = enabled && kind.valueKnown,
+            enabled = enabled,
         )
         is CarSettingKind.Slider -> AppActionPreference(
             title = item.title,
             summary = summary,
-            value = if (!kind.valueKnown) {
+            value = if (observed == null) {
                 "状态未知"
             } else if (kind.minimumNonZero != null && kind.value == 0f) {
                 "不限速"
             } else {
                 formatSettingValue(kind.value, kind.unit)
             },
-            enabled = enabled && kind.valueKnown,
+            enabled = enabled,
             onClick = onOpenDetail,
         )
         is CarSettingKind.Atmosphere -> AppListRow(
@@ -1381,12 +1429,16 @@ private fun CarSettingRow(
     }
 }
 
-private fun settingValueKnown(kind: CarSettingKind): Boolean = when (kind) {
-    is CarSettingKind.Toggle -> kind.valueKnown
-    is CarSettingKind.Choice -> kind.valueKnown
-    is CarSettingKind.Slider -> kind.valueKnown
-    is CarSettingKind.Atmosphere -> kind.valueKnown
-    else -> true
+private fun vehicleValueLabel(state: CarSettingValueState): String =
+    (state.vehicleValue as? VehicleSettingValue.Known)?.kind?.let(::settingKindLabel) ?: "UNKNOWN"
+
+private fun settingKindLabel(kind: CarSettingKind): String = when (kind) {
+    is CarSettingKind.Toggle -> if (kind.checked) "开启" else "关闭"
+    is CarSettingKind.Choice -> kind.options.getOrNull(kind.selectedIndex) ?: "UNKNOWN"
+    is CarSettingKind.Slider -> formatSettingValue(kind.value, kind.unit)
+    is CarSettingKind.Customize -> "自定义参数"
+    is CarSettingKind.Atmosphere -> "模式 ${kind.showMode} / RGB1 ${atmosphereHex(kind.red1, kind.green1, kind.blue1)}"
+    else -> "UNKNOWN"
 }
 
 private fun atmosphereColor(red: Int, green: Int, blue: Int): Color =
