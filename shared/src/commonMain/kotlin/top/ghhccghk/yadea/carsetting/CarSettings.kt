@@ -79,6 +79,26 @@ internal object AlarmSensitivityMapping {
     }
 }
 
+internal object AdaptivePush64Mapping {
+    fun checkedFromRaw(raw: Int): Boolean? = when (raw) {
+        0, 2 -> false
+        1 -> true
+        else -> null
+    }
+
+    fun parameterForTarget(targetChecked: Boolean): Int = if (targetChecked) 1 else 0
+}
+
+internal object AdaptivePush89Mapping {
+    fun checkedFromRaw(raw: Int): Boolean? = when (raw) {
+        0, 1 -> false
+        2 -> true
+        else -> null
+    }
+
+    fun parameterForTarget(targetChecked: Boolean): Int = if (targetChecked) 2 else 0
+}
+
 sealed interface CarSettingKind {
     data class Toggle(val checked: Boolean, val valueKnown: Boolean = true) : CarSettingKind
     data class Choice(val selectedIndex: Int, val options: List<String>, val valueKnown: Boolean = true) : CarSettingKind
@@ -749,10 +769,10 @@ class CarSettingsController(
                 "63" -> item.withToggle(status.extended.tPowerStatus.flagOrNull())
                 "64", "89" -> when {
                     item.id.endsWith(":adaptive") -> item.withToggle(
-                        status.extended.customDriveSwitchStatus.flagOrNull(),
+                        status.extended.customDriveSwitchStatus.adaptivePushOrNull(item.configId),
                     )
                     item.kind is CarSettingKind.Slider -> item.withSlider(
-                        status.extended.customDriveLevelStatus.floatIn(1..3),
+                        status.extended.customDriveLevelStatus.floatIn(0..2),
                     )
                     else -> item.withToggle(status.extended.helpCarState.flagOrNull())
                 }
@@ -921,10 +941,9 @@ class CarSettingsController(
     }
 
     private fun Int.adaptivePushOrNull(configId: String): Boolean? {
-        if (this < 0) return null
         return when (configId) {
-            "64" -> this == 1
-            "89" -> this == 2
+            "64" -> AdaptivePush64Mapping.checkedFromRaw(this)
+            "89" -> AdaptivePush89Mapping.checkedFromRaw(this)
             else -> null
         }
     }

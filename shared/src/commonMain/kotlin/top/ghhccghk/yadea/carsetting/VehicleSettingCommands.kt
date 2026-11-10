@@ -412,7 +412,7 @@ object VehicleSettingCommands {
                 is CarSettingKind.Slider -> VehicleSettingCommand(
                     commandType = "COMMAND_CONST_CUSTOM_DRIVE_LEVEL_SETTING",
                     commandId = 0xD1,
-                    parameter = kind.value.toInt().coerceIn(0, 2),
+                    parameter = kind.value.takeIf { it in 0f..2f && it % 1f == 0f }?.toInt() ?: return null,
                 )
                 else -> null
             }
@@ -822,9 +822,15 @@ object VehicleSettingCommands {
                 offType = "COMMAND_CONST_CUSTOM_DRIVE_SWITCH_SETTING",
                 onId = 0xD0,
                 offId = 0xD0,
-                // HelpPromotePlusActivity(64) 取消值为 1；Plus2(89) 取消值为 2。
-                onParameter = 0,
-                offParameter = if (item.configId == "89") 2 else 1,
+                // Parent click reads the old checkbox; command parameters represent the target.
+                onParameter = when (item.configId) {
+                    "64" -> AdaptivePush64Mapping.parameterForTarget(true)
+                    else -> AdaptivePush89Mapping.parameterForTarget(true)
+                },
+                offParameter = when (item.configId) {
+                    "64" -> AdaptivePush64Mapping.parameterForTarget(false)
+                    else -> AdaptivePush89Mapping.parameterForTarget(false)
+                },
             )
         }
         forConfigId(item.configId, item.kind)?.let { return it }

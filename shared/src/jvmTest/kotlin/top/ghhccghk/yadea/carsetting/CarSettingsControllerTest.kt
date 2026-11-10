@@ -204,25 +204,25 @@ class CarSettingsControllerTest {
         )
 
         assertEquals(
-            0,
+            1,
             VehicleSettingCommands.forItem(
                 item("cloud:64:adaptive", "64", CarSettingKind.Toggle(true)),
             )?.parameter,
         )
         assertEquals(
-            1,
+            0,
             VehicleSettingCommands.forItem(
                 item("cloud:64:adaptive", "64", CarSettingKind.Toggle(false)),
             )?.parameter,
         )
         assertEquals(
-            0,
+            2,
             VehicleSettingCommands.forItem(
                 item("cloud:89:adaptive", "89", CarSettingKind.Toggle(true)),
             )?.parameter,
         )
         assertEquals(
-            2,
+            0,
             VehicleSettingCommands.forItem(
                 item("cloud:89:adaptive", "89", CarSettingKind.Toggle(false)),
             )?.parameter,
