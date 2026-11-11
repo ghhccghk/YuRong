@@ -414,7 +414,9 @@ class CarSettingsController(
             return false
         }
         if (_state.value.vin == vin && activeOperations.keys.any {
-                findItem(it)?.configId in setOf("4", "58", "61", "55", "92")
+                findItem(it)?.configId.let { configId ->
+                    configId in setOf("4", "58", "61", "55", "92") || configId in SecondPhaseSettings.ids
+                }
             }) {
             _state.value = _state.value.copy(message = "设置正在提交，请完成后刷新")
             return false
@@ -541,7 +543,9 @@ class CarSettingsController(
         if (_state.value.vin.isNotBlank() && _state.value.vin != vinProvider().trim()) return false
         if (!hasKnownSettingValue(item)) return false
         val target = transform(editable)
-        if (!validDraftTarget(item.kind, target) || !validSpeedTarget(item, target)) return false
+        if (!validDraftTarget(item.kind, target) || !validSpeedTarget(item, target) ||
+            !validSecondPhaseTarget(item, target)
+        ) return false
         changeValueState(id) { it.copy(draftValue = target, error = null) }
         return true
     }
@@ -611,11 +615,18 @@ class CarSettingsController(
                 VehicleSettingCommands.forConfigId(item.configId, target) != null)
 
     private fun hasActiveSettingWrite(item: CarSettingItem): Boolean =
-        item.id in activeOperations || (item.configId in setOf("55", "92") &&
+        item.id in activeOperations || SecondPhaseSettings.writeKey(item)?.let { key ->
+            activeOperations.keys.any { id -> findItem(id)?.let { SecondPhaseSettings.writeKey(it) == key } == true }
+        } == true || (item.configId in setOf("55", "92") &&
             (activeOperations.keys.any { findItem(it)?.configId in setOf("55", "92") } ||
                 pendingVehicleConfirmations.keys.any {
                     it != item.id && findItem(it)?.configId in setOf("55", "92")
                 }))
+
+    private fun validSecondPhaseTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
+        item.configId !in SecondPhaseSettings.ids ||
+            (SecondPhaseSettings.validTarget(item.configId, target) &&
+                SecondPhaseSettings.canEditChoice(item, _state.value))
 
     private fun finishFailure(id: String, message: String, confirmation: SettingConfirmationState) {
         pendingVehicleConfirmations.remove(id)
@@ -662,7 +673,9 @@ class CarSettingsController(
         if (current.vin.isNotBlank() && current.vin != vin) return false
         if (!hasKnownSettingValue(item)) return false
         val target = transform(editable)
-        if (!validTarget(item.kind, target) || !validSpeedTarget(item, target)) {
+        if (!validTarget(item.kind, target) || !validSpeedTarget(item, target) ||
+            !validSecondPhaseTarget(item, target)
+        ) {
             _state.value = current.copy(message = "设置值无效")
             return false
         }
@@ -866,6 +879,23 @@ class CarSettingsController(
         val observations = mutableMapOf<String, CarSettingKind>()
         fun applyStatus(source: List<CarSettingItem>): List<CarSettingItem> = source.map { item ->
             val updated = when (item.configId) {
+                "5" -> item.withIndex(status.extended.alarmRingThemeCurrent.takeIf { it in 0..1 })
+                "7", "39" -> when (item.kind) {
+                    is CarSettingKind.Toggle -> item.withToggle(SecondPhaseSettings.autoLockEnabled(
+                        status.extended.leaveVehicleAutoLockStatus, status.extended.sideBraceStatus,
+                    ))
+                    is CarSettingKind.Choice -> item.withIndex(
+                        status.extended.leaveVehicleAutoLockTimeStatus.takeIf { it in 0..3 },
+                    )
+                    else -> item
+                }
+                "11" -> when (item.kind) {
+                    is CarSettingKind.Toggle -> item.withToggle(SecondPhaseSettings.flag(status.extended.bleAutoTurnOnOffStatus))
+                    is CarSettingKind.Choice -> item.withIndex(
+                        status.extended.bleAutoTurnOnOffGearStatus.takeIf { it in 0..2 },
+                    )
+                    else -> item
+                }
                 // 原 App：tcsWorkMode == 0 为开启，1..7 为关闭，-1 表示未上报。
                 "37" -> item.withToggle(status.extended.tcsWorkMode.zeroIsOnOrNull())
                 "38" -> item.withToggle(status.extended.absFunctionStatus.flagOrNull())
@@ -1115,7 +1145,8 @@ class CarSettingsController(
             missingCloudItems = nextMissingCloudItems,
             valueStates = current.valueStates.mapValues { (id, value) ->
                 if (id !in observations && value.vehicleValue is VehicleSettingValue.Known) {
-                    val audited = findItem(id)?.configId in setOf("4", "58", "61", "55", "92")
+                    val configId = findItem(id)?.configId
+                    val audited = configId in setOf("4", "58", "61", "55", "92") || configId in SecondPhaseSettings.ids
                     value.copy(readbackState = SettingReadbackState.MISSING_OR_INVALID,
                         vehicleValue = if (audited) value.vehicleValue.copy(live = false) else value.vehicleValue)
                 } else value

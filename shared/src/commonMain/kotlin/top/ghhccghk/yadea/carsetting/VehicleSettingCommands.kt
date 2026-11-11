@@ -15,6 +15,13 @@ data class VehicleSettingCommand(
     val parameters: List<Int> = emptyList(),
 ) {
     init {
+        // These parameter domains are established by ch.d; never let its encoder
+        // fallback/clamping turn an invalid direct command into a valid write.
+        when (commandId) {
+            0x55 -> require(parameter in 0..3)
+            0x5E -> require(parameter in 0..2)
+            0x2E -> require(parameter in 0..2) // ch.d also defines THEME_2; ID5 exposes only 0/1.
+        }
         // Validate even callers that construct a composite command without the mapper.
         if (commandId == 0xC8 || commandType == "CUSTOMIZE_SETTING") {
             require(commandId == 0xC8 && commandType == "CUSTOMIZE_SETTING" && parameters is CustomizeCommandParameters) {
@@ -89,7 +96,7 @@ class CloudCarSettingWriter(
 
     override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult {
         if (!CarSettingItemAccess.canWrite(item)) return CarSettingWriteResult(false)
-        if (item.configId in setOf("4", "58", "61", "55", "92") &&
+        if ((item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids) &&
             VehicleSettingCommands.forItem(item) == null
         ) return CarSettingWriteResult(false)
         val vin = vinProvider().trim()
@@ -124,10 +131,14 @@ object VehicleSettingCommands {
         // Capability must survive unknown initial values; forItem/forConfigId validate writes.
         (configId in setOf("55", "92") && kind is CarSettingKind.Customize) ||
             (configId in setOf("4", "58", "61") && kind is CarSettingKind.Slider) ||
+            (configId in SecondPhaseSettings.ids && when (configId) {
+                "5" -> kind is CarSettingKind.Choice
+                else -> kind is CarSettingKind.Toggle || kind is CarSettingKind.Choice
+            }) ||
             forConfigId(configId, kind)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     fun supportsItem(item: CarSettingItem): Boolean =
-        if (item.configId in setOf("4", "58", "61", "55", "92")) supports(item.configId, item.kind)
+        if (item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids) supports(item.configId, item.kind)
         else forItem(item)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     /**
@@ -315,7 +326,7 @@ object VehicleSettingCommands {
                 )
             }
             // AutoShutDownActivity：离车自动锁与 3/5/10/15 秒时间。
-            "7" -> when (kind) {
+            "7" -> if (!SecondPhaseSettings.validTarget(configId, kind)) null else when (kind) {
                 is CarSettingKind.Toggle -> toggle(
                     kind = kind,
                     onType = "LEAVE_THE_CAR_AUTO_LOCK_ON",
@@ -326,12 +337,12 @@ object VehicleSettingCommands {
                 is CarSettingKind.Choice -> VehicleSettingCommand(
                     commandType = "LEAVE_THE_CAR_AUTO_LOCK_TIME",
                     commandId = 0x55,
-                    parameter = kind.selectedIndex.coerceIn(0, 3),
+                    parameter = kind.selectedIndex,
                 )
                 else -> null
             }
             // AutoOnOffActivity：自动开关机。
-            "11" -> when (kind) {
+            "11" -> if (!SecondPhaseSettings.validTarget(configId, kind)) null else when (kind) {
                 is CarSettingKind.Toggle -> toggle(
                     kind = kind,
                     onType = "AUTO_TURN_ON_OFF_OPEN",
@@ -342,7 +353,7 @@ object VehicleSettingCommands {
                 is CarSettingKind.Choice -> VehicleSettingCommand(
                     commandType = "AUTO_TURN_ON_OFF",
                     commandId = 0x5E,
-                    parameter = kind.selectedIndex.coerceIn(0, 2),
+                    parameter = kind.selectedIndex,
                 )
                 else -> null
             }
@@ -405,10 +416,11 @@ object VehicleSettingCommands {
             // OldVehicleSoundEffectsActivity：ALARM_THEME_0/1。
             "5" -> {
                 val choice = kind as? CarSettingKind.Choice ?: return null
+                if (!SecondPhaseSettings.validTarget(configId, choice)) return null
                 VehicleSettingCommand(
                     commandType = "ALARM_THEME",
                     commandId = 0x2E,
-                    parameter = choice.selectedIndex.coerceIn(0, 1),
+                    parameter = choice.selectedIndex,
                 )
             }
             "15" -> when (kind) {
@@ -489,7 +501,7 @@ object VehicleSettingCommands {
                 )
             }
             // BraceAutoShutDownActivity：边撑自动关机，依赖边撑感应（confId 2）。
-            "39" -> when (kind) {
+            "39" -> if (!SecondPhaseSettings.validTarget(configId, kind)) null else when (kind) {
                 is CarSettingKind.Toggle -> toggle(
                     kind = kind,
                     onType = "LEAVE_THE_CAR_AUTO_LOCK_ON",
@@ -500,7 +512,7 @@ object VehicleSettingCommands {
                 is CarSettingKind.Choice -> VehicleSettingCommand(
                     commandType = "LEAVE_THE_CAR_AUTO_LOCK_TIME",
                     commandId = 0x55,
-                    parameter = kind.selectedIndex.coerceIn(0, 3),
+                    parameter = kind.selectedIndex,
                 )
                 else -> null
             }
@@ -737,6 +749,16 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        if (item.configId in SecondPhaseSettings.ids) {
+            val expectedId = when (item.kind) {
+                is CarSettingKind.Toggle -> "cloud:${item.configId}"
+                is CarSettingKind.Choice -> if (item.configId == "5") "cloud:5"
+                    else "cloud:${item.configId}:${if (item.configId == "11") "distance" else "time"}"
+                else -> return null
+            }
+            if (item.id != expectedId) return null
+            return forConfigId(item.configId, item.kind)
+        }
         // These whole-item settings must not enter an unrelated split-id shortcut.
         if (item.configId in setOf("4", "58", "61", "55", "92")) {
             return forConfigId(item.configId, item.kind)

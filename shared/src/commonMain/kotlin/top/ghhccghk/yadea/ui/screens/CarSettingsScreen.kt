@@ -42,6 +42,7 @@ import top.ghhccghk.yadea.carsetting.CarSettingWriteChannel
 import top.ghhccghk.yadea.carsetting.SettingReadbackState
 import top.ghhccghk.yadea.carsetting.CarSettingsController
 import top.ghhccghk.yadea.carsetting.CarSettingsState
+import top.ghhccghk.yadea.carsetting.SecondPhaseSettings
 import top.ghhccghk.yadea.carsetting.CustomSoundController
 import top.ghhccghk.yadea.carsetting.CustomSoundCategory
 import top.ghhccghk.yadea.carsetting.CustomSoundResource
@@ -174,7 +175,7 @@ fun CarSettingsScreen(
                     (it.kind as? CarSettingKind.Toggle)?.checked == true
             }
             if (braceOn) {
-                scope.launch { controller.update(item.id, transform) }
+                settingScope.launch { controller.update(item.id, transform) }
             } else {
                 confirmBraceDependency = item
             }
@@ -201,6 +202,7 @@ fun CarSettingsScreen(
         val displayedKind = state.valueState(item.id).displayKind() ?: item.kind
         controller.available &&
             CarSettingItemAccess.canWrite(item) &&
+            SecondPhaseSettings.canEditChoice(item, state) &&
             (item.configId !in setOf("4", "58", "61") ||
                 (displayedKind is CarSettingKind.Slider && displayedKind.valueKnown && displayedKind.rangeKnown &&
                     (item.kind as? CarSettingKind.Slider)?.rangeKnown == true)) &&
@@ -503,7 +505,7 @@ fun CarSettingsScreen(
         onConfirm = {
             confirmBraceDependency = null
             braceTarget?.let { item ->
-                scope.launch {
+                settingScope.launch {
                     val brace = (state.items + state.missingCloudItems)
                         .firstOrNull { it.configId == "2" }
                     val braceOn =

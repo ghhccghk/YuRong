@@ -357,6 +357,12 @@ data class TtpExtendedInfo(
     val panelThemeCurrent: Int = Ttp.INVALID_I,
     /** l76.z -> alarmSensitivityStatus: C(data, 0x1C, 2); raw 7 is invalid. */
     val alarmSensitivityStatus: Int = Ttp.INVALID_I,
+    /** l76.z: G(data, 0x32, 0); OldVehicleSoundEffectsActivity uses only 0/1. */
+    val alarmRingThemeCurrent: Int = Ttp.INVALID_I,
+    /** l76.z: G(data, 0x24, 2); shared by AutoShutDown/BraceAutoShutDown. */
+    val leaveVehicleAutoLockStatus: Int = Ttp.INVALID_I,
+    /** l76.z: C(data, 0x24, 4); 0/1/2/3 mean 3/5/10/15 seconds. */
+    val leaveVehicleAutoLockTimeStatus: Int = Ttp.INVALID_I,
 )
 
 /**
@@ -568,6 +574,9 @@ internal object TtpInfoParser {
             turnSignalReturnsAutomaticallyStatus = Ttp.G(d, 0x33, 6),
             alarmWarningMode = Ttp.C(d, 0x33, 0),
             alarmSensitivityStatus = Ttp.C(d, 0x1C, 2),
+            alarmRingThemeCurrent = Ttp.G(d, 0x32, 0),
+            leaveVehicleAutoLockStatus = Ttp.G(d, 0x24, 2),
+            leaveVehicleAutoLockTimeStatus = Ttp.C(d, 0x24, 4),
             alarmWarningVolumeLevel = Ttp.C(d, 0x33, 3),
             slideModePowerRecoverStatus = Ttp.G(d, 0x26, 0),
             slideModePowerRecoverCurrent = Ttp.C(d, 0x26, 2),

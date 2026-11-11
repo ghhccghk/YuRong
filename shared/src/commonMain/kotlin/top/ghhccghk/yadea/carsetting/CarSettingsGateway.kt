@@ -870,6 +870,9 @@ class YadeaCarSettingsGateway(
 object CloudCarSettingMapper {
     /** Explicit response fields only; item defaults never establish a configuration value. */
     internal fun configuredValue(cloud: CloudCarSettings, item: CarSettingItem): CarSettingKind? {
+        // DTO declarations alone do not prove these pages use the similarly named
+        // cloud fields. Their current value is established by the verified TTP path.
+        if (item.configId in SecondPhaseSettings.ids) return null
         when (item.kind) {
             is CarSettingKind.LowPowerInfo -> {
                 val alarmOn = cloud.boolValue("alarmOn")
@@ -927,7 +930,6 @@ object CloudCarSettingMapper {
         val key = when (item.id) {
             "cloud:47:enable" -> "chargeWattSwitch"
             else -> when (item.configId) {
-                "7" -> "bleLeavePowerOffEnable"
                 "9" -> "alarmOn"
                 "10" -> "distanceOn"
                 "13" -> "alarmSoundEnable"
@@ -1220,7 +1222,8 @@ object CloudCarSettingMapper {
                     channel = CarSettingChannel.BLE,
                     kind = CarSettingKind.Choice(
                         selectedIndex = 0,
-                        options = listOf("3 秒", "5 秒", "10 秒", "15 秒"),
+                        options = SecondPhaseSettings.timeOptions,
+                        valueKnown = false,
                     ),
                     writable = config.isAuth != false,
                     sort = (config.sort.toIntOrNull() ?: 0) + 1,
@@ -1228,9 +1231,6 @@ object CloudCarSettingMapper {
             }
         }
         cloud.configs.firstOrNull { it.confId.trim() == "11" }?.let { config ->
-            val distance = cloud.intValue("bleApproachPowerOnDistance")
-                ?.takeIf { it in 0..2 }
-                ?: 0
             items += CarSettingItem(
                 id = "cloud:11:distance",
                 configId = "11",
@@ -1240,8 +1240,9 @@ object CloudCarSettingMapper {
                 group = groupOf(config, classificationOf("11", config)),
                 channel = CarSettingChannel.BLE,
                 kind = CarSettingKind.Choice(
-                    selectedIndex = distance,
-                    options = listOf("近", "中", "远"),
+                    selectedIndex = 0,
+                    options = SecondPhaseSettings.distanceOptions,
+                    valueKnown = false,
                 ),
                 writable = config.isAuth != false,
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,
@@ -1767,7 +1768,8 @@ object CloudCarSettingMapper {
         // OldVehicleSoundEffectsActivity：两个报警音主题，参数 0/1。
         "5" -> CarSettingKind.Choice(
             selectedIndex = 0,
-            options = listOf("主题 1", "主题 2"),
+            options = SecondPhaseSettings.soundOptions,
+            valueKnown = false,
         )
         // HelpPromotePlusActivity：辅助推行开关；档位和自适应模式在下方追加。
         "64", "89" -> unknownToggle()
@@ -1812,9 +1814,7 @@ object CloudCarSettingMapper {
             )
         }
         // AutoShutDownActivity 与 BraceAutoShutDownActivity 共用离车自动锁命令。
-        "7" -> CarSettingKind.Toggle(
-            cloud.boolValue("bleLeavePowerOffEnable") == true,
-        )
+        "7" -> unknownToggle()
         "11" -> unknownToggle()
         // GaugeStyleHandOffActivity.onCheckChange: rb_1=0, rb_2=1.
         "50" -> CarSettingKind.Choice(
