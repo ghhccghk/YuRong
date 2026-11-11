@@ -13,7 +13,36 @@ data class VehicleSettingCommand(
     val parameter: Int = -1,
     /** 多参数命令的附加字段，顺序与 [commandType] 的原实现一致。 */
     val parameters: List<Int> = emptyList(),
-)
+) {
+    init {
+        // Validate even callers that construct a composite command without the mapper.
+        if (commandId == 0xC8 || commandType == "CUSTOMIZE_SETTING") {
+            require(commandId == 0xC8 && commandType == "CUSTOMIZE_SETTING" && parameters is CustomizeCommandParameters) {
+                "CUSTOMIZE_SETTING requires four explicit, valid fields"
+            }
+        }
+    }
+}
+
+/** No mutable List alias can change a validated composite between mapping and encoding. */
+private class CustomizeCommandParameters(
+    private val throttle: Int,
+    private val energy: Int,
+    private val energyState: Int,
+    private val tcs: Int,
+) : AbstractList<Int>() {
+    init {
+        require(throttle in 0..2 && energy in 0..2 && energyState in 0..1 && tcs in 0..1)
+    }
+    override val size: Int get() = 4
+    override fun get(index: Int): Int = when (index) {
+        0 -> throttle
+        1 -> energy
+        2 -> energyState
+        3 -> tcs
+        else -> throw IndexOutOfBoundsException(index.toString())
+    }
+}
 
 /** 平台侧负责把 [VehicleSettingCommand] 编码成整车 BLE 命令并写入协议命令特征。 */
 interface VehicleSettingCommandSink {
@@ -60,6 +89,9 @@ class CloudCarSettingWriter(
 
     override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult {
         if (!CarSettingItemAccess.canWrite(item)) return CarSettingWriteResult(false)
+        if (item.configId in setOf("4", "58", "61", "55", "92") &&
+            VehicleSettingCommands.forItem(item) == null
+        ) return CarSettingWriteResult(false)
         val vin = vinProvider().trim()
         if (vin.isBlank()) return CarSettingWriteResult(false)
         val update = CloudCarSettingUpdateBuilder.build(
@@ -89,10 +121,14 @@ class CloudCarSettingWriter(
 object VehicleSettingCommands {
 
     fun supports(configId: String, kind: CarSettingKind): Boolean =
-        forConfigId(configId, kind)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
+        // Capability must survive unknown initial values; forItem/forConfigId validate writes.
+        (configId in setOf("55", "92") && kind is CarSettingKind.Customize) ||
+            (configId in setOf("4", "58", "61") && kind is CarSettingKind.Slider) ||
+            forConfigId(configId, kind)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     fun supportsItem(item: CarSettingItem): Boolean =
-        forItem(item)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
+        if (item.configId in setOf("4", "58", "61", "55", "92")) supports(item.configId, item.kind)
+        else forItem(item)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     /**
      * 云端 `BikeConfig.confId` 对应的已确认命令。
@@ -242,22 +278,40 @@ object VehicleSettingCommands {
                 }
             }
             // TopSpeedActivity / MaxSpeedSettingActivity：最高车速。
-            "4", "58" -> {
+            "4" -> {
                 val slider = kind as? CarSettingKind.Slider ?: return null
+                val speed = slider.value.toInt()
+                if (!slider.rangeKnown || !slider.valueKnown || !slider.value.isFinite() || slider.value != speed.toFloat() ||
+                    speed !in 15..120 || slider.value !in slider.range
+                ) return null
                 VehicleSettingCommand(
                     commandType = "MAX_SPEED_SETTING",
                     commandId = 0x36,
-                    parameter = slider.value.toInt().coerceIn(15, 120),
+                    parameter = speed,
                 )
+            }
+            "58" -> {
+                val slider = kind as? CarSettingKind.Slider ?: return null
+                val presets = slider.speedPresets
+                val speed = slider.value.toInt()
+                if (!slider.rangeKnown || !slider.valueKnown || !slider.value.isFinite() || slider.value != speed.toFloat() ||
+                    presets.size != 3 || presets[0] !in 15..120 || presets[1] !in 15..120 ||
+                    presets[0] >= presets[1] || presets[2] != 0 || speed !in presets ||
+                    slider.value !in slider.range
+                ) return null
+                VehicleSettingCommand("MAX_SPEED_SETTING", 0x36, parameter = speed)
             }
             // MaxSpeedLimitActivity：0 表示不限速，非零最低 15 km/h。
             "61" -> {
                 val slider = kind as? CarSettingKind.Slider ?: return null
                 val speed = slider.value.toInt()
+                if (!slider.rangeKnown || !slider.valueKnown || !slider.value.isFinite() || slider.value != speed.toFloat() || speed.toFloat() !in slider.range ||
+                    (speed != 0 && (speed < (slider.minimumNonZero?.toInt() ?: 15) || speed !in 15..120))
+                ) return null
                 VehicleSettingCommand(
                     commandType = "MAX_SPEED_SETTING",
                     commandId = 0x36,
-                    parameter = if (speed == 0) 0 else speed.coerceIn(15, 120),
+                    parameter = speed,
                 )
             }
             // AutoShutDownActivity：离车自动锁与 3/5/10/15 秒时间。
@@ -419,14 +473,18 @@ object VehicleSettingCommands {
             // VehicleCustomizeActivity：CUSTOMIZE_SETTING 一次下发四项参数。
             "55", "92" -> {
                 val customize = kind as? CarSettingKind.Customize ?: return null
+                val throttle = customize.throttleLevel?.takeIf { it in 0..2 } ?: return null
+                val energyLevel = customize.energyLevel?.takeIf { it in 0..2 } ?: return null
+                val energyState = customize.energyState ?: return null
+                val tcs = customize.tcs ?: return null
                 VehicleSettingCommand(
                     commandType = "CUSTOMIZE_SETTING",
                     commandId = 0xC8,
-                    parameters = listOf(
-                        customize.throttleLevel.coerceIn(0, 2),
-                        customize.energyLevel.coerceIn(0, 2),
-                        if (customize.energyState) 1 else 0,
-                        if (customize.tcs) 1 else 0,
+                    parameters = CustomizeCommandParameters(
+                        throttle,
+                        energyLevel,
+                        if (energyState) 1 else 0,
+                        if (tcs) 1 else 0,
                     ),
                 )
             }
@@ -679,6 +737,10 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        // These whole-item settings must not enter an unrelated split-id shortcut.
+        if (item.configId in setOf("4", "58", "61", "55", "92")) {
+            return forConfigId(item.configId, item.kind)
+        }
         when (item.id) {
             "cloud:001" -> {
                 val choice = item.kind as? CarSettingKind.Choice ?: return null

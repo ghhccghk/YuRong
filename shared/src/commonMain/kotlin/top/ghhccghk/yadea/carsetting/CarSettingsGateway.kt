@@ -222,6 +222,9 @@ object CloudCarSettingUpdateBuilder {
                         fields["value"] = value
                     }
                     "61" -> {
+                        if (!kind.rangeKnown || !kind.valueKnown || !kind.value.isFinite() || kind.value != value.toFloat() ||
+                            kind.value !in kind.range || (value != 0 && value !in 15..120)
+                        ) return null
                         path = CloudCarSettingUpdatePath.PARAM_SETTING
                         fields["highestSpeedLimit"] = value
                         fields["oper"] = "SET_PARAM"
@@ -844,6 +847,7 @@ class YadeaCarSettingsGateway(
         private val VALUE_KEYS = listOf(
             "alarmOn", "alarmPower", "alarmSoundEnable", "bikeInfoSyncName",
             "bikeModelTopSpeedMax", "bikeModelTopSpeedMin", "bikeSpeedMax",
+            "bikeSpeedMaxDefaultMax", "bikeSpeedMaxDefaultMin",
             "bleApproachPowerOnDistance", "bleApproachPowerOnEnable", "bleDistance",
             "bleLeavePowerOffDistance", "bleLeavePowerOffEnable", "bleUnlockOn",
             "brightnessAdjustValue", "capacity", "chargeUlVal", "chargeWattSwitch",
@@ -893,6 +897,7 @@ object CloudCarSettingMapper {
                 "cloud:10:distance" -> "distance"
                 "cloud:52:distance" -> "bleDistance"
                 else -> when (item.configId) {
+                    "4", "58" -> "bikeSpeedMax"
                     "47" -> "chargeWattVal"
                     "48" -> "chargeUlVal"
                     "61" -> "highestSpeedLimit"
@@ -1769,17 +1774,41 @@ object CloudCarSettingMapper {
         // VehicleCustomizeActivity：FREE 模式的四项参数一次下发。
         "55", "92" -> CarSettingKind.Customize()
         // TopSpeedActivity / MaxSpeedSettingActivity：最高车速。
-        "4", "58" -> {
-            val max = cloud.intValue("bikeSpeedMax")
+        "4" -> {
+            val modelMin = cloud.values["bikeSpeedMaxDefaultMin"]?.trim()?.toIntOrNull()
                 ?.takeIf { it in 15..120 }
-                ?: cloud.intValue("bikeModelTopSpeedMax")?.takeIf { it in 15..120 }
-                ?: 60
-            val current = cloud.intValue("bikeSpeedMax")?.coerceIn(15, max) ?: max
+            val modelMax = cloud.values["bikeSpeedMaxDefaultMax"]?.trim()?.toIntOrNull()
+                ?.takeIf { it in 15..120 }
+            val boundsKnown = modelMin != null && modelMax != null && modelMin < modelMax
+            // Protocol bounds only permit displaying a real value; they never enable a write.
+            val min = if (boundsKnown) modelMin else 15
+            val max = if (boundsKnown) modelMax else 120
+            val configured = cloud.values["bikeSpeedMax"]?.trim()?.toIntOrNull()?.takeIf { it in min..max }
             CarSettingKind.Slider(
-                value = current.toFloat(),
-                range = 15f..max.toFloat(),
-                steps = (max - 16).coerceAtLeast(0),
+                value = configured?.toFloat() ?: min.toFloat(),
+                range = min.toFloat()..max.toFloat(),
+                steps = (max - min - 1).coerceAtLeast(0),
                 unit = " km/h",
+                valueKnown = configured != null,
+                rangeKnown = boundsKnown,
+            )
+        }
+        // MaxSpeedSettingActivity$a: positions 0/1/2 send model min/max/0, not the position.
+        "58" -> {
+            val min = cloud.values["bikeModelTopSpeedMin"]?.trim()?.toIntOrNull()?.takeIf { it in 15..120 }
+            val max = cloud.values["bikeModelTopSpeedMax"]?.trim()?.toIntOrNull()?.takeIf { it in 15..120 }
+            val presets = if (min != null && max != null && min < max) listOf(min, max, 0) else emptyList()
+            val upper = max ?: 120
+            val configured = cloud.values["bikeSpeedMax"]?.trim()?.toIntOrNull()
+                ?.takeIf { it == 0 || it in 15..upper }
+            CarSettingKind.Slider(
+                value = configured?.toFloat() ?: 0f,
+                range = 0f..upper.toFloat(),
+                unit = " km/h",
+                minimumNonZero = 15f,
+                valueKnown = configured != null,
+                speedPresets = presets,
+                rangeKnown = presets.size == 3,
             )
         }
         // AutoShutDownActivity 与 BraceAutoShutDownActivity 共用离车自动锁命令。
@@ -1823,18 +1852,19 @@ object CloudCarSettingMapper {
         "75" -> cloudToggle(cloud, "tamperProofIotEnable")
         "82" -> CarSettingKind.LowPowerPhone()
         "61" -> {
-            val max = cloud.intValue("bikeSpeedMax")
-                ?.takeIf { it in 15..120 }
-                ?: cloud.intValue("bikeModelTopSpeedMax")?.takeIf { it in 15..120 }
-                ?: 60
-            val current = cloud.intValue("highestSpeedLimit")?.coerceIn(0, max) ?: 0
+            val modelMax = cloud.values["bikeModelTopSpeedMax"]?.trim()?.toIntOrNull()?.takeIf { it in 15..120 }
+            val max = modelMax ?: 120
+            val configured = cloud.values["highestSpeedLimit"]?.trim()?.toIntOrNull()
+                ?.takeIf { it == 0 || it in 15..max }
             CarSettingKind.Slider(
-                value = current.toFloat(),
+                value = configured?.toFloat() ?: 0f,
                 range = 0f..max.toFloat(),
                 steps = (max - 1).coerceAtLeast(0),
                 unit = " km/h",
                 // 0 表示不限速；非零最低 15 km/h。
                 minimumNonZero = 15f,
+                valueKnown = configured != null,
+                rangeKnown = modelMax != null,
             )
         }
         // VehicleVolumeActivity keeps its independent 0..7 range.

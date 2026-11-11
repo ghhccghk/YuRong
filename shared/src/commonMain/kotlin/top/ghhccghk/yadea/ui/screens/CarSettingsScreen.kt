@@ -92,6 +92,7 @@ fun CarSettingsScreen(
     var customizeItem by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     val customizeDraft = customizeItem?.let { state.valueState(it.id).editableKind(it.kind) as? CarSettingKind.Customize }
         ?: CarSettingKind.Customize()
+    val customizeValueKnown = customizeDraft.valueKnown
     fun editCustomize(transform: (CarSettingKind.Customize) -> CarSettingKind.Customize) {
         customizeItem?.let { item -> controller.editDraft(item.id) { transform(it as CarSettingKind.Customize) } }
     }
@@ -197,8 +198,18 @@ fun CarSettingsScreen(
         }
     }
     val settingControlEnabled: (CarSettingItem) -> Boolean = { item ->
+        val displayedKind = state.valueState(item.id).displayKind() ?: item.kind
         controller.available &&
             CarSettingItemAccess.canWrite(item) &&
+            (item.configId !in setOf("4", "58", "61") ||
+                (displayedKind is CarSettingKind.Slider && displayedKind.valueKnown && displayedKind.rangeKnown &&
+                    (item.kind as? CarSettingKind.Slider)?.rangeKnown == true)) &&
+            (item.configId != "58" || (item.kind as? CarSettingKind.Slider)?.speedPresets?.size == 3) &&
+            (item.configId !in setOf("55", "92") ||
+                (state.items + state.missingCloudItems).none {
+                    it.configId in setOf("55", "92") && (it.id in state.pendingIds ||
+                        (it.id != item.id && state.valueState(it.id).submittedValue != null))
+                }) &&
             item.id !in state.pendingIds &&
             settingDisabledReason(item) == null &&
             (item.id != "cloud:60:level" || capacitySwitchOn)
@@ -523,7 +534,51 @@ fun CarSettingsScreen(
         val slider = sliderTarget?.kind as? CarSettingKind.Slider
         if (sliderTarget != null && slider != null) {
             val draft = (state.valueState(sliderTarget.id).editableKind(slider) as CarSettingKind.Slider).value
-            AppSliderPreference(
+            if (sliderTarget.configId == "58") {
+                val presets = slider.speedPresets
+                val position = if (state.valueState(sliderTarget.id).displayKind() != null) {
+                    speedPresetPosition(slider, draft)
+                } else null
+                if (presets.size != 3) {
+                    AppText("车型档位范围未知，暂不可编辑或保存", style = AppDesign.typography.summary)
+                } else if (position == null) {
+                    // Do not place an unmatched/unknown observation at a fabricated tick.
+                    AppText("当前值未对应预设档位，请明确选择目标档位", style = AppDesign.typography.summary)
+                    presets.forEachIndexed { index, speed ->
+                        AppActionPreference(
+                            title = if (speed == 0) "不限速" else "$speed km/h",
+                            enabled = settingControlEnabled(sliderTarget),
+                            onClick = {
+                                val target = speedPresetTarget(slider, index.toFloat()) ?: return@AppActionPreference
+                                if (controller.editDraft(sliderTarget.id) { target }) {
+                                    settingScope.launch { controller.submitDraft(sliderTarget.id) }
+                                }
+                            },
+                        )
+                    }
+                } else {
+                    AppSliderPreference(
+                        title = sliderTarget.title,
+                        summary = settingDescriptionSummary(sliderTarget),
+                        value = position,
+                        valueRange = 0f..2f,
+                        steps = 1,
+                        valueText = settingSliderValueLabel(state.valueState(sliderTarget.id).displayKind() as? CarSettingKind.Slider),
+                        enabled = settingControlEnabled(sliderTarget),
+                        onValueChange = { raw ->
+                            val target = speedPresetTarget(slider, raw) ?: return@AppSliderPreference
+                            controller.editDraft(sliderTarget.id) { target }
+                        },
+                        onValueChangeFinished = { settingScope.launch { controller.submitDraft(sliderTarget.id) } },
+                    )
+                }
+            } else if (sliderTarget.configId in setOf("4", "61") && !slider.rangeKnown) {
+                AppText("车型速度范围未知，暂不可编辑或保存", style = AppDesign.typography.summary)
+            } else if (sliderTarget.configId in setOf("4", "61") &&
+                state.valueState(sliderTarget.id).displayKind() == null
+            ) {
+                AppText("状态未知，等待有效配置或车辆回读", style = AppDesign.typography.summary)
+            } else AppSliderPreference(
                 title = sliderTarget.title,
                 summary = settingDescriptionSummary(sliderTarget),
                 value = draft,
@@ -681,50 +736,64 @@ fun CarSettingsScreen(
                 style = AppDesign.typography.summary,
                 color = AppDesign.colors.onSurfaceVariant,
             )
-            AppPopupPreference(
+            if (!customizeValueKnown) {
+                AppText(
+                    text = "尚未读取到完整车辆配置，避免覆盖其他参数，暂不可编辑或保存。",
+                    style = AppDesign.typography.summary,
+                    color = AppDesign.colors.onSurfaceVariant,
+                )
+            }
+            if (customizeValueKnown) AppPopupPreference(
                 title = "油门灵敏度",
                 summary = "改变转把响应的灵敏度",
                 options = listOf("迅猛", "平稳", "缓慢"),
-                selectedIndex = customizeDraft.throttleLevel,
+                selectedIndex = customizeDraft.throttleLevel!!,
                 onSelectedIndexChange = {
                     editCustomize { draft -> draft.copy(throttleLevel = it) }
                 },
+                enabled = customizeValueKnown && customizeTarget?.let(settingControlEnabled) == true,
             )
-            AppPopupPreference(
+            if (customizeValueKnown) AppPopupPreference(
                 title = "能量回收档位",
                 summary = "松转把时的能量回收强度",
                 options = listOf("弱", "中", "强"),
-                selectedIndex = customizeDraft.energyLevel,
+                selectedIndex = customizeDraft.energyLevel!!,
                 onSelectedIndexChange = {
                     editCustomize { draft -> draft.copy(energyLevel = it) }
                 },
+                enabled = customizeValueKnown && customizeTarget?.let(settingControlEnabled) == true,
             )
-            AppSwitchPreference(
+            if (customizeValueKnown) AppSwitchPreference(
                 title = "能量回收",
                 summary = "关闭后 FREE 模式不进行能量回收",
-                checked = customizeDraft.energyState,
+                checked = customizeDraft.energyState!!,
                 onCheckedChange = {
                     editCustomize { draft -> draft.copy(energyState = it) }
                 },
+                enabled = customizeValueKnown && customizeTarget?.let(settingControlEnabled) == true,
             )
-            AppSwitchPreference(
+            if (customizeValueKnown) AppSwitchPreference(
                 title = "TCS 车身稳定",
                 summary = "FREE 模式下保持车身稳定辅助",
-                checked = customizeDraft.tcs,
+                checked = customizeDraft.tcs!!,
                 onCheckedChange = {
                     editCustomize { draft -> draft.copy(tcs = it) }
                 },
+                enabled = customizeValueKnown && customizeTarget?.let(settingControlEnabled) == true,
             )
             AppOutlinedButton(
                 onClick = {
                     val target = customizeTarget ?: return@AppOutlinedButton
-                    scope.launch {
-                        val saved = controller.update(target.id) { customizeDraft }
+                    settingScope.launch {
+                        val saved = controller.submitDraft(target.id)
                         if (saved) customizeItem = null
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = customizeTarget != null &&
+                    customizeValueKnown &&
+                    settingControlEnabled(customizeTarget) &&
+                    state.valueState(customizeTarget.id).draftValue != null &&
                     customizeTarget.id !in state.pendingIds,
             ) {
                 AppText(
@@ -1336,8 +1405,22 @@ internal fun settingSwitchTarget(state: CarSettingValueState, targetChecked: Boo
 internal fun isAuditedThreeTickSlider(item: CarSettingItem): Boolean =
     item.id == "cloud:14" || item.id == "cloud:64:level" || item.id == "cloud:89:level"
 
+internal fun speedPresetPosition(slider: CarSettingKind.Slider, raw: Float): Float? =
+    if (slider.speedPresets.size != 3 || !raw.isFinite()) null
+    else slider.speedPresets.indexOfFirst { it.toFloat() == raw }.takeIf { it >= 0 }?.toFloat()
+
+internal fun speedPresetTarget(slider: CarSettingKind.Slider, position: Float): CarSettingKind.Slider? {
+    if (!position.isFinite() || position !in 0f..2f || slider.speedPresets.size != 3) return null
+    return slider.copy(value = slider.speedPresets[position.roundToInt()].toFloat(), valueKnown = true)
+}
+
 /** Normalize UI input only; observed values and command validation remain unchanged. */
 internal fun settingSliderDraftValue(item: CarSettingItem, raw: Float): Float? {
+    if (item.configId in setOf("4", "61")) {
+        val slider = item.kind as? CarSettingKind.Slider ?: return null
+        if (!slider.rangeKnown || !raw.isFinite() || raw !in slider.range) return null
+        return raw.roundToInt().toFloat()
+    }
     if (!isAuditedThreeTickSlider(item)) return raw
     val slider = item.kind as? CarSettingKind.Slider ?: return null
     val expectedRange = if (item.configId == "14") 0f..100f else 0f..2f

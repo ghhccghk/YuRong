@@ -127,6 +127,10 @@ sealed interface CarSettingKind {
          */
         val minimumNonZero: Float? = null,
         val valueKnown: Boolean = true,
+        /** ID58: raw parameters for its three UI positions, in original App order. */
+        val speedPresets: List<Int> = emptyList(),
+        /** Speed-setting model bounds must be explicit before a target can be submitted. */
+        val rangeKnown: Boolean = true,
     ) : CarSettingKind
 
     data class Info(val value: String) : CarSettingKind
@@ -135,11 +139,15 @@ sealed interface CarSettingKind {
      * 因此这里作为一个整体条目，避免逐项写入时覆盖其它参数。
      */
     data class Customize(
-        val throttleLevel: Int = 1,
-        val energyLevel: Int = 1,
-        val energyState: Boolean = false,
-        val tcs: Boolean = false,
-    ) : CarSettingKind
+        val throttleLevel: Int? = null,
+        val energyLevel: Int? = null,
+        val energyState: Boolean? = null,
+        val tcs: Boolean? = null,
+    ) : CarSettingKind {
+        val valueKnown: Boolean
+            get() = throttleLevel?.let { it in 0..2 } == true &&
+                energyLevel?.let { it in 0..2 } == true && energyState != null && tcs != null
+    }
     /** 云端下发、需要进入二级页面的入口；当前只展示云端提示。 */
     data class Entrance(val hint: String = "进入设置") : CarSettingKind
 
@@ -405,6 +413,12 @@ class CarSettingsController(
             clearForVin(vin, "登录并绑定车辆后加载云端设置")
             return false
         }
+        if (_state.value.vin == vin && activeOperations.keys.any {
+                findItem(it)?.configId in setOf("4", "58", "61", "55", "92")
+            }) {
+            _state.value = _state.value.copy(message = "设置正在提交，请完成后刷新")
+            return false
+        }
         if (_state.value.vin.isNotEmpty() && _state.value.vin != vin) {
             latestVehicleStatus = null
             latestCachedStatus = null
@@ -459,8 +473,11 @@ class CarSettingsController(
             message = if (items.isEmpty()) "云端未返回可用设置项" else null,
             valueStates = items.associate { item ->
                 val retained = _state.value.valueState(item.id).takeIf { value ->
-                    (value.draftValue == null || validDraftTarget(item.kind, value.draftValue)) &&
-                        (value.submittedValue == null || validTarget(item.kind, value.submittedValue))
+                    // Preserve explicit edits/receipts if model metadata changes; submission
+                    // revalidates against the newly loaded item instead of discarding all sources.
+                    item.configId in setOf("4", "58", "61", "55", "92") ||
+                        ((value.draftValue == null || validDraftTarget(item.kind, value.draftValue)) &&
+                            (value.submittedValue == null || validTarget(item.kind, value.submittedValue)))
                 } ?: CarSettingValueState()
                 val observed = (retained.vehicleValue as? VehicleSettingValue.Known)
                     ?.takeIf { validTarget(item.kind, it.kind) }
@@ -519,10 +536,12 @@ class CarSettingsController(
     fun editDraft(id: String, transform: (CarSettingKind) -> CarSettingKind): Boolean {
         if (_state.value.loading) return false
         val item = findItem(id) ?: return false
-        if (!CarSettingItemAccess.canWrite(item) || id in activeOperations) return false
+        val editable = _state.value.valueState(id).editableKind(item.kind)
+        if (!CarSettingItemAccess.canWrite(item) || hasActiveSettingWrite(item)) return false
         if (_state.value.vin.isNotBlank() && _state.value.vin != vinProvider().trim()) return false
-        val target = transform(_state.value.valueState(id).editableKind(item.kind))
-        if (!validDraftTarget(item.kind, target)) return false
+        if (!hasKnownSettingValue(item)) return false
+        val target = transform(editable)
+        if (!validDraftTarget(item.kind, target) || !validSpeedTarget(item, target)) return false
         changeValueState(id) { it.copy(draftValue = target, error = null) }
         return true
     }
@@ -545,6 +564,20 @@ class CarSettingsController(
         else -> validTarget(original, target)
     }
 
+    private fun hasKnownSettingValue(item: CarSettingItem): Boolean {
+        if (item.configId !in setOf("4", "58", "61", "55", "92")) return true
+        val state = _state.value.valueState(item.id)
+        return listOfNotNull(state.configuredValue,
+            (state.vehicleValue as? VehicleSettingValue.Known)?.kind, state.cachedValue?.kind
+        ).any { kind ->
+            when (kind) {
+                is CarSettingKind.Slider -> kind.valueKnown
+                is CarSettingKind.Customize -> kind.valueKnown
+                else -> false
+            }
+        }
+    }
+
     private fun validTarget(original: CarSettingKind, target: CarSettingKind): Boolean = when {
         original is CarSettingKind.Toggle && target is CarSettingKind.Toggle -> true
         original is CarSettingKind.LowPowerInfo && target is CarSettingKind.LowPowerInfo ->
@@ -562,10 +595,27 @@ class CarSettingsController(
         original is CarSettingKind.Slider && target is CarSettingKind.Slider ->
             target.range == original.range && target.value.isFinite() && target.value in original.range &&
                 (original.minimumNonZero == null || target.value == 0f || target.value >= original.minimumNonZero)
-        original is CarSettingKind.Customize && target is CarSettingKind.Customize -> true
+        original is CarSettingKind.Customize && target is CarSettingKind.Customize ->
+            target.valueKnown &&
+                target.throttleLevel?.let { it in 0..2 } == true &&
+                target.energyLevel?.let { it in 0..2 } == true
         original is CarSettingKind.Atmosphere && target is CarSettingKind.Atmosphere -> true
         else -> false
     }
+
+    private fun validSpeedTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
+        item.configId !in setOf("4", "58", "61") ||
+            (target is CarSettingKind.Slider &&
+                (item.kind as? CarSettingKind.Slider)?.rangeKnown == true && target.rangeKnown &&
+                target.speedPresets == item.kind.speedPresets &&
+                VehicleSettingCommands.forConfigId(item.configId, target) != null)
+
+    private fun hasActiveSettingWrite(item: CarSettingItem): Boolean =
+        item.id in activeOperations || (item.configId in setOf("55", "92") &&
+            (activeOperations.keys.any { findItem(it)?.configId in setOf("55", "92") } ||
+                pendingVehicleConfirmations.keys.any {
+                    it != item.id && findItem(it)?.configId in setOf("55", "92")
+                }))
 
     private fun finishFailure(id: String, message: String, confirmation: SettingConfirmationState) {
         pendingVehicleConfirmations.remove(id)
@@ -596,6 +646,7 @@ class CarSettingsController(
         val missingItem = current.missingCloudItems.firstOrNull { it.id == id }
         val item = regularItem ?: missingItem ?: return false
         val isMissingCloudItem = regularItem == null
+        val editable = current.valueState(id).editableKind(item.kind)
         if (!CarSettingItemAccess.canWrite(item)) {
             _state.value = current.copy(message = "该设置项当前不可写")
             return false
@@ -605,12 +656,13 @@ class CarSettingsController(
             _state.value = current.copy(message = "车辆设置通道未接入")
             return false
         }
-        if (id in current.pendingIds || id in activeOperations) return false
+        if (id in current.pendingIds || hasActiveSettingWrite(item)) return false
 
         val vin = vinProvider().trim()
         if (current.vin.isNotBlank() && current.vin != vin) return false
-        val target = transform(current.valueState(id).editableKind(item.kind))
-        if (!validTarget(item.kind, target)) {
+        if (!hasKnownSettingValue(item)) return false
+        val target = transform(editable)
+        if (!validTarget(item.kind, target) || !validSpeedTarget(item, target)) {
             _state.value = current.copy(message = "设置值无效")
             return false
         }
@@ -878,18 +930,41 @@ class CarSettingsController(
                     else -> item.withToggle(status.extended.helpCarState.flagOrNull())
                 }
                 "55", "92" -> when (val kind = item.kind) {
-                    is CarSettingKind.Customize -> item.copy(
-                        kind = kind.copy(
-                            throttleLevel = status.extended.customizeThrottleSensitivity
-                                .takeIf { it in 0..2 } ?: kind.throttleLevel,
-                            energyLevel = status.extended.customizeEnergyLevel
-                                .takeIf { it in 0..2 } ?: kind.energyLevel,
-                            energyState = status.extended.customizeEnergyState.flagOrNull()
-                                ?: kind.energyState,
-                            tcs = status.extended.customizeTcs.flagOrNull() ?: kind.tcs,
-                        ),
-                    )
+                    is CarSettingKind.Customize -> {
+                        val throttle = status.extended.customizeThrottleSensitivity
+                        val energy = status.extended.customizeEnergyLevel
+                        val energyState = status.extended.customizeEnergyState
+                        val tcs = status.extended.customizeTcs
+                        if (throttle in 0..2 && energy in 0..2 && energyState in 0..1 && tcs in 0..1) {
+                            item.copy(kind = kind.copy(
+                                throttleLevel = throttle,
+                                energyLevel = energy,
+                                energyState = energyState == 1,
+                                tcs = tcs == 1,
+                            ))
+                        } else item
+                    }
                     else -> item
+                }
+                "4" -> {
+                    val slider = item.kind as? CarSettingKind.Slider
+                    val speed = status.maximumSpeedCurrent.toFloat()
+                    if (slider != null && speed in slider.range && speed >= 15f) item.withSlider(speed)
+                    else item
+                }
+                "58" -> {
+                    val slider = item.kind as? CarSettingKind.Slider
+                    val speed = status.maximumSpeedCurrent.toFloat()
+                    if (slider != null && speed in slider.range && (speed == 0f || speed >= 15f)) {
+                        item.withSlider(speed)
+                    } else item
+                }
+                "61" -> {
+                    val slider = item.kind as? CarSettingKind.Slider
+                    val speed = status.maximumSpeedCurrent.toFloat()
+                    if (slider != null && speed in slider.range &&
+                        (speed == 0f || slider.minimumNonZero == null || speed >= slider.minimumNonZero)
+                    ) item.withSlider(speed) else item
                 }
                 "1005" -> {
                     val raw = if (item.id.endsWith(":short")) {
@@ -1040,7 +1115,9 @@ class CarSettingsController(
             missingCloudItems = nextMissingCloudItems,
             valueStates = current.valueStates.mapValues { (id, value) ->
                 if (id !in observations && value.vehicleValue is VehicleSettingValue.Known) {
-                    value.copy(readbackState = SettingReadbackState.MISSING_OR_INVALID)
+                    val audited = findItem(id)?.configId in setOf("4", "58", "61", "55", "92")
+                    value.copy(readbackState = SettingReadbackState.MISSING_OR_INVALID,
+                        vehicleValue = if (audited) value.vehicleValue.copy(live = false) else value.vehicleValue)
                 } else value
             } + observations.mapValues { (id, kind) ->
                 current.valueState(id).copy(vehicleValue = VehicleSettingValue.Known(kind, snapshot.vin, generation),
