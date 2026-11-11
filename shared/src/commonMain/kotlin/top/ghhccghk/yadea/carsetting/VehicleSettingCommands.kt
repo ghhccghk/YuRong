@@ -32,6 +32,7 @@ data class VehicleSettingCommand(
             0xC6 -> require(parameter in 0..6) // Raw voltage domain; ID54 exposes 1/2/3.
             0xC7 -> require(parameter in 0..1)
             0x9D -> require(parameter in 0..7) // BleBicycleCommandManager:2741–2749, not a guessed boolean domain.
+            0xCF, 0xD9, 0xDD, 0xFB1 -> require(parameter in 0..1)
         }
         // Validate even callers that construct a composite command without the mapper.
         if (commandId == 0xC8 || commandType == "CUSTOMIZE_SETTING") {
@@ -271,15 +272,15 @@ object VehicleSettingCommands {
                 onParameter = 1,
                 offParameter = 0,
             )
-            // EnduranceModeActivity：长续航模式。
+            // EnduranceModeActivity.refreshCheckBox / setListener$lambda$2：0=长续航，1=狂暴。
             "72" -> toggle(
                 kind = kind,
                 onType = "LONG_ENDURANCE_SETTING",
                 offType = "LONG_ENDURANCE_SETTING",
                 onId = 0xDD,
                 offId = 0xDD,
-                onParameter = 1,
-                offParameter = 0,
+                onParameter = 0,
+                offParameter = 1,
             )
             // HibernateModeActivity：休眠模式。
             "77" -> toggle(
@@ -672,15 +673,15 @@ object VehicleSettingCommands {
                 onId = 0xB0,
                 offId = 0xB1,
             )
-            // SuddenBrakingActivity：同一个命令 ID，value 0=开、1=关。
+            // SuddenBrakingActivity.onSwClick：旧开关取反，1=开、0=关。
             "68" -> toggle(
                 kind = kind,
                 onType = "COMMAND_QUICK_BRAKE_LIGHT_SWITCH",
                 offType = "COMMAND_QUICK_BRAKE_LIGHT_SWITCH",
                 onId = 0xD9,
                 offId = 0xD9,
-                onParameter = 0,
-                offParameter = 1,
+                onParameter = 1,
+                offParameter = 0,
             )
             // GearMemoryActivity：value 0=开、1=关。
             "94" -> toggle(

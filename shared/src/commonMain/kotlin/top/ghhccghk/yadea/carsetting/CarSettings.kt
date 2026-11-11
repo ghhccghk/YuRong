@@ -966,7 +966,7 @@ class CarSettingsController(
                 )
                 "46" -> item.withToggle(SimpleToggleSettings.flag(status.extended.steepSlopeState))
                 "49" -> item.withToggle(SimpleToggleSettings.flag(status.extended.rampSlopeState))
-                "68" -> item.withToggle(status.extended.quickBrakeLightStatus.flagOrNull())
+                "68" -> item.withToggle(SimpleToggleSettings.flag(status.extended.quickBrakeLightStatus))
                 "94" -> item.withToggle(
                     status.extended.gearMemorySettingFeedback.flagOrNull(),
                 )
@@ -996,7 +996,7 @@ class CarSettingsController(
                     }
                     else -> item
                 }
-                "63" -> item.withToggle(status.extended.tPowerStatus.flagOrNull())
+                "63" -> item.withToggle(SimpleToggleSettings.flag(status.extended.tPowerStatus))
                 "64", "89" -> when {
                     item.id.endsWith(":adaptive") -> item.withToggle(
                         status.extended.customDriveSwitchStatus.adaptivePushOrNull(item.configId),
@@ -1151,9 +1151,9 @@ class CarSettingsController(
                 }
                 "51" -> item.withToggle(status.extended.syncTimeResultStatus.flagOrNull())
                 "53" -> item.withToggle(SimpleToggleSettings.flag(status.extended.templeSettingStatus))
-                "72" -> item.withToggle(status.extended.longEnduranceStatus.flagOrNull())
+                "72" -> item.withToggle(SimpleToggleSettings.invertedFlag(status.extended.longEnduranceStatus))
                 "77" -> item.withToggle(status.extended.sleepModeSwitch.flagOrNull())
-                "79" -> item.withToggle(status.extended.seatPowerStatus.flagOrNull())
+                "79" -> item.withToggle(SimpleToggleSettings.flag(status.extended.seatPowerStatus))
                 "80" -> item.withToggle(status.extended.otdSwitch.flagOrNull())
                 "90" -> item.withToggle(status.extended.trackModeStatus.flagOrNull())
                 "17" -> item.withToggle(

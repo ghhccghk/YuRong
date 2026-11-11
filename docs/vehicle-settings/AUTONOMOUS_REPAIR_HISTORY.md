@@ -116,3 +116,15 @@
 - SimpleToggleSettingsSafetyTest10、CarSettingsControllerTest17、VehicleSettingGoldenFrameTest3，共30/30，过滤命令退出0。
 - JVM/JS/Wasm/测试源码编译退出0；Android Debug/Desktop构建退出0；git diff --check退出0。Gradle均离线执行。
 - 独立复审UI→Controller→Writer→forItem/forConfigId→命令构造，未修改帧、协议及其他设置业务。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无运行或车辆验证。待精确提交。
+
+### A07提交核对 / A08起点
+
+- A07提交a2e8f9088853edeab9ca8637e37994e9c97ab03e，7文件；tracked/index干净，12既有untracked保持，无外部提交。
+- A08以此HEAD只读复核63/68/72/79后实施：发现68写入反向、72读取/写入反向；四项存在UNKNOWN和无效观察保护缺口。
+
+## A08（独立复审及验证完成）
+
+- 只调整四项严格开关边界、命令参数方向及最终参数合法性；不修改编码/协议。
+- SimpleToggleSettingsSafetyTest11+Controller17+Golden3=31/31，精确过滤命令退出0；JVM/JS/Wasm/测试源码编译退出0；Android Debug/Desktop构建退出0；git diff --check退出0。所有Gradle命令--offline --console=plain。
+- 独立复审重新从UI→Controller→CloudWriter BLE分流→MappedWriter→映射及最终命令边界；0/1域、来源、草稿、VIN/序号、接受与确认分离均由Fake覆盖，无其他设置业务变化。
+- STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无运行/车辆验证。待精确提交。
