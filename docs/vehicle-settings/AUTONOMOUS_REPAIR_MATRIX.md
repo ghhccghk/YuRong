@@ -31,8 +31,8 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 14 车辆报警灵敏度 | com/yadea/smartmoto/vehicle/view/VehicleAlarmSensitivityActivity.smali:87 | alarmSensitivityStatus | ALARM_SENSITIVITY_GEAR | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 15 离车定时关机 | com/yadea/smartmoto/vehicle/view/ScheduledShutDownActivity.smali:197 | vehiclePowerDownStatus, vehiclePowerDownTimeStatus | VEHICLE_MANDATORY_POWER_DOWN_CLOSE, VEHICLE_MANDATORY_POWER_DOWN_OPEN, VEHICLE_MANDATORY_POWER_DOWN_TIME | A02：BLE开关0x7B/7C、时间0x7D=2..20min；DTO字段无页面绑定不作配置；原始0/1保持UNKNOWN | P1 / PARTIAL / A02 |
 | 16 倾倒报警 | com/yadea/smartmoto/vehicle/view/DumpNoticeActivity.smali:234 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 17 能量回收开关 | 动态 Registry / 独立流程；待逐项绑定 | slideModePowerRecoverStatus | ENERGY_RECOVER_CLOSE, ENERGY_RECOVER_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 18 能量回收档位 | 动态 Registry / 独立流程；待逐项绑定 | slideModePowerRecoverCurrent | ENERGY_RECOVER_LEVEL | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 17 能量回收开关 | vehicle/view/EnergyRecoveryActivity.smali:389–473,865–1037动态模式 | slideModePowerRecoverStatus | ENERGY_RECOVER_OPEN/CLOSE→13/14 | A12：独立BLE开关；resistanceOn仅DTO，移除猜测云端读写；严格UNKNOWN/稳定ID及新鲜回读 | P0 / CONDITIONAL / A12（无运行/实车验证） |
+| 18 能量回收档位 | vehicle/view/EnergyRecoveryActivity.smali:389–473,865–1037动态模式 | slideModePowerRecoverCurrent | ENERGY_RECOVER_LEVEL→3C | A12：整数1/2/3；组合模式等待开关LIVE回读；最高档显式确认；独立BLE及新鲜回读 | P0 / CONDITIONAL / A12（无运行/实车验证） |
 | 19 自动大灯 | com/yadea/smartmoto/vehicle/view/AutomaticLightActivity.smali:144 | automaticHeadlightFunctionStatus | AUTOMATIC_HEADLIGHT_CLOSE, AUTOMATIC_HEADLIGHT_OPEN | A06：严格已知开关/稳定ID/失效观察降级；同VIN新鲜回读确认。36关闭二次确认；53无已证实云端配置，禁用猜测字段 | P0 / COMPLETE / A06（BLE；无运行/实车验证） |
 | 20 车辆音量 | com/yadea/smartmoto/vehicle/view/VehicleVolumeActivity.smali:87 | alarmWarningVolumeLevel | VOLUME | A11：原页0/1/2三档；拒绝默认未知、取整钳位和越界观察；独立回读确认 | P0 / COMPLETE / A11（BLE；无运行/实车验证） |
 | 21 伴我回家灯 | com/yadea/smartmoto/vehicle/view/BackLightActivity.smali:178 | withGoHomeStatus, withGoHomeTimeStatus | COMMAND_WITH_GO_HOME_CLOSE, COMMAND_WITH_GO_HOME_OPEN, COMMAND_WITH_GO_HOME_TIME_SETTING | A02：BLE0x83/84、0x85索引0..3=15/30/45/60秒；开关和时间独立 | P1 / COMPLETE / A02 |
@@ -234,3 +234,12 @@ A10：33/33精确过滤测试、全部离线构建和diff检查退出0；STATIC_
 - ID86：`BrightnessAdjustmentActivity.onSwClick:83–167`旧checked取反→BRIGHTNESS_ADJUST_SWITCH；`refreshUiStatus:172–403`连接+供电、C2开关共同控制拖动；`$a.a:40–86`以getProgress整数单独提交BRIGHTNESS_ADJUST_VALUE。原APK `res/cWg.xml` min0/max100；`VehicleSettingViewModel.C2:6809/D2:7373`→y4/z4，分别由brightnessAdjustSwitch:24951–25006、brightnessAdjustValue:24287–24330回填。`qg:3384–3403/6160–6179`→135/134。全Smali字段引用仅TTP/解析/VM/qv，无页面云端绑定，移除KMP凭空80和同名云端读取；不新增云端映射。
 - 实际链：原有通用AppSliderPreference/AppSwitchPreference（双主题）→Controller校验/草稿→CloudWriter无云端构建时BLE→MappedWriter→forItem/forConfigId严格值/稳定ID→既有命令及编码。亮度Controller只依赖有效同VIN实时开关；UI另外保持原App连接+供电门控，低层数值命令不表达连接/供电状态。不改协议、原始TTP、编码或通用网络。
 - 新增12项Fake-only测试；修正两份旧测试的八档音量假设与超出原页面范围的夹具。首次52测试退出1（5失败：夹具/遍历范围问题），修正后52/52退出0，未删除测试或放宽生产校验。JVM/JS/Wasm/测试源码编译、Android Debug/Desktop构建及diff检查退出0。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；没有App运行/车辆验证。
+
+## A12：ID17/18（独立复审及验证完成）
+
+- `vehicle/view/EnergyRecoveryActivity.smali:389–473,865–1037`以isAuth的17/18组合选择开关/档位/组合模式；`$a:35–72`核对UiMode分支。`isSeekBarActive:476–595`连接和供电门控；组合模式另要求C3开关已开，单档位模式不要求17。`onSwClick:598–662`读旧checked取反，单独ENERGY_RECOVER_OPEN/CLOSE。
+- `$onSeekChangeListener$1.a:40–166,b:169–185`以thumbPosition+1提交1/2/3；新选最高档且原观察不为3时弹提示。`$onStopTrackingTouch$1.invoke:61–106`确认发送，`$onStopTrackingTouch$2.invoke:61起`取消恢复；`$dialog$2`使用user_car_energy_recovery_hi_tip，原文“开启高档位能量回收可能导致刹车有顿挫感，建议在习惯中档位后开启”。APK布局res/ZR_.xml三档、低/中/高；不把默认进度当配置。
+- `VehicleSettingViewModel.C3:6829–6847`→e2，`22282–22339`由slideModePowerRecoverStatus回填0关1开；`22343起`slideModePowerRecoverCurrent原值→g2，1/2/3→进度0/50/100。`G6:8360–8378`→p2，`23587–23605`来自VehicleDataBean.isPowerStateOpen。
+- `qg:2069–2088,5688–5707,5727–5746`分别OPEN→13、LEVEL→3C、CLOSE→14；ch也有独立BLE分支，s20无对应云端分支。`BleBicycleCommandManager:4446–4452`原始3C域0..7，保留既有底层域，页面严格1..3。全目录resistanceOn/ResistanceOn只在CarSettingBean和VehicleSetting两个DTO出现，没有页面/VM/s20绑定，撤销KMP未经证实的云端17映射。
+- 实际链：原App*组件→Controller严格目标与组合门控/最高档确认→CloudWriter无云端构建时BLE→MappedWriter→forItem/forConfigId→已有命令/编码。普通update/submitDraft不能跳过最高档确认，显式确认入口仍重验目标/VIN。低层数值命令不表达供电与UI确认，连接/供电门控由UI沿用，未新增协议。观察只来自既有同VIN/序号管线，非法字段降级旧LIVE，发送接受不代表车辆确认。
+- 36/36精确Fake过滤测试及全部离线编译/Android/Desktop构建退出0；STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED。模式/连接条件下可用，CONDITIONAL；没有运行/实车验证。

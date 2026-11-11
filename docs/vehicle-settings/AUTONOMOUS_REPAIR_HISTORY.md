@@ -160,3 +160,14 @@
 - 精确过滤：VolumeBrightnessSettingsSafetyTest12、TenthRoundAlarmSensitivityTest10、EleventhRoundSliderIntegrationTest10、CarSettingsControllerTest17、VehicleSettingGoldenFrameTest3，共52/52。命令`:shared:jvmTest --tests <上述五个完整类名> --offline --console=plain`，首次退出1，修正夹具后退出0。
 - `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。缓存均C:\Users\DozenOregano696\.gradle。
 - 独立复审重新检查UI、Controller、实际Writer、最终命令；目标值不进入观察、同VIN/序号/缓存隔离保持。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无运行/车辆验证。待精确提交。
+
+### A11提交核对 / A12起点
+
+- A11提交efdc4267ff80bfe0849bc225836dbd655dcca303，11文件；tracked/index干净，原有12项untracked保持，无外部提交。
+
+## A12（独立复审及验证完成）
+
+- 17/18：原页独立开关及1/2/3档；撤销仅DTO出现的resistanceOn猜测读写；严格目标/稳定ID/命令范围；组合模式要求开关有效LIVE回读；高档确认到Controller；不改协议、编码、网络或原始TTP。
+- 本批7个源/测试文件与3个持续记录文件。EnergyRecoverySettingsSafetyTest11、CarSettingsConfIdMappingTest4、CarSettingsControllerTest17、VehicleSettingGoldenFrameTest3、CloudConfiguredValueRefreshTest.existingCloudBooleanMappingsDisplayBothExplicitStatesWithoutLiveTtp1，共36/36；精确过滤`:shared:jvmTest --tests <上述完整类名/方法过滤> --offline --console=plain`退出0。
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。缓存C:\Users\DozenOregano696\.gradle。
+- 独立重走UI→Controller→CloudWriter BLE分流→MappedWriter→forItem/forConfigId→最终命令；未知/小数/越界无取整钳位、最高档普通保存拒绝、取消不发送、草稿及VIN/序号/缓存/在途刷新隔离，接受与回读分离。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；双主题只静态复核，无RUNTIME_VERIFIED/VEHICLE_VERIFIED。待精确提交。

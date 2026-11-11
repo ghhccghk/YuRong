@@ -288,7 +288,6 @@ object CloudCarSettingUpdateBuilder {
     private val TOGGLE_FIELDS = mapOf(
         "13" to "alarmSoundEnable",
         "16" to "dumpAlarm",
-        "17" to "resistanceOn",
         "24" to "emergencyContact",
         "25" to "passwordUnlockEnable",
         "40" to "colorEggSoundEffect",
@@ -943,7 +942,6 @@ object CloudCarSettingMapper {
                 "10" -> "distanceOn"
                 "13" -> "alarmSoundEnable"
                 "16" -> "dumpAlarm"
-                "17" -> "resistanceOn"
                 "24" -> "emergencyContact"
                 "25" -> "passwordUnlockEnable"
                 "40" -> "colorEggSoundEffect"
@@ -1723,7 +1721,8 @@ object CloudCarSettingMapper {
         "16" -> cloudToggle(cloud, "dumpAlarm")
         // 携出助力没有云端回读字段，初值保守为关闭。
         "3" -> unknownToggle()
-        "17" -> cloudToggle(cloud, "resistanceOn")
+        // resistanceOn exists only in DTOs; original energy page consumes the TTP flag.
+        "17" -> unknownToggle()
         "18" -> CarSettingKind.Slider(
             value = 1f,
             range = 1f..3f,

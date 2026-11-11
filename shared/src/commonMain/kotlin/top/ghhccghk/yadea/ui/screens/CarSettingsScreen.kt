@@ -44,6 +44,7 @@ import top.ghhccghk.yadea.carsetting.CarSettingsController
 import top.ghhccghk.yadea.carsetting.CarSettingsState
 import top.ghhccghk.yadea.carsetting.SecondPhaseSettings
 import top.ghhccghk.yadea.carsetting.VolumeBrightnessSettings
+import top.ghhccghk.yadea.carsetting.EnergyRecoverySettings
 import top.ghhccghk.yadea.carsetting.CustomSoundController
 import top.ghhccghk.yadea.carsetting.CustomSoundCategory
 import top.ghhccghk.yadea.carsetting.CustomSoundResource
@@ -80,6 +81,7 @@ fun CarSettingsScreen(
     val uiResetKey = carSettingsUiSessionKey(controller, state)
     val settingScope = key(uiResetKey) { rememberCoroutineScope() }
     var confirmDisable by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
+    var confirmEnergyHigh by remember(uiResetKey) { mutableStateOf<String?>(null) }
     var confirmBraceDependency by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     var atmosphereItem by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     val atmosphereDraft = atmosphereItem?.let { state.valueState(it.id).editableKind(it.kind) as? CarSettingKind.Atmosphere }
@@ -197,6 +199,8 @@ fun CarSettingsScreen(
             "请先连接车辆并开机"
         } else if (item.configId == "86" && !VolumeBrightnessSettings.canEdit(item, state)) {
             "请先开启亮度调节并等待车辆回读确认"
+        } else if (!EnergyRecoverySettings.canEdit(item, state)) {
+            "请先开启能量回收并等待车辆回读确认"
         } else {
             adaptivePushUiDisabledReason(item, state, vehicleConnected, vehiclePowerOn)
         }
@@ -207,6 +211,7 @@ fun CarSettingsScreen(
             CarSettingItemAccess.canWrite(item) &&
             SecondPhaseSettings.canEditChoice(item, state) &&
             VolumeBrightnessSettings.canEdit(item, state) &&
+            EnergyRecoverySettings.canEdit(item, state) &&
             (item.configId !in setOf("4", "58", "61") ||
                 (displayedKind is CarSettingKind.Slider && displayedKind.valueKnown && displayedKind.rangeKnown &&
                     (item.kind as? CarSettingKind.Slider)?.rangeKnown == true)) &&
@@ -533,6 +538,17 @@ fun CarSettingsScreen(
     val sliderTarget = detailItem?.id?.let { id ->
         (state.items + state.missingCloudItems).firstOrNull { it.id == id && it.kind is CarSettingKind.Slider }
     }
+    AppAlertDialog(
+        show = confirmEnergyHigh != null,
+        title = "提示",
+        message = "开启高档位能量回收可能导致刹车有顿挫感，建议在习惯中档位后开启",
+        onConfirm = {
+            val id = confirmEnergyHigh
+            confirmEnergyHigh = null
+            id?.let { settingScope.launch { controller.submitDraft(it, confirmEnergyRecoveryHigh = true) } }
+        },
+        onDismissRequest = { confirmEnergyHigh?.let(controller::cancelDraft); confirmEnergyHigh = null },
+    )
     AppBottomSheet(
         show = sliderTarget != null,
         onDismissRequest = { detailItem?.let { controller.cancelDraft(it.id) }; detailItem = null },
@@ -602,7 +618,10 @@ fun CarSettingsScreen(
                 },
                 onValueChangeFinished = {
                     if (isAuditedThreeTickSlider(sliderTarget) && !settingControlEnabled(sliderTarget)) return@AppSliderPreference
-                    settingScope.launch { controller.submitDraft(sliderTarget.id) }
+                    val target = state.valueState(sliderTarget.id).draftValue
+                    if (sliderTarget.configId == "18" && target != null && EnergyRecoverySettings.needsHighConfirmation(target, state)) {
+                        confirmEnergyHigh = sliderTarget.id
+                    } else settingScope.launch { controller.submitDraft(sliderTarget.id) }
                 },
                 valueRange = slider.range,
                 steps = slider.steps,
@@ -1404,7 +1423,7 @@ internal fun carSettingsUiResetKey(state: CarSettingsState): CarSettingsUiResetK
     )
 
 private val SAFETY_CONFIRM_IDS = setOf("36", "37", "38")
-private val BLE_POWER_SETTING_IDS = setOf("37", "38", "86")
+private val BLE_POWER_SETTING_IDS = setOf("37", "38", "86", "17", "18")
 
 internal fun settingSwitchTarget(state: CarSettingValueState, targetChecked: Boolean): CarSettingKind.Toggle? =
     (state.displayKind() as? CarSettingKind.Toggle)?.copy(checked = targetChecked, valueKnown = true)
@@ -1423,6 +1442,11 @@ internal fun speedPresetTarget(slider: CarSettingKind.Slider, position: Float): 
 
 /** Normalize UI input only; observed values and command validation remain unchanged. */
 internal fun settingSliderDraftValue(item: CarSettingItem, raw: Float): Float? {
+    if (item.configId == "18") {
+        val slider = item.kind as? CarSettingKind.Slider ?: return null
+        if (slider.range != 1f..3f || !slider.rangeKnown || !raw.isFinite() || raw !in 1f..3f) return null
+        return raw.roundToInt().toFloat()
+    }
     if (item.configId in VolumeBrightnessSettings.ids) {
         val slider = item.kind as? CarSettingKind.Slider ?: return null
         val range = if (item.configId == "20") 0f..2f else 0f..100f

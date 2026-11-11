@@ -435,7 +435,7 @@ class CloudConfiguredValueRefreshTest {
     @Test fun existingCloudBooleanMappingsDisplayBothExplicitStatesWithoutLiveTtp() = runBlocking {
         val fields = mapOf("9" to "alarmOn", "10" to "distanceOn",
             "13" to "alarmSoundEnable", "16" to "dumpAlarm",
-            "17" to "resistanceOn", "24" to "emergencyContact", "25" to "passwordUnlockEnable",
+            "24" to "emergencyContact", "25" to "passwordUnlockEnable",
             "40" to "colorEggSoundEffect", "47" to "chargeWattSwitch", "52" to "bleUnlockOn",
             "62" to "seatHeating",
             "75" to "tamperProofIotEnable", "76" to "positioningFunc", "77" to "sleepMode",

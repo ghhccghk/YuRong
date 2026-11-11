@@ -420,7 +420,7 @@ class CarSettingsController(
                     configId in setOf("4", "58", "61", "55", "92") ||
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
                         configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids ||
-                        configId in VolumeBrightnessSettings.ids || configId in setOf("10", "73")
+                        configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids || configId in setOf("10", "73")
                 }
             }) {
             _state.value = _state.value.copy(message = "设置正在提交，请完成后刷新")
@@ -561,9 +561,9 @@ class CarSettingsController(
         if (id !in activeOperations) changeValueState(id) { it.copy(draftValue = null) }
     }
 
-    suspend fun submitDraft(id: String): Boolean {
+    suspend fun submitDraft(id: String, confirmEnergyRecoveryHigh: Boolean = false): Boolean {
         val draft = _state.value.valueState(id).draftValue ?: return false
-        return update(id) { draft }
+        return updateInternal(id, { draft }, confirmEnergyRecoveryHigh)
     }
 
     private fun validDraftTarget(original: CarSettingKind, target: CarSettingKind): Boolean = when {
@@ -636,7 +636,9 @@ class CarSettingsController(
         (item.configId !in SimpleChoiceSettings.ids || SimpleChoiceSettings.validItem(item.copy(kind = target))) &&
             (item.configId !in SimpleToggleSettings.ids || SimpleToggleSettings.validItem(item.copy(kind = target))) &&
             (item.configId !in VolumeBrightnessSettings.ids ||
-                (VolumeBrightnessSettings.validItem(item.copy(kind = target)) && VolumeBrightnessSettings.canEdit(item, _state.value)))
+                (VolumeBrightnessSettings.validItem(item.copy(kind = target)) && VolumeBrightnessSettings.canEdit(item, _state.value))) &&
+            (item.configId !in EnergyRecoverySettings.ids ||
+                (EnergyRecoverySettings.validItem(item.copy(kind = target)) && EnergyRecoverySettings.canEdit(item, _state.value)))
 
     private fun validAtmosphereTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
         item.configId != "73" || AtmosphereSettings.validItem(item.copy(kind = target))
@@ -690,7 +692,11 @@ class CarSettingsController(
         _state.value = _state.value.copy(pendingIds = _state.value.pendingIds - id, message = message)
     }
 
-    suspend fun update(id: String, transform: (CarSettingKind) -> CarSettingKind): Boolean {
+    suspend fun update(id: String, transform: (CarSettingKind) -> CarSettingKind): Boolean =
+        updateInternal(id, transform, confirmEnergyRecoveryHigh = false)
+
+    private suspend fun updateInternal(id: String, transform: (CarSettingKind) -> CarSettingKind,
+                                       confirmEnergyRecoveryHigh: Boolean): Boolean {
         val current = _state.value
         if (current.loading) return false
         val regularItem = current.items.firstOrNull { it.id == id }
@@ -725,6 +731,10 @@ class CarSettingsController(
         ) {
             _state.value = current.copy(message = if (item.configId == "10")
                 "围栏配置不完整或设置值无效，请刷新后再保存" else "设置值无效")
+            return false
+        }
+        if (item.configId == "18" && !confirmEnergyRecoveryHigh && EnergyRecoverySettings.needsHighConfirmation(target, current)) {
+            _state.value = current.copy(message = "请确认高档位能量回收提示后再保存")
             return false
         }
         val operation = WriteOperation(++nextOperationId, vin, loadGeneration)
@@ -1160,7 +1170,7 @@ class CarSettingsController(
                 "80" -> item.withToggle(SimpleToggleSettings.flag(status.extended.otdSwitch))
                 "90" -> item.withToggle(SimpleToggleSettings.flag(status.extended.trackModeStatus))
                 "17" -> item.withToggle(
-                    status.extended.slideModePowerRecoverStatus.flagOrNull(),
+                    SimpleToggleSettings.flag(status.extended.slideModePowerRecoverStatus),
                 )
                 "18" -> item.withSlider(
                     status.extended.slideModePowerRecoverCurrent.floatIn(1..3),
@@ -1202,7 +1212,7 @@ class CarSettingsController(
                     val audited = configId in setOf("4", "58", "61", "55", "92") ||
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
                         configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids ||
-                        configId in VolumeBrightnessSettings.ids || configId == "73"
+                        configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids || configId == "73"
                     value.copy(readbackState = SettingReadbackState.MISSING_OR_INVALID,
                         vehicleValue = if (audited) value.vehicleValue.copy(live = false) else value.vehicleValue)
                 } else value

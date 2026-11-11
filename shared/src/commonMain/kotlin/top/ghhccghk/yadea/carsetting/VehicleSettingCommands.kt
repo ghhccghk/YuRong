@@ -37,6 +37,7 @@ data class VehicleSettingCommand(
             0x46 -> require(parameter in 0..7) // Raw command domain; the volume page exposes only 0/1/2.
             0x134 -> require(parameter in 0..100)
             0x135 -> require(parameter in 0..1)
+            0x3C -> require(parameter in 0..7) // Raw protocol; EnergyRecoveryActivity exposes 1/2/3.
         }
         // Validate even callers that construct a composite command without the mapper.
         if (commandId == 0xC8 || commandType == "CUSTOMIZE_SETTING") {
@@ -131,6 +132,7 @@ class CloudCarSettingWriter(
         if (item.configId == "73" && !AtmosphereSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in SimpleToggleSettings.ids && !SimpleToggleSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in VolumeBrightnessSettings.ids && !VolumeBrightnessSettings.validItem(item)) return CarSettingWriteResult(false)
+        if (item.configId in EnergyRecoverySettings.ids && !EnergyRecoverySettings.validItem(item)) return CarSettingWriteResult(false)
         if ((item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids) &&
             VehicleSettingCommands.forItem(item) == null
         ) return CarSettingWriteResult(false)
@@ -168,6 +170,7 @@ object VehicleSettingCommands {
         // Capability must survive unknown initial values; forItem/forConfigId validate writes.
         SimpleChoiceSettings.supports(configId, kind) || TimerSettings.supports(configId, kind) || BatterySettings.supports(configId, kind) ||
             VolumeBrightnessSettings.supports(configId, kind) ||
+            EnergyRecoverySettings.supports(configId, kind) ||
             (configId in SimpleToggleSettings.ids && kind is CarSettingKind.Toggle) ||
             (configId == "73" && (kind is CarSettingKind.Atmosphere || kind is CarSettingKind.Toggle)) ||
             (configId in setOf("55", "92") && kind is CarSettingKind.Customize) ||
@@ -182,7 +185,7 @@ object VehicleSettingCommands {
         if (item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids ||
             item.configId in BatterySettings.ids || item.configId in TimerSettings.ids ||
             item.configId in SimpleChoiceSettings.ids || item.configId in SimpleToggleSettings.ids ||
-            item.configId in VolumeBrightnessSettings.ids || item.configId == "73") supports(item.configId, item.kind)
+            item.configId in VolumeBrightnessSettings.ids || item.configId in EnergyRecoverySettings.ids || item.configId == "73") supports(item.configId, item.kind)
         else forItem(item)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     /**
@@ -210,7 +213,7 @@ object VehicleSettingCommands {
                 offId = 0x12,
             )
             // EnergyRecoveryActivity：能量回收开关。
-            "17" -> toggle(
+            "17" -> if (!EnergyRecoverySettings.validTarget(configId, kind)) null else toggle(
                 kind = kind,
                 onType = "ENERGY_RECOVER_OPEN",
                 offType = "ENERGY_RECOVER_CLOSE",
@@ -732,10 +735,11 @@ object VehicleSettingCommands {
             // EnergyRecoveryActivity：1..3 档，命令值直接是档位。
             "18" -> {
                 val slider = kind as? CarSettingKind.Slider ?: return null
+                if (!EnergyRecoverySettings.validTarget(configId, slider)) return null
                 VehicleSettingCommand(
                     commandType = "ENERGY_RECOVER_LEVEL",
                     commandId = 0x3C,
-                    parameter = slider.value.toInt().coerceIn(1, 3),
+                    parameter = slider.value.toInt(),
                 )
             }
             // ChargeCapActivity：70..100%，5% 步进。
@@ -792,6 +796,10 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        if (item.configId in EnergyRecoverySettings.ids) {
+            if (!EnergyRecoverySettings.validItem(item)) return null
+            return forConfigId(item.configId, item.kind)
+        }
         if (item.configId in VolumeBrightnessSettings.ids) {
             if (!VolumeBrightnessSettings.validItem(item)) return null
             return forConfigId(item.configId, item.kind)
