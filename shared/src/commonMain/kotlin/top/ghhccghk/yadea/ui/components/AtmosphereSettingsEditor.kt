@@ -42,6 +42,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import top.ghhccghk.yadea.carsetting.CarSettingKind
+import top.ghhccghk.yadea.carsetting.AtmosphereSettings
 import top.yukonga.miuix.kmp.basic.Slider as MiuixSlider
 import top.yukonga.miuix.kmp.basic.SliderDefaults as MiuixSliderDefaults
 import top.yukonga.miuix.kmp.basic.Surface as MiuixSurface
@@ -170,7 +171,7 @@ internal fun AtmosphereSettingsEditor(
             AtmosphereDivider()
             AppButton(
                 onClick = onApply,
-                enabled = enabled && hasSelection && !pending,
+                enabled = enabled && hasSelection && AtmosphereSettings.valid(draft) && !pending,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
             ) {
                 AppText(if (pending) "应用中…" else "应用", style = AppDesign.typography.button)

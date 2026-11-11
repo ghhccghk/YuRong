@@ -157,15 +157,15 @@ sealed interface CarSettingKind {
      * 在状态报文中表示无效值。
      */
     data class Atmosphere(
-        val showMode: Int = 0,
-        val runMode: Int = 0,
+        val showMode: Int = -1,
+        val runMode: Int = -1,
         val singleColor: Boolean = true,
-        val red1: Int = 254,
-        val green1: Int = 254,
-        val blue1: Int = 254,
-        val red2: Int = 254,
-        val green2: Int = 254,
-        val blue2: Int = 254,
+        val red1: Int = -1,
+        val green1: Int = -1,
+        val blue1: Int = -1,
+        val red2: Int = -1,
+        val green2: Int = -1,
+        val blue2: Int = -1,
         val valueKnown: Boolean = false,
     ) : CarSettingKind
 }
@@ -419,7 +419,7 @@ class CarSettingsController(
                 findItem(it)?.configId.let { configId ->
                     configId in setOf("4", "58", "61", "55", "92") ||
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
-                        configId in SimpleChoiceSettings.ids || configId == "10"
+                        configId in SimpleChoiceSettings.ids || configId in setOf("10", "73")
                 }
             }) {
             _state.value = _state.value.copy(message = "设置正在提交，请完成后刷新")
@@ -549,7 +549,7 @@ class CarSettingsController(
         val target = transform(editable)
         if (!validDraftTarget(item.kind, target) || !validSpeedTarget(item, target) ||
             !validSecondPhaseTarget(item, target) || !validBatteryTarget(item, target) || !validTimerTarget(item, target) ||
-            !validSimpleChoiceTarget(item, target) ||
+            !validSimpleChoiceTarget(item, target) || !validAtmosphereTarget(item, target) ||
             (item.configId == "10" && !GeofenceSettings.validItem(item.copy(kind = target)))
         ) return false
         changeValueState(id) { it.copy(draftValue = target, error = null) }
@@ -575,6 +575,11 @@ class CarSettingsController(
     }
 
     private fun hasKnownSettingValue(item: CarSettingItem): Boolean {
+        if (item.configId == "73" && item.kind is CarSettingKind.Atmosphere) {
+            val state = _state.value.valueState(item.id)
+            return listOfNotNull((state.vehicleValue as? VehicleSettingValue.Known)?.kind, state.cachedValue?.kind)
+                .filterIsInstance<CarSettingKind.Atmosphere>().any(AtmosphereSettings::valid)
+        }
         if (item.configId !in setOf("4", "58", "61", "55", "92")) return true
         val state = _state.value.valueState(item.id)
         return listOfNotNull(state.configuredValue,
@@ -609,7 +614,7 @@ class CarSettingsController(
             target.valueKnown &&
                 target.throttleLevel?.let { it in 0..2 } == true &&
                 target.energyLevel?.let { it in 0..2 } == true
-        original is CarSettingKind.Atmosphere && target is CarSettingKind.Atmosphere -> true
+        original is CarSettingKind.Atmosphere && target is CarSettingKind.Atmosphere -> AtmosphereSettings.valid(target)
         else -> false
     }
 
@@ -628,6 +633,9 @@ class CarSettingsController(
 
     private fun validSimpleChoiceTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
         item.configId !in SimpleChoiceSettings.ids || SimpleChoiceSettings.validItem(item.copy(kind = target))
+
+    private fun validAtmosphereTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
+        item.configId != "73" || AtmosphereSettings.validItem(item.copy(kind = target))
 
     private fun hasActiveSettingWrite(item: CarSettingItem): Boolean =
         item.id in activeOperations || (item.configId == "10" &&
@@ -707,7 +715,7 @@ class CarSettingsController(
         val target = transform(editable)
         if (!validTarget(item.kind, target) || !validSpeedTarget(item, target) ||
             !validSecondPhaseTarget(item, target) || !validBatteryTarget(item, target) || !validTimerTarget(item, target) ||
-            !validSimpleChoiceTarget(item, target) ||
+            !validSimpleChoiceTarget(item, target) || !validAtmosphereTarget(item, target) ||
             (item.configId == "10" && (!GeofenceSettings.validItem(item.copy(kind = target)) ||
                 item.geofenceConfiguration?.let { it.complete && it.vin == vin } != true))
         ) {
@@ -835,6 +843,7 @@ class CarSettingsController(
         left is CarSettingKind.Choice && right is CarSettingKind.Choice -> left.selectedIndex == right.selectedIndex
         left is CarSettingKind.Slider && right is CarSettingKind.Slider -> left.value == right.value
         left is CarSettingKind.Customize && right is CarSettingKind.Customize -> left == right
+        left is CarSettingKind.Atmosphere && right is CarSettingKind.Atmosphere -> AtmosphereSettings.matches(left, right)
         else -> false
     }
 
@@ -1135,7 +1144,10 @@ class CarSettingsController(
                     else -> item
                 }
                 "25" -> item.withToggle(status.extended.passwordUnlockStatus.flagOrNull())
-                "73" -> item.withToggle(status.extended.ambientStatus.flagOrNull())
+                "73" -> when (item.kind) {
+                    is CarSettingKind.Atmosphere -> AtmosphereSettings.observe(status.extended)?.let { item.copy(kind = it) } ?: item
+                    else -> item.withToggle(status.extended.ambientStatus.takeIf { it in 0..1 }?.let { it == 1 })
+                }
                 "51" -> item.withToggle(status.extended.syncTimeResultStatus.flagOrNull())
                 "53" -> item.withToggle(status.extended.templeSettingStatus.flagOrNull())
                 "72" -> item.withToggle(status.extended.longEnduranceStatus.flagOrNull())
@@ -1185,7 +1197,7 @@ class CarSettingsController(
                     val configId = findItem(id)?.configId
                     val audited = configId in setOf("4", "58", "61", "55", "92") ||
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
-                        configId in SimpleChoiceSettings.ids
+                        configId in SimpleChoiceSettings.ids || configId == "73"
                     value.copy(readbackState = SettingReadbackState.MISSING_OR_INVALID,
                         vehicleValue = if (audited) value.vehicleValue.copy(live = false) else value.vehicleValue)
                 } else value

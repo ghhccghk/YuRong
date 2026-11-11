@@ -37,13 +37,16 @@ class FourthRoundVehicleSettingsTest {
 
     @Test
     fun atmosphereGoldenFrameMatchesMultiBleCommandLayout() {
-        val command = VehicleSettingCommand(
-            commandType = "ATMOSPHERE_CONFIG",
-            commandId = 0xF7,
-            parameters = listOf(3, 1, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 5),
-        )
+        val command = requireNotNull(VehicleSettingCommands.forItem(CarSettingItem(
+            id = "cloud:73:config", configId = "73", title = "", summary = "",
+            classification = CarSettingClassification.LIGHT, channel = CarSettingChannel.BLE,
+            kind = CarSettingKind.Atmosphere(showMode = 3, runMode = 5, singleColor = false,
+                red1 = 0x11, green1 = 0x22, blue1 = 0x33, red2 = 0x44, green2 = 0x55, blue2 = 0x66,
+                valueKnown = true),
+        )))
         assertEquals(
-            "59443E4601000101C8FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF01FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF112233FF445566EB674B4A",
+            // tj.c:704–731 -> uj.c:188–216 preserves unused bits as 1: color=1 is FD, not 01.
+            "59443E4601000101C8FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF112233FF445566EB634B4A",
             frame(command),
         )
     }
@@ -67,7 +70,8 @@ class FourthRoundVehicleSettingsTest {
         val atmosphere = enable.copy(
             id = "cloud:73:config",
             configId = "73",
-            kind = CarSettingKind.Atmosphere(showMode = 3, runMode = 5, singleColor = false),
+            kind = CarSettingKind.Atmosphere(showMode = 3, runMode = 5, singleColor = false,
+                red1 = 1, green1 = 2, blue1 = 3, red2 = 4, green2 = 5, blue2 = 6, valueKnown = true),
         )
 
         assertTrue(CarSettingItemAccess.canWrite(enable))
@@ -82,7 +86,7 @@ class FourthRoundVehicleSettingsTest {
     }
 
     @Test
-    fun atmosphereCommandClampsInvalidRgbMarkerAndKeepsRunMode() {
+    fun atmosphereCommandNormalizesExplicitRgb255AndKeepsRunMode() {
         val item = CarSettingItem(
             id = "cloud:73:config",
             configId = "73",
@@ -100,6 +104,7 @@ class FourthRoundVehicleSettingsTest {
                 red2 = 255,
                 green2 = 255,
                 blue2 = 255,
+                valueKnown = true,
             ),
         )
         val command = requireNotNull(VehicleSettingCommands.forItem(item))

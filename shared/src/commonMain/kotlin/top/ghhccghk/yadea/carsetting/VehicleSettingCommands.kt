@@ -37,7 +37,19 @@ data class VehicleSettingCommand(
                 "CUSTOMIZE_SETTING requires four explicit, valid fields"
             }
         }
+        if (commandId == 0xF7 || commandType == "ATMOSPHERE_CONFIG") {
+            require(commandId == 0xF7 && commandType == "ATMOSPHERE_CONFIG" && parameters is AtmosphereCommandParameters) {
+                "ATMOSPHERE_CONFIG requires an explicit valid mode-dependent configuration"
+            }
+        }
     }
+}
+
+/** Fixed-size immutable payload; direct callers cannot substitute or mutate an unvalidated list. */
+private class AtmosphereCommandParameters(kind: CarSettingKind.Atmosphere) : AbstractList<Int>() {
+    private val values = requireNotNull(AtmosphereSettings.payload(kind)).toIntArray()
+    override val size: Int get() = values.size
+    override fun get(index: Int): Int = values[index]
 }
 
 /** No mutable List alias can change a validated composite between mapping and encoding. */
@@ -109,6 +121,7 @@ class CloudCarSettingWriter(
         if (item.configId in TimerSettings.ids && !TimerSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in SimpleChoiceSettings.ids && !SimpleChoiceSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId == "10" && !GeofenceSettings.validItem(item)) return CarSettingWriteResult(false)
+        if (item.configId == "73" && !AtmosphereSettings.validItem(item)) return CarSettingWriteResult(false)
         if ((item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids) &&
             VehicleSettingCommands.forItem(item) == null
         ) return CarSettingWriteResult(false)
@@ -145,6 +158,7 @@ object VehicleSettingCommands {
     fun supports(configId: String, kind: CarSettingKind): Boolean =
         // Capability must survive unknown initial values; forItem/forConfigId validate writes.
         SimpleChoiceSettings.supports(configId, kind) || TimerSettings.supports(configId, kind) || BatterySettings.supports(configId, kind) ||
+            (configId == "73" && (kind is CarSettingKind.Atmosphere || kind is CarSettingKind.Toggle)) ||
             (configId in setOf("55", "92") && kind is CarSettingKind.Customize) ||
             (configId in setOf("4", "58", "61") && kind is CarSettingKind.Slider) ||
             (configId in SecondPhaseSettings.ids && when (configId) {
@@ -156,7 +170,7 @@ object VehicleSettingCommands {
     fun supportsItem(item: CarSettingItem): Boolean =
         if (item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids ||
             item.configId in BatterySettings.ids || item.configId in TimerSettings.ids ||
-            item.configId in SimpleChoiceSettings.ids) supports(item.configId, item.kind)
+            item.configId in SimpleChoiceSettings.ids || item.configId == "73") supports(item.configId, item.kind)
         else forItem(item)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     /**
@@ -550,7 +564,7 @@ object VehicleSettingCommands {
                 )
                 else -> null
             }
-            "73" -> toggle(
+            "73" -> if (kind !is CarSettingKind.Toggle || !kind.valueKnown) null else toggle(
                 kind = kind,
                 onType = "COMMAND_FEEL_LIGHT_SETTING_STATE",
                 offType = "COMMAND_FEEL_LIGHT_SETTING_STATE",
@@ -765,6 +779,7 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        if (item.configId == "73" && !AtmosphereSettings.validItem(item)) return null
         // The original fence flow is cloud-only; split IDs must not turn it into a BLE write.
         if (item.configId == "10") return null
         if (item.configId in SimpleChoiceSettings.ids) {
@@ -859,22 +874,11 @@ object VehicleSettingCommands {
             )
             "cloud:73:config" -> {
                 val config = item.kind as? CarSettingKind.Atmosphere ?: return null
-                val colorMode = if (config.singleColor) 0 else 1
-                val operationMode = if (config.showMode == 3) config.runMode.coerceIn(0, 5) else -1
+                if (item.configId != "73" || !AtmosphereSettings.valid(config)) return null
                 return VehicleSettingCommand(
                     commandType = "ATMOSPHERE_CONFIG",
                     commandId = 0xF7,
-                    parameters = listOf(
-                        config.showMode.coerceIn(0, 3),
-                        colorMode,
-                        config.red1.validRgbForCommand(),
-                        config.green1.validRgbForCommand(),
-                        config.blue1.validRgbForCommand(),
-                        config.red2.validRgbForCommand(),
-                        config.green2.validRgbForCommand(),
-                        config.blue2.validRgbForCommand(),
-                        operationMode,
-                    ),
+                    parameters = AtmosphereCommandParameters(config),
                 )
             }
         }
@@ -998,9 +1002,6 @@ object VehicleSettingCommands {
         )
         else -> null
     }
-
-    private fun Int.validRgbForCommand(): Int =
-        if (this == 255) 254 else coerceIn(0, 255)
 
     private fun toggle(
         kind: CarSettingKind,

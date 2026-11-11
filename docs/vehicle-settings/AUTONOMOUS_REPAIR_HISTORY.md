@@ -72,3 +72,20 @@
 - 最后一次JVM/JS/Wasm/测试源码编译退出0，Android Debug/Desktop构建退出0，diff检查退出0。
 - 独立重走UI→Controller→完整性/兄弟刷新→CloudWriter→Builder→原Gateway路径；未改签名、URL、通用HTTP、帧、主题或其他设置。
 - STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；字段齐全才CONDITIONAL可写，无RUNTIME_VERIFIED/VEHICLE_VERIFIED。待精确提交。
+
+### A04提交核对 / A05起点
+
+- A04提交0e587d40374dd90b36f7d457b43bed498d9cf87f，10文件；提交后tracked/index干净，12既有untracked未变，无外部提交。
+- A05以此HEAD复核73氛围灯；发现默认RGB/模式钳位直写、TTP配置未消费、模式依赖组合错误及缺失回读比较。
+
+## A05（独立复审及验证完成）
+
+- 起始HEAD：0e587d40374dd90b36f7d457b43bed498d9cf87f。
+- Smali及修复逻辑见功能地图；未修改原始TTP解析、帧、命令ID、网络或主题。
+
+- 新AtmosphereSettingsSafetyTest 11/11；连同FourthRoundVehicleSettingsTest 6、CarSettingsControllerTest17、VehicleSettingGoldenFrameTest3，总37/37退出0。
+- 前两次过滤退出1，分别3/1失败：旧夹具依赖默认值/直接复合构造；旧黄金帧断言01与tj.c:704–731→uj.c:188–216保留高位证据不符，改为FD及对应校验和63。保留原帧编码，未降低生产检查。
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0。
+- `:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。git diff --check退出0。
+- 从Sheet→草稿/Controller→Writer→forItem→不可变命令→既有Encoder重新复审，未发现目标外变化。UNKNOWN不补齐、VIN/旧序号/缓存与草稿保持、失败/取消及接受与回读分离通过Fake测试。
+- STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无App运行/车辆验证。完整车辆配置条件下CONDITIONAL，未知配置保守禁用，PARTIAL。待精确提交。

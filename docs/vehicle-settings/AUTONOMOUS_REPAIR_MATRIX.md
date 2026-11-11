@@ -75,7 +75,7 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 82 电话告警 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | 当前HEAD已有统一低电量Sheet、云端字段及时间范围保护；不重复旧缺口 | P2 / PARTIAL / 基线复核 |
 | 71 仪表设置 | com/yadea/smartmoto/vehicle/view/GaugeSettingsActivity.smali:621 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 72 长续航模式 | com/yadea/smartmoto/vehicle/view/EnduranceModeActivity.smali:303 | longEnduranceStatus | LONG_ENDURANCE_SETTING, LONG_ENDURANCE_SETTING | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 73 氛围灯 | com/yadea/smartmoto/vehicle/view/FeelLightSettingActivity.smali:2404 | ambientStatus | COMMAND_FEEL_LIGHT_SETTING_STATE, COMMAND_FEEL_LIGHT_SETTING_STATE | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 73 氛围灯 | com/yadea/smartmoto/vehicle/view/FeelLightSettingActivity.smali:2404 | ambientStatus、show/color/operation、RGB1/2 | C3开关；F7完整模式组合 | A05：完整TTP回填/独立开关/不可变复合命令/新鲜回读比较；未知禁止默认补齐，完整配置才可编辑 | P0 / CONDITIONAL / A05 |
 | 75 定位器防盗 | com/yadea/smartmoto/vehicle/view/IotTamperProofActivity.smali:194 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 76 定位开关 | com/yadea/smartmoto/vehicle/locationswitch/LocationSwitchActivity.smali:319 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 77 休眠模式 | com/yadea/smartmoto/vehicle/view/HibernateModeActivity.smali:1475 | sleepModeSwitch | SLEEP_MODE_SWITCH, SLEEP_MODE_SWITCH | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
@@ -168,3 +168,14 @@ A03验证：4类41/41 Fake过滤退出0；JVM/JS/Wasm/测试源码编译退出0�
 - 初次41测试失败4：新Fake缺少结果回调且pollAttempts=0，正确触发超时；补Fake结果成功并断言CONFIRMED_BY_RESULT而非车辆确认。第二次53测试失败1：旧接口测试不带兄弟配置；改为完整Fake快照并加强四字段请求断言。最终5类53/53退出0，没有放宽生产校验。
 
 A04最终验证：Geofence11+CloudConfigured30+CloudWriter4+WriterAccess5+ApiSemantics3=53/53，退出0。补充复审后允许准备兄弟草稿，但未刷新前阻止提交并明确提示，复跑53/53退出0。最后一次JVM/JS/Wasm/测试源码编译退出0、Android Debug/Desktop构建退出0、diff检查退出0。未运行App/车辆；云端结果CONFIRMED_BY_RESULT不等于车辆回读。配置字段完整且同VIN才可写(CONDITIONAL)，缺圆心需刷新/补接口证据。
+
+## A05：ID73 氛围灯（验证中）
+
+- 原页 `com/yadea/smartmoto/vehicle/view/FeelLightSettingActivity.smali`：构造89–349及settingData2087–2329：显示顺序常亮0、闪烁2、呼吸1、流水3；运行顺序0/1/4/5/2/3。`refreshUi:1471–2069`：仅呼吸/流水可选单双色与色条，流水有运行方式。
+- `FeelLightSettingActivity$c.smali:onClick:88–491`：模式必须选择；255→254(129–204)；常亮/闪烁组合RGB2=255/255/255、color=0、operation=-1(365–399)；呼吸/流水携带RGB2和颜色模式，流水需要运行0..5(253–360)；所有模式带RGB1(402–466)。不是为未知字段发明默认值。
+- `qg.smali:2224–2244`：ATMOSPHERE_CONFIG仅连接时走0xF7；`BleBicycleCommandManager.generateMultiBleCommand:7380–7700`既有9字段编码；本批不改帧。
+- `VehicleSettingViewModel.smali:24445–24639`：ambientStatus、show、两组RGB、operation、color；Activity initObserver:1061–1177的操作回调仅提示应用结果，不等于车辆回读。
+- KMP原缺口：Controller只读开关；Atmosphere默认0/254且validTarget恒true；forItem钳位；无最终不可变参数保护；无比较回读。
+- 修复：AtmosphereSettings按模式校验/映射TTP和提交；默认模式/RGB=-1未知；Controller要求可靠同VIN已知配置后编辑（证据不完整时保守阻止，PARTIAL）；配置最终命令必须使用私有不可变参数；保留原始观察，255只在提交时规范化；按有效参数比较新鲜回读。开关独立、严格0/1。Writer/稳定ID和在途刷新校验。
+- UI沿用原双主题语义组件和同一Sheet，配置不完整明确说明，调用submitDraft；不把本地选择标成车辆值。
+- 当前状态：CONDITIONAL/PARTIAL（需要完整车辆配置；没有真实App/车型/车辆验证，不声明运行完整）。

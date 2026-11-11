@@ -685,17 +685,17 @@ fun CarSettingsScreen(
             AtmosphereSettingsEditor(
                 draft = atmosphereDraft,
                 hasSelection = valueState.displayKind() is CarSettingKind.Atmosphere,
-                enabled = settingControlEnabled(atmosphereTarget) && customization?.id !in state.pendingIds,
+                enabled = settingControlEnabled(atmosphereTarget) && customization?.id !in state.pendingIds && atmosphereDraft.valueKnown,
                 pending = atmosphereTarget.id in state.pendingIds,
                 status = carSettingSummary(
                     atmosphereTarget.copy(summary = ""), valueState.copy(error = null),
                     atmosphereTarget.id in state.pendingIds, settingDisabledReason(atmosphereTarget),
                 ),
-                error = valueState.error,
+                error = valueState.error ?: if (!atmosphereDraft.valueKnown) "配置不完整，等待车辆回读后再编辑，不能使用默认颜色补齐" else null,
                 onEdit = ::editAtmosphere,
                 onApply = {
                     settingScope.launch {
-                        controller.update(atmosphereTarget.id) { atmosphereDraft.copy(valueKnown = false) }
+                        controller.submitDraft(atmosphereTarget.id)
                     }
                 },
                 customizationSwitch = {
