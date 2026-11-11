@@ -171,3 +171,15 @@
 - 本批7个源/测试文件与3个持续记录文件。EnergyRecoverySettingsSafetyTest11、CarSettingsConfIdMappingTest4、CarSettingsControllerTest17、VehicleSettingGoldenFrameTest3、CloudConfiguredValueRefreshTest.existingCloudBooleanMappingsDisplayBothExplicitStatesWithoutLiveTtp1，共36/36；精确过滤`:shared:jvmTest --tests <上述完整类名/方法过滤> --offline --console=plain`退出0。
 - `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。缓存C:\Users\DozenOregano696\.gradle。
 - 独立重走UI→Controller→CloudWriter BLE分流→MappedWriter→forItem/forConfigId→最终命令；未知/小数/越界无取整钳位、最高档普通保存拒绝、取消不发送、草稿及VIN/序号/缓存/在途刷新隔离，接受与回读分离。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；双主题只静态复核，无RUNTIME_VERIFIED/VEHICLE_VERIFIED。待精确提交。
+
+### A12提交核对 / A13起点
+
+- A12提交26c3150b8bcc6986a78a1c79fe785d9ef6fcadb6，10文件；tracked/index干净，原有12项untracked保持，无外部提交。
+
+## A13（独立复审及验证完成）
+
+- 13/16/40：移除13未经页面绑定证实的alarmSoundEnable云端读写；13已有BLE62/63，严格UNKNOWN/稳定ID；原TTP字段缺失受保护解析，保留读链路BLOCKED。16/40独立云端目标在Controller/Builder/Writer均校验；40关闭参数从错误0修正为Smali证实7，valueJson同步。只修改对应设置与隔离测试。
+- 12项CloudSwitchSettingsSafetyTest覆盖真实Writer分流、请求字段、UNKNOWN/非法、来源、失败/取消、草稿、VIN及刷新代次。加Controller17、Golden3、CloudConfiguredValueRefresh单方法1、Phase4.cloudToggleTypesMatchP4单方法1，共34/34。首次退出1（1失败：新测试错误假设允许同VIN并发刷新），改为断言去重并测试A→B→A旧请求后退出0；没有降低生产保护。
+- 独立复审UI→Controller→实际Writer→Builder/命令：16/40没有BLE绑定/车辆回读，不把结果确认充当车辆值；13无读值时UI保持UNKNOWN禁用。没有修改协议、编码、网络架构及原始解析。
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。精确过滤使用上述五个完整类名/方法；缓存均C:\Users\DozenOregano696\.gradle。
+- STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。13底层WRITE_ONLY、读取BLOCKED；16/40云端必要链路COMPLETE，不代表车辆已确认。待精确提交。

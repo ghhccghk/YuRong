@@ -420,7 +420,8 @@ class CarSettingsController(
                     configId in setOf("4", "58", "61", "55", "92") ||
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
                         configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids ||
-                        configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids || configId in setOf("10", "73")
+                        configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids ||
+                        configId in CloudSwitchSettings.ids || configId in setOf("10", "73")
                 }
             }) {
             _state.value = _state.value.copy(message = "设置正在提交，请完成后刷新")
@@ -635,6 +636,7 @@ class CarSettingsController(
     private fun validSimpleChoiceTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
         (item.configId !in SimpleChoiceSettings.ids || SimpleChoiceSettings.validItem(item.copy(kind = target))) &&
             (item.configId !in SimpleToggleSettings.ids || SimpleToggleSettings.validItem(item.copy(kind = target))) &&
+            (item.configId !in CloudSwitchSettings.ids || CloudSwitchSettings.validItem(item.copy(kind = target))) &&
             (item.configId !in VolumeBrightnessSettings.ids ||
                 (VolumeBrightnessSettings.validItem(item.copy(kind = target)) && VolumeBrightnessSettings.canEdit(item, _state.value))) &&
             (item.configId !in EnergyRecoverySettings.ids ||

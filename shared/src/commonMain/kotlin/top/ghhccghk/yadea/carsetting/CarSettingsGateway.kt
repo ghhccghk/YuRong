@@ -109,7 +109,7 @@ private object VehicleParamJson {
 object CloudCarSettingUpdateBuilder {
     // Schema support is independent of completeness; build() still rejects unknown siblings.
     fun supports(configId: String, kind: CarSettingKind): Boolean =
-        BatterySettings.supports(configId, kind) ||
+        BatterySettings.supports(configId, kind) || CloudSwitchSettings.supports(configId, kind) ||
             (configId == "10" && (kind is CarSettingKind.Toggle || kind is CarSettingKind.Slider)) ||
             (configId == "9" && kind is CarSettingKind.LowPowerInfo) ||
             (configId == "82" && kind is CarSettingKind.LowPowerPhone) ||
@@ -131,6 +131,7 @@ object CloudCarSettingUpdateBuilder {
             ))
         }
         if (configId in BatterySettings.ids && !BatterySettings.validTarget(configId, kind)) return null
+        if (configId in CloudSwitchSettings.ids && !CloudSwitchSettings.validTarget(kind)) return null
         val fields = linkedMapOf<String, Any?>("_gateway" to "True", "vin" to vin)
         val path: CloudCarSettingUpdatePath
         when (kind) {
@@ -170,8 +171,8 @@ object CloudCarSettingUpdateBuilder {
                         } else {
                             fields["oper"] = "SET_PARAM"
                             fields["id"] = "CLEAR_SOUND_EFFECT"
-                            fields["value"] = 0
-                            fields["valueJson"] = VehicleParamJson.single(0)
+                            fields["value"] = 7
+                            fields["valueJson"] = VehicleParamJson.single(7)
                         }
                     }
                     "47" -> {
@@ -286,7 +287,6 @@ object CloudCarSettingUpdateBuilder {
 
     /** smali `s20.f()` 与 `VehicleSettingViewModel.P4()` 能直接对应的开关。 */
     private val TOGGLE_FIELDS = mapOf(
-        "13" to "alarmSoundEnable",
         "16" to "dumpAlarm",
         "24" to "emergencyContact",
         "25" to "passwordUnlockEnable",
@@ -940,7 +940,6 @@ object CloudCarSettingMapper {
             else -> when (item.configId) {
                 "9" -> "alarmOn"
                 "10" -> "distanceOn"
-                "13" -> "alarmSoundEnable"
                 "16" -> "dumpAlarm"
                 "24" -> "emergencyContact"
                 "25" -> "passwordUnlockEnable"
@@ -1717,7 +1716,8 @@ object CloudCarSettingMapper {
 
     private fun kindOf(confId: String, cloud: CloudCarSettings): CarSettingKind = when (confId) {
         in BLUETOOTH_KEY_IDS -> CarSettingKind.Info("请在原 App 的车钥匙模块中设置")
-        "13" -> cloudToggle(cloud, "alarmSoundEnable")
+        // VehicleAlarmActivity binds alarmSoundSwitchAfterStatus, not the DTO-only cloud key.
+        "13" -> unknownToggle()
         "16" -> cloudToggle(cloud, "dumpAlarm")
         // 携出助力没有云端回读字段，初值保守为关闭。
         "3" -> unknownToggle()

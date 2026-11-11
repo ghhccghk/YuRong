@@ -275,7 +275,7 @@ class Phase4CarSettingsTest {
         )
         assertEquals(CloudCarSettingUpdatePath.PARAM_SETTING, soundOff.path)
         assertEquals("CLEAR_SOUND_EFFECT", soundOff.fields["id"])
-        assertEquals(0, soundOff.fields["value"])
+        assertEquals(7, soundOff.fields["value"])
     }
     @Test
     fun mapperCreatesSecondBatchControls() {

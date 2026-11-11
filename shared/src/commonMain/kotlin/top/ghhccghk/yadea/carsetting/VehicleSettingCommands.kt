@@ -133,6 +133,7 @@ class CloudCarSettingWriter(
         if (item.configId in SimpleToggleSettings.ids && !SimpleToggleSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in VolumeBrightnessSettings.ids && !VolumeBrightnessSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in EnergyRecoverySettings.ids && !EnergyRecoverySettings.validItem(item)) return CarSettingWriteResult(false)
+        if (item.configId in CloudSwitchSettings.ids && !CloudSwitchSettings.validItem(item)) return CarSettingWriteResult(false)
         if ((item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids) &&
             VehicleSettingCommands.forItem(item) == null
         ) return CarSettingWriteResult(false)
