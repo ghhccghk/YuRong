@@ -943,8 +943,8 @@ class CarSettingsController(
                     else -> item
                 }
                 // 原 App：tcsWorkMode == 0 为开启，1..7 为关闭，-1 表示未上报。
-                "37" -> item.withToggle(status.extended.tcsWorkMode.zeroIsOnOrNull())
-                "38" -> item.withToggle(status.extended.absFunctionStatus.flagOrNull())
+                "37" -> item.withToggle(SimpleToggleSettings.tcs(status.extended.tcsWorkMode))
+                "38" -> item.withToggle(SimpleToggleSettings.flag(status.extended.absFunctionStatus))
                 "33" -> item.withToggle(status.extended.simulatedSoundWaveStatus.flagOrNull())
                 "86" -> when (item.kind) {
                     is CarSettingKind.Toggle -> item.withToggle(
@@ -964,8 +964,8 @@ class CarSettingsController(
                 "36" -> item.withToggle(
                     SimpleToggleSettings.flag(status.extended.brakePowerDownFunctionStatus),
                 )
-                "46" -> item.withToggle(status.extended.steepSlopeState.flagOrNull())
-                "49" -> item.withToggle(status.extended.rampSlopeState.flagOrNull())
+                "46" -> item.withToggle(SimpleToggleSettings.flag(status.extended.steepSlopeState))
+                "49" -> item.withToggle(SimpleToggleSettings.flag(status.extended.rampSlopeState))
                 "68" -> item.withToggle(status.extended.quickBrakeLightStatus.flagOrNull())
                 "94" -> item.withToggle(
                     status.extended.gearMemorySettingFeedback.flagOrNull(),

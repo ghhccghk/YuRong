@@ -28,7 +28,9 @@ class SimpleToggleSettingsSafetyTest {
     private fun observe(c: CarSettingsController, raw: Int, seq: Long = 1, vin: String = "VIN-A",
                         origin: VehicleStatusOrigin = VehicleStatusOrigin.LIVE_TTP) {
         val info = unknown.copy(extended = unknown.extended.copy(automaticHeadlightFunctionStatus = raw,
-            turnSignalReturnsAutomaticallyStatus = raw, brakePowerDownFunctionStatus = raw, templeSettingStatus = raw))
+            turnSignalReturnsAutomaticallyStatus = raw, brakePowerDownFunctionStatus = raw, templeSettingStatus = raw,
+            tcsWorkMode = if (raw in 0..1) 1 - raw else raw, absFunctionStatus = raw,
+            steepSlopeState = raw, rampSlopeState = raw))
         c.updateVehicleObservation(VehicleStatusObservation(vin, info, origin, seq))
     }
 
@@ -60,13 +62,17 @@ class SimpleToggleSettingsSafetyTest {
                 "19" -> if (on) 0x25 else 0x26
                 "26" -> if (on) 0x23 else 0x24
                 "36" -> if (on) 0x9B else 0x9C
+                "37" -> 0x9D
+                "38" -> if (on) 0x99 else 0x9A
+                "46" -> if (on) 0xAE else 0xAF
+                "49" -> if (on) 0xB0 else 0xB1
                 else -> 0xC7
             }, command.commandId)
-            assertEquals(if (id == "53") { if (on) 1 else 0 } else -1, command.parameter)
+            assertEquals(when (id) { "53" -> if (on) 1 else 0; "37" -> if (on) 0 else 1; else -> -1 }, command.parameter)
             assertNotNull(VehicleSettingFrameEncoder.encode(command))
             assertNull(CloudCarSettingUpdateBuilder.build(id, CarSettingKind.Toggle(on), "VIN-A"))
         }
-        assertEquals(8, sent.size)
+        assertEquals(16, sent.size)
     }
 
     @Test fun forgedStableIdAndWrongKindCannotBypassValidation() = runBlocking {
@@ -95,7 +101,7 @@ class SimpleToggleSettingsSafetyTest {
                 assertNull(value.configuredValue)
             }
         }
-        observe(c, 2, 3)
+        observe(c, 99, 3)
         for (id in SimpleToggleSettings.ids) {
             val value = c.state.value.valueState("cloud:$id")
             assertFalse((value.vehicleValue as VehicleSettingValue.Known).live)
@@ -114,6 +120,22 @@ class SimpleToggleSettingsSafetyTest {
         val before = c.state.value.valueStates
         observe(c, 1, 11, "VIN-B"); observe(c, 1, 9)
         assertEquals(before, c.state.value.valueStates)
+    }
+
+    @Test fun tcsPreservesOriginalZeroOnAndOneThroughSevenOffWithoutClampingInvalidRaw() = runBlocking {
+        val c = controller(); assertTrue(c.refresh())
+        for (raw in 0..7) {
+            val info = unknown.copy(extended = unknown.extended.copy(tcsWorkMode = raw))
+            c.updateVehicleObservation(VehicleStatusObservation("VIN-A", info, VehicleStatusOrigin.LIVE_TTP, raw + 1L))
+            val value = c.state.value.valueState("cloud:37").vehicleValue as VehicleSettingValue.Known
+            assertEquals(raw == 0, (value.kind as CarSettingKind.Toggle).checked)
+            assertTrue(value.live)
+            assertNotNull(VehicleSettingFrameEncoder.encode(VehicleSettingCommand("TCS_BODY_STABILITY", 0x9D, raw)))
+        }
+        for (raw in listOf(-1, 8, 255)) {
+            try { VehicleSettingCommand("TCS_BODY_STABILITY", 0x9D, raw); fail("invalid TCS parameter") }
+            catch (_: IllegalArgumentException) { }
+        }
     }
 
     @Test fun refreshKeepsDraftAndReceiptWaitsForPostWriteObservation() = runBlocking {

@@ -44,8 +44,8 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 32 倾倒提醒 | com/yadea/smartmoto/vehicle/view/DumpWarningActivity.smali:144 | tiltWarningStatus | TILT_WARNING_CLOSE, TILT_WARNING_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 33 模拟声浪 | com/yadea/smartmoto/vehicle/view/SimulatedSoundActivity.smali:333 | simulatedSoundWaveStatus | SIMULATED_SOUND_WAVE_CLOSE, SIMULATED_SOUND_WAVE_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 36 刹车断电 | com/yadea/smartmoto/vehicle/view/BrakePowerOffActivity.smali:155 | brakePowerDownFunctionStatus | BRAKE_OUTAGE_CLOSE, BRAKE_OUTAGE_OPEN | A06：严格已知开关/稳定ID/失效观察降级；同VIN新鲜回读确认。36关闭二次确认；53无已证实云端配置，禁用猜测字段 | P0 / COMPLETE / A06（BLE；无运行/实车验证） |
-| 37 TCS 车身稳定 | com/yadea/smartmoto/vehicle/view/BodyStabilityActivity.smali:154 | tcsWorkMode | TCS_BODY_STABILITY, TCS_BODY_STABILITY | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 38 ABS 防抱死 | com/yadea/smartmoto/vehicle/view/AntiLockActivity.smali:152 | absFunctionStatus | ABS_ANTI_LOCK_CLOSE, ABS_ANTI_LOCK_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 37 TCS 车身稳定 | com/yadea/smartmoto/vehicle/view/BodyStabilityActivity.smali:154 | tcsWorkMode | TCS_BODY_STABILITY, TCS_BODY_STABILITY | A07：严格已知开关、稳定ID、失效观察降级；TCS0..7合法域；同VIN新鲜回读确认 | P0 / COMPLETE / A07（BLE；无运行/实车验证） |
+| 38 ABS 防抱死 | com/yadea/smartmoto/vehicle/view/AntiLockActivity.smali:152 | absFunctionStatus | ABS_ANTI_LOCK_CLOSE, ABS_ANTI_LOCK_OPEN | A07：严格已知开关、稳定ID、失效观察降级；TCS0..7合法域；同VIN新鲜回读确认 | P0 / COMPLETE / A07（BLE；无运行/实车验证） |
 | 39 边撑自动关机 | com/yadea/smartmoto/vehicle/view/BraceAutoShutDownActivity.smali:376 | leaveVehicleAutoLockStatus, leaveVehicleAutoLockTimeStatus, sideBraceStatus | LEAVE_THE_CAR_AUTO_LOCK_OFF, LEAVE_THE_CAR_AUTO_LOCK_ON, LEAVE_THE_CAR_AUTO_LOCK_TIME | 当前 HEAD329effd已修TTP/独立参数/取消/VIN；7/39车型门控证据限制保留UNKNOWN | P2 / PARTIAL / 基线复核 |
 | 40 彩蛋音效 | com/yadea/smartmoto/vehicle/view/EggSoundActivity.smali:306 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 41 自定义音效 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
@@ -53,10 +53,10 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 43 倒车模式 | com/yadea/smartmoto/vehicle/view/ReversingFunctionActivity.smali:144 | reversingState | REVERSING_CLOSE, REVERSING_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 44 婴儿车模式 | com/yadea/smartmoto/vehicle/view/HelpPromoteActivity.smali:144 | helpCarState | STROLLER_CLOSE, STROLLER_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 45 定速巡航 | com/yadea/smartmoto/vehicle/view/ConstantSpeedModeActivity.smali:144 | cruiseControl | CONST_SPEED_CLOSE, CONST_SPEED_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 46 陡坡缓降 | com/yadea/smartmoto/vehicle/activity/SlopeDescentActivity.smali:154 | steepSlopeState | BLE_SLOP_DESCENT_CLOSE, BLE_SLOP_DESCENT_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 46 陡坡缓降 | com/yadea/smartmoto/vehicle/activity/SlopeDescentActivity.smali:154 | steepSlopeState | BLE_SLOP_DESCENT_CLOSE, BLE_SLOP_DESCENT_OPEN | A07：严格已知开关、稳定ID、失效观察降级；TCS0..7合法域；同VIN新鲜回读确认 | P0 / COMPLETE / A07（BLE；无运行/实车验证） |
 | 47 充电功率 | com/yadea/smartmoto/vehicle/view/ChargingPowerActivity.smali:628 | batteryChargingPowerStatus, batteryChargingPowerValue | COMMAND_CONST_CHARGING_POWER_STATE, COMMAND_CONST_CHARGING_POWER_STATE, COMMAND_CONST_CHARGING_POWER_VALUE | 已确认默认/钳位写入缺陷；原始参数复核后修复 | P0 / PARTIAL / A01 |
 | 48 充电上限 | com/yadea/smartmoto/vehicle/view/ChargeCapActivity.smali:438 | 无 Controller 分支；独立流程另查 | COMMAND_CONST_CHARGING_LIMIT_VALUE | 已确认默认/钳位写入缺陷；原始参数复核后修复 | P0 / PARTIAL / A01 |
-| 49 坡道驻停 | com/yadea/smartmoto/vehicle/view/RampStopsActivity.smali:144 | rampSlopeState | BLE_RAMP_SLOP_CLOSE, BLE_RAMP_SLOP_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 49 坡道驻停 | com/yadea/smartmoto/vehicle/view/RampStopsActivity.smali:144 | rampSlopeState | BLE_RAMP_SLOP_CLOSE, BLE_RAMP_SLOP_OPEN | A07：严格已知开关、稳定ID、失效观察降级；TCS0..7合法域；同VIN新鲜回读确认 | P0 / COMPLETE / A07（BLE；无运行/实车验证） |
 | 50 仪表风格切换 | com/yadea/smartmoto/vehicle/activity/GaugeStyleHandOffActivity.smali:522 | panelThemeCurrent | COMMAND_BIKE_PANEL_THEME_TYPE | A03：TTP回填已核；显式Choice→Controller→forItem→MappedWriter，最终边界拒绝未知/越界/伪造选项；无云端猜测 | P0 / COMPLETE / A03 |
 | 51 仪表时间同步 | com/yadea/smartmoto/vehicle/view/BleMeterTimeSyncActivity.smali:245 | syncTimeResultStatus | COMMAND_CONST_TIME_SYNC_CLOSE, COMMAND_CONST_TIME_SYNC_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 52 手动距离自定义 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
@@ -188,3 +188,12 @@ A04最终验证：Geofence11+CloudConfigured30+CloudWriter4+WriterAccess5+ApiSem
 - 53的`bleApproachPowerOnEnable`全Smali引用仅DTO(两Bean声明、getter/setter、copy/equals/toString)；没有页面/VM/P4/s20绑定；Q6:13000仅bikeConfigVos能力门控，不能作为值证据。本批移除53猜测的configured/初值/UpdateBuilder字段，保留原始响应键供审计；不更改其他ID映射。
 - SimpleToggleSettings约束稳定条目ID/Toggle/valueKnown；Controller、forConfigId、forItem、CloudWriter校验；能力判断独立已知性。保留乐观目标、来源/回执/回读分离；36复用现有AppAlertDialog与双主题确认行为。
 - 同时只读发现2的`TempleInductionActivity.onSwClick:54–140`在W0车型且其他依赖状态成立时改用BRACE_CLOSE_LOCKER_CLOSE；KMP缺可靠车型门控上下文，留作CONDITIONAL/PARTIAL后续审查，未在A06改动。3原页仅看到CARRY_OUT写入，读取绑定仍需独立核对。
+
+## A07：ID37/38/46/49（独立复审及验证完成）
+
+- `BodyStabilityActivity.onSwClick:40–118`开启TCS参数0，关闭先确认，再由`$onSwClick$1.invoke:61–89`发送1；`AntiLockActivity.onSwClick:40–116`与`$onSwClick$1.invoke:61–87`开/关独立命令，关闭确认。
+- `vehicle/activity/SlopeDescentActivity.onSwClick:50–109`与`vehicle/view/RampStopsActivity.onSwClick:50–108`分别BLE_SLOP_DESCENT_OPEN/CLOSE、BLE_RAMP_SLOP_OPEN/CLOSE。
+- `qg.smali:1088/2108/5980/2420/6388/4110/5319`既有映射9D、99/9A、AE/AF、B0/B1。`BleBicycleCommandManager:2741–2749`明确TCS合法0..7，非法会默认7；KMP在最终命令构造拒绝非法值，未改编码，不把非法值钳位发送。
+- `VehicleSettingViewModel.smali:22879–22930`TCS0开、其他合法模式关；22938–22989 ABS、22997–23048陡坡、23056–23107驻停：1开/0关。TCS仅0..7可观察，其他三项只0/1；负数/越界保持未知或过期。
+- 复用SimpleToggleSettings的Controller/Writer/forConfigId/forItem稳定ID及valueKnown保护，能力独立未知值；保留原App命令及UI确认、原有VIN/序号/草稿/回执与回读分离。
+- 四项必要BLE链路COMPLETE（仅静态/Fake范围）；30/30过滤测试及JVM/JS/Wasm/测试源码、Android/Desktop构建退出0。无RUNTIME_VERIFIED/VEHICLE_VERIFIED。

@@ -104,3 +104,15 @@
 - JVM/JS/Wasm/测试源码编译命令退出0；Android Debug/Desktop构建命令退出0；git diff --check退出0。所有Gradle命令均--offline --console=plain。
 - 独立复审：UI→Controller→命令/Writer至既有编码；53猜测云端路径已关闭，实际BLE调用保持；无目标外修改。36关闭确认仅静态核对，未运行App。
 - STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。四项必要BLE链路静态/Fake闭环，云端能力未伪造。待精确提交。
+
+### A06提交核对 / A07起点
+
+- A06提交13e06e7d963a59221d03d040fc4540ec5004194b，10文件；tracked/index干净，12既有untracked未变，无外部提交。
+- A07以此HEAD审查37/38/46/49，扩展同一严格开关边界；不是重复实现已有UI/命令。
+
+## A07（独立复审及验证完成）
+
+- 新四项UNKNOWN/稳定ID/无效观察保护，TCS直接参数严格0..7；沿用原有TCS/ABS二次确认及BLE供电门控。
+- SimpleToggleSettingsSafetyTest10、CarSettingsControllerTest17、VehicleSettingGoldenFrameTest3，共30/30，过滤命令退出0。
+- JVM/JS/Wasm/测试源码编译退出0；Android Debug/Desktop构建退出0；git diff --check退出0。Gradle均离线执行。
+- 独立复审UI→Controller→Writer→forItem/forConfigId→命令构造，未修改帧、协议及其他设置业务。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无运行或车辆验证。待精确提交。

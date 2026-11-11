@@ -31,6 +31,7 @@ data class VehicleSettingCommand(
             0x3F -> require(parameter in 0..2) // Raw protocol includes 2; ID50 exposes 0/1.
             0xC6 -> require(parameter in 0..6) // Raw voltage domain; ID54 exposes 1/2/3.
             0xC7 -> require(parameter in 0..1)
+            0x9D -> require(parameter in 0..7) // BleBicycleCommandManager:2741–2749, not a guessed boolean domain.
         }
         // Validate even callers that construct a composite command without the mapper.
         if (commandId == 0xC8 || commandType == "CUSTOMIZE_SETTING") {
