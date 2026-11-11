@@ -11,10 +11,10 @@ class TenthRoundAlarmSensitivityTest {
         CloudCarSettings(listOf(CloudBikeConfig(confId = "14"), CloudBikeConfig(confId = "20")), emptyMap()),
     )
 
-    private fun status(raw: Int, warningMode: Int = 6) = TtpInfoParser.parse(
+    private fun status(raw: Int, warningMode: Int = 6, volume: Int = 4) = TtpInfoParser.parse(
         ByteArray(256) { -1 }.also {
             it[0x1C] = ((0xFF and (7 shl 2).inv()) or (raw shl 2)).toByte()
-            it[0x33] = ((4 shl 3) or warningMode).toByte()
+            it[0x33] = ((volume shl 3) or warningMode).toByte()
         },
     )
 
@@ -67,15 +67,15 @@ class TenthRoundAlarmSensitivityTest {
         }
     }
 
-    @Test fun alarmHasThreeProgressTicksWithoutChangingVehicleVolumeRange() {
+    @Test fun alarmAndVolumeUseDistinctProvenThreeTickRanges() {
         val alarm = items().single { it.configId == "14" }.kind as CarSettingKind.Slider
         val volume = items().single { it.configId == "20" }.kind as CarSettingKind.Slider
         assertEquals(0f..100f, alarm.range)
         assertEquals(1, alarm.steps)
         assertFalse(alarm.valueKnown)
-        assertEquals(0f..7f, volume.range)
-        assertEquals(6, volume.steps)
-        assertEquals(6, VehicleSettingCommands.forConfigId("20", volume.copy(value = 6f))!!.parameter)
+        assertEquals(0f..2f, volume.range)
+        assertEquals(1, volume.steps)
+        assertEquals(2, VehicleSettingCommands.forConfigId("20", volume.copy(value = 2f, valueKnown = true))!!.parameter)
     }
 
     @Test fun oldWarningFieldAndCloudValuesCannotEstablishAlarmReadback() {
@@ -132,8 +132,8 @@ class TenthRoundAlarmSensitivityTest {
         c.refresh()
         c.updateVehicleStatus("VIN-A", status(2))
         assertEquals(VehicleSettingValue.Unknown, c.state.value.valueState("cloud:14").vehicleValue)
-        c.updateVehicleStatus("VIN-B", status(1))
+        c.updateVehicleStatus("VIN-B", status(1, volume = 2))
         assertEquals(50f, ((c.state.value.valueState("cloud:14").vehicleValue as VehicleSettingValue.Known).kind as CarSettingKind.Slider).value)
-        assertEquals(4f, ((c.state.value.valueState("cloud:20").vehicleValue as VehicleSettingValue.Known).kind as CarSettingKind.Slider).value)
+        assertEquals(2f, ((c.state.value.valueState("cloud:20").vehicleValue as VehicleSettingValue.Known).kind as CarSettingKind.Slider).value)
     }
 }

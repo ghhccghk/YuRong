@@ -20,7 +20,7 @@ class EleventhRoundSliderIntegrationTest {
     private fun status(alarm: Int = 7, level: Int = 7, switch: Int = 3) = TtpInfoParser.parse(
         ByteArray(256) { -1 }.also {
             it[0x1C] = ((0xFF and (7 shl 2).inv()) or (alarm shl 2)).toByte()
-            it[0x33] = ((4 shl 3) or 6).toByte()
+            it[0x33] = ((2 shl 3) or 6).toByte()
             it[0x6E] = 0x7F
             it[0x76] = ((switch shl 6) or 0x3F).toByte()
             it[0x79] = (0xF8 or level).toByte()
@@ -84,15 +84,16 @@ class EleventhRoundSliderIntegrationTest {
         }
     }
 
-    @Test fun vehicleVolumeKeepsEightPositionsAndIsNeverAlarmQuantized() {
+    @Test fun vehicleVolumeUsesThreeIndicesWithoutAlarmPercentageScaling() {
         val item = items().single { it.id == "cloud:20" }
         val slider = item.kind as CarSettingKind.Slider
         assertFalse(isAuditedThreeTickSlider(item))
-        assertEquals(0f..7f, slider.range)
-        assertEquals(6, slider.steps)
-        assertEquals(3.25f, settingSliderDraftValue(item, 3.25f))
-        for (tick in 0..7) {
-            assertEquals(tick, VehicleSettingCommands.forItem(item.copy(kind = slider.copy(value = tick.toFloat())))!!.parameter)
+        assertEquals(0f..2f, slider.range)
+        assertEquals(1, slider.steps)
+        assertNull(settingSliderDraftValue(item, 3.25f))
+        assertEquals(1f, settingSliderDraftValue(item, 0.75f))
+        for (tick in 0..2) {
+            assertEquals(tick, VehicleSettingCommands.forItem(item.copy(kind = slider.copy(value = tick.toFloat(), valueKnown = true)))!!.parameter)
         }
     }
 

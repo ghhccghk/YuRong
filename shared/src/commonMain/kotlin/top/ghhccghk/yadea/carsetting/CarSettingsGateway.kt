@@ -1374,9 +1374,6 @@ object CloudCarSettingMapper {
             )
         }
         cloud.configs.firstOrNull { it.confId.trim() == "86" }?.let { config ->
-            val brightness = cloud.intValue("brightnessAdjustValue")
-                ?.takeIf { it in 0..100 }
-                ?: 80
             items += CarSettingItem(
                 id = "cloud:86:value",
                 configId = "86",
@@ -1386,10 +1383,11 @@ object CloudCarSettingMapper {
                 group = groupOf(config, classificationOf("86", config)),
                 channel = CarSettingChannel.BLE,
                 kind = CarSettingKind.Slider(
-                    value = brightness.toFloat(),
+                    value = 0f,
                     range = 0f..100f,
                     steps = 99,
                     unit = "%",
+                    valueKnown = false,
                 ),
                 writable = config.isAuth != false,
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,
@@ -1875,11 +1873,11 @@ object CloudCarSettingMapper {
                 rangeKnown = modelMax != null,
             )
         }
-        // VehicleVolumeActivity keeps its independent 0..7 range.
+        // VehicleVolumeActivity$a sends thumbPosition; original layout has exactly three ticks.
         "20" -> CarSettingKind.Slider(
             value = 0f,
-            range = 0f..7f,
-            steps = 6,
+            range = 0f..2f,
+            steps = 1,
             valueKnown = false,
         )
         // Original alarm layout has three ticks on the default 0..100 progress range.

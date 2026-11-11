@@ -149,3 +149,14 @@
 
 - SimpleToggle13+Controller17+Golden3=33/33，过滤命令退出0；JVM/JS/Wasm/测试源码编译退出0；Android Debug/Desktop构建退出0；diff检查退出0，所有Gradle离线。
 - 独立审查入口→Controller→两个Writer→映射/最终命令：四项之外生产行为不变；无默认未知值、旧观察/VIN污染或接受冒充确认。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无运行/实车验证。待精确提交。
+
+### A10提交核对 / A11起点
+
+- A10提交58a83fff5da182b396ef7dc50585b936771444c2，6文件；tracked/index干净，原有12项untracked保持，无外部提交。
+
+## A11（独立复审及验证完成）
+
+- ID20/86：三档音量、亮度UNKNOWN修复、严格目标/稳定ID/直接命令校验、无效观察与在途保护；亮度启用门控；共8代码/测试文件及3持续记录文件。未修改协议/编码/网络。
+- 精确过滤：VolumeBrightnessSettingsSafetyTest12、TenthRoundAlarmSensitivityTest10、EleventhRoundSliderIntegrationTest10、CarSettingsControllerTest17、VehicleSettingGoldenFrameTest3，共52/52。命令`:shared:jvmTest --tests <上述五个完整类名> --offline --console=plain`，首次退出1，修正夹具后退出0。
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。缓存均C:\Users\DozenOregano696\.gradle。
+- 独立复审重新检查UI、Controller、实际Writer、最终命令；目标值不进入观察、同VIN/序号/缓存隔离保持。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无运行/车辆验证。待精确提交。

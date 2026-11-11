@@ -34,7 +34,7 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 17 能量回收开关 | 动态 Registry / 独立流程；待逐项绑定 | slideModePowerRecoverStatus | ENERGY_RECOVER_CLOSE, ENERGY_RECOVER_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 18 能量回收档位 | 动态 Registry / 独立流程；待逐项绑定 | slideModePowerRecoverCurrent | ENERGY_RECOVER_LEVEL | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 19 自动大灯 | com/yadea/smartmoto/vehicle/view/AutomaticLightActivity.smali:144 | automaticHeadlightFunctionStatus | AUTOMATIC_HEADLIGHT_CLOSE, AUTOMATIC_HEADLIGHT_OPEN | A06：严格已知开关/稳定ID/失效观察降级；同VIN新鲜回读确认。36关闭二次确认；53无已证实云端配置，禁用猜测字段 | P0 / COMPLETE / A06（BLE；无运行/实车验证） |
-| 20 车辆音量 | com/yadea/smartmoto/vehicle/view/VehicleVolumeActivity.smali:87 | alarmWarningVolumeLevel | VOLUME | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 20 车辆音量 | com/yadea/smartmoto/vehicle/view/VehicleVolumeActivity.smali:87 | alarmWarningVolumeLevel | VOLUME | A11：原页0/1/2三档；拒绝默认未知、取整钳位和越界观察；独立回读确认 | P0 / COMPLETE / A11（BLE；无运行/实车验证） |
 | 21 伴我回家灯 | com/yadea/smartmoto/vehicle/view/BackLightActivity.smali:178 | withGoHomeStatus, withGoHomeTimeStatus | COMMAND_WITH_GO_HOME_CLOSE, COMMAND_WITH_GO_HOME_OPEN, COMMAND_WITH_GO_HOME_TIME_SETTING | A02：BLE0x83/84、0x85索引0..3=15/30/45/60秒；开关和时间独立 | P1 / COMPLETE / A02 |
 | 24 紧急联系人 | com/yadea/smartmoto/vehicle/view/EmergencyContactActivity.smali:964 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 25 密码解锁 | com/yadea/smartmoto/vehicle/pwdunlock/PassWordUnlockActivity.smali:845 | passwordUnlockStatus | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
@@ -84,7 +84,7 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 81 大灯延时 | com/yadea/smartmoto/vehicle/view/DelayLightActivity.smali:443 | withGoHomeStatus, withGoHomeTimeStatus | COMMAND_WITH_GO_HOME_CLOSE, COMMAND_WITH_GO_HOME_OPEN, COMMAND_WITH_GO_HOME_TIME_SETTING | A02：BLE0x83/84、0x85索引0..3=5/10/15/30秒；开关和时间独立 | P1 / COMPLETE / A02 |
 | 84 安全辅助小蓝灯 | com/yadea/smartmoto/vehicle/view/AssistDriveLightActivity.smali:330 | blueLightSwitch | BLE_CONFIG_ASSIST_DRIVE_LIGHT, BLE_CONFIG_ASSIST_DRIVE_LIGHT | A09：四项读写1开0关，修正三项参数反向；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A09（BLE；无运行/实车验证） |
 | 85 SOS 联系人 | com/yadea/smartmoto/vehicle/view/SosContactActivity.smali:1933 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 86 仪表亮度调节 | com/yadea/smartmoto/vehicle/view/BrightnessAdjustmentActivity.smali:430 | brightnessAdjustSwitch, brightnessAdjustValue | BRIGHTNESS_ADJUST_SWITCH, BRIGHTNESS_ADJUST_SWITCH, BRIGHTNESS_ADJUST_VALUE | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 86 仪表亮度调节 | com/yadea/smartmoto/vehicle/view/BrightnessAdjustmentActivity.smali:430 | brightnessAdjustSwitch, brightnessAdjustValue | BRIGHTNESS_ADJUST_SWITCH, BRIGHTNESS_ADJUST_VALUE | A11：开关与整数0..100独立；去除伪造80；UI连接/供电门控，Controller要求开关有效LIVE回读才调亮度；无已证实云端配置 | P0 / CONDITIONAL / A11（BLE；无运行/实车验证） |
 | 88 自定义音效 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 89 辅助骑行 | com/yadea/smartmoto/vehicle/view/HelpPromotePlus2Activity.smali:196 | customDriveLevelStatus, customDriveSwitchStatus, helpCarState | STROLLER_CLOSE, STROLLER_OPEN, COMMAND_CONST_CUSTOM_DRIVE_LEVEL_SETTING | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 90 赛道模式 | com/yadea/smartmoto/vehicle/view/TrackModeActivity.smali:131 | trackModeStatus | TRACK_MODE, TRACK_MODE | A09：四项读写1开0关，修正三项参数反向；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A09（BLE；无运行/实车验证） |
@@ -227,3 +227,10 @@ A09：32/32精确过滤测试及全部离线构建退出0；STATIC_FLOW_VERIFIED
 - UI→Controller→CloudWriter BLE分流→MappedWriter→forItem/forConfigId→既有固定命令/编码；扩展严格已知性/稳定ID/无效观察与在途保护，未改变其他设置。没有云端猜测字段。
 
 A10：33/33精确过滤测试、全部离线构建和diff检查退出0；STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无运行/车辆验证。
+
+## A11：ID20/86（独立复审及验证完成）
+
+- ID20：`VehicleVolumeActivity.getSettingConfigId:87`→20；`$a.b:86–102`记录thumbPosition、`a:40–62`直接提交VOLUME；原APK `res/fYa.xml`（activity_vehicle_volume）max2/min0/ticks3，volume_array为低/中/高。`VehicleSettingViewModel:21717–21846`将alarmWarningVolumeLevel的0/1/2映射低/中/高和进度。`ch:4288–4308`→0x46；`BleBicycleCommandManager:4134–4140`原始命令域0..7，保留该底层域，设置页严格0..2。
+- ID86：`BrightnessAdjustmentActivity.onSwClick:83–167`旧checked取反→BRIGHTNESS_ADJUST_SWITCH；`refreshUiStatus:172–403`连接+供电、C2开关共同控制拖动；`$a.a:40–86`以getProgress整数单独提交BRIGHTNESS_ADJUST_VALUE。原APK `res/cWg.xml` min0/max100；`VehicleSettingViewModel.C2:6809/D2:7373`→y4/z4，分别由brightnessAdjustSwitch:24951–25006、brightnessAdjustValue:24287–24330回填。`qg:3384–3403/6160–6179`→135/134。全Smali字段引用仅TTP/解析/VM/qv，无页面云端绑定，移除KMP凭空80和同名云端读取；不新增云端映射。
+- 实际链：原有通用AppSliderPreference/AppSwitchPreference（双主题）→Controller校验/草稿→CloudWriter无云端构建时BLE→MappedWriter→forItem/forConfigId严格值/稳定ID→既有命令及编码。亮度Controller只依赖有效同VIN实时开关；UI另外保持原App连接+供电门控，低层数值命令不表达连接/供电状态。不改协议、原始TTP、编码或通用网络。
+- 新增12项Fake-only测试；修正两份旧测试的八档音量假设与超出原页面范围的夹具。首次52测试退出1（5失败：夹具/遍历范围问题），修正后52/52退出0，未删除测试或放宽生产校验。JVM/JS/Wasm/测试源码编译、Android Debug/Desktop构建及diff检查退出0。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；没有App运行/车辆验证。

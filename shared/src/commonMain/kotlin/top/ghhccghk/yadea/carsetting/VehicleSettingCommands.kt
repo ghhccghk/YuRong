@@ -34,6 +34,9 @@ data class VehicleSettingCommand(
             0x9D -> require(parameter in 0..7) // BleBicycleCommandManager:2741–2749, not a guessed boolean domain.
             0xCF, 0xD9, 0xDD, 0xFB1 -> require(parameter in 0..1)
             0x132, 0x136, 0x13F, 0x144 -> require(parameter in 0..1)
+            0x46 -> require(parameter in 0..7) // Raw command domain; the volume page exposes only 0/1/2.
+            0x134 -> require(parameter in 0..100)
+            0x135 -> require(parameter in 0..1)
         }
         // Validate even callers that construct a composite command without the mapper.
         if (commandId == 0xC8 || commandType == "CUSTOMIZE_SETTING") {
@@ -127,6 +130,7 @@ class CloudCarSettingWriter(
         if (item.configId == "10" && !GeofenceSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId == "73" && !AtmosphereSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in SimpleToggleSettings.ids && !SimpleToggleSettings.validItem(item)) return CarSettingWriteResult(false)
+        if (item.configId in VolumeBrightnessSettings.ids && !VolumeBrightnessSettings.validItem(item)) return CarSettingWriteResult(false)
         if ((item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids) &&
             VehicleSettingCommands.forItem(item) == null
         ) return CarSettingWriteResult(false)
@@ -163,6 +167,7 @@ object VehicleSettingCommands {
     fun supports(configId: String, kind: CarSettingKind): Boolean =
         // Capability must survive unknown initial values; forItem/forConfigId validate writes.
         SimpleChoiceSettings.supports(configId, kind) || TimerSettings.supports(configId, kind) || BatterySettings.supports(configId, kind) ||
+            VolumeBrightnessSettings.supports(configId, kind) ||
             (configId in SimpleToggleSettings.ids && kind is CarSettingKind.Toggle) ||
             (configId == "73" && (kind is CarSettingKind.Atmosphere || kind is CarSettingKind.Toggle)) ||
             (configId in setOf("55", "92") && kind is CarSettingKind.Customize) ||
@@ -176,7 +181,8 @@ object VehicleSettingCommands {
     fun supportsItem(item: CarSettingItem): Boolean =
         if (item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids ||
             item.configId in BatterySettings.ids || item.configId in TimerSettings.ids ||
-            item.configId in SimpleChoiceSettings.ids || item.configId in SimpleToggleSettings.ids || item.configId == "73") supports(item.configId, item.kind)
+            item.configId in SimpleChoiceSettings.ids || item.configId in SimpleToggleSettings.ids ||
+            item.configId in VolumeBrightnessSettings.ids || item.configId == "73") supports(item.configId, item.kind)
         else forItem(item)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     /**
@@ -622,7 +628,7 @@ object VehicleSettingCommands {
                 offId = 0x96,
             )
             // BrightnessAdjustmentActivity：开关走 0x135，手动亮度走 0x134。
-            "86" -> when (kind) {
+            "86" -> if (!VolumeBrightnessSettings.validTarget(configId, kind)) null else when (kind) {
                 is CarSettingKind.Toggle -> toggle(
                     kind = kind,
                     onType = "BRIGHTNESS_ADJUST_SWITCH",
@@ -635,7 +641,7 @@ object VehicleSettingCommands {
                 is CarSettingKind.Slider -> VehicleSettingCommand(
                     commandType = "BRIGHTNESS_ADJUST_VALUE",
                     commandId = 0x134,
-                    parameter = kind.value.toInt().coerceIn(0, 100),
+                    parameter = kind.value.toInt(),
                 )
                 else -> null
             }
@@ -704,13 +710,14 @@ object VehicleSettingCommands {
                 onParameter = 1,
                 offParameter = 0,
             )
-            // VehicleVolumeActivity：0..7 档。
+            // VehicleVolumeActivity: low/middle/high, thumbPosition 0/1/2.
             "20" -> {
                 val slider = kind as? CarSettingKind.Slider ?: return null
+                if (!VolumeBrightnessSettings.validTarget(configId, slider)) return null
                 VehicleSettingCommand(
                     commandType = "VOLUME",
                     commandId = 0x46,
-                    parameter = slider.value.toInt().coerceIn(0, 7),
+                    parameter = slider.value.toInt(),
                 )
             }
             // VehicleAlarmSensitivityActivity sends thumbPosition, not 0/50/100 progress.
@@ -785,6 +792,10 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        if (item.configId in VolumeBrightnessSettings.ids) {
+            if (!VolumeBrightnessSettings.validItem(item)) return null
+            return forConfigId(item.configId, item.kind)
+        }
         if (item.configId in SimpleToggleSettings.ids && !SimpleToggleSettings.validItem(item)) return null
         if (item.configId == "73" && !AtmosphereSettings.validItem(item)) return null
         // The original fence flow is cloud-only; split IDs must not turn it into a BLE write.

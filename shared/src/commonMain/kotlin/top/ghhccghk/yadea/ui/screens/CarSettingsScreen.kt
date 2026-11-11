@@ -43,6 +43,7 @@ import top.ghhccghk.yadea.carsetting.SettingReadbackState
 import top.ghhccghk.yadea.carsetting.CarSettingsController
 import top.ghhccghk.yadea.carsetting.CarSettingsState
 import top.ghhccghk.yadea.carsetting.SecondPhaseSettings
+import top.ghhccghk.yadea.carsetting.VolumeBrightnessSettings
 import top.ghhccghk.yadea.carsetting.CustomSoundController
 import top.ghhccghk.yadea.carsetting.CustomSoundCategory
 import top.ghhccghk.yadea.carsetting.CustomSoundResource
@@ -194,6 +195,8 @@ fun CarSettingsScreen(
             (!vehicleConnected || vehiclePowerOn != true)
         ) {
             "请先连接车辆并开机"
+        } else if (item.configId == "86" && !VolumeBrightnessSettings.canEdit(item, state)) {
+            "请先开启亮度调节并等待车辆回读确认"
         } else {
             adaptivePushUiDisabledReason(item, state, vehicleConnected, vehiclePowerOn)
         }
@@ -203,6 +206,7 @@ fun CarSettingsScreen(
         controller.available &&
             CarSettingItemAccess.canWrite(item) &&
             SecondPhaseSettings.canEditChoice(item, state) &&
+            VolumeBrightnessSettings.canEdit(item, state) &&
             (item.configId !in setOf("4", "58", "61") ||
                 (displayedKind is CarSettingKind.Slider && displayedKind.valueKnown && displayedKind.rangeKnown &&
                     (item.kind as? CarSettingKind.Slider)?.rangeKnown == true)) &&
@@ -1400,7 +1404,7 @@ internal fun carSettingsUiResetKey(state: CarSettingsState): CarSettingsUiResetK
     )
 
 private val SAFETY_CONFIRM_IDS = setOf("36", "37", "38")
-private val BLE_POWER_SETTING_IDS = setOf("37", "38")
+private val BLE_POWER_SETTING_IDS = setOf("37", "38", "86")
 
 internal fun settingSwitchTarget(state: CarSettingValueState, targetChecked: Boolean): CarSettingKind.Toggle? =
     (state.displayKind() as? CarSettingKind.Toggle)?.copy(checked = targetChecked, valueKnown = true)
@@ -1419,6 +1423,12 @@ internal fun speedPresetTarget(slider: CarSettingKind.Slider, position: Float): 
 
 /** Normalize UI input only; observed values and command validation remain unchanged. */
 internal fun settingSliderDraftValue(item: CarSettingItem, raw: Float): Float? {
+    if (item.configId in VolumeBrightnessSettings.ids) {
+        val slider = item.kind as? CarSettingKind.Slider ?: return null
+        val range = if (item.configId == "20") 0f..2f else 0f..100f
+        if (slider.range != range || !slider.rangeKnown || !raw.isFinite() || raw !in range) return null
+        return raw.roundToInt().toFloat()
+    }
     if (item.configId in setOf("4", "61")) {
         val slider = item.kind as? CarSettingKind.Slider ?: return null
         if (!slider.rangeKnown || !raw.isFinite() || raw !in slider.range) return null

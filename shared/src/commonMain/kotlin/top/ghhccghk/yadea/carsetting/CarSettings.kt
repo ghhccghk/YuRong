@@ -419,7 +419,8 @@ class CarSettingsController(
                 findItem(it)?.configId.let { configId ->
                     configId in setOf("4", "58", "61", "55", "92") ||
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
-                        configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids || configId in setOf("10", "73")
+                        configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids ||
+                        configId in VolumeBrightnessSettings.ids || configId in setOf("10", "73")
                 }
             }) {
             _state.value = _state.value.copy(message = "设置正在提交，请完成后刷新")
@@ -633,7 +634,9 @@ class CarSettingsController(
 
     private fun validSimpleChoiceTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
         (item.configId !in SimpleChoiceSettings.ids || SimpleChoiceSettings.validItem(item.copy(kind = target))) &&
-            (item.configId !in SimpleToggleSettings.ids || SimpleToggleSettings.validItem(item.copy(kind = target)))
+            (item.configId !in SimpleToggleSettings.ids || SimpleToggleSettings.validItem(item.copy(kind = target))) &&
+            (item.configId !in VolumeBrightnessSettings.ids ||
+                (VolumeBrightnessSettings.validItem(item.copy(kind = target)) && VolumeBrightnessSettings.canEdit(item, _state.value)))
 
     private fun validAtmosphereTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
         item.configId != "73" || AtmosphereSettings.validItem(item.copy(kind = target))
@@ -948,7 +951,7 @@ class CarSettingsController(
                 "33" -> item.withToggle(status.extended.simulatedSoundWaveStatus.flagOrNull())
                 "86" -> when (item.kind) {
                     is CarSettingKind.Toggle -> item.withToggle(
-                        status.extended.brightnessAdjustSwitch.flagOrNull(),
+                        SimpleToggleSettings.flag(status.extended.brightnessAdjustSwitch),
                     )
                     is CarSettingKind.Slider -> item.withSlider(
                         status.extended.brightnessAdjustValue.floatIn(0..100),
@@ -1163,7 +1166,7 @@ class CarSettingsController(
                     status.extended.slideModePowerRecoverCurrent.floatIn(1..3),
                 )
                 "20" -> item.withSlider(
-                    status.extended.alarmWarningVolumeLevel.floatIn(0..7),
+                    status.extended.alarmWarningVolumeLevel.floatIn(0..2),
                 )
                 "14" -> item.withSlider(
                     AlarmSensitivityMapping.progressFromRaw(status.extended.alarmSensitivityStatus),
@@ -1198,7 +1201,8 @@ class CarSettingsController(
                     val configId = findItem(id)?.configId
                     val audited = configId in setOf("4", "58", "61", "55", "92") ||
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
-                        configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids || configId == "73"
+                        configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids ||
+                        configId in VolumeBrightnessSettings.ids || configId == "73"
                     value.copy(readbackState = SettingReadbackState.MISSING_OR_INVALID,
                         vehicleValue = if (audited) value.vehicleValue.copy(live = false) else value.vehicleValue)
                 } else value
