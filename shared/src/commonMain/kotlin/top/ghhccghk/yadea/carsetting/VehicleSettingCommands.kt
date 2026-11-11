@@ -151,6 +151,15 @@ class CloudCarSettingWriter(
         if (!TrackerSettings.authorized(item, vin)) return CarSettingWriteResult(false)
         if (item.configId == "33" && !SimulatedSoundSettings.authorized(item, vin)) return CarSettingWriteResult(false)
         if (item.configId == "51" && !TimeSyncSettings.validItem(item)) return CarSettingWriteResult(false)
+        if (item.configId == "77") {
+            // The original connected branch also updates sleepMode=1. A bare BLE send
+            // cannot replace that workflow; only the proven disconnected cloud branch is enabled.
+            if (!HibernateSettings.authorized(item, vin) || bleAvailableProvider()) return CarSettingWriteResult(false)
+            val update = CloudCarSettingUpdateBuilder.build("77", item.kind, vin) ?: return CarSettingWriteResult(false)
+            val receipt = gateway.updateHibernate(vin, update, item.hibernateAuthorization!!)
+            if (vinProvider().trim() != vin) return CarSettingWriteResult(false)
+            return CarSettingWriteResult(receipt.accepted, CarSettingWriteChannel.CLOUD, resultId = receipt.resultId)
+        }
         val update = CloudCarSettingUpdateBuilder.build(
             configId = item.configId,
             kind = item.kind,
@@ -313,16 +322,8 @@ object VehicleSettingCommands {
                 onParameter = 0,
                 offParameter = 1,
             )
-            // HibernateModeActivity：休眠模式。
-            "77" -> toggle(
-                kind = kind,
-                onType = "SLEEP_MODE_SWITCH",
-                offType = "SLEEP_MODE_SWITCH",
-                onId = 0x133,
-                offId = 0x133,
-                onParameter = 1,
-                offParameter = 0,
-            )
+            // Immediate sleep's connected branch requires a separate cloud metadata update.
+            "77" -> null
             // OTDActivity.onSwClick：旧开关取反，1=开、0=关。
             "80" -> toggle(
                 kind = kind,
@@ -800,6 +801,7 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        if (item.configId == "77") return null
         if (item.configId == "93") return null
         if (item.configId == "51") {
             if (!TimeSyncSettings.validItem(item)) return null

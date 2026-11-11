@@ -97,10 +97,8 @@ class Phase4CarSettingsTest {
             VehicleSettingCommand("LONG_ENDURANCE_SETTING", 0xDD, 1),
             VehicleSettingCommands.forConfigId("72", CarSettingKind.Toggle(true)),
         )
-        assertEquals(
-            VehicleSettingCommand("SLEEP_MODE_SWITCH", 0x133, 1),
-            VehicleSettingCommands.forConfigId("77", CarSettingKind.Toggle(true)),
-        )
+        // Bare BLE omits the original branch's cloud metadata update.
+        assertNull(VehicleSettingCommands.forConfigId("77", CarSettingKind.Toggle(true)))
         assertEquals(
             VehicleSettingCommand("COMMAND_OTD_SWITCH", 0x132, 0),
             VehicleSettingCommands.forConfigId("80", CarSettingKind.Toggle(true)),
@@ -243,11 +241,11 @@ class Phase4CarSettingsTest {
             ),
         )
         assertEquals(CloudCarSettingUpdatePath.PARAM_SETTING, sleep.path)
-        assertEquals(1, sleep.fields["sleepMode"])
+        assertNull(sleep.fields["sleepMode"])
         assertEquals("SLEEP_MODE_SWITCH", sleep.fields["id"])
-        assertEquals(0, sleep.fields["value"])
+        assertEquals(1, sleep.fields["value"])
         assertEquals(
-            "[{\"byteCount\":1,\"dataType\":1,\"sort\":1,\"value\":0}]",
+            "[{\"byteCount\":1,\"dataType\":1,\"sort\":1,\"value\":1}]",
             sleep.fields["valueJson"],
         )
 

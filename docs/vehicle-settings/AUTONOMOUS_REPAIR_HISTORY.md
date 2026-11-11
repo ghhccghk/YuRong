@@ -262,3 +262,15 @@
 - 前两次测试源码编译退出1（新夹具依次缺summary/classification）；编译修正后27项中1项失败（错误假定目录只有一项），修正为按稳定ID选取后退出0，未放宽生产校验或删除断言。
 - `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0，缓存C:\Users\DozenOregano696\.gradle。
 - 完整重走UI→Controller→CloudWriter/MappedWriter→forItem/forConfigId→最终命令构造；不能发送错误141，不伪造当前值或确认。正确39通道及读取BLOCKED。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED，无运行/实车验证。待精确提交。
+
+### A19提交核对 / A20起点
+
+- A19提交1f0cd06464fff643c9e65bca4da589910dfeee22，8文件；A20起点同此HEAD，master，tracked/index干净，原有12项untracked保持，无外部提交。
+
+## A20（独立复审及验证完成）
+
+- ID77云端立即休眠：修正目标重复取反、云端参数混入BLE元数据、直接关闭0、缺在线检查/确认及用confId猜事务ID。复用原状态与Gateway，新增HibernateAuthorization和HibernateWriteReceipt只服务本次提交；不变更原URL/签名、通用网络、协议、帧或TTP解析。
+- 连接时原页还要求BLE133=1后sleepMode=1，两步骤状态不能用普通BLE成功替代，暂时阻止未实现路径。自动休眠f72独立接口排程留下一批；不能把未完成实现写成证据不足BLOCKED。ID77整体PARTIAL。
+- 首次63/63过滤测试退出0，独立复审补“轮询成功后仍能接收TTP/新配置解除旧目标”2项后65/65退出0。HibernateSettingsSafetyTest15、CarSettingsControllerTest17、CloudConfiguredValueRefreshTest30、VehicleSettingGoldenFrameTest3。命令`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.HibernateSettingsSafetyTest --tests top.ghhccghk.yadea.carsetting.CarSettingsControllerTest --tests top.ghhccghk.yadea.carsetting.CloudConfiguredValueRefreshTest --tests top.ghhccghk.yadea.carsetting.VehicleSettingGoldenFrameTest --offline --console=plain`。全部Fake/内存；没有完整jvmTest、真实网络/车辆请求。
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；缓存C:\Users\DozenOregano696\.gradle；`git diff --check`退出0。
+- 独立复审重走原页点击→P4及原回调→KMP UI/Controller→实际Writer→Builder/Gateway→结果ID轮询/车辆回读，UNKNOWN、缓存、配置、接受与确认分离。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无App运行/车辆验证。待精确提交。

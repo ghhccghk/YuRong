@@ -83,6 +83,8 @@ fun CarSettingsScreen(
     val settingScope = key(uiResetKey) { rememberCoroutineScope() }
     var confirmDisable by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     var confirmLocationClose by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
+    var confirmHibernate by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
+    var showHibernateExit by remember(uiResetKey) { mutableStateOf(false) }
     var confirmEnergyHigh by remember(uiResetKey) { mutableStateOf<String?>(null) }
     var confirmBraceDependency by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     var atmosphereItem by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
@@ -166,7 +168,9 @@ fun CarSettingsScreen(
     val submitSettingUpdate:
         (CarSettingItem, (CarSettingKind) -> CarSettingKind) -> Unit = { item, transform ->
         val next = transform(item.kind)
-        if (next is CarSettingKind.Toggle && !next.checked && item.configId == "76") {
+        if (next is CarSettingKind.Toggle && item.configId == "77") {
+            if (next.checked) confirmHibernate = item else showHibernateExit = true
+        } else if (next is CarSettingKind.Toggle && !next.checked && item.configId == "76") {
             confirmLocationClose = item
         } else if (next is CarSettingKind.Toggle &&
             !next.checked &&
@@ -199,6 +203,8 @@ fun CarSettingsScreen(
             "正在刷新设置"
         } else if (item.configId == "93") {
             "静音控制通道尚未实现，暂不可操作"
+        } else if (item.configId == "77" && vehicleConnected) {
+            "蓝牙休眠联动流程尚未接入，当前仅支持车联网入口"
         } else if (item.configId in BLE_POWER_SETTING_IDS &&
             (!vehicleConnected || vehiclePowerOn != true)
         ) {
@@ -509,6 +515,26 @@ fun CarSettingsScreen(
     )
 
     val safetyTarget = confirmDisable
+    val hibernateTarget = confirmHibernate
+    AppAlertDialog(
+        show = hibernateTarget != null,
+        title = "立即休眠",
+        message = "确定立即休眠车辆吗？退出休眠需使用车辆支持的唤醒方式。",
+        onConfirm = {
+            confirmHibernate = null
+            hibernateTarget?.let { item -> settingScope.launch { controller.enterHibernate(item.id, confirmed = true) } }
+        },
+        onDismissRequest = { confirmHibernate = null },
+    )
+    AppAlertDialog(
+        show = showHibernateExit,
+        title = "车辆休眠中",
+        message = "请按车辆说明唤醒车辆，再刷新状态。",
+        confirmText = "我知道了",
+        dismissText = null,
+        onConfirm = { showHibernateExit = false },
+        onDismissRequest = { showHibernateExit = false },
+    )
     val locationTarget = confirmLocationClose
     AppAlertDialog(
         show = locationTarget != null,
