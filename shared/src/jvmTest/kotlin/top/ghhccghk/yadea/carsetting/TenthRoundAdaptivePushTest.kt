@@ -122,7 +122,7 @@ class TenthRoundAdaptivePushTest {
             for (tick in 0..2) {
                 c.updateVehicleStatus("VIN-A", status(level = tick))
                 assertEquals(tick.toFloat(), c.level(item.id))
-                val command = VehicleSettingCommands.forItem(item.copy(kind = slider.copy(value = tick.toFloat())))!!
+                val command = VehicleSettingCommands.forItem(item.copy(kind = slider.copy(value = tick.toFloat(), valueKnown = true)))!!
                 assertEquals(0xD1, command.commandId)
                 assertEquals(tick, command.parameter)
             }

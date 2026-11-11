@@ -31,6 +31,7 @@ data class VehicleSettingCommand(
             0xCB -> require(parameter in 70..100 && parameter % 5 == 0)
             0xCD -> require(parameter in BatteryCapacityOptions.valuesAh)
             0xD3 -> require(parameter in 0..2)
+            0xD0, 0xD1 -> require(parameter in 0..2)
             0x7D -> require(parameter in 0..20)
             0x85 -> require(parameter in 0..3)
             0x3F -> require(parameter in 0..2) // Raw protocol includes 2; ID50 exposes 0/1.
@@ -140,6 +141,7 @@ class CloudCarSettingWriter(
     override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult {
         if (!CarSettingItemAccess.canWrite(item)) return CarSettingWriteResult(false)
         if (item.configId == "93") return CarSettingWriteResult(false)
+        if (item.configId in AdaptivePushSettings.ids && !AdaptivePushSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in BatterySettings.ids && !BatterySettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in TimerSettings.ids && !TimerSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in SimpleChoiceSettings.ids && !SimpleChoiceSettings.validItem(item)) return CarSettingWriteResult(false)
@@ -226,6 +228,7 @@ object VehicleSettingCommands {
         SimpleChoiceSettings.supports(configId, kind) || TimerSettings.supports(configId, kind) || BatterySettings.supports(configId, kind) ||
             VolumeBrightnessSettings.supports(configId, kind) ||
             EnergyRecoverySettings.supports(configId, kind) ||
+            (configId in AdaptivePushSettings.ids && AdaptivePushSettings.supports(kind)) ||
             (configId in SimpleToggleSettings.ids && kind is CarSettingKind.Toggle) ||
             (configId == "73" && (kind is CarSettingKind.Atmosphere || kind is CarSettingKind.Toggle)) ||
             (configId in setOf("55", "92") && kind is CarSettingKind.Customize) ||
@@ -241,7 +244,8 @@ object VehicleSettingCommands {
         if (item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids ||
             item.configId in BatterySettings.ids || item.configId in TimerSettings.ids ||
             item.configId in SimpleChoiceSettings.ids || item.configId in SimpleToggleSettings.ids ||
-            item.configId in VolumeBrightnessSettings.ids || item.configId in EnergyRecoverySettings.ids || item.configId in setOf("73", "42", "2", "33", "51")) supports(item.configId, item.kind)
+            item.configId in VolumeBrightnessSettings.ids || item.configId in EnergyRecoverySettings.ids ||
+            item.configId in AdaptivePushSettings.ids || item.configId in setOf("73", "42", "2", "33", "51")) supports(item.configId, item.kind)
         else forItem(item)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     /**
@@ -550,7 +554,7 @@ object VehicleSettingCommands {
                 offId = 0xA9,
             )
             // HelpPromotePlusActivity：辅助推行开关与推行档位。
-            "64", "89" -> when (kind) {
+            "64", "89" -> if (!AdaptivePushSettings.valid(kind)) null else when (kind) {
                 is CarSettingKind.Toggle -> toggle(
                     kind = kind,
                     onType = "STROLLER_OPEN",
@@ -827,6 +831,7 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        if (item.configId in AdaptivePushSettings.ids && !AdaptivePushSettings.validItem(item)) return null
         if (item.configId == "77") return null
         if (item.configId == "93") return null
         if (item.configId == "51") {

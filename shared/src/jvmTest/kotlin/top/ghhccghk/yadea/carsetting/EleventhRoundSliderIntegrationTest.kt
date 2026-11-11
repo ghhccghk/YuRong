@@ -67,7 +67,7 @@ class EleventhRoundSliderIntegrationTest {
             for (step in 0..100) {
                 val value = settingSliderDraftValue(item, step / 50f * scale)!!
                 assertTrue(value in listOf(0f, scale, 2f * scale))
-                assertNotNull(VehicleSettingCommands.forItem(item.copy(kind = (item.kind as CarSettingKind.Slider).copy(value = value))))
+                assertNotNull(VehicleSettingCommands.forItem(item.copy(kind = (item.kind as CarSettingKind.Slider).copy(value = value, valueKnown = true))))
             }
         }
     }
@@ -193,7 +193,7 @@ class EleventhRoundSliderIntegrationTest {
         for (id in ids) {
             val writer = FakeWriter().also { it.channel = CarSettingWriteChannel.CLOUD }
             val c = CarSettingsController(items(), writer, debounceMs = 0)
-            assertTrue(c.update(id) { (it as CarSettingKind.Slider).copy(value = it.range.endInclusive) })
+            assertTrue(c.update(id) { (it as CarSettingKind.Slider).copy(value = it.range.endInclusive, valueKnown = true) })
             val value = c.state.value.valueState(id)
             assertEquals(SettingWriteState.CLOUD_ACCEPTED, value.writeState)
             assertEquals(VehicleSettingValue.Unknown, value.vehicleValue)

@@ -672,6 +672,7 @@ class CarSettingsController(
 
     private fun validSimpleChoiceTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
         item.configId != "93" &&
+        (item.configId !in AdaptivePushSettings.ids || AdaptivePushSettings.validItem(item.copy(kind = target))) &&
         (item.configId != "77" || if (item.id == AutoHibernateSettings.ID) {
             (target as? CarSettingKind.AutoHibernate)?.let(AutoHibernateSettings::validTarget) == true
         } else HibernateSettings.validItem(item.copy(kind = target))) &&
@@ -1216,7 +1217,7 @@ class CarSettingsController(
                     item.kind is CarSettingKind.Slider -> item.withSlider(
                         status.extended.customDriveLevelStatus.floatIn(0..2),
                     )
-                    else -> item.withToggle(status.extended.helpCarState.flagOrNull())
+                    else -> item.withToggle(SimpleToggleSettings.flag(status.extended.helpCarState))
                 }
                 "55", "92" -> when (val kind = item.kind) {
                     is CarSettingKind.Customize -> {
@@ -1420,7 +1421,8 @@ class CarSettingsController(
                     val audited = configId in setOf("4", "58", "61", "55", "92") ||
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
                         configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids ||
-                        configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids || configId in TrackerSettings.ids || configId in setOf("73", "42", "2", "33", "77")
+                        configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids ||
+                        configId in AdaptivePushSettings.ids || configId in TrackerSettings.ids || configId in setOf("73", "42", "2", "33", "77")
                     value.copy(readbackState = SettingReadbackState.MISSING_OR_INVALID,
                         vehicleValue = if (audited) value.vehicleValue.copy(live = false) else value.vehicleValue)
                 } else value

@@ -230,7 +230,7 @@ class CarSettingsControllerTest {
         assertEquals(
             0,
             VehicleSettingCommands.forItem(
-                item("cloud:89:level", "89", CarSettingKind.Slider(0f, 0f..2f)),
+                item("cloud:89:level", "89", CarSettingKind.Slider(0f, 0f..2f, steps = 1)),
             )?.parameter,
         )
     }

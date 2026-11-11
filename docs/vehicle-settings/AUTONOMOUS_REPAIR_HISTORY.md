@@ -298,3 +298,16 @@
 - 首次过滤编译退出1：使用不存在的AppTextButton；更正为已有AppOutlinedButton。随后87/87通过；独立复审补无效重读保留接受目标、旧VIN晚返回两项后89/89通过。AutoHibernateSettingsTest17、HibernateLinkedWriteTest10、HibernateSettingsSafetyTest15、CarSettingsControllerTest17、CloudConfiguredValueRefreshTest30，命令`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.AutoHibernateSettingsTest --tests top.ghhccghk.yadea.carsetting.HibernateLinkedWriteTest --tests top.ghhccghk.yadea.carsetting.HibernateSettingsSafetyTest --tests top.ghhccghk.yadea.carsetting.CarSettingsControllerTest --tests top.ghhccghk.yadea.carsetting.CloudConfiguredValueRefreshTest --offline --console=plain`，退出0。全部Fake/内存/自定义Transport隔离，没有真实请求。
 - `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；缓存C:\Users\DozenOregano696\.gradle；`git diff --check`退出0。
 - 独立复审UI/目录/原页→Controller→Writer→独立Gateway→云端重读，补旧目录响应不得继续发起旧VIN排程读请求；没有改变立即休眠的确认语义、其他设置参数或受保护协议/编码/网络层。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；77整体CONDITIONAL，App运行/实际车辆执行未验证。待精确提交。
+
+### A22提交核对 / A23起点
+
+- A22提交c85cce4d6490dcde83e4278decd9063295e223bf，10文件；master，tracked/index干净，原有12项untracked保持，无外部提交。
+
+## A23（64/89自适应推行写入安全，独立复审及验证完成）
+
+- Smali：HelpPromotePlusActivity.onCbClick94–122勾选写0/取消写1；HelpPromotePlus2Activity.onCbClick94–130勾选写0/取消写2。两页onSwClick124–165/132–173独立STROLLER_OPEN/CLOSE。两页监听器$a.a发送滑杆thumbPosition，VehicleSettingViewModel回填TTP customDriveLevelStatus原始0..2；VM 23668/23693分别把customDriveSwitchStatus==1/2映射两个版本；helpCarState单独回填总开关。qg将命令分至D0/D1；原BleBicycleCommandManager D0写0x37位2..3、D1写0x38位0..2。
+- 缺陷：原低层forConfigId(64/89)和forItem可不经UI直接生成命令，允许UNKNOWN Toggle、默认/非法 Slider、伪造条目ID；D0/D1 VehicleSettingCommand没有直接参数范围约束。64/89也未在无效新快照时保留旧值但降级LIVE。
+- 新AdaptivePushSettings统一严格domain/稳定条目ID校验，接入Controller草稿、forConfigId、forItem、supports及真实CloudCarSettingWriter；Toggle必须valueKnown，slider需显式编辑目标、准确三点结构0..2。D0/D1最终命令构造再校验0..2。无效新观察降级原观察live；总开关使用严格0/1解析。没有合成兄弟字段；保留UI同VIN新鲜观察、连接/开机及总开关联锁。
+- 首次37项过滤测试退出1：两个新断言包括动态页脚；一个旧控制器夹具没有三点Slider元数据。修正断言范围/夹具，不放宽生产校验。补测控制器、UI门控、三点滑杆集成共55/55通过：AdaptivePushWriteSafetyTest7、TenthRoundAdaptivePushTest13、CarSettingsControllerTest17、EleventhRoundUiGatingTest8、EleventhRoundSliderIntegrationTest10。Fake Gateway/Writer及内存TTP；无网络/车辆。
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；缓存C:\Users\DozenOregano696\.gradle，`git diff --check`退出0。
+- 独立重走UI→Controller→CloudCarSettingWriter/MappedCarSettingWriter→forItem/forConfigId→VehicleSettingCommand构造及编码入口。检验未知、错误ID、无效Float、未编辑占位Slider、失败/取消、缓存、旧序号及写入接受不等于车辆回读。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无App运行或实车验证。ID64/89为COMPLETE（静态/Fake定义，运行仍未验证）。
