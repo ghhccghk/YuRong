@@ -39,8 +39,8 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 24 紧急联系人 | com/yadea/smartmoto/vehicle/view/EmergencyContactActivity.smali:964 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 25 密码解锁 | com/yadea/smartmoto/vehicle/pwdunlock/PassWordUnlockActivity.smali:845 | passwordUnlockStatus | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 26 转向灯自动回位 | com/yadea/smartmoto/vehicle/view/TurnSignalActivity.smali:283 | turnSignalReturnsAutomaticallyStatus | COMMAND_DIRECTION_LIGHT_RESET_OFF, COMMAND_DIRECTION_LIGHT_RESET_ON | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 27 设防模式 | com/yadea/smartmoto/vehicle/view/ArmedModeActivity.smali:231 | offModeStatus | FORTIFY_MODE_AUTO, FORTIFY_MODE_NO | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 31 速度单位 | com/yadea/smartmoto/vehicle/view/SpeedUnitActivity.smali:232<br>com/yadea/smartmoto/vehicle/view/DistanceUnitActivity.smali:156 | metricSystemStatus | IMPERIAL_UNIT_KM, IMPERIAL_UNIT_MILES | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 27 设防模式 | com/yadea/smartmoto/vehicle/view/ArmedModeActivity.smali:231 | offModeStatus | FORTIFY_MODE_AUTO, FORTIFY_MODE_NO | A03：TTP回填已核；显式Choice→Controller→forItem→MappedWriter，最终边界拒绝未知/越界/伪造选项；无云端猜测 | P0 / COMPLETE / A03 |
+| 31 速度单位 | com/yadea/smartmoto/vehicle/view/SpeedUnitActivity.smali:232<br>com/yadea/smartmoto/vehicle/view/DistanceUnitActivity.smali:156 | metricSystemStatus | IMPERIAL_UNIT_KM, IMPERIAL_UNIT_MILES | A03：TTP回填已核；显式Choice→Controller→forItem→MappedWriter，最终边界拒绝未知/越界/伪造选项；无云端猜测 | P0 / COMPLETE / A03 |
 | 32 倾倒提醒 | com/yadea/smartmoto/vehicle/view/DumpWarningActivity.smali:144 | tiltWarningStatus | TILT_WARNING_CLOSE, TILT_WARNING_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 33 模拟声浪 | com/yadea/smartmoto/vehicle/view/SimulatedSoundActivity.smali:333 | simulatedSoundWaveStatus | SIMULATED_SOUND_WAVE_CLOSE, SIMULATED_SOUND_WAVE_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 36 刹车断电 | com/yadea/smartmoto/vehicle/view/BrakePowerOffActivity.smali:155 | brakePowerDownFunctionStatus | BRAKE_OUTAGE_CLOSE, BRAKE_OUTAGE_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
@@ -57,11 +57,11 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 47 充电功率 | com/yadea/smartmoto/vehicle/view/ChargingPowerActivity.smali:628 | batteryChargingPowerStatus, batteryChargingPowerValue | COMMAND_CONST_CHARGING_POWER_STATE, COMMAND_CONST_CHARGING_POWER_STATE, COMMAND_CONST_CHARGING_POWER_VALUE | 已确认默认/钳位写入缺陷；原始参数复核后修复 | P0 / PARTIAL / A01 |
 | 48 充电上限 | com/yadea/smartmoto/vehicle/view/ChargeCapActivity.smali:438 | 无 Controller 分支；独立流程另查 | COMMAND_CONST_CHARGING_LIMIT_VALUE | 已确认默认/钳位写入缺陷；原始参数复核后修复 | P0 / PARTIAL / A01 |
 | 49 坡道驻停 | com/yadea/smartmoto/vehicle/view/RampStopsActivity.smali:144 | rampSlopeState | BLE_RAMP_SLOP_CLOSE, BLE_RAMP_SLOP_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 50 仪表风格切换 | com/yadea/smartmoto/vehicle/activity/GaugeStyleHandOffActivity.smali:522 | panelThemeCurrent | COMMAND_BIKE_PANEL_THEME_TYPE | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 50 仪表风格切换 | com/yadea/smartmoto/vehicle/activity/GaugeStyleHandOffActivity.smali:522 | panelThemeCurrent | COMMAND_BIKE_PANEL_THEME_TYPE | A03：TTP回填已核；显式Choice→Controller→forItem→MappedWriter，最终边界拒绝未知/越界/伪造选项；无云端猜测 | P0 / COMPLETE / A03 |
 | 51 仪表时间同步 | com/yadea/smartmoto/vehicle/view/BleMeterTimeSyncActivity.smali:245 | syncTimeResultStatus | COMMAND_CONST_TIME_SYNC_CLOSE, COMMAND_CONST_TIME_SYNC_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 52 手动距离自定义 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 53 边撑开机 | com/yadea/smartmoto/vehicle/view/BracketPoweredActivity.smali:146 | templeSettingStatus | COMMAND_CONST_TEMPLE_SETTING, COMMAND_CONST_TEMPLE_SETTING | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 54 电压设置 | com/yadea/smartmoto/vehicle/view/VoltagePlatformActivity.smali:100 | voltageSettingStatus | COMMAND_CONST_VOLTAGE_SETTING | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 54 电压设置 | com/yadea/smartmoto/vehicle/view/VoltagePlatformActivity.smali:100 | voltageSettingStatus | COMMAND_CONST_VOLTAGE_SETTING | A03：TTP回填已核；显式Choice→Controller→forItem→MappedWriter，最终边界拒绝未知/越界/伪造选项；无云端猜测 | P0 / COMPLETE / A03 |
 | 55 FREE 自由模式 | com/yadea/smartmoto/vehicle/view/VehicleCustomizeActivity.smali:1452 | customizeEnergyLevel, customizeEnergyState, customizeTcs, customizeThrottleSensitivity | CUSTOMIZE_SETTING | 当前 HEAD 已含759c05c完整性及来源隔离；本任务不重复实现，仍需回归 | P2 / PARTIAL / 基线复核 |
 | 58 档位设置 | com/yadea/smartmoto/vehicle/view/MaxSpeedSettingActivity.smali:220 | maximumSpeedCurrent | MAX_SPEED_SETTING | 当前 HEAD 已含759c05c完整性及来源隔离；本任务不重复实现，仍需回归 | P2 / PARTIAL / 基线复核 |
 | 59 报警锁 | com/yadea/smartmoto/vehicle/view/ScheduledShutDown2Activity.smali:210 | vehiclePowerDownStatus, vehiclePowerDownTimeStatus | VEHICLE_MANDATORY_POWER_DOWN_CLOSE, VEHICLE_MANDATORY_POWER_DOWN_OPEN, VEHICLE_MANDATORY_POWER_DOWN_TIME | A02：BLE同开关、0x7D原始0=30秒、1..20=分钟；UNKNOWN无默认；别名并发保护 | P1 / COMPLETE / A02 |
@@ -141,3 +141,17 @@ A01状态：47、48、60基本读写路径STATIC_FLOW_VERIFIED；62即时开关/
 - 初轮过滤测试退出1：新Fake CloudCarSettings缺values实参，已修夹具；复跑Timer12+Battery17+Cloud30=59/59，退出0。未放宽生产校验。
 
 A02验证：Timer12、Battery17、Cloud30过滤59/59退出0；加前两阶段、低电量、GoldenFrame、权限和Controller共163/163退出0。JVM/JS/Wasm/测试源码编译退出0，Android Debug/Desktop构建退出0，diff检查退出0。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。
+
+### A03：27/31/50/54（独立复审完成）
+
+- 起始HEAD：68c7baaccbcfc04c72f2bddfbfc5cc5da860536d，无外部提交，tracked/index干净，12既有untracked未动。
+- 27：ArmedModeActivity.onCheckChange:60–90，rb_1→FORTIFY_MODE_NO(0x8D)，rb_2→FORTIFY_MODE_AUTO(0x8E)；VM22629–22743以offModeStatus=0/1回填，文字分别关机不设防/关机自动设防。
+- 31：SpeedUnitActivity.onCheckChange:127–147和DistanceUnitActivity:51–71，rb_unit1→IMPERIAL_UNIT_KM(0x89)，另一项→IMPERIAL_UNIT_MILES(0x8A)；VM22749+ metricSystemStatus原值0/1。两个页面共confId31，X1的001不在本批。
+- 50：GaugeStyleHandOffActivity.onCheckChange:60+，rb_1→COMMAND_BIKE_PANEL_THEME_TYPE参数0，rb_2→1，VM23174–23217 panelThemeCurrent原值；qg:6859–6876映射0x3F。BLE管理器4358–4398原始协议0..2，页面只暴露0/1。
+- 54：VoltagePlatformActivity.onCheckChange:51–61原样传入COMMAND_CONST_VOLTAGE_SETTING；$a/$b/$c.onClick:90分别1/2/3；hp6.r:914–946明确48V/60V/70V；VM23223–23266 voltageSettingStatus为1/2/3，KMP显示索引减1，提交加1。BLE管理器977–1046原始命令0xC6定义0..6，保持协议域独立。
+- 原缺陷：未知Choice直调forConfigId仍发命令；50/54非法索引被钳位；forItem可通过其他split ID短路。SimpleChoiceSettings固定已证实选项与stable ID，Controller、Mapper、Writer拒绝未知/越界/伪造。最终命令构造新增0x3F/0xC6原始域校验，不改帧编码。
+- 初始selectedIndex=-1/valueKnown=false，不生成草稿；显式选择才能发送。TTP失效撤销旧live，VIN/序号/缓存隔离及失败取消沿用原设施；刷新保留编辑，活动写入禁止刷新。
+- 独立复审重新从UI未知显示/Choice Sheet→Controller编辑/提交→forItem/forConfigId→Cloud/BLE Writer及原始构造审查。未修改原业务字段、其他设置/双主题/协议/网络；四项Cloud构建仍为空，读取仅可靠TTP。
+- 初次过滤退出1：新测试CloudCarSettings位置实参顺序错误，已改命名实参；复跑SimpleChoice9+Timer12+Controller17+Golden3=41/41，退出0。
+
+A03验证：4类41/41 Fake过滤退出0；JVM/JS/Wasm/测试源码编译退出0，Android Debug/Desktop构建退出0，diff检查退出0。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；没有App运行/车辆验证。

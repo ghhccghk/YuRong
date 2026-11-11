@@ -1754,18 +1754,18 @@ object CloudCarSettingMapper {
         "76" -> cloudToggle(cloud, "positioningFunc")
         "45" -> unknownToggle()
         "27" -> CarSettingKind.Choice(
-            selectedIndex = 0,
-            options = listOf("关机不设防", "关机自动设防"),
+            selectedIndex = -1,
+            options = SimpleChoiceSettings.options.getValue("27"),
             valueKnown = false,
         )
         "31" -> CarSettingKind.Choice(
-            selectedIndex = 0,
-            options = listOf("km/h", "mph"),
+            selectedIndex = -1,
+            options = SimpleChoiceSettings.options.getValue("31"),
             valueKnown = false,
         )
         "54" -> CarSettingKind.Choice(
-            selectedIndex = 0,
-            options = listOf("48V", "60V", "70V"),
+            selectedIndex = -1,
+            options = SimpleChoiceSettings.options.getValue("54"),
             valueKnown = false,
         )
         // OldVehicleSoundEffectsActivity：两个报警音主题，参数 0/1。
@@ -1821,8 +1821,8 @@ object CloudCarSettingMapper {
         "11" -> unknownToggle()
         // GaugeStyleHandOffActivity.onCheckChange: rb_1=0, rb_2=1.
         "50" -> CarSettingKind.Choice(
-            selectedIndex = 0,
-            options = listOf("风格 1", "风格 2"),
+            selectedIndex = -1,
+            options = SimpleChoiceSettings.options.getValue("50"),
             valueKnown = false,
         )
         // ScheduledShutDown2Activity 与 confId 15 使用同一组定时关机命令。

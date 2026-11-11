@@ -416,7 +416,8 @@ class CarSettingsController(
         if (_state.value.vin == vin && activeOperations.keys.any {
                 findItem(it)?.configId.let { configId ->
                     configId in setOf("4", "58", "61", "55", "92") ||
-                        configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids
+                        configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
+                        configId in SimpleChoiceSettings.ids
                 }
             }) {
             _state.value = _state.value.copy(message = "设置正在提交，请完成后刷新")
@@ -545,7 +546,8 @@ class CarSettingsController(
         if (!hasKnownSettingValue(item)) return false
         val target = transform(editable)
         if (!validDraftTarget(item.kind, target) || !validSpeedTarget(item, target) ||
-            !validSecondPhaseTarget(item, target) || !validBatteryTarget(item, target) || !validTimerTarget(item, target)
+            !validSecondPhaseTarget(item, target) || !validBatteryTarget(item, target) || !validTimerTarget(item, target) ||
+            !validSimpleChoiceTarget(item, target)
         ) return false
         changeValueState(id) { it.copy(draftValue = target, error = null) }
         return true
@@ -621,6 +623,9 @@ class CarSettingsController(
     private fun validTimerTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
         item.configId !in TimerSettings.ids || TimerSettings.validItem(item.copy(kind = target))
 
+    private fun validSimpleChoiceTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
+        item.configId !in SimpleChoiceSettings.ids || SimpleChoiceSettings.validItem(item.copy(kind = target))
+
     private fun hasActiveSettingWrite(item: CarSettingItem): Boolean =
         item.id in activeOperations || SecondPhaseSettings.writeKey(item)?.let { key ->
             activeOperations.keys.any { id -> findItem(id)?.let { SecondPhaseSettings.writeKey(it) == key } == true }
@@ -683,7 +688,8 @@ class CarSettingsController(
         if (!hasKnownSettingValue(item)) return false
         val target = transform(editable)
         if (!validTarget(item.kind, target) || !validSpeedTarget(item, target) ||
-            !validSecondPhaseTarget(item, target) || !validBatteryTarget(item, target) || !validTimerTarget(item, target)
+            !validSecondPhaseTarget(item, target) || !validBatteryTarget(item, target) || !validTimerTarget(item, target) ||
+            !validSimpleChoiceTarget(item, target)
         ) {
             _state.value = current.copy(message = "设置值无效")
             return false
@@ -1157,7 +1163,8 @@ class CarSettingsController(
                 if (id !in observations && value.vehicleValue is VehicleSettingValue.Known) {
                     val configId = findItem(id)?.configId
                     val audited = configId in setOf("4", "58", "61", "55", "92") ||
-                        configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids
+                        configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
+                        configId in SimpleChoiceSettings.ids
                     value.copy(readbackState = SettingReadbackState.MISSING_OR_INVALID,
                         vehicleValue = if (audited) value.vehicleValue.copy(live = false) else value.vehicleValue)
                 } else value

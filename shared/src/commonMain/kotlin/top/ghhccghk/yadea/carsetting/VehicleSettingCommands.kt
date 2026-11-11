@@ -28,6 +28,8 @@ data class VehicleSettingCommand(
             0xD3 -> require(parameter in 0..2)
             0x7D -> require(parameter in 0..20)
             0x85 -> require(parameter in 0..3)
+            0x3F -> require(parameter in 0..2) // Raw protocol includes 2; ID50 exposes 0/1.
+            0xC6 -> require(parameter in 0..6) // Raw voltage domain; ID54 exposes 1/2/3.
         }
         // Validate even callers that construct a composite command without the mapper.
         if (commandId == 0xC8 || commandType == "CUSTOMIZE_SETTING") {
@@ -105,6 +107,7 @@ class CloudCarSettingWriter(
         if (!CarSettingItemAccess.canWrite(item)) return CarSettingWriteResult(false)
         if (item.configId in BatterySettings.ids && !BatterySettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in TimerSettings.ids && !TimerSettings.validItem(item)) return CarSettingWriteResult(false)
+        if (item.configId in SimpleChoiceSettings.ids && !SimpleChoiceSettings.validItem(item)) return CarSettingWriteResult(false)
         if ((item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids) &&
             VehicleSettingCommands.forItem(item) == null
         ) return CarSettingWriteResult(false)
@@ -138,7 +141,7 @@ object VehicleSettingCommands {
 
     fun supports(configId: String, kind: CarSettingKind): Boolean =
         // Capability must survive unknown initial values; forItem/forConfigId validate writes.
-        TimerSettings.supports(configId, kind) || BatterySettings.supports(configId, kind) ||
+        SimpleChoiceSettings.supports(configId, kind) || TimerSettings.supports(configId, kind) || BatterySettings.supports(configId, kind) ||
             (configId in setOf("55", "92") && kind is CarSettingKind.Customize) ||
             (configId in setOf("4", "58", "61") && kind is CarSettingKind.Slider) ||
             (configId in SecondPhaseSettings.ids && when (configId) {
@@ -149,7 +152,8 @@ object VehicleSettingCommands {
 
     fun supportsItem(item: CarSettingItem): Boolean =
         if (item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids ||
-            item.configId in BatterySettings.ids || item.configId in TimerSettings.ids) supports(item.configId, item.kind)
+            item.configId in BatterySettings.ids || item.configId in TimerSettings.ids ||
+            item.configId in SimpleChoiceSettings.ids) supports(item.configId, item.kind)
         else forItem(item)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     /**
@@ -285,6 +289,7 @@ object VehicleSettingCommands {
             )
             "27" -> {
                 val choice = kind as? CarSettingKind.Choice ?: return null
+                if (!SimpleChoiceSettings.validTarget(configId, choice)) return null
                 if (choice.selectedIndex == 0) {
                     VehicleSettingCommand("FORTIFY_MODE_NO", 0x8D)
                 } else {
@@ -293,6 +298,7 @@ object VehicleSettingCommands {
             }
             "31" -> {
                 val choice = kind as? CarSettingKind.Choice ?: return null
+                if (!SimpleChoiceSettings.validTarget(configId, choice)) return null
                 if (choice.selectedIndex == 0) {
                     VehicleSettingCommand("IMPERIAL_UNIT_KM", 0x89)
                 } else {
@@ -371,10 +377,11 @@ object VehicleSettingCommands {
             // GaugeStyleHandOffActivity：仪表主题。
             "50" -> {
                 val choice = kind as? CarSettingKind.Choice ?: return null
+                if (!SimpleChoiceSettings.validTarget(configId, choice)) return null
                 VehicleSettingCommand(
                     commandType = "COMMAND_BIKE_PANEL_THEME_TYPE",
                     commandId = 0x3F,
-                    parameter = choice.selectedIndex.coerceIn(0, 2),
+                    parameter = choice.selectedIndex,
                 )
             }
             // RadarActivity：具体分项由 forItem 按条目 id 区分。
@@ -418,10 +425,11 @@ object VehicleSettingCommands {
             }
             "54" -> {
                 val choice = kind as? CarSettingKind.Choice ?: return null
+                if (!SimpleChoiceSettings.validTarget(configId, choice)) return null
                 VehicleSettingCommand(
                     commandType = "COMMAND_CONST_VOLTAGE_SETTING",
                     commandId = 0xC6,
-                    parameter = (choice.selectedIndex + 1).coerceIn(1, 3),
+                    parameter = choice.selectedIndex + 1,
                 )
             }
             // OldVehicleSoundEffectsActivity：ALARM_THEME_0/1。
@@ -754,6 +762,10 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        if (item.configId in SimpleChoiceSettings.ids) {
+            if (!SimpleChoiceSettings.validItem(item)) return null
+            return forConfigId(item.configId, item.kind)
+        }
         if (item.configId in TimerSettings.ids) {
             if (!TimerSettings.validItem(item)) return null
             return forConfigId(item.configId, item.kind)
