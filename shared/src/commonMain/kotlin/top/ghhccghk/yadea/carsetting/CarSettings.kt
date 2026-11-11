@@ -282,6 +282,8 @@ data class CarSettingsState(
     val vin: String = "",
     val loadGeneration: Long = 0,
     val valueStates: Map<String, CarSettingValueState> = emptyMap(),
+    /** RESULT_ONLY presentation is deliberately outside setting/confirmation values. */
+    val timeSyncReport: TimeSyncStatusReport? = null,
 ) {
     val confirmationStatuses: Map<String, CarSettingConfirmationStatus>
         get() = valueStates.filterValues { it.operationId != null }.mapValues { it.value.confirmationStatus }
@@ -434,7 +436,7 @@ class CarSettingsController(
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
                         configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids ||
                         configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids ||
-                        configId in CloudSwitchSettings.ids || configId in TrackerSettings.ids || configId in setOf("10", "73", "42", "2", "33")
+                        configId in CloudSwitchSettings.ids || configId in TrackerSettings.ids || configId in setOf("10", "73", "42", "2", "33", "51")
                 }
             }) {
             _state.value = _state.value.copy(message = "设置正在提交，请完成后刷新")
@@ -647,6 +649,7 @@ class CarSettingsController(
         item.configId !in TimerSettings.ids || TimerSettings.validItem(item.copy(kind = target))
 
     private fun validSimpleChoiceTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
+        (item.configId != "51" || TimeSyncSettings.validItem(item.copy(kind = target))) &&
         (item.configId != "33" || SimulatedSoundSettings.validItem(item.copy(kind = target))) &&
         (item.configId !in TrackerSettings.ids || TrackerSettings.validItem(item.copy(kind = target))) &&
         (item.configId != "2" || SideBraceSettings.validItem(item.copy(kind = target))) &&
@@ -1001,7 +1004,8 @@ class CarSettingsController(
     private fun invalidateLiveValues() {
         latestVehicleStatus = null
         val current = _state.value
-        _state.value = current.copy(valueStates = current.valueStates.mapValues { (_, value) ->
+        _state.value = current.copy(timeSyncReport = current.timeSyncReport?.copy(live = false),
+            valueStates = current.valueStates.mapValues { (_, value) ->
             val known = value.vehicleValue as? VehicleSettingValue.Known
             if (known == null) value else value.copy(vehicleValue = known.copy(live = false))
         })
@@ -1258,7 +1262,8 @@ class CarSettingsController(
                     is CarSettingKind.Atmosphere -> AtmosphereSettings.observe(status.extended)?.let { item.copy(kind = it) } ?: item
                     else -> item.withToggle(status.extended.ambientStatus.takeIf { it in 0..1 }?.let { it == 1 })
                 }
-                "51" -> item.withToggle(status.extended.syncTimeResultStatus.flagOrNull())
+                // k2/D2 is an original UI echo; it is not a setting observation or write receipt.
+                "51" -> item
                 "53" -> item.withToggle(SimpleToggleSettings.flag(status.extended.templeSettingStatus))
                 "72" -> item.withToggle(SimpleToggleSettings.invertedFlag(status.extended.longEnduranceStatus))
                 "77" -> item.withToggle(status.extended.sleepModeSwitch.flagOrNull())
@@ -1291,9 +1296,15 @@ class CarSettingsController(
         }
         val nextItems = applyStatus(current.items)
         val nextMissingCloudItems = applyStatus(current.missingCloudItems)
+        val timeSyncReport = if (current.items.any { it.configId == "51" })
+            SimpleToggleSettings.flag(status.extended.syncTimeResultStatus)?.let { enabled ->
+                TimeSyncStatusReport(enabled, snapshot.vin, generation,
+                    if (snapshot.live) SettingValueSource.LIVE_TTP else SettingValueSource.CACHED_TTP, snapshot.live)
+            } else null
         if (!snapshot.live) {
             // Decode with the existing mappings, but never create a vehicle observation or receipt.
-            _state.value = current.copy(valueStates = current.valueStates + observations.mapValues { (id, kind) ->
+            _state.value = current.copy(timeSyncReport = timeSyncReport,
+                valueStates = current.valueStates + observations.mapValues { (id, kind) ->
                 current.valueState(id).copy(cachedValue = VehicleSettingValue.Known(
                     kind, snapshot.vin, generation, source = SettingValueSource.CACHED_TTP, live = false,
                 ))
@@ -1303,6 +1314,7 @@ class CarSettingsController(
         _state.value = current.copy(
             items = nextItems,
             missingCloudItems = nextMissingCloudItems,
+            timeSyncReport = timeSyncReport,
             valueStates = current.valueStates.mapValues { (id, value) ->
                 if (id !in observations && value.vehicleValue is VehicleSettingValue.Known) {
                     val configId = findItem(id)?.configId

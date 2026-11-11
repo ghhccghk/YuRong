@@ -236,3 +236,17 @@
 - 首次过滤命令退出1：新增测试夹具把Boolean权限写成String，并误用Choice.index属性，测试源码未编译；修正夹具类型/属性后同命令退出0，32/32通过（SimulatedSoundSettingsSafetyTest12、CarSettingsControllerTest17、VehicleSettingGoldenFrameTest3）。未修改生产校验。命令`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.SimulatedSoundSettingsSafetyTest --tests top.ghhccghk.yadea.carsetting.CarSettingsControllerTest --tests top.ghhccghk.yadea.carsetting.VehicleSettingGoldenFrameTest --offline --console=plain`。
 - `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。缓存C:\Users\DozenOregano696\.gradle。Fake均内存隔离，无真实云端/BLE/车辆操作。
 - 修复后独立重走原页→Binding/VM→Controller→实际CloudWriter/Mapper/MappedWriter→既有95/96编码→新鲜回读；接受不建立车辆值，许可不持久化，模式/音量仍只读。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；整体PARTIAL，97/98写入BLOCKED，无RUNTIME_VERIFIED或VEHICLE_VERIFIED。待精确提交。
+
+### A17提交核对 / A18起点
+
+- A17提交812a6c8d2ee1667b80f4f500a6e26b50cf303715，9文件；tracked/index干净，原有12项untracked保持，无外部提交。
+
+## A18（独立复审及验证完成）
+
+- ID51：重新核对既有第8–10轮保护。BleMeterTimeSyncActivity.onSwClick67–189用0xC1 OPEN/1、CLOSE/0；开启延迟2000ms发ble_sync_gauge_time。VM23115–23165将syncTimeResultStatus==1赋D2，k2:28292返回D2，$setListener$2:60–85仅回显开关，不能证明持续配置或本次成功。
+- 继续追清MainActivityLogic4174–4190注册m73→v:2762→W0:2037→q0:6464，以getCurrentHMS整数发COMMAND_CONST_TIME_SYNC；qg2524–2544映射0xC0。当前只有0xC1已确认编码，没有0xC0路径。MainActivityLogic.T1:5741–5791依据VehicleControlBean.optStatus/commType显示实际校时成功，不是把TTP回显当本次事务回执。0xC0/事务关联继续BLOCKED，不改帧或连接架构。
+- 本批移除item.kind对回显位的兼容混写，增加独立TimeSyncStatusReport，只承载原页回显、VIN、来源、序号和live标识，UI明确“不代表本次校时成功”。缓存/断线显示历史，缺失/非法保持未知，VIN/旧序号拒绝；不进入configuredValue/vehicleValue/cachedValue或确认状态。
+- 0xC1目标严格已知Boolean、稳定cloud:51 ID校验贯穿Controller→实际CloudWriter→Mapper/MappedWriter；未知默认和错误类型不能发送，实际校时命令不凭字段或时间猜测补实现。在途刷新/重复写禁止；失败/取消/VIN切换及草稿沿用现有语义。独立复审后将51从通用SimpleToggle集合移出，保留局部校验，避免混入通用持续开关假设。
+- 精确Fake过滤初次及局部化复审后重跑均退出0，最终33/33（TimeSyncSettingsSafetyTest12、原EighthRoundValueStateTest.timeSyncResultFlagIsNotActualSettingOrTransactionConfirmation1、Controller17、GoldenFrame3）。命令`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.TimeSyncSettingsSafetyTest --tests top.ghhccghk.yadea.carsetting.EighthRoundValueStateTest.timeSyncResultFlagIsNotActualSettingOrTransactionConfirmation --tests top.ghhccghk.yadea.carsetting.CarSettingsControllerTest --tests top.ghhccghk.yadea.carsetting.VehicleSettingGoldenFrameTest --offline --console=plain`；没有完整jvmTest或真实网络/车辆。
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；缓存C:\Users\DozenOregano696\.gradle，`git diff --check`退出0。
+- 独立复审完整UI→VM/原事件→Controller→实际Writer→既有0xC1编码→回显/确认；未新增云端字段、帧、TTP解析或其他设置映射。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；整体PARTIAL，底层0xC1 WRITE_ONLY，实际校时/事务确认BLOCKED；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。待精确提交。

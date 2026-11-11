@@ -40,6 +40,7 @@ import top.ghhccghk.yadea.carsetting.SettingWriteState
 import top.ghhccghk.yadea.carsetting.SettingConfirmationState
 import top.ghhccghk.yadea.carsetting.CarSettingWriteChannel
 import top.ghhccghk.yadea.carsetting.SettingReadbackState
+import top.ghhccghk.yadea.carsetting.TimeSyncStatusReport
 import top.ghhccghk.yadea.carsetting.CarSettingsController
 import top.ghhccghk.yadea.carsetting.CarSettingsState
 import top.ghhccghk.yadea.carsetting.SecondPhaseSettings
@@ -331,6 +332,7 @@ fun CarSettingsScreen(
                         CarSettingRow(
                             item = item,
                             valueState = state.valueState(item.id),
+                            timeSyncReport = state.timeSyncReport,
                             enabled = settingControlEnabled(item),
                             pending = item.id in state.pendingIds,
                             disabledReason = settingDisabledReason(item),
@@ -364,6 +366,7 @@ fun CarSettingsScreen(
                         CarSettingRow(
                             item = item,
                             valueState = state.valueState(item.id),
+                            timeSyncReport = state.timeSyncReport,
                             enabled = settingControlEnabled(item),
                             pending = item.id in state.pendingIds,
                             disabledReason = settingDisabledReason(item),
@@ -1521,6 +1524,7 @@ internal fun carSettingSummary(
     valueState: CarSettingValueState,
     pending: Boolean,
     disabledReason: String?,
+    timeSyncReport: TimeSyncStatusReport? = null,
 ): String = buildString {
         if (pending) {
             append("正在保存…")
@@ -1543,6 +1547,7 @@ internal fun carSettingSummary(
         }
         append(" · ")
         append(settingValueSourceSummary(valueState))
+        if (item.configId == "51") append(" · ${timeSyncStatusSummary(timeSyncReport)}")
         valueState.draftValue?.let { append(" · 草稿：${settingKindLabel(it)}") }
         valueState.submittedValue?.let { append(" · 本次选择：${settingKindLabel(it)}") }
         append(when (valueState.writeState) {
@@ -1566,6 +1571,11 @@ internal fun carSettingSummary(
         valueState.error?.let { append(" · $it") }
 }.removePrefix(" · ")
 
+internal fun timeSyncStatusSummary(report: TimeSyncStatusReport?): String = if (report == null)
+    "仪表同步上报未知；本次校时结果未确认"
+else "仪表同步上报：${if (report.enabledEcho) "开启" else "关闭"}" +
+    (if (report.live) "（车辆上报）" else "（历史上报）") + "；不代表本次校时成功"
+
 @Composable
 private fun CarSettingRow(
     item: CarSettingItem,
@@ -1575,8 +1585,9 @@ private fun CarSettingRow(
     disabledReason: String?,
     onOpenDetail: () -> Unit,
     onUpdate: ((CarSettingKind) -> CarSettingKind) -> Unit,
+    timeSyncReport: TimeSyncStatusReport? = null,
 ) {
-    val summary = carSettingSummary(item, valueState, pending, disabledReason)
+    val summary = carSettingSummary(item, valueState, pending, disabledReason, timeSyncReport)
     val observed = valueState.displayKind()
     when (val kind = observed ?: item.kind) {
         is CarSettingKind.LowPowerInfo, is CarSettingKind.LowPowerPhone -> AppListRow(
