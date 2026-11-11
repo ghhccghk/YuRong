@@ -419,7 +419,7 @@ class CarSettingsController(
                 findItem(it)?.configId.let { configId ->
                     configId in setOf("4", "58", "61", "55", "92") ||
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
-                        configId in SimpleChoiceSettings.ids || configId in setOf("10", "73")
+                        configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids || configId in setOf("10", "73")
                 }
             }) {
             _state.value = _state.value.copy(message = "设置正在提交，请完成后刷新")
@@ -632,7 +632,8 @@ class CarSettingsController(
         item.configId !in TimerSettings.ids || TimerSettings.validItem(item.copy(kind = target))
 
     private fun validSimpleChoiceTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
-        item.configId !in SimpleChoiceSettings.ids || SimpleChoiceSettings.validItem(item.copy(kind = target))
+        (item.configId !in SimpleChoiceSettings.ids || SimpleChoiceSettings.validItem(item.copy(kind = target))) &&
+            (item.configId !in SimpleToggleSettings.ids || SimpleToggleSettings.validItem(item.copy(kind = target)))
 
     private fun validAtmosphereTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
         item.configId != "73" || AtmosphereSettings.validItem(item.copy(kind = target))
@@ -955,13 +956,13 @@ class CarSettingsController(
                     else -> item
                 }
                 "19" -> item.withToggle(
-                    status.extended.automaticHeadlightFunctionStatus.flagOrNull(),
+                    SimpleToggleSettings.flag(status.extended.automaticHeadlightFunctionStatus),
                 )
                 "26" -> item.withToggle(
-                    status.extended.turnSignalReturnsAutomaticallyStatus.flagOrNull(),
+                    SimpleToggleSettings.flag(status.extended.turnSignalReturnsAutomaticallyStatus),
                 )
                 "36" -> item.withToggle(
-                    status.extended.brakePowerDownFunctionStatus.flagOrNull(),
+                    SimpleToggleSettings.flag(status.extended.brakePowerDownFunctionStatus),
                 )
                 "46" -> item.withToggle(status.extended.steepSlopeState.flagOrNull())
                 "49" -> item.withToggle(status.extended.rampSlopeState.flagOrNull())
@@ -1149,7 +1150,7 @@ class CarSettingsController(
                     else -> item.withToggle(status.extended.ambientStatus.takeIf { it in 0..1 }?.let { it == 1 })
                 }
                 "51" -> item.withToggle(status.extended.syncTimeResultStatus.flagOrNull())
-                "53" -> item.withToggle(status.extended.templeSettingStatus.flagOrNull())
+                "53" -> item.withToggle(SimpleToggleSettings.flag(status.extended.templeSettingStatus))
                 "72" -> item.withToggle(status.extended.longEnduranceStatus.flagOrNull())
                 "77" -> item.withToggle(status.extended.sleepModeSwitch.flagOrNull())
                 "79" -> item.withToggle(status.extended.seatPowerStatus.flagOrNull())
@@ -1197,7 +1198,7 @@ class CarSettingsController(
                     val configId = findItem(id)?.configId
                     val audited = configId in setOf("4", "58", "61", "55", "92") ||
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
-                        configId in SimpleChoiceSettings.ids || configId == "73"
+                        configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids || configId == "73"
                     value.copy(readbackState = SettingReadbackState.MISSING_OR_INVALID,
                         vehicleValue = if (audited) value.vehicleValue.copy(live = false) else value.vehicleValue)
                 } else value

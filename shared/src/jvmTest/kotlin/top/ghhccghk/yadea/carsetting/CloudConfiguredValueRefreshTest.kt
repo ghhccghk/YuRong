@@ -437,7 +437,7 @@ class CloudConfiguredValueRefreshTest {
             "13" to "alarmSoundEnable", "16" to "dumpAlarm",
             "17" to "resistanceOn", "24" to "emergencyContact", "25" to "passwordUnlockEnable",
             "40" to "colorEggSoundEffect", "47" to "chargeWattSwitch", "52" to "bleUnlockOn",
-            "53" to "bleApproachPowerOnEnable", "62" to "seatHeating",
+            "62" to "seatHeating",
             "75" to "tamperProofIotEnable", "76" to "positioningFunc", "77" to "sleepMode",
             "82" to "lowBatTelWarning", "91" to "sosEmergencyCall")
         for (raw in listOf(0, 1)) {
@@ -460,6 +460,11 @@ class CloudConfiguredValueRefreshTest {
             lock.refresh()
             assertNull(lock.value("cloud:7").configuredValue)
             assertNull(lock.value("cloud:7").displayKind())
+            val bracket = controller(FakeGateway(response("\"bleApproachPowerOnEnable\":$raw", listOf("53"))))
+            bracket.refresh()
+            assertNull(bracket.value("cloud:53").configuredValue)
+            assertNull(bracket.value("cloud:53").displayKind())
+            assertNull(CloudCarSettingUpdateBuilder.build("53", CarSettingKind.Toggle(raw == 1), "VIN"))
             for (id in listOf("15", "59")) {
                 val timer = controller(FakeGateway(response("\"vehiclePowerDownStatus\":$raw,\"shutDownTime\":3", listOf(id))))
                 timer.refresh()

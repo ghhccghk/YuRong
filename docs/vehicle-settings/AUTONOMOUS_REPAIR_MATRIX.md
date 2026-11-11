@@ -33,17 +33,17 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 16 倾倒报警 | com/yadea/smartmoto/vehicle/view/DumpNoticeActivity.smali:234 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 17 能量回收开关 | 动态 Registry / 独立流程；待逐项绑定 | slideModePowerRecoverStatus | ENERGY_RECOVER_CLOSE, ENERGY_RECOVER_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 18 能量回收档位 | 动态 Registry / 独立流程；待逐项绑定 | slideModePowerRecoverCurrent | ENERGY_RECOVER_LEVEL | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 19 自动大灯 | com/yadea/smartmoto/vehicle/view/AutomaticLightActivity.smali:144 | automaticHeadlightFunctionStatus | AUTOMATIC_HEADLIGHT_CLOSE, AUTOMATIC_HEADLIGHT_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 19 自动大灯 | com/yadea/smartmoto/vehicle/view/AutomaticLightActivity.smali:144 | automaticHeadlightFunctionStatus | AUTOMATIC_HEADLIGHT_CLOSE, AUTOMATIC_HEADLIGHT_OPEN | A06：严格已知开关/稳定ID/失效观察降级；同VIN新鲜回读确认。36关闭二次确认；53无已证实云端配置，禁用猜测字段 | P0 / COMPLETE / A06（BLE；无运行/实车验证） |
 | 20 车辆音量 | com/yadea/smartmoto/vehicle/view/VehicleVolumeActivity.smali:87 | alarmWarningVolumeLevel | VOLUME | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 21 伴我回家灯 | com/yadea/smartmoto/vehicle/view/BackLightActivity.smali:178 | withGoHomeStatus, withGoHomeTimeStatus | COMMAND_WITH_GO_HOME_CLOSE, COMMAND_WITH_GO_HOME_OPEN, COMMAND_WITH_GO_HOME_TIME_SETTING | A02：BLE0x83/84、0x85索引0..3=15/30/45/60秒；开关和时间独立 | P1 / COMPLETE / A02 |
 | 24 紧急联系人 | com/yadea/smartmoto/vehicle/view/EmergencyContactActivity.smali:964 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 25 密码解锁 | com/yadea/smartmoto/vehicle/pwdunlock/PassWordUnlockActivity.smali:845 | passwordUnlockStatus | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 26 转向灯自动回位 | com/yadea/smartmoto/vehicle/view/TurnSignalActivity.smali:283 | turnSignalReturnsAutomaticallyStatus | COMMAND_DIRECTION_LIGHT_RESET_OFF, COMMAND_DIRECTION_LIGHT_RESET_ON | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 26 转向灯自动回位 | com/yadea/smartmoto/vehicle/view/TurnSignalActivity.smali:283 | turnSignalReturnsAutomaticallyStatus | COMMAND_DIRECTION_LIGHT_RESET_OFF, COMMAND_DIRECTION_LIGHT_RESET_ON | A06：严格已知开关/稳定ID/失效观察降级；同VIN新鲜回读确认。36关闭二次确认；53无已证实云端配置，禁用猜测字段 | P0 / COMPLETE / A06（BLE；无运行/实车验证） |
 | 27 设防模式 | com/yadea/smartmoto/vehicle/view/ArmedModeActivity.smali:231 | offModeStatus | FORTIFY_MODE_AUTO, FORTIFY_MODE_NO | A03：TTP回填已核；显式Choice→Controller→forItem→MappedWriter，最终边界拒绝未知/越界/伪造选项；无云端猜测 | P0 / COMPLETE / A03 |
 | 31 速度单位 | com/yadea/smartmoto/vehicle/view/SpeedUnitActivity.smali:232<br>com/yadea/smartmoto/vehicle/view/DistanceUnitActivity.smali:156 | metricSystemStatus | IMPERIAL_UNIT_KM, IMPERIAL_UNIT_MILES | A03：TTP回填已核；显式Choice→Controller→forItem→MappedWriter，最终边界拒绝未知/越界/伪造选项；无云端猜测 | P0 / COMPLETE / A03 |
 | 32 倾倒提醒 | com/yadea/smartmoto/vehicle/view/DumpWarningActivity.smali:144 | tiltWarningStatus | TILT_WARNING_CLOSE, TILT_WARNING_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 33 模拟声浪 | com/yadea/smartmoto/vehicle/view/SimulatedSoundActivity.smali:333 | simulatedSoundWaveStatus | SIMULATED_SOUND_WAVE_CLOSE, SIMULATED_SOUND_WAVE_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 36 刹车断电 | com/yadea/smartmoto/vehicle/view/BrakePowerOffActivity.smali:155 | brakePowerDownFunctionStatus | BRAKE_OUTAGE_CLOSE, BRAKE_OUTAGE_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 36 刹车断电 | com/yadea/smartmoto/vehicle/view/BrakePowerOffActivity.smali:155 | brakePowerDownFunctionStatus | BRAKE_OUTAGE_CLOSE, BRAKE_OUTAGE_OPEN | A06：严格已知开关/稳定ID/失效观察降级；同VIN新鲜回读确认。36关闭二次确认；53无已证实云端配置，禁用猜测字段 | P0 / COMPLETE / A06（BLE；无运行/实车验证） |
 | 37 TCS 车身稳定 | com/yadea/smartmoto/vehicle/view/BodyStabilityActivity.smali:154 | tcsWorkMode | TCS_BODY_STABILITY, TCS_BODY_STABILITY | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 38 ABS 防抱死 | com/yadea/smartmoto/vehicle/view/AntiLockActivity.smali:152 | absFunctionStatus | ABS_ANTI_LOCK_CLOSE, ABS_ANTI_LOCK_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 39 边撑自动关机 | com/yadea/smartmoto/vehicle/view/BraceAutoShutDownActivity.smali:376 | leaveVehicleAutoLockStatus, leaveVehicleAutoLockTimeStatus, sideBraceStatus | LEAVE_THE_CAR_AUTO_LOCK_OFF, LEAVE_THE_CAR_AUTO_LOCK_ON, LEAVE_THE_CAR_AUTO_LOCK_TIME | 当前 HEAD329effd已修TTP/独立参数/取消/VIN；7/39车型门控证据限制保留UNKNOWN | P2 / PARTIAL / 基线复核 |
@@ -60,7 +60,7 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 50 仪表风格切换 | com/yadea/smartmoto/vehicle/activity/GaugeStyleHandOffActivity.smali:522 | panelThemeCurrent | COMMAND_BIKE_PANEL_THEME_TYPE | A03：TTP回填已核；显式Choice→Controller→forItem→MappedWriter，最终边界拒绝未知/越界/伪造选项；无云端猜测 | P0 / COMPLETE / A03 |
 | 51 仪表时间同步 | com/yadea/smartmoto/vehicle/view/BleMeterTimeSyncActivity.smali:245 | syncTimeResultStatus | COMMAND_CONST_TIME_SYNC_CLOSE, COMMAND_CONST_TIME_SYNC_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 52 手动距离自定义 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 53 边撑开机 | com/yadea/smartmoto/vehicle/view/BracketPoweredActivity.smali:146 | templeSettingStatus | COMMAND_CONST_TEMPLE_SETTING, COMMAND_CONST_TEMPLE_SETTING | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 53 边撑开机 | com/yadea/smartmoto/vehicle/view/BracketPoweredActivity.smali:146 | templeSettingStatus | COMMAND_CONST_TEMPLE_SETTING, COMMAND_CONST_TEMPLE_SETTING | A06：严格已知开关/稳定ID/失效观察降级；同VIN新鲜回读确认。36关闭二次确认；53无已证实云端配置，禁用猜测字段 | P0 / COMPLETE / A06（BLE；无运行/实车验证） |
 | 54 电压设置 | com/yadea/smartmoto/vehicle/view/VoltagePlatformActivity.smali:100 | voltageSettingStatus | COMMAND_CONST_VOLTAGE_SETTING | A03：TTP回填已核；显式Choice→Controller→forItem→MappedWriter，最终边界拒绝未知/越界/伪造选项；无云端猜测 | P0 / COMPLETE / A03 |
 | 55 FREE 自由模式 | com/yadea/smartmoto/vehicle/view/VehicleCustomizeActivity.smali:1452 | customizeEnergyLevel, customizeEnergyState, customizeTcs, customizeThrottleSensitivity | CUSTOMIZE_SETTING | 当前 HEAD 已含759c05c完整性及来源隔离；本任务不重复实现，仍需回归 | P2 / PARTIAL / 基线复核 |
 | 58 档位设置 | com/yadea/smartmoto/vehicle/view/MaxSpeedSettingActivity.smali:220 | maximumSpeedCurrent | MAX_SPEED_SETTING | 当前 HEAD 已含759c05c完整性及来源隔离；本任务不重复实现，仍需回归 | P2 / PARTIAL / 基线复核 |
@@ -179,3 +179,12 @@ A04最终验证：Geofence11+CloudConfigured30+CloudWriter4+WriterAccess5+ApiSem
 - 修复：AtmosphereSettings按模式校验/映射TTP和提交；默认模式/RGB=-1未知；Controller要求可靠同VIN已知配置后编辑（证据不完整时保守阻止，PARTIAL）；配置最终命令必须使用私有不可变参数；保留原始观察，255只在提交时规范化；按有效参数比较新鲜回读。开关独立、严格0/1。Writer/稳定ID和在途刷新校验。
 - UI沿用原双主题语义组件和同一Sheet，配置不完整明确说明，调用submitDraft；不把本地选择标成车辆值。
 - 当前状态：CONDITIONAL/PARTIAL（需要完整车辆配置；没有真实App/车型/车辆验证，不声明运行完整）。
+
+## A06：ID19/26/36/53（验证中）
+
+- 原页 `AutomaticLightActivity.onSwClick:50–108`→AUTOMATIC_HEADLIGHT_OPEN/CLOSE；`TurnSignalActivity.onSwClick:69–155`→COMMAND_DIRECTION_LIGHT_RESET_ON/OFF；`BrakePowerOffActivity.onSwClick:40–119`及其onSwClick$1→BRAKE_OUTAGE_OPEN/CLOSE，关闭先确认；`BracketPoweredActivity.onSwClick:50–110`→COMMAND_CONST_TEMPLE_SETTING 1/0。
+- `qg.smali`分别5346/3680→0x25/26、4254/2981→0x23/24、1205/5140→0x9B/9C、1049→0xC7；均为原有BLE路径。没有新增命令或改编码。
+- `VehicleSettingViewModel.smali`回填分别21918–21973、24892–24942、22820–22870、23272–23323；每项1为开、0为关、负值未上报。KMP严格拒绝其他值，失效观察不维持LIVE。
+- 53的`bleApproachPowerOnEnable`全Smali引用仅DTO(两Bean声明、getter/setter、copy/equals/toString)；没有页面/VM/P4/s20绑定；Q6:13000仅bikeConfigVos能力门控，不能作为值证据。本批移除53猜测的configured/初值/UpdateBuilder字段，保留原始响应键供审计；不更改其他ID映射。
+- SimpleToggleSettings约束稳定条目ID/Toggle/valueKnown；Controller、forConfigId、forItem、CloudWriter校验；能力判断独立已知性。保留乐观目标、来源/回执/回读分离；36复用现有AppAlertDialog与双主题确认行为。
+- 同时只读发现2的`TempleInductionActivity.onSwClick:54–140`在W0车型且其他依赖状态成立时改用BRACE_CLOSE_LOCKER_CLOSE；KMP缺可靠车型门控上下文，留作CONDITIONAL/PARTIAL后续审查，未在A06改动。3原页仅看到CARRY_OUT写入，读取绑定仍需独立核对。

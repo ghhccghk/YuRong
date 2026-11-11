@@ -294,7 +294,6 @@ object CloudCarSettingUpdateBuilder {
         "40" to "colorEggSoundEffect",
         "41" to "userDefinedSoundEffect",
         "52" to "bleUnlockOn",
-        "53" to "bleApproachPowerOnEnable",
         "75" to "tamperProofIotEnable",
         "77" to "sleepMode",
         "82" to "lowBatTelWarning",
@@ -949,7 +948,6 @@ object CloudCarSettingMapper {
                 "25" -> "passwordUnlockEnable"
                 "40" -> "colorEggSoundEffect"
                 "52" -> "bleUnlockOn"
-                "53" -> "bleApproachPowerOnEnable"
                 "62" -> "seatHeating"
                 "75" -> "tamperProofIotEnable"
                 "76" -> "positioningFunc"
@@ -1745,7 +1743,7 @@ object CloudCarSettingMapper {
         )
         "002", "003" -> unknownToggle()
         "25" -> cloudToggle(cloud, "passwordUnlockEnable")
-        "53" -> cloudToggle(cloud, "bleApproachPowerOnEnable")
+        "53" -> unknownToggle()
         "10" -> cloudToggle(cloud, "distanceOn")
         "52" -> cloudToggle(cloud, "bleUnlockOn")
         "62" -> cloudToggle(cloud, "seatHeating")

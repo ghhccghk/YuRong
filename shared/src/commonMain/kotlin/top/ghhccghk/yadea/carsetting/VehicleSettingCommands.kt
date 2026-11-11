@@ -30,6 +30,7 @@ data class VehicleSettingCommand(
             0x85 -> require(parameter in 0..3)
             0x3F -> require(parameter in 0..2) // Raw protocol includes 2; ID50 exposes 0/1.
             0xC6 -> require(parameter in 0..6) // Raw voltage domain; ID54 exposes 1/2/3.
+            0xC7 -> require(parameter in 0..1)
         }
         // Validate even callers that construct a composite command without the mapper.
         if (commandId == 0xC8 || commandType == "CUSTOMIZE_SETTING") {
@@ -122,6 +123,7 @@ class CloudCarSettingWriter(
         if (item.configId in SimpleChoiceSettings.ids && !SimpleChoiceSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId == "10" && !GeofenceSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId == "73" && !AtmosphereSettings.validItem(item)) return CarSettingWriteResult(false)
+        if (item.configId in SimpleToggleSettings.ids && !SimpleToggleSettings.validItem(item)) return CarSettingWriteResult(false)
         if ((item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids) &&
             VehicleSettingCommands.forItem(item) == null
         ) return CarSettingWriteResult(false)
@@ -158,6 +160,7 @@ object VehicleSettingCommands {
     fun supports(configId: String, kind: CarSettingKind): Boolean =
         // Capability must survive unknown initial values; forItem/forConfigId validate writes.
         SimpleChoiceSettings.supports(configId, kind) || TimerSettings.supports(configId, kind) || BatterySettings.supports(configId, kind) ||
+            (configId in SimpleToggleSettings.ids && kind is CarSettingKind.Toggle) ||
             (configId == "73" && (kind is CarSettingKind.Atmosphere || kind is CarSettingKind.Toggle)) ||
             (configId in setOf("55", "92") && kind is CarSettingKind.Customize) ||
             (configId in setOf("4", "58", "61") && kind is CarSettingKind.Slider) ||
@@ -170,7 +173,7 @@ object VehicleSettingCommands {
     fun supportsItem(item: CarSettingItem): Boolean =
         if (item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids ||
             item.configId in BatterySettings.ids || item.configId in TimerSettings.ids ||
-            item.configId in SimpleChoiceSettings.ids || item.configId == "73") supports(item.configId, item.kind)
+            item.configId in SimpleChoiceSettings.ids || item.configId in SimpleToggleSettings.ids || item.configId == "73") supports(item.configId, item.kind)
         else forItem(item)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     /**
@@ -180,7 +183,7 @@ object VehicleSettingCommands {
      * 但保持只读，避免向车辆发送猜测出来的命令。
      */
     fun forConfigId(configId: String, kind: CarSettingKind): VehicleSettingCommand? =
-        when (configId) {
+        if (configId in SimpleToggleSettings.ids && !SimpleToggleSettings.valid(kind)) null else when (configId) {
             // TempleInductionActivity：边撑感应。
             "2" -> toggle(
                 kind = kind,
@@ -779,6 +782,7 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        if (item.configId in SimpleToggleSettings.ids && !SimpleToggleSettings.validItem(item)) return null
         if (item.configId == "73" && !AtmosphereSettings.validItem(item)) return null
         // The original fence flow is cloud-only; split IDs must not turn it into a BLE write.
         if (item.configId == "10") return null

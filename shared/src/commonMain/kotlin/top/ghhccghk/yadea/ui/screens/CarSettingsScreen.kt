@@ -483,7 +483,8 @@ fun CarSettingsScreen(
     AppAlertDialog(
         show = safetyTarget != null,
         title = "关闭${safetyTarget?.title.orEmpty()}",
-        message = "该功能属于安全辅助，关闭后可能影响车辆稳定性。确定要关闭吗？",
+        message = if (safetyTarget?.configId == "36") "确定要关闭刹车断电功能吗？"
+            else "该功能属于安全辅助，关闭后可能影响车辆稳定性。确定要关闭吗？",
         onConfirm = {
             confirmDisable = null
             safetyTarget?.let { item ->
@@ -1398,7 +1399,7 @@ internal fun carSettingsUiResetKey(state: CarSettingsState): CarSettingsUiResetK
         loadedFromCloud = state.loadedFromCloud,
     )
 
-private val SAFETY_CONFIRM_IDS = setOf("37", "38")
+private val SAFETY_CONFIRM_IDS = setOf("36", "37", "38")
 private val BLE_POWER_SETTING_IDS = setOf("37", "38")
 
 internal fun settingSwitchTarget(state: CarSettingValueState, targetChecked: Boolean): CarSettingKind.Toggle? =

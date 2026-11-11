@@ -89,3 +89,18 @@
 - `:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。git diff --check退出0。
 - 从Sheet→草稿/Controller→Writer→forItem→不可变命令→既有Encoder重新复审，未发现目标外变化。UNKNOWN不补齐、VIN/旧序号/缓存与草稿保持、失败/取消及接受与回读分离通过Fake测试。
 - STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无App运行/车辆验证。完整车辆配置条件下CONDITIONAL，未知配置保守禁用，PARTIAL。待精确提交。
+
+### A05提交核对 / A06起点
+
+- A05提交6068cf1b61434aed6de14177fbcedf9a981070c4，10文件。提交后tracked/index干净，12既有untracked不变，无外部提交。
+- A06以此HEAD审查19/26/36/53，先完成只读Smali与KMP链路复核。
+
+## A06（独立复审及验证完成）
+
+- 四项开关UNKNOWN直接写入/伪造split ID、无效TTP冒充当前值；53把DTO-only字段当成边撑配置读写；36缺原App关闭二次确认。
+- 局部修复SimpleToggleSettings、Controller、Mapper/Builder、命令入口、UI确认及Fake测试，不改协议、帧或网络基础设施。
+
+- SimpleToggleSettingsSafetyTest9、CloudConfiguredValueRefreshTest30、CarSettingsControllerTest17、VehicleSettingGoldenFrameTest3，共59/59，过滤命令退出0。
+- JVM/JS/Wasm/测试源码编译命令退出0；Android Debug/Desktop构建命令退出0；git diff --check退出0。所有Gradle命令均--offline --console=plain。
+- 独立复审：UI→Controller→命令/Writer至既有编码；53猜测云端路径已关闭，实际BLE调用保持；无目标外修改。36关闭确认仅静态核对，未运行App。
+- STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。四项必要BLE链路静态/Fake闭环，云端能力未伪造。待精确提交。
