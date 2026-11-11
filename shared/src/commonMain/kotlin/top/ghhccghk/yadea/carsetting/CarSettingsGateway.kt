@@ -36,6 +36,8 @@ data class CloudCarSettings(
     val configs: List<CloudBikeConfig>,
     val values: Map<String, String>,
     val rawJson: String = "",
+    /** Loaded from the independent appointment endpoint, never from the flat DTO by name. */
+    val autoHibernate: CarSettingKind.AutoHibernate? = null,
 ) {
     fun intValue(key: String): Int? = values[key]?.toDoubleOrNull()?.toInt()
 
@@ -54,6 +56,9 @@ interface CarSettingsGateway {
     suspend fun updateHibernate(vin: String, update: CloudCarSettingUpdate,
                                 authorization: HibernateAuthorization): HibernateWriteReceipt = HibernateWriteReceipt(false)
     suspend fun updateHibernateMetadata(vin: String, authorization: HibernateAuthorization): Boolean = false
+    suspend fun loadAutoHibernate(vin: String): CarSettingKind.AutoHibernate? = null
+    suspend fun updateAutoHibernate(vin: String, target: CarSettingKind.AutoHibernate,
+                                    authorization: HibernateAuthorization): Boolean = false
     suspend fun updateLocationSwitch(vin: String, update: CloudCarSettingUpdate,
                                      authorization: LocationSwitchAuthorization): LocationSwitchWriteReceipt =
         LocationSwitchWriteReceipt(false)
@@ -118,7 +123,7 @@ private object VehicleParamJson {
 object CloudCarSettingUpdateBuilder {
     // Schema support is independent of completeness; build() still rejects unknown siblings.
     fun supports(configId: String, kind: CarSettingKind): Boolean =
-        (configId == "77" && kind is CarSettingKind.Toggle) ||
+        (configId == "77" && (kind is CarSettingKind.Toggle || kind is CarSettingKind.AutoHibernate)) ||
         BatterySettings.supports(configId, kind) || CloudSwitchSettings.supports(configId, kind) || TrackerSettings.supports(configId, kind) ||
             (configId == "10" && (kind is CarSettingKind.Toggle || kind is CarSettingKind.Slider)) ||
             (configId == "9" && kind is CarSettingKind.LowPowerInfo) ||
@@ -437,6 +442,22 @@ class YadeaCarSettingsGateway(
         val plain = postFields(UPDATE_PATH, HibernateSettings.metadataUpdate(vin).fields, token) ?: return false
         return JsonSupport.topLevelScalarText(plain, "success") == "true" &&
             JsonSupport.topLevelScalarText(plain, "data") != "false"
+    }
+
+    override suspend fun loadAutoHibernate(vin: String): CarSettingKind.AutoHibernate? {
+        val token = tokenProvider().trim()
+        if (vin.isBlank() || token.isBlank()) return null
+        val data = remainingMileageGet(AutoHibernateSettings.GET_PATH, mapOf("vin" to vin), token) ?: return null
+        return AutoHibernateSettings.parse(data)
+    }
+
+    override suspend fun updateAutoHibernate(vin: String, target: CarSettingKind.AutoHibernate,
+                                            authorization: HibernateAuthorization): Boolean {
+        val token = tokenProvider().trim()
+        if (vin.isBlank() || token.isBlank() || authorization.vin != vin || !AutoHibernateSettings.validTarget(target)) return false
+        val plain = postFields(AutoHibernateSettings.UPDATE_PATH, mapOf("_gateway" to "True", "vin" to vin,
+            "autoSleepSwitch" to if (target.enabled == true) 1 else 0, "dayCount" to target.dayCount), token) ?: return false
+        return JsonSupport.topLevelScalarText(plain, "success") == "true" && JsonSupport.topLevelScalarText(plain, "data") != "false"
     }
 
     override suspend fun updateLocationSwitch(vin: String, update: CloudCarSettingUpdate,
@@ -976,6 +997,7 @@ class YadeaCarSettingsGateway(
 object CloudCarSettingMapper {
     /** Explicit response fields only; item defaults never establish a configuration value. */
     internal fun configuredValue(cloud: CloudCarSettings, item: CarSettingItem): CarSettingKind? {
+        if (item.id == AutoHibernateSettings.ID && item.kind is CarSettingKind.AutoHibernate) return cloud.autoHibernate
         // DTO declarations alone do not prove these pages use the similarly named
         // cloud fields. Their current value is established by the verified TTP path.
         if (item.configId in SecondPhaseSettings.ids || item.configId in TimerSettings.ids) return null
@@ -1497,6 +1519,13 @@ object CloudCarSettingMapper {
             items += base
             items += base.copy(id = "cloud:33:volume", title = "模拟声浪音量", sort = base.sort + 1,
                 kind = CarSettingKind.Slider(1f, 1f..16f, steps = 14, valueKnown = false))
+        }
+        cloud.configs.firstOrNull { it.confId.trim() == "77" }?.let { config ->
+            val classification = classificationOf("77", config)
+            items += CarSettingItem(AutoHibernateSettings.ID, "自动休眠", "独立云端排程；车辆执行仍需验证",
+                classification, group = groupOf(config, classification), channel = CarSettingChannel.IOT,
+                kind = CarSettingKind.AutoHibernate(), writable = config.isAuth != false,
+                configId = "77", sort = (config.sort.toIntOrNull() ?: 0) + 1)
         }
         for (pushAssistId in listOf("64", "89")) {
             cloud.configs.firstOrNull { it.confId.trim() == pushAssistId }?.let { config ->

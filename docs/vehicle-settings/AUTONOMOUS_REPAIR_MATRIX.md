@@ -78,7 +78,7 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 73 氛围灯 | com/yadea/smartmoto/vehicle/view/FeelLightSettingActivity.smali:2404 | ambientStatus、show/color/operation、RGB1/2 | C3开关；F7完整模式组合 | A05：完整TTP回填/独立开关/不可变复合命令/新鲜回读比较；未知禁止默认补齐，完整配置才可编辑 | P0 / CONDITIONAL / A05 |
 | 75 定位器防盗 | vehicle/view/IotTamperProofActivity.smali:50–158,194；VM.t4:30788→p4 | iotRemoveAlarm，严格0/1 | 原FA；本任务禁止新增帧；云端tamperProofIotEnable仅证实整数1 | A16：可靠TTP/缓存隔离；移除无读绑定的云端配置推断；阻止未证实0关闭；开启接受后等待新鲜TTP | P0 / PARTIAL，关闭及BLE帧BLOCKED / A16 |
 | 76 定位开关 | vehicle/locationswitch/LocationSwitchActivity.smali:145–218,241–295,319 | 无已证实TTP；positioningFunc只进configuredValue | 原param-setting：POSITIONING_FUNC，0/1；返回ID轮询 | A16：同VIN云端onlineState检查、关闭确认、精确参数、实际Writer保留本次ID；缺ID不猜confId；结果成功仍非车辆回读 | P0 / CONDITIONAL / A16（无运行/实车验证） |
-| 77 休眠模式 | HibernateModeActivity:onImmediately624–682,sendCommand1143–1333；VM.P4:10208–10280 | sleepModeSwitch严格0/1；配置sleepMode独立 | 133只属于进入+云端标记联动，不作独立Toggle | A20车联网进入；A21 BLE133=1→独立云端sleepMode=1，第二步失败/取消保留第一步接受事实，Boolean不报整体成功；同VIN在线/确认、回读分离；自动排程待A22 | P0 / PARTIAL / A20–A21（无运行/实车验证） |
+| 77 休眠模式 | HibernateModeActivity:onImmediately624–682,onAuto517–623,onModifyTime683–753,sendCommand1143–1333；VM.P4及f72 | sleepModeSwitch严格0/1；立即配置sleepMode；排程无TTP证据 | 133进入+云端标记联动；排程纯云端 | A20云端进入、A21蓝牙进入+sleepMode标记；A22独立autoSleepSwitch/dayCount配置/编辑/保存后重读，开/改1..30天，关闭明确0/1；同VIN在线/互斥/来源与确认分离 | P0 / CONDITIONAL / A20–A22（无运行/实车验证） |
 | 79 座垫感应上电 | com/yadea/smartmoto/vehicle/view/SeatPowerUpActivity.smali:304 | seatPowerStatus | COMMAND_SEAT_POWER_UP, COMMAND_SEAT_POWER_UP | A08：63/68/79读写1开0关，72读写0开1关；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A08（BLE；无运行/实车验证） |
 | 80 OTD 开关 | com/yadea/smartmoto/vehicle/view/OTDActivity.smali:296 | otdSwitch | COMMAND_OTD_SWITCH, COMMAND_OTD_SWITCH | A09：四项读写1开0关，修正三项参数反向；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A09（BLE；无运行/实车验证） |
 | 81 大灯延时 | com/yadea/smartmoto/vehicle/view/DelayLightActivity.smali:443 | withGoHomeStatus, withGoHomeTimeStatus | COMMAND_WITH_GO_HOME_CLOSE, COMMAND_WITH_GO_HOME_OPEN, COMMAND_WITH_GO_HOME_TIME_SETTING | A02：BLE0x83/84、0x85索引0..3=5/10/15/30秒；开关和时间独立 | P1 / COMPLETE / A02 |
@@ -311,3 +311,12 @@ A10：33/33精确过滤测试、全部离线构建和diff检查退出0；STATIC_
 - 实际MainScreen286–296的CloudWriter接MappedWriter专用BLE阶段；普通write/forItem不能绕过联动。稳定ID、已知目标1、同VIN在线和确认仍在Controller/Writer校验。BLE接受后独立保存云端标记；第二步失败/异常/取消保留LOCAL_UPDATED/独立metadata状态及错误，不假回滚已发送事实，不重复发送；取消传播原异常。Boolean写入不把部分接受当整体成功。
 - 配置、车辆观察、草稿和两阶段receipt分别保存；车辆确认只依赖原有同VIN/新序号回读。新鲜不匹配回读仍独立反馈；标记成功不伪装车辆确认。UI复用原AppAlertDialog/双主题控件，开放完整联动、显示云端标记结果；无新增BLE、网络路径、TTP解析或平台层。
 - 75/75过滤测试和JVM/JS/Wasm/测试源码、Android Debug/Desktop构建退出0；详见历史。ID77立即进入CONDITIONAL，整体因自动排程未实现仍PARTIAL；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。
+
+### A22：77自动休眠排程（独立复审及验证完成）
+
+- f72.a:55–128 GET vehicle-base/bike-sleep-appointment/get(vin)；AutoHibernateData:9/14为nullable Integer autoSleepSwitch/dayCount，getter201/212。VM.A1:6233→$getAutoHibernateSwitch$1.a:51–65→z1:32357/D4；HibernateModeActivity.refreshMask:754–1139分别读取启用与天数，只有启用且立即休眠未生效时允许改时间。独立排程不是sleepMode或sleepModeSwitch，不建立车辆当前休眠观察。
+- onAuto:517–623先isOnline；旧false打开OpenAutoHibernatePop，旧true传明确dayCount=1。OpenAutoHibernatePop$b.onClick:100–153整数范围1..30，错误文案“最少填写1天，最多填写30天”；$onAuto$1.invoke:68及$onModifyTime$1.invoke分别进入AUTO_HIBERNATE/UPDATE_HIBERNATE_TIME。sendCommand:1220–1278按启用旧值构造0/1、修改时间固定1；updateAutoHibernateInfo:1439→f72.d:225–307同时POST整数autoSleepSwitch/dayCount/vin。$updateAutoHibernateInfo$1.invoke:61–82成功后调用A1重新读取，没有事务ID轮询或TTP确认。
+- KMP增加nullable AutoHibernate kind与明确编辑动作，复用现有CarSettingValueState；独立Gateway GET进入configuredValue，子项cloud:77:auto仅随目录77出现，继承权限/分组。Controller直调也检查旧开关、立即休眠有效来源/遮罩、在线许可、VIN/代次、在途兄弟互斥；时间未知不默填，关闭1是原始明确参数而不是UNKNOWN默认值。
+- 目标同时携带两个有依据的整数，Writer直接调用独立Gateway，不走通用Builder/PARAM或BLE。合法范围/稳定ID/许可在实际Writer/Gateway校验；成功后重读云端配置，失败/不一致保留接受状态及错误，不建立车辆确认；无效重读不能抹去已接受目标。草稿、旧请求、VIN切换及取消均隔离。
+- UI独立AutoHibernateSheet复用AppBottomSheet、AppSwitchPreference、AppTextField、AppButton/AppOutlinedButton及局部滚动。空天数不产生默认草稿，确认才提交；未知/只读/立即休眠遮罩及在途状态禁用。共享commonMain实现，两主题共同回调；没有修改全局主题或Sheet。
+- 89/89 Fake-only过滤及JVM/JS/Wasm/测试源码、Android Debug/Desktop构建退出0；git diff检查退出0。独立复审重走原页/回调→目录→UI→Controller→实际Writer/Gateway→配置重读，没有协议/帧/TTP解析/网络签名/其他设置参数变更。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；ID77 CONDITIONAL，车辆排程实际执行及UI视觉交互未验证，无RUNTIME_VERIFIED/VEHICLE_VERIFIED。

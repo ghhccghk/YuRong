@@ -286,3 +286,15 @@
 - 最终75/75过滤测试退出0：HibernateLinkedWriteTest10、HibernateSettingsSafetyTest15、CarSettingsControllerTest17、CloudConfiguredValueRefreshTest30、VehicleSettingGoldenFrameTest3。命令`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.HibernateLinkedWriteTest --tests top.ghhccghk.yadea.carsetting.HibernateSettingsSafetyTest --tests top.ghhccghk.yadea.carsetting.CarSettingsControllerTest --tests top.ghhccghk.yadea.carsetting.CloudConfiguredValueRefreshTest --tests top.ghhccghk.yadea.carsetting.VehicleSettingGoldenFrameTest --offline --console=plain`。Fake/内存隔离，未运行完整jvmTest。
 - `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；缓存C:\Users\DozenOregano696\.gradle；`git diff --check`退出0。
 - 独立重走UI→Controller→MainScreen实际接线→Writer→133既有编码→原P4/jp6.o及实际Gateway→回读；未改其他配置、帧、协议、TTP、网络或连接架构。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；立即进入CONDITIONAL，整体因自动排程仍PARTIAL。未运行App或实车验证，待精确提交。
+
+### A21提交核对 / A22起点
+
+- A21提交6b3ed36dd7fa02fd34eb992724056e076182b3de，9文件；master，tracked/index干净，原有12项untracked保持，无外部提交。
+
+## A22（独立复审及验证完成）
+
+- 77自动休眠使用f72独立GET/POST，autoSleepSwitch/dayCount均Int。启用/修改明确输入1..30天，关闭原页明确写0/1；不使用推断默认时间。新AutoHibernate kind仅承载该组合，复用CarSettingValueState的配置/草稿/提交/接受状态，不建立vehicleValue或TTP确认。
+- 原目录77下稳定子项cloud:77:auto，继承isAuth/分组/排序；无77不新增入口、不读取排程。在线许可、立即休眠遮罩、同VIN/请求代次/在途互斥贯穿Controller，Writer/Gateway验证条目及合法整数目标；原主项立即休眠路径保持隔离。
+- 首次过滤编译退出1：使用不存在的AppTextButton；更正为已有AppOutlinedButton。随后87/87通过；独立复审补无效重读保留接受目标、旧VIN晚返回两项后89/89通过。AutoHibernateSettingsTest17、HibernateLinkedWriteTest10、HibernateSettingsSafetyTest15、CarSettingsControllerTest17、CloudConfiguredValueRefreshTest30，命令`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.AutoHibernateSettingsTest --tests top.ghhccghk.yadea.carsetting.HibernateLinkedWriteTest --tests top.ghhccghk.yadea.carsetting.HibernateSettingsSafetyTest --tests top.ghhccghk.yadea.carsetting.CarSettingsControllerTest --tests top.ghhccghk.yadea.carsetting.CloudConfiguredValueRefreshTest --offline --console=plain`，退出0。全部Fake/内存/自定义Transport隔离，没有真实请求。
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；缓存C:\Users\DozenOregano696\.gradle；`git diff --check`退出0。
+- 独立复审UI/目录/原页→Controller→Writer→独立Gateway→云端重读，补旧目录响应不得继续发起旧VIN排程读请求；没有改变立即休眠的确认语义、其他设置参数或受保护协议/编码/网络层。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；77整体CONDITIONAL，App运行/实际车辆执行未验证。待精确提交。

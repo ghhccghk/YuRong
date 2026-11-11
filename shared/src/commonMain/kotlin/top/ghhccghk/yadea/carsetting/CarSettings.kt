@@ -101,6 +101,10 @@ internal object AdaptivePush89Mapping {
 
 sealed interface CarSettingKind {
     data class Toggle(val checked: Boolean, val valueKnown: Boolean = true) : CarSettingKind
+    enum class AutoHibernateEdit { ENABLE, DISABLE, DAYS }
+    /** A separate cloud appointment; neither field represents the vehicle's current sleep state. */
+    data class AutoHibernate(val enabled: Boolean? = null, val dayCount: Int? = null,
+                             val edit: AutoHibernateEdit? = null) : CarSettingKind
     /** confId 9 always sends both siblings; nullable values never become protocol defaults. */
     enum class LowPowerInfoEdit { ALARM_SWITCH, THRESHOLD }
     data class LowPowerInfo(
@@ -330,6 +334,7 @@ object CarSettingItemAccess {
         "60" to setOf("enable", "level"),
         "62" to setOf("level"),
         "33" to setOf("mode", "volume"),
+        "77" to setOf("auto"),
         "64" to setOf("adaptive", "level"),
         "69" to setOf("fcw", "rcw", "bsd"),
         "81" to setOf("time"),
@@ -472,7 +477,13 @@ class CarSettingsController(
             },
         )
         val cloud = try {
-            activeGateway.load(vin)
+            activeGateway.load(vin)?.let { loaded ->
+                if (generation != loadGeneration || vinProvider().trim() != vin ||
+                    loaded.configs.none { it.confId.trim() == "77" }) loaded
+                else loaded.copy(autoHibernate = try { activeGateway.loadAutoHibernate(vin) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { null })
+            }
         } catch (cancelled: CancellationException) {
             if (generation == loadGeneration && vinProvider().trim() == vin) {
                 _state.value = _state.value.copy(loading = false)
@@ -512,7 +523,8 @@ class CarSettingsController(
                     vehicleValue = observed ?: VehicleSettingValue.Unknown,
                     cachedValue = retained.cachedValue?.takeIf { validTarget(item.kind, it.kind) },
                     configuredValue = configured,
-                    submittedValue = if (item.configId == "77" && !retained.busy && configured != null)
+                    submittedValue = if (item.configId == "77" && !retained.busy && configured != null &&
+                        (configured !is CarSettingKind.AutoHibernate || configured.enabled != null && configured.dayCount != null))
                         null else retained.submittedValue,
                 )
             },
@@ -589,6 +601,8 @@ class CarSettingsController(
     }
 
     private fun validDraftTarget(original: CarSettingKind, target: CarSettingKind): Boolean = when {
+        original is CarSettingKind.AutoHibernate && target is CarSettingKind.AutoHibernate ->
+            target.dayCount == null || target.dayCount in 1..30
         original is CarSettingKind.LowPowerInfo && target is CarSettingKind.LowPowerInfo ->
             target.alarmPower == null || target.alarmPower in 0..100
         original is CarSettingKind.LowPowerPhone && target is CarSettingKind.LowPowerPhone ->
@@ -617,6 +631,8 @@ class CarSettingsController(
     }
 
     private fun validTarget(original: CarSettingKind, target: CarSettingKind): Boolean = when {
+        original is CarSettingKind.AutoHibernate && target is CarSettingKind.AutoHibernate ->
+            (target.dayCount == null || target.dayCount in 1..30)
         original is CarSettingKind.Toggle && target is CarSettingKind.Toggle -> true
         original is CarSettingKind.LowPowerInfo && target is CarSettingKind.LowPowerInfo ->
             target.edit != null && target.alarmOn != null && target.alarmPower?.let { it in 0..100 } == true
@@ -656,7 +672,9 @@ class CarSettingsController(
 
     private fun validSimpleChoiceTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
         item.configId != "93" &&
-        (item.configId != "77" || HibernateSettings.validItem(item.copy(kind = target))) &&
+        (item.configId != "77" || if (item.id == AutoHibernateSettings.ID) {
+            (target as? CarSettingKind.AutoHibernate)?.let(AutoHibernateSettings::validTarget) == true
+        } else HibernateSettings.validItem(item.copy(kind = target))) &&
         (item.configId != "51" || TimeSyncSettings.validItem(item.copy(kind = target))) &&
         (item.configId != "33" || SimulatedSoundSettings.validItem(item.copy(kind = target))) &&
         (item.configId !in TrackerSettings.ids || TrackerSettings.validItem(item.copy(kind = target))) &&
@@ -674,6 +692,7 @@ class CarSettingsController(
         item.configId != "73" || AtmosphereSettings.validItem(item.copy(kind = target))
 
     private fun hasActiveSettingWrite(item: CarSettingItem): Boolean =
+        (item.configId == "77" && activeOperations.keys.any { findItem(it)?.configId == "77" }) ||
         (item.configId in setOf("2", "7", "39") && item.kind is CarSettingKind.Toggle &&
             activeOperations.keys.any { id -> findItem(id)?.let {
                 it.configId in setOf("2", "7", "39") && it.kind is CarSettingKind.Toggle
@@ -772,8 +791,13 @@ class CarSettingsController(
         if (!hasKnownSettingValue(item)) return false
         val target = transform(editable)
         val hibernateCurrent = current.valueState(id).copy(draftValue = null).editableKind(item.kind) as? CarSettingKind.Toggle
-        if (item.configId == "77" && (!confirmHibernate || hibernateCurrent?.let { it.valueKnown && !it.checked } != true)) {
+        if (item.id == "cloud:77" && (!confirmHibernate || hibernateCurrent?.let { it.valueKnown && !it.checked } != true)) {
             _state.value = current.copy(message = "请确认立即休眠；已休眠车辆请按车辆说明唤醒")
+            return false
+        }
+        if (item.kind is CarSettingKind.AutoHibernate &&
+            (target !is CarSettingKind.AutoHibernate || !AutoHibernateSettings.canSubmit(current, target))) {
+            _state.value = current.copy(message = "自动休眠配置或立即休眠状态未知，请刷新后重试")
             return false
         }
         if (item.configId == "75" && target is CarSettingKind.Toggle && !target.checked) {
@@ -829,6 +853,10 @@ class CarSettingsController(
                     return false
                 }
                 submitted = submitted.copy(hibernateAuthorization = HibernateAuthorization(vin, confirmHibernate))
+                if (item.id == AutoHibernateSettings.ID && !AutoHibernateSettings.available(_state.value)) {
+                    finishFailure(id, "立即休眠状态已变化，请刷新后重试", SettingConfirmationState.FAILED)
+                    return false
+                }
             }
             if (item.configId == "33") {
                 if (!simulatedSoundAvailable) {
@@ -907,6 +935,23 @@ class CarSettingsController(
             val phase = when (writeResult.channel) {
                 CarSettingWriteChannel.CLOUD -> SettingWriteState.CLOUD_ACCEPTED
                 else -> SettingWriteState.LOCAL_UPDATED
+            }
+            if (item.id == AutoHibernateSettings.ID) {
+                changeValueState(id) { it.copy(writeState = phase, writeChannel = writeResult.channel,
+                    confirmationState = SettingConfirmationState.UNKNOWN, readbackState = SettingReadbackState.UNSUPPORTED) }
+                val configured = try { gateway?.loadAutoHibernate(vin) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { null }
+                if (!isCurrentOperation(id, operation)) return false
+                val matches = configured?.enabled == (target as CarSettingKind.AutoHibernate).enabled &&
+                    configured?.dayCount == target.dayCount
+                val message = if (matches) "自动休眠云端配置已刷新，车辆执行未验证"
+                    else "云端已接受，但自动休眠配置尚未读回一致，请刷新后核对"
+                changeValueState(id) { it.copy(configuredValue = configured,
+                    submittedValue = if (configured?.enabled != null && configured.dayCount != null) null else target,
+                    error = if (matches) null else message) }
+                _state.value = _state.value.copy(message = message)
+                return matches
             }
             pendingVehicleConfirmations[id] = PendingVehicleConfirmation(target, observedGeneration, operation.id)
             changeValueState(id) {

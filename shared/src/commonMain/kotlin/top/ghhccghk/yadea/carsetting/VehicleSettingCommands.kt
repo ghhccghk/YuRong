@@ -161,6 +161,11 @@ class CloudCarSettingWriter(
         if (item.configId == "33" && !SimulatedSoundSettings.authorized(item, vin)) return CarSettingWriteResult(false)
         if (item.configId == "51" && !TimeSyncSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId == "77") {
+            if (item.kind is CarSettingKind.AutoHibernate) {
+                if (!AutoHibernateSettings.validItem(item) || item.hibernateAuthorization?.vin != vin) return CarSettingWriteResult(false)
+                val accepted = gateway.updateAutoHibernate(vin, item.kind, item.hibernateAuthorization)
+                return CarSettingWriteResult(accepted, CarSettingWriteChannel.CLOUD)
+            }
             if (!HibernateSettings.authorized(item, vin)) return CarSettingWriteResult(false)
             if (bleAvailableProvider()) {
                 val ble = bleFallback as? MappedCarSettingWriter ?: return CarSettingWriteResult(false)

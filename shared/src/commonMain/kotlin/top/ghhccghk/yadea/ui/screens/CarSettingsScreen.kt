@@ -106,6 +106,7 @@ fun CarSettingsScreen(
     }
     var detailItem by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     var showLowPowerReminder by remember(uiResetKey) { mutableStateOf(false) }
+    var showAutoHibernate by remember(uiResetKey) { mutableStateOf(false) }
     var showCustomSounds by remember(uiResetKey) { mutableStateOf(false) }
     var showCustomKeys by remember(uiResetKey) { mutableStateOf(false) }
     var selectedSoundCategory by remember(uiResetKey) { mutableStateOf<CustomSoundCategory?>(null) }
@@ -377,7 +378,9 @@ fun CarSettingsScreen(
                             pending = item.id in state.pendingIds,
                             disabledReason = settingDisabledReason(item),
                             onOpenDetail = {
-                                if (item.kind is CarSettingKind.LowPowerInfo || item.kind is CarSettingKind.LowPowerPhone) {
+                                if (item.kind is CarSettingKind.AutoHibernate) {
+                                    showAutoHibernate = true
+                                } else if (item.kind is CarSettingKind.LowPowerInfo || item.kind is CarSettingKind.LowPowerPhone) {
                                     showLowPowerReminder = true
                                 } else if (item.kind is CarSettingKind.Atmosphere) {
                                     atmosphereItem = item
@@ -728,6 +731,9 @@ fun CarSettingsScreen(
         }
     }
 
+    if (showAutoHibernate) key(uiResetKey) {
+        AutoHibernateSheet(controller, state, onDismissRequest = { showAutoHibernate = false })
+    }
     if (showLowPowerReminder) key(uiResetKey) {
         LowPowerReminderSheet(
             controller = controller,
@@ -1618,6 +1624,7 @@ private fun CarSettingRow(
     val summary = carSettingSummary(item, valueState, pending, disabledReason, timeSyncReport)
     val observed = valueState.displayKind()
     when (val kind = observed ?: item.kind) {
+        is CarSettingKind.AutoHibernate -> AppListRow(title = item.title, summary = summary, value = "设置", onClick = onOpenDetail)
         is CarSettingKind.LowPowerInfo, is CarSettingKind.LowPowerPhone -> AppListRow(
             title = "低电量提醒", summary = summary, value = "设置", onClick = onOpenDetail,
         )
@@ -1697,6 +1704,7 @@ private fun vehicleValueLabel(state: CarSettingValueState): String {
 }
 
 private fun settingKindLabel(kind: CarSettingKind): String = when (kind) {
+    is CarSettingKind.AutoHibernate -> "自动休眠：${kind.enabled?.let { if (it) "开启" else "关闭" } ?: "UNKNOWN"} / ${kind.dayCount?.let { "$it 天" } ?: "UNKNOWN"}（云端配置）"
     is CarSettingKind.LowPowerInfo -> "信息提醒：${kind.alarmOn?.let { if (it) "开启" else "关闭" } ?: "UNKNOWN"} / ${kind.alarmPower?.let { "$it%" } ?: "UNKNOWN"}"
     is CarSettingKind.LowPowerPhone -> "电话告警：${kind.enabled?.let { if (it) "开启" else "关闭" } ?: "UNKNOWN"} / ${kind.startTime ?: "UNKNOWN"} — ${kind.endTime ?: "UNKNOWN"}"
     is CarSettingKind.Toggle -> if (kind.checked) "开启" else "关闭"
