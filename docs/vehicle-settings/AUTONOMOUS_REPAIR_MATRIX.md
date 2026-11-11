@@ -76,8 +76,8 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 71 仪表设置 | com/yadea/smartmoto/vehicle/view/GaugeSettingsActivity.smali:621 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 72 长续航模式 | com/yadea/smartmoto/vehicle/view/EnduranceModeActivity.smali:303 | longEnduranceStatus | LONG_ENDURANCE_SETTING, LONG_ENDURANCE_SETTING | A08：63/68/79读写1开0关，72读写0开1关；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A08（BLE；无运行/实车验证） |
 | 73 氛围灯 | com/yadea/smartmoto/vehicle/view/FeelLightSettingActivity.smali:2404 | ambientStatus、show/color/operation、RGB1/2 | C3开关；F7完整模式组合 | A05：完整TTP回填/独立开关/不可变复合命令/新鲜回读比较；未知禁止默认补齐，完整配置才可编辑 | P0 / CONDITIONAL / A05 |
-| 75 定位器防盗 | com/yadea/smartmoto/vehicle/view/IotTamperProofActivity.smali:194 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 76 定位开关 | com/yadea/smartmoto/vehicle/locationswitch/LocationSwitchActivity.smali:319 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 75 定位器防盗 | vehicle/view/IotTamperProofActivity.smali:50–158,194；VM.t4:30788→p4 | iotRemoveAlarm，严格0/1 | 原FA；本任务禁止新增帧；云端tamperProofIotEnable仅证实整数1 | A16：可靠TTP/缓存隔离；移除无读绑定的云端配置推断；阻止未证实0关闭；开启接受后等待新鲜TTP | P0 / PARTIAL，关闭及BLE帧BLOCKED / A16 |
+| 76 定位开关 | vehicle/locationswitch/LocationSwitchActivity.smali:145–218,241–295,319 | 无已证实TTP；positioningFunc只进configuredValue | 原param-setting：POSITIONING_FUNC，0/1；返回ID轮询 | A16：同VIN云端onlineState检查、关闭确认、精确参数、实际Writer保留本次ID；缺ID不猜confId；结果成功仍非车辆回读 | P0 / CONDITIONAL / A16（无运行/实车验证） |
 | 77 休眠模式 | com/yadea/smartmoto/vehicle/view/HibernateModeActivity.smali:1475 | sleepModeSwitch | SLEEP_MODE_SWITCH, SLEEP_MODE_SWITCH | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 79 座垫感应上电 | com/yadea/smartmoto/vehicle/view/SeatPowerUpActivity.smali:304 | seatPowerStatus | COMMAND_SEAT_POWER_UP, COMMAND_SEAT_POWER_UP | A08：63/68/79读写1开0关，72读写0开1关；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A08（BLE；无运行/实车验证） |
 | 80 OTD 开关 | com/yadea/smartmoto/vehicle/view/OTDActivity.smali:296 | otdSwitch | COMMAND_OTD_SWITCH, COMMAND_OTD_SWITCH | A09：四项读写1开0关，修正三项参数反向；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A09（BLE；无运行/实车验证） |
@@ -276,3 +276,14 @@ A10：33/33精确过滤测试、全部离线构建和diff检查退出0；STATIC_
 - ID3 `SeatCushionSensorActivity.onSwClick:50–108/getSettingConfigId:144`：开/关独立CARRY_OUT_OPEN/CLOSE；qg3954–3973/1310–1329→11/12。`ActivitySeatCushionSensorBindingImpl:613/754`→VM.H5:8510→w0；VM20241–20296从pushModeStatus==1填w0。KMP TtpInfo/原始解析无pushModeStatus，受保护范围不得补解析，因此读取BLOCKED，底层WRITE_ONLY；UI无可靠当前值仍禁用。不能借seatPowerStatus等名字相近字段。
 - 原App两项没有已证明云端字段/请求绑定；没有新增猜测字段、云端写入或命令。既有AppSwitchPreference两主题无视觉改动。关闭错误通过现有error/message回报；接受仍WAITING_READBACK，只有2的新鲜回读可确认，3无回读不确认。
 - 58/58精确Fake过滤测试通过，测试与构建实际结果见历史；2保持PARTIAL，3读取BLOCKED/底层WRITE_ONLY。未运行App，未操作车辆。
+
+### A16：75定位器防盗/76定位开关（独立复审）
+
+- ID75原页`vehicle/view/IotTamperProofActivity.onSwClick:50–158/getSettingConfigId:194`同时发送IOT_REMOVE_ALARM和调用VM.d9。BindingImpl613/757→VM.t4:30788→p4；VM24641–24665以TTP.iotRemoveAlarm==1回填。原`qg.smali:1925–1956`映射FA；当前编码器无对应已接通路径，本任务禁止新增帧，BLE部分BLOCKED。注意不是qg1.smali。
+- 云端`VehicleSettingViewModel.P4:10157–10159,10342–10372`对非null Boolean调用booleanValue但未使用返回值，实际固定tamperProofIotEnable=1；`s20:1350–1370`同样固定1。没有证据把false转换成0；开启沿用整数1，关闭在Controller/Builder/Writer/实际Gateway均拒绝，不复制未知值，也不复现把关闭误写成1。若需恢复关闭，必须补抓包或其他可靠Smali路径证据。
+- 未找到tamperProofIotEnable→原页状态的读绑定；原绑定明确来自TTP。因此移除KMP仅凭字段名建立的75 configuredValue，目录初始UNKNOWN，接入既有TtpInfo.extended.iotRemoveAlarm，严格0/1；缓存只进cachedValue，非法回读撤销live，同VIN/观察序号沿用现有机制。75云端接受后不按confId猜事务结果，仅新鲜TTP可建立READBACK_MATCHED。
+- ID76原页`locationswitch/LocationSwitchActivity.onSwClick:145–218`先网络及CarSettingsIotOnlineGuard再操作，关闭有LocationSwitchCloseDialog，确认/取消分别在`$b.onClick/$a.onClick`；无SMS证据。`toggleSwitch:241–295`→VM.g9/f9:26479→P4:10301–10331，param-setting字段oper=SET_PARAM/id=POSITIONING_FUNC/value=0或1/valueJson单字节结构，无复合兄弟字段。
+- `LocationSwitchActivity$toggleSwitch$1.invoke`把本次返回字符串传countdownQuery；原页114–143为30次/1000ms，`$countdownQuery$1:invoke`→VM.f1:26289→jp6.f→checkSettingStatus。本次ID来自`jp6$j.onSuccess:156–185`的响应字符串，不能用confId76代替。KMP新增专用receipt保留本次ID，缺ID保留CLOUD_ACCEPTED及UNKNOWN确认，不发猜测轮询。
+- 读绑定`ActivityLocationSwitchBindingImpl237/514`→VM.y4:32245→K0；VM12635–12655从CarSettingBean.positioningFunc回填。仅作为configuredValue；没有TTP车辆观察映射。`CarSettingsIotOnlineGuard.a`→VehicleDataBean.isOnline:4674–4698→VehicleStatusBean.onlineState:Boolean；`jp6.h:247–329`的getVehRealStatus由`jp6$c`按VehicleStatusBean解码。KMP只读同VIN该端点onlineState=true作为本次提交许可，UNKNOWN/false/异常均阻止，不当作LIVE_TTP或定位配置。
+- 关闭确认沿用AppAlertDialog，两主题保持共同回调；Controller直接入口也要求确认，Writer/Gateway校验同VIN许可、关闭确认和精确参数。许可不进入持久配置、观察或后续目录。实际Writer对76走原param-setting，不尝试以BLE可用性代替云端在线。
+- 新TrackerSettingsSafetyTest17项，CloudConfiguredValueRefreshTest30项，CarSettingsControllerTest17项，共64/64；离线JVM/JS/Wasm/测试源码及Android/Desktop构建退出0。独立从UI→Controller→Mapper→Writer→Gateway→事务/回读重走；无原始TTP、帧、协议、通用网络签名或其他参数变更。75 PARTIAL/关闭与BLE帧BLOCKED，76 CONDITIONAL；无App运行/车辆验证。

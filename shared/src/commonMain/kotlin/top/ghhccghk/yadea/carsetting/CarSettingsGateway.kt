@@ -49,6 +49,10 @@ data class CloudCarSettings(
 interface CarSettingsGateway {
     suspend fun load(vin: String): CloudCarSettings?
     suspend fun loadRemainingMileageEligibility(vin: String): RemainingMileageEligibility? = null
+    suspend fun loadLocationSwitchAuthorization(vin: String): LocationSwitchAuthorization? = null
+    suspend fun updateLocationSwitch(vin: String, update: CloudCarSettingUpdate,
+                                     authorization: LocationSwitchAuthorization): LocationSwitchWriteReceipt =
+        LocationSwitchWriteReceipt(false)
     suspend fun update(vin: String, update: CloudCarSettingUpdate): Boolean = false
     suspend fun checkStatus(configId: String): Boolean? = null
 }
@@ -110,7 +114,7 @@ private object VehicleParamJson {
 object CloudCarSettingUpdateBuilder {
     // Schema support is independent of completeness; build() still rejects unknown siblings.
     fun supports(configId: String, kind: CarSettingKind): Boolean =
-        BatterySettings.supports(configId, kind) || CloudSwitchSettings.supports(configId, kind) ||
+        BatterySettings.supports(configId, kind) || CloudSwitchSettings.supports(configId, kind) || TrackerSettings.supports(configId, kind) ||
             (configId == "10" && (kind is CarSettingKind.Toggle || kind is CarSettingKind.Slider)) ||
             (configId == "9" && kind is CarSettingKind.LowPowerInfo) ||
             (configId == "82" && kind is CarSettingKind.LowPowerPhone) ||
@@ -133,6 +137,7 @@ object CloudCarSettingUpdateBuilder {
         }
         if (configId in BatterySettings.ids && !BatterySettings.validTarget(configId, kind)) return null
         if (configId in CloudSwitchSettings.ids && !CloudSwitchSettings.validTarget(kind)) return null
+        if (configId in TrackerSettings.ids && !TrackerSettings.validTarget(configId, kind)) return null
         val fields = linkedMapOf<String, Any?>("_gateway" to "True", "vin" to vin)
         val path: CloudCarSettingUpdatePath
         when (kind) {
@@ -371,6 +376,9 @@ class YadeaCarSettingsGateway(
     }
 
     override suspend fun update(vin: String, update: CloudCarSettingUpdate): Boolean {
+        // ID76 must retain its transaction receipt and pass its independent online guard.
+        if (update.configId == "76") return false
+        if (update.configId == "75" && update != CloudCarSettingUpdateBuilder.build("75", CarSettingKind.Toggle(true), vin)) return false
         val token = tokenProvider().trim()
         if (token.isBlank() || vin.isBlank()) return false
         val plain = postFields(
@@ -381,8 +389,36 @@ class YadeaCarSettingsGateway(
             fields = update.fields + ("vin" to vin),
             token = token,
         ) ?: return false
+        if (update.configId == "75") return JsonSupport.topLevelScalarText(plain, "success") == "true" &&
+            JsonSupport.topLevelScalarText(plain, "data") != "false"
         if (JsonSupport.boolean(plain, "success") == false) return false
         return JsonSupport.boolean(plain, "data") != false
+    }
+
+    override suspend fun loadLocationSwitchAuthorization(vin: String): LocationSwitchAuthorization? {
+        val normalized = vin.trim()
+        val token = tokenProvider().trim()
+        if (normalized.isBlank() || token.isBlank()) return null
+        // VehicleDataBean.isOnline -> VehicleStatusBean.onlineState, not BLE connectivity.
+        val data = remainingMileageGet("bikeRealStatus/getVehRealStatus", mapOf("vin" to normalized), token) ?: return null
+        return if (JsonSupport.topLevelScalarText(data, "onlineState") == "true") LocationSwitchAuthorization(normalized) else null
+    }
+
+    override suspend fun updateLocationSwitch(vin: String, update: CloudCarSettingUpdate,
+                                             authorization: LocationSwitchAuthorization): LocationSwitchWriteReceipt {
+        val token = tokenProvider().trim()
+        if (vin.isBlank() || token.isBlank() || authorization.vin != vin || update.configId != "76" ||
+            update.path != CloudCarSettingUpdatePath.PARAM_SETTING) return LocationSwitchWriteReceipt(false)
+        val checked = when (update.fields["value"]) { 1 -> true; 0 -> false; else -> return LocationSwitchWriteReceipt(false) }
+        if ((!checked && !authorization.closeConfirmed) || update != CloudCarSettingUpdateBuilder.build("76", CarSettingKind.Toggle(checked), vin)) {
+            return LocationSwitchWriteReceipt(false)
+        }
+        val plain = postFields(PARAM_UPDATE_PATH, update.fields + ("vin" to vin), token)
+            ?: return LocationSwitchWriteReceipt(false)
+        if (JsonSupport.topLevelScalarText(plain, "success") != "true") return LocationSwitchWriteReceipt(false)
+        val id = JsonSupport.topLevelScalarText(plain, "data")?.trim()
+            ?.takeIf { it.isNotBlank() && it !in setOf("true", "false") }
+        return LocationSwitchWriteReceipt(true, id)
     }
 
     override suspend fun checkStatus(configId: String): Boolean? {
@@ -972,7 +1008,6 @@ object CloudCarSettingMapper {
                 "40" -> "colorEggSoundEffect"
                 "52" -> "bleUnlockOn"
                 "62" -> "seatHeating"
-                "75" -> "tamperProofIotEnable"
                 "76" -> "positioningFunc"
                 "77" -> "sleepMode"
                 "82" -> "lowBatTelWarning"
@@ -1880,7 +1915,8 @@ object CloudCarSettingMapper {
         "73" -> unknownToggle()
         "9" -> CarSettingKind.LowPowerInfo()
         "24" -> cloudToggle(cloud, "emergencyContact")
-        "75" -> cloudToggle(cloud, "tamperProofIotEnable")
+        // Original binding t4 -> p4 reads TTP.iotRemoveAlarm, not this cloud request field.
+        "75" -> unknownToggle()
         "82" -> CarSettingKind.LowPowerPhone()
         "61" -> {
             val modelMax = cloud.values["bikeModelTopSpeedMax"]?.trim()?.toIntOrNull()?.takeIf { it in 15..120 }

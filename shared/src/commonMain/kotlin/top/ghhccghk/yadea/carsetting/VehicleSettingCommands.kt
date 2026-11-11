@@ -134,6 +134,7 @@ class CloudCarSettingWriter(
         if (item.configId in VolumeBrightnessSettings.ids && !VolumeBrightnessSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in EnergyRecoverySettings.ids && !EnergyRecoverySettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in CloudSwitchSettings.ids && !CloudSwitchSettings.validItem(item)) return CarSettingWriteResult(false)
+        if (item.configId in TrackerSettings.ids && !TrackerSettings.validItem(item)) return CarSettingWriteResult(false)
         if ((item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids) &&
             VehicleSettingCommands.forItem(item) == null
         ) return CarSettingWriteResult(false)
@@ -141,6 +142,7 @@ class CloudCarSettingWriter(
         if (vin.isBlank()) return CarSettingWriteResult(false)
         if (item.configId == "2" && !SideBraceSettings.authorized(item, vin)) return CarSettingWriteResult(false)
         if (item.configId == "42" && !RemainingMileageSettings.authorized(item, vin)) return CarSettingWriteResult(false)
+        if (!TrackerSettings.authorized(item, vin)) return CarSettingWriteResult(false)
         val update = CloudCarSettingUpdateBuilder.build(
             configId = item.configId,
             kind = item.kind,
@@ -148,6 +150,13 @@ class CloudCarSettingWriter(
             geofence = item.geofenceConfiguration,
         )
         if (item.configId == "10" && update == null) return CarSettingWriteResult(false)
+        if (item.configId == "76") {
+            val authorization = item.locationSwitchAuthorization ?: return CarSettingWriteResult(false)
+            if (update == null) return CarSettingWriteResult(false)
+            val receipt = gateway.updateLocationSwitch(vin, update, authorization)
+            if (vinProvider().trim() != vin) return CarSettingWriteResult(false)
+            return CarSettingWriteResult(receipt.accepted, CarSettingWriteChannel.CLOUD, resultId = receipt.resultId)
+        }
         val bleAvailable = bleAvailableProvider()
         if (bleAvailable && item.configId != "10") {
             val fallback = bleFallback?.writeWithResult(item)

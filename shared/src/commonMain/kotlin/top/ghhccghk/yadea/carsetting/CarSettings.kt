@@ -205,6 +205,8 @@ data class CarSettingItem(
     val remainingMileageEligibility: RemainingMileageEligibility? = null,
     /** Ephemeral evidence for ID2's independent close branch. */
     val sideBraceCloseAuthorization: SideBraceCloseAuthorization? = null,
+    /** Per-submission cloud-online proof, never retained as observed/configured state. */
+    val locationSwitchAuthorization: LocationSwitchAuthorization? = null,
 )
 
 enum class CarSettingConfirmationStatus {
@@ -301,6 +303,7 @@ data class CarSettingWriteResult(
         channel == CarSettingWriteChannel.BLE -> CarSettingConfirmationStatus.LOCAL_UPDATED
         else -> CarSettingConfirmationStatus.CLOUD_ACCEPTED
     },
+    val resultId: String? = null,
 )
 
 object CarSettingItemAccess {
@@ -425,7 +428,7 @@ class CarSettingsController(
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
                         configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids ||
                         configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids ||
-                        configId in CloudSwitchSettings.ids || configId in setOf("10", "73", "42", "2")
+                        configId in CloudSwitchSettings.ids || configId in TrackerSettings.ids || configId in setOf("10", "73", "42", "2")
                 }
             }) {
             _state.value = _state.value.copy(message = "设置正在提交，请完成后刷新")
@@ -638,6 +641,7 @@ class CarSettingsController(
         item.configId !in TimerSettings.ids || TimerSettings.validItem(item.copy(kind = target))
 
     private fun validSimpleChoiceTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
+        (item.configId !in TrackerSettings.ids || TrackerSettings.validItem(item.copy(kind = target))) &&
         (item.configId != "2" || SideBraceSettings.validItem(item.copy(kind = target))) &&
         (item.configId != "42" || RemainingMileageSettings.validItem(item.copy(kind = target))) &&
         (item.configId !in SimpleChoiceSettings.ids || SimpleChoiceSettings.validItem(item.copy(kind = target))) &&
@@ -707,8 +711,15 @@ class CarSettingsController(
     suspend fun update(id: String, transform: (CarSettingKind) -> CarSettingKind): Boolean =
         updateInternal(id, transform, confirmEnergyRecoveryHigh = false)
 
+    suspend fun updateLocationSwitch(id: String, checked: Boolean, confirmClose: Boolean = false): Boolean {
+        if (findItem(id)?.configId != "76") return false
+        return updateInternal(id, { current ->
+            (current as? CarSettingKind.Toggle)?.copy(checked = checked, valueKnown = true) ?: current
+        }, confirmEnergyRecoveryHigh = false, confirmLocationClose = confirmClose)
+    }
+
     private suspend fun updateInternal(id: String, transform: (CarSettingKind) -> CarSettingKind,
-                                       confirmEnergyRecoveryHigh: Boolean): Boolean {
+                                       confirmEnergyRecoveryHigh: Boolean, confirmLocationClose: Boolean = false): Boolean {
         val current = _state.value
         if (current.loading) return false
         val regularItem = current.items.firstOrNull { it.id == id }
@@ -735,6 +746,14 @@ class CarSettingsController(
         if (current.vin.isNotBlank() && current.vin != vin) return false
         if (!hasKnownSettingValue(item)) return false
         val target = transform(editable)
+        if (item.configId == "75" && target is CarSettingKind.Toggle && !target.checked) {
+            _state.value = current.copy(message = "定位器防盗关闭的云端参数尚未证实，暂不可保存")
+            return false
+        }
+        if (item.configId == "76" && target is CarSettingKind.Toggle && !target.checked && !confirmLocationClose) {
+            _state.value = current.copy(message = "请确认关闭定位提示后再保存")
+            return false
+        }
         if (!validTarget(item.kind, target) || !validSpeedTarget(item, target) ||
             !validSecondPhaseTarget(item, target) || !validBatteryTarget(item, target) || !validTimerTarget(item, target) ||
             !validSimpleChoiceTarget(item, target) || !validAtmosphereTarget(item, target) ||
@@ -765,6 +784,21 @@ class CarSettingsController(
                 delay(debounceMs)
             }
             if (!isCurrentOperation(id, operation)) return false
+            if (item.configId == "76") {
+                val authorization = try {
+                    gateway?.loadLocationSwitchAuthorization(vin)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    null
+                }
+                if (!isCurrentOperation(id, operation)) return false
+                if (authorization?.vin != vin) {
+                    finishFailure(id, "车辆在线状态未确认，请稍后重试", SettingConfirmationState.FAILED)
+                    return false
+                }
+                submitted = submitted.copy(locationSwitchAuthorization = LocationSwitchAuthorization(vin, confirmLocationClose))
+            }
             if (item.configId == "2" && !(target as CarSettingKind.Toggle).checked) {
                 val liveAutoLock = latestVehicleStatus?.takeIf { it.vin == vin && it.live }
                     ?.status?.extended?.leaveVehicleAutoLockStatus
@@ -825,15 +859,21 @@ class CarSettingsController(
             )
             val statusGateway = gateway
             val needsCloudConfirmation = writeResult.channel == CarSettingWriteChannel.CLOUD &&
-                cloudUpdate &&
+                cloudUpdate && submitted.configId != "75" &&
                 !isMissingCloudItem
             if (statusGateway != null && needsCloudConfirmation) {
+                val resultId = if (submitted.configId == "76") writeResult.resultId?.takeIf { it.isNotBlank() }
+                    else submitted.configId
+                if (resultId == null) {
+                    finishConfirmationFailure(id, "设置已提交但缺少本次结果标识，无法确认", SettingConfirmationState.UNKNOWN)
+                    return false
+                }
                 var confirmed: Boolean? = null
                 for (attempt in 0 until statusPollAttempts) {
                     delay(statusPollIntervalMs)
                     if (!isCurrentOperation(id, operation)) return false
                     confirmed = try {
-                        statusGateway.checkStatus(submitted.configId)
+                        statusGateway.checkStatus(resultId)
                     } catch (cancellation: CancellationException) {
                         throw cancellation
                     } catch (_: Exception) {
@@ -1203,6 +1243,7 @@ class CarSettingsController(
                 "53" -> item.withToggle(SimpleToggleSettings.flag(status.extended.templeSettingStatus))
                 "72" -> item.withToggle(SimpleToggleSettings.invertedFlag(status.extended.longEnduranceStatus))
                 "77" -> item.withToggle(status.extended.sleepModeSwitch.flagOrNull())
+                "75" -> item.withToggle(SimpleToggleSettings.flag(status.extended.iotRemoveAlarm))
                 "79" -> item.withToggle(SimpleToggleSettings.flag(status.extended.seatPowerStatus))
                 "80" -> item.withToggle(SimpleToggleSettings.flag(status.extended.otdSwitch))
                 "90" -> item.withToggle(SimpleToggleSettings.flag(status.extended.trackModeStatus))
@@ -1249,7 +1290,7 @@ class CarSettingsController(
                     val audited = configId in setOf("4", "58", "61", "55", "92") ||
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
                         configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids ||
-                        configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids || configId in setOf("73", "42", "2")
+                        configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids || configId in TrackerSettings.ids || configId in setOf("73", "42", "2")
                     value.copy(readbackState = SettingReadbackState.MISSING_OR_INVALID,
                         vehicleValue = if (audited) value.vehicleValue.copy(live = false) else value.vehicleValue)
                 } else value

@@ -438,7 +438,7 @@ class CloudConfiguredValueRefreshTest {
             "24" to "emergencyContact", "25" to "passwordUnlockEnable",
             "40" to "colorEggSoundEffect", "47" to "chargeWattSwitch", "52" to "bleUnlockOn",
             "62" to "seatHeating",
-            "75" to "tamperProofIotEnable", "76" to "positioningFunc", "77" to "sleepMode",
+            "76" to "positioningFunc", "77" to "sleepMode",
             "82" to "lowBatTelWarning", "91" to "sosEmergencyCall")
         for (raw in listOf(0, 1)) {
             val values = fields.values.distinct().joinToString(",") { "\"$it\":$raw" }

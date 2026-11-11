@@ -81,6 +81,7 @@ fun CarSettingsScreen(
     val uiResetKey = carSettingsUiSessionKey(controller, state)
     val settingScope = key(uiResetKey) { rememberCoroutineScope() }
     var confirmDisable by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
+    var confirmLocationClose by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     var confirmEnergyHigh by remember(uiResetKey) { mutableStateOf<String?>(null) }
     var confirmBraceDependency by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     var atmosphereItem by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
@@ -164,7 +165,9 @@ fun CarSettingsScreen(
     val submitSettingUpdate:
         (CarSettingItem, (CarSettingKind) -> CarSettingKind) -> Unit = { item, transform ->
         val next = transform(item.kind)
-        if (next is CarSettingKind.Toggle &&
+        if (next is CarSettingKind.Toggle && !next.checked && item.configId == "76") {
+            confirmLocationClose = item
+        } else if (next is CarSettingKind.Toggle &&
             !next.checked &&
             item.configId in SAFETY_CONFIRM_IDS
         ) {
@@ -499,6 +502,19 @@ fun CarSettingsScreen(
     )
 
     val safetyTarget = confirmDisable
+    val locationTarget = confirmLocationClose
+    AppAlertDialog(
+        show = locationTarget != null,
+        title = "关闭定位",
+        message = "确定关闭车辆定位功能吗？",
+        onConfirm = {
+            confirmLocationClose = null
+            locationTarget?.let { item -> settingScope.launch {
+                controller.updateLocationSwitch(item.id, checked = false, confirmClose = true)
+            } }
+        },
+        onDismissRequest = { confirmLocationClose = null },
+    )
     AppAlertDialog(
         show = safetyTarget != null,
         title = "关闭${safetyTarget?.title.orEmpty()}",

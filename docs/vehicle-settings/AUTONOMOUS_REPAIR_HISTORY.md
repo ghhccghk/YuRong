@@ -211,3 +211,15 @@
 - JVM/JS/Wasm/测试源码编译命令`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0。
 - `:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。全部缓存C:\Users\DozenOregano696\.gradle。
 - 独立重走Binding→VM字段赋值→原页→Controller→实际Writer/Mapper→已有编码；确认H6来自isPrimaryUser（VM3442–3462），未以连接/isAuth猜角色。没有改原始TTP、帧、协议、网络或其他设置映射；共享落锁仅增加必要写互斥。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；2 PARTIAL/不确定关闭BLOCKED，3底层WRITE_ONLY/读取BLOCKED。无运行/车辆验证，待精确提交。
+
+### A15提交核对 / A16起点
+
+- A15提交61a9e9ab8039bd4619a10c39cd9886e21d4a80ee，9文件；tracked/index干净，原有12项untracked不变，无外部提交。
+
+## A16（独立复审及验证完成）
+
+- ID75：补真实iotRemoveAlarm TTP回填、严格0/1及缓存/live隔离；删除无原页读绑定的configuredValue猜测。P4/s20实际仅证实整数1，未知0关闭全边界阻止；FA帧本任务保护不动。接受与车辆回读分离。
+- ID76：同VIN显式云端在线检查、原页关闭确认、原param-setting精确构建、专用写入receipt及返回ID轮询；缺本次ID不猜confId。直接Controller、Writer、Gateway入口均校验；取消/失败/VIN切换不伪装成功，online许可不进入观察或配置。
+- 首次过滤61/61退出0；补取消、旧VIN轮询、原始Gateway负例及严格75成功响应检查后64/64退出0。TrackerSettingsSafetyTest17、CloudConfiguredValueRefreshTest30、CarSettingsControllerTest17。实际命令：`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.TrackerSettingsSafetyTest --tests top.ghhccghk.yadea.carsetting.CloudConfiguredValueRefreshTest --tests top.ghhccghk.yadea.carsetting.CarSettingsControllerTest --offline --console=plain`。Fake/内存隔离，无真实网络/车辆请求。
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；缓存C:\Users\DozenOregano696\.gradle。
+- 独立复审UI→原Binding/VM→Controller→实际Writer→Gateway→结果/回读；没有扩大其他设置映射、帧、原始TTP、网络签名或平台架构。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；75 PARTIAL/关闭及FA帧BLOCKED，76 CONDITIONAL。未运行App、无VEHICLE_VERIFIED。待精确提交。
