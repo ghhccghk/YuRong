@@ -430,10 +430,10 @@ class CloudConfiguredValueRefreshTest {
 
     @Test fun existingCloudBooleanMappingsDisplayBothExplicitStatesWithoutLiveTtp() = runBlocking {
         val fields = mapOf("9" to "alarmOn", "10" to "distanceOn",
-            "13" to "alarmSoundEnable", "15" to "vehiclePowerDownStatus", "16" to "dumpAlarm",
+            "13" to "alarmSoundEnable", "16" to "dumpAlarm",
             "17" to "resistanceOn", "24" to "emergencyContact", "25" to "passwordUnlockEnable",
             "40" to "colorEggSoundEffect", "47" to "chargeWattSwitch", "52" to "bleUnlockOn",
-            "53" to "bleApproachPowerOnEnable", "59" to "vehiclePowerDownStatus", "62" to "seatHeating",
+            "53" to "bleApproachPowerOnEnable", "62" to "seatHeating",
             "75" to "tamperProofIotEnable", "76" to "positioningFunc", "77" to "sleepMode",
             "82" to "lowBatTelWarning", "91" to "sosEmergencyCall")
         for (raw in listOf(0, 1)) {
@@ -456,6 +456,13 @@ class CloudConfiguredValueRefreshTest {
             lock.refresh()
             assertNull(lock.value("cloud:7").configuredValue)
             assertNull(lock.value("cloud:7").displayKind())
+            for (id in listOf("15", "59")) {
+                val timer = controller(FakeGateway(response("\"vehiclePowerDownStatus\":$raw,\"shutDownTime\":3", listOf(id))))
+                timer.refresh()
+                assertNull(timer.value("cloud:$id").configuredValue)
+                assertNull(timer.value("cloud:$id:time").configuredValue)
+                assertNull(timer.value("cloud:$id").displayKind())
+            }
         }
     }
 }

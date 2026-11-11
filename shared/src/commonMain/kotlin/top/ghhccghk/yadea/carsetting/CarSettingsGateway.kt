@@ -874,7 +874,7 @@ object CloudCarSettingMapper {
     internal fun configuredValue(cloud: CloudCarSettings, item: CarSettingItem): CarSettingKind? {
         // DTO declarations alone do not prove these pages use the similarly named
         // cloud fields. Their current value is established by the verified TTP path.
-        if (item.configId in SecondPhaseSettings.ids) return null
+        if (item.configId in SecondPhaseSettings.ids || item.configId in TimerSettings.ids) return null
         when (item.kind) {
             is CarSettingKind.LowPowerInfo -> {
                 val alarmOn = cloud.boolValue("alarmOn")
@@ -934,7 +934,6 @@ object CloudCarSettingMapper {
                 "9" -> "alarmOn"
                 "10" -> "distanceOn"
                 "13" -> "alarmSoundEnable"
-                "15", "59" -> "vehiclePowerDownStatus"
                 "16" -> "dumpAlarm"
                 "17" -> "resistanceOn"
                 "24" -> "emergencyContact"
@@ -1194,20 +1193,20 @@ object CloudCarSettingMapper {
             )
         }
         cloud.configs.firstOrNull { it.confId.trim() == "15" }?.let { config ->
-            val timeIndex = cloud.intValue("shutDownTime")?.coerceIn(0, 20) ?: 0
             items += CarSettingItem(
                 id = "cloud:15:time",
                 configId = "15",
                 title = "离车定时关机时间",
-                summary = "车辆静止超过设定时间后自动关机；原 App 中 0..2 分钟统一显示为 2min",
+                summary = "车辆静止超过设定时间后自动关机；可设置 2..20 分钟",
                 classification = classificationOf("15", config),
                 group = groupOf(config, classificationOf("15", config)),
                 channel = CarSettingChannel.BLE,
                 kind = CarSettingKind.Slider(
-                    value = timeIndex.toFloat(),
-                    range = 0f..20f,
-                    steps = 20,
+                    value = 2f,
+                    range = 2f..20f,
+                    steps = 17,
                     unit = " min",
+                    valueKnown = false,
                 ),
                 writable = config.isAuth != false,
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,
@@ -1252,7 +1251,6 @@ object CloudCarSettingMapper {
             )
         }
         cloud.configs.firstOrNull { it.confId.trim() == "59" }?.let { config ->
-            val timeIndex = cloud.intValue("shutDownTime")?.coerceIn(0, 20) ?: 0
             items += CarSettingItem(
                 id = "cloud:59:time",
                 configId = "59",
@@ -1262,8 +1260,9 @@ object CloudCarSettingMapper {
                 group = groupOf(config, classificationOf("59", config)),
                 channel = CarSettingChannel.BLE,
                 kind = CarSettingKind.Choice(
-                    selectedIndex = timeIndex,
-                    options = SHUTDOWN_TIME_OPTIONS,
+                    selectedIndex = -1,
+                    options = TimerSettings.shutdownOptions,
+                    valueKnown = false,
                 ),
                 writable = config.isAuth != false,
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,
@@ -1340,7 +1339,7 @@ object CloudCarSettingMapper {
                 channel = CarSettingChannel.BLE,
                 kind = CarSettingKind.Choice(
                     selectedIndex = 0,
-                    options = listOf("15 秒", "30 秒", "45 秒", "60 秒"),
+                    options = TimerSettings.homeOptions,
                     valueKnown = false,
                 ),
                 writable = config.isAuth != false,
@@ -1358,7 +1357,7 @@ object CloudCarSettingMapper {
                 channel = CarSettingChannel.BLE,
                 kind = CarSettingKind.Choice(
                     selectedIndex = 0,
-                    options = listOf("5", "10", "15", "30"),
+                    options = TimerSettings.delayOptions,
                     valueKnown = false,
                 ),
                 writable = config.isAuth != false,
@@ -1827,9 +1826,7 @@ object CloudCarSettingMapper {
             valueKnown = false,
         )
         // ScheduledShutDown2Activity 与 confId 15 使用同一组定时关机命令。
-        "59" -> CarSettingKind.Toggle(
-            cloud.boolValue("vehiclePowerDownStatus") == true,
-        )
+        "59" -> unknownToggle()
         // SOS 联系人页复用紧急联系人编辑器。
         "85" -> CarSettingKind.Info("在下方编辑车主与紧急联系人")
         // RadarActivity：雷达分项在下方追加。
@@ -1846,9 +1843,7 @@ object CloudCarSettingMapper {
         "39" -> unknownToggle()
         // 报失模式需要短信验证，统一在“诊断 · 定位与报失”中操作。
         "8" -> CarSettingKind.Info("请到“诊断 · 定位与报失”中操作")
-        "15" -> CarSettingKind.Toggle(
-            cloud.boolValue("vehiclePowerDownStatus") == true,
-        )
+        "15" -> unknownToggle()
         "21", "81" -> unknownToggle()
         "73" -> unknownToggle()
         "9" -> CarSettingKind.LowPowerInfo()
@@ -1919,9 +1914,6 @@ object CloudCarSettingMapper {
         in ENTRANCE_IDS, in SPECIAL_IDS -> CarSettingKind.Entrance()
         else -> CarSettingKind.Info("云端设置项，暂未接入写入")
     }
-
-    private val SHUTDOWN_TIME_OPTIONS =
-        listOf("30 秒") + (1..20).map { "$it 分钟" }
 
     /** 与 CustomizeKeyActivity.getFunctionId 的已确认映射一致。 */
     private val KEY_FUNCTION_OPTIONS = listOf(

@@ -26,6 +26,8 @@ data class VehicleSettingCommand(
             0xCB -> require(parameter in 70..100 && parameter % 5 == 0)
             0xCD -> require(parameter in BatteryCapacityOptions.valuesAh)
             0xD3 -> require(parameter in 0..2)
+            0x7D -> require(parameter in 0..20)
+            0x85 -> require(parameter in 0..3)
         }
         // Validate even callers that construct a composite command without the mapper.
         if (commandId == 0xC8 || commandType == "CUSTOMIZE_SETTING") {
@@ -102,6 +104,7 @@ class CloudCarSettingWriter(
     override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult {
         if (!CarSettingItemAccess.canWrite(item)) return CarSettingWriteResult(false)
         if (item.configId in BatterySettings.ids && !BatterySettings.validItem(item)) return CarSettingWriteResult(false)
+        if (item.configId in TimerSettings.ids && !TimerSettings.validItem(item)) return CarSettingWriteResult(false)
         if ((item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids) &&
             VehicleSettingCommands.forItem(item) == null
         ) return CarSettingWriteResult(false)
@@ -135,7 +138,7 @@ object VehicleSettingCommands {
 
     fun supports(configId: String, kind: CarSettingKind): Boolean =
         // Capability must survive unknown initial values; forItem/forConfigId validate writes.
-        BatterySettings.supports(configId, kind) ||
+        TimerSettings.supports(configId, kind) || BatterySettings.supports(configId, kind) ||
             (configId in setOf("55", "92") && kind is CarSettingKind.Customize) ||
             (configId in setOf("4", "58", "61") && kind is CarSettingKind.Slider) ||
             (configId in SecondPhaseSettings.ids && when (configId) {
@@ -146,7 +149,7 @@ object VehicleSettingCommands {
 
     fun supportsItem(item: CarSettingItem): Boolean =
         if (item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids ||
-            item.configId in BatterySettings.ids) supports(item.configId, item.kind)
+            item.configId in BatterySettings.ids || item.configId in TimerSettings.ids) supports(item.configId, item.kind)
         else forItem(item)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     /**
@@ -398,7 +401,7 @@ object VehicleSettingCommands {
                 )
             }
             // ScheduledShutDown2Activity：定时关机。
-            "59" -> when (kind) {
+            "59" -> if (!TimerSettings.validTarget(configId, kind)) null else when (kind) {
                 is CarSettingKind.Toggle -> toggle(
                     kind = kind,
                     onType = "VEHICLE_MANDATORY_POWER_DOWN_OPEN",
@@ -409,7 +412,7 @@ object VehicleSettingCommands {
                 is CarSettingKind.Choice -> VehicleSettingCommand(
                     commandType = "VEHICLE_MANDATORY_POWER_DOWN_TIME",
                     commandId = 0x7D,
-                    parameter = kind.selectedIndex.coerceIn(0, 20),
+                    parameter = kind.selectedIndex,
                 )
                 else -> null
             }
@@ -431,7 +434,7 @@ object VehicleSettingCommands {
                     parameter = choice.selectedIndex,
                 )
             }
-            "15" -> when (kind) {
+            "15" -> if (!TimerSettings.validTarget(configId, kind)) null else when (kind) {
                 is CarSettingKind.Toggle -> toggle(
                     kind = kind,
                     onType = "VEHICLE_MANDATORY_POWER_DOWN_OPEN",
@@ -442,12 +445,7 @@ object VehicleSettingCommands {
                 is CarSettingKind.Slider -> VehicleSettingCommand(
                     commandType = "VEHICLE_MANDATORY_POWER_DOWN_TIME",
                     commandId = 0x7D,
-                    parameter = kind.value.toInt().coerceIn(0, 20),
-                )
-                is CarSettingKind.Choice -> VehicleSettingCommand(
-                    commandType = "VEHICLE_MANDATORY_POWER_DOWN_TIME",
-                    commandId = 0x7D,
-                    parameter = kind.selectedIndex.coerceIn(0, 20),
+                    parameter = kind.value.toInt(),
                 )
                 else -> null
             }
@@ -526,7 +524,7 @@ object VehicleSettingCommands {
             }
             // CustomizeKeyActivity：默认按短按命令判断可写性，具体条目在 forItem 区分。
             "1005" -> keyFunctionCommand(kind, short = true)
-            "21", "81" -> when (kind) {
+            "21", "81" -> if (!TimerSettings.validTarget(configId, kind)) null else when (kind) {
                 is CarSettingKind.Toggle -> toggle(
                     kind = kind,
                     onType = "COMMAND_WITH_GO_HOME_OPEN",
@@ -537,7 +535,7 @@ object VehicleSettingCommands {
                 is CarSettingKind.Choice -> VehicleSettingCommand(
                     commandType = "COMMAND_WITH_GO_HOME_TIME_SETTING",
                     commandId = 0x85,
-                    parameter = kind.selectedIndex.coerceIn(0, 3),
+                    parameter = kind.selectedIndex,
                 )
                 else -> null
             }
@@ -756,6 +754,10 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        if (item.configId in TimerSettings.ids) {
+            if (!TimerSettings.validItem(item)) return null
+            return forConfigId(item.configId, item.kind)
+        }
         if (item.configId in BatterySettings.ids) {
             if (!BatterySettings.validItem(item)) return null
             return forConfigId(item.configId, item.kind)
