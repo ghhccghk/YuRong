@@ -32,7 +32,8 @@ class SimpleToggleSettingsSafetyTest {
             tcsWorkMode = if (raw in 0..1) 1 - raw else raw, absFunctionStatus = raw,
             steepSlopeState = raw, rampSlopeState = raw, tPowerStatus = raw, quickBrakeLightStatus = raw,
             longEnduranceStatus = if (raw in 0..1) 1 - raw else raw, seatPowerStatus = raw,
-            otdSwitch = raw, blueLightSwitch = raw, trackModeStatus = raw, gearMemorySettingFeedback = raw))
+            otdSwitch = raw, blueLightSwitch = raw, trackModeStatus = raw, gearMemorySettingFeedback = raw,
+            tiltWarningStatus = raw, reversingState = raw, helpCarState = raw, constSpeedState = raw))
         c.updateVehicleObservation(VehicleStatusObservation(vin, info, origin, seq))
     }
 
@@ -76,6 +77,10 @@ class SimpleToggleSettingsSafetyTest {
                 "84" -> 0x136
                 "90" -> 0x13F
                 "94" -> 0x144
+                "32" -> if (on) 0xA0 else 0xA1
+                "43" -> if (on) 0xA6 else 0xA7
+                "44" -> if (on) 0xA8 else 0xA9
+                "45" -> if (on) 0xAA else 0xAB
                 else -> 0xC7
             }, command.commandId)
             assertEquals(when (id) {
@@ -86,7 +91,7 @@ class SimpleToggleSettingsSafetyTest {
             assertNotNull(VehicleSettingFrameEncoder.encode(command))
             assertNull(CloudCarSettingUpdateBuilder.build(id, CarSettingKind.Toggle(on), "VIN-A"))
         }
-        assertEquals(32, sent.size)
+        assertEquals(40, sent.size)
     }
 
     @Test fun forgedStableIdAndWrongKindCannotBypassValidation() = runBlocking {
@@ -178,6 +183,20 @@ class SimpleToggleSettingsSafetyTest {
             try { VehicleSettingCommand(type, id, raw); fail("invalid direct switch parameter") }
             catch (_: IllegalArgumentException) { }
         }
+    }
+
+    @Test fun cruiseSettingConsumesOnlyPageBoundConstSpeedStateRatherThanOtherCruiseBit() = runBlocking {
+        val c = controller(); assertTrue(c.refresh())
+        for (raw in 0..1) {
+            val info = unknown.copy(cruiseControl = 1 - raw, extended = unknown.extended.copy(constSpeedState = raw))
+            c.updateVehicleObservation(VehicleStatusObservation("VIN-A", info, VehicleStatusOrigin.LIVE_TTP, raw + 1L))
+            val value = c.state.value.valueState("cloud:45")
+            assertEquals(CarSettingKind.Toggle(raw == 1), (value.vehicleValue as VehicleSettingValue.Known).kind)
+            assertNull(value.configuredValue)
+        }
+        c.updateVehicleObservation(VehicleStatusObservation("VIN-A", unknown.copy(cruiseControl = 1),
+            VehicleStatusOrigin.LIVE_TTP, 3))
+        assertFalse((c.state.value.valueState("cloud:45").vehicleValue as VehicleSettingValue.Known).live)
     }
 
     @Test fun refreshKeepsDraftAndReceiptWaitsForPostWriteObservation() = runBlocking {

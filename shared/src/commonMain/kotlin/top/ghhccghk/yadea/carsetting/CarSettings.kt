@@ -1060,8 +1060,8 @@ class CarSettingsController(
                     }.flagOrNull(),
                 )
                 "2" -> item.withToggle(status.extended.sideBraceStatus.flagOrNull())
-                "32" -> item.withToggle(status.extended.tiltWarningStatus.flagOrNull())
-                "45" -> item.withToggle(status.cruiseControl.flagOrNull())
+                "32" -> item.withToggle(SimpleToggleSettings.flag(status.extended.tiltWarningStatus))
+                "45" -> item.withToggle(SimpleToggleSettings.flag(status.extended.constSpeedState))
                 "27" -> item.withIndex(
                     status.extended.offModeStatus.takeIf { it in 0..1 },
                 )
@@ -1091,8 +1091,8 @@ class CarSettingsController(
                 "42" -> item.withToggle(
                     status.extended.remainingMileageDebugStatus.flagOrNull(),
                 )
-                "43" -> item.withToggle(status.extended.reversingState.flagOrNull())
-                "44" -> item.withToggle(status.extended.helpCarState.flagOrNull())
+                "43" -> item.withToggle(SimpleToggleSettings.flag(status.extended.reversingState))
+                "44" -> item.withToggle(SimpleToggleSettings.flag(status.extended.helpCarState))
                 "60" -> when {
                     item.id.endsWith(":enable") -> item.withToggle(
                         BatterySettings.flag(status.extended.capacitySwitchStatus),

@@ -41,7 +41,7 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 26 转向灯自动回位 | com/yadea/smartmoto/vehicle/view/TurnSignalActivity.smali:283 | turnSignalReturnsAutomaticallyStatus | COMMAND_DIRECTION_LIGHT_RESET_OFF, COMMAND_DIRECTION_LIGHT_RESET_ON | A06：严格已知开关/稳定ID/失效观察降级；同VIN新鲜回读确认。36关闭二次确认；53无已证实云端配置，禁用猜测字段 | P0 / COMPLETE / A06（BLE；无运行/实车验证） |
 | 27 设防模式 | com/yadea/smartmoto/vehicle/view/ArmedModeActivity.smali:231 | offModeStatus | FORTIFY_MODE_AUTO, FORTIFY_MODE_NO | A03：TTP回填已核；显式Choice→Controller→forItem→MappedWriter，最终边界拒绝未知/越界/伪造选项；无云端猜测 | P0 / COMPLETE / A03 |
 | 31 速度单位 | com/yadea/smartmoto/vehicle/view/SpeedUnitActivity.smali:232<br>com/yadea/smartmoto/vehicle/view/DistanceUnitActivity.smali:156 | metricSystemStatus | IMPERIAL_UNIT_KM, IMPERIAL_UNIT_MILES | A03：TTP回填已核；显式Choice→Controller→forItem→MappedWriter，最终边界拒绝未知/越界/伪造选项；无云端猜测 | P0 / COMPLETE / A03 |
-| 32 倾倒提醒 | com/yadea/smartmoto/vehicle/view/DumpWarningActivity.smali:144 | tiltWarningStatus | TILT_WARNING_CLOSE, TILT_WARNING_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 32 倾倒提醒 | com/yadea/smartmoto/vehicle/view/DumpWarningActivity.smali:144 | tiltWarningStatus | TILT_WARNING_CLOSE, TILT_WARNING_OPEN | A10：严格已知开关/稳定ID/无效观察；45改用原页constSpeedState | P0 / COMPLETE / A10（BLE；无运行/实车验证） |
 | 33 模拟声浪 | com/yadea/smartmoto/vehicle/view/SimulatedSoundActivity.smali:333 | simulatedSoundWaveStatus | SIMULATED_SOUND_WAVE_CLOSE, SIMULATED_SOUND_WAVE_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 36 刹车断电 | com/yadea/smartmoto/vehicle/view/BrakePowerOffActivity.smali:155 | brakePowerDownFunctionStatus | BRAKE_OUTAGE_CLOSE, BRAKE_OUTAGE_OPEN | A06：严格已知开关/稳定ID/失效观察降级；同VIN新鲜回读确认。36关闭二次确认；53无已证实云端配置，禁用猜测字段 | P0 / COMPLETE / A06（BLE；无运行/实车验证） |
 | 37 TCS 车身稳定 | com/yadea/smartmoto/vehicle/view/BodyStabilityActivity.smali:154 | tcsWorkMode | TCS_BODY_STABILITY, TCS_BODY_STABILITY | A07：严格已知开关、稳定ID、失效观察降级；TCS0..7合法域；同VIN新鲜回读确认 | P0 / COMPLETE / A07（BLE；无运行/实车验证） |
@@ -50,9 +50,9 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 40 彩蛋音效 | com/yadea/smartmoto/vehicle/view/EggSoundActivity.smali:306 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 41 自定义音效 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 42 车辆显示剩余里程 | com/yadea/smartmoto/vehicle/view/ShowInstrumentEnduranceActivity.smali:260 | remainingMileageDebugStatus | DISPLAY_REMAINING_MILEAGE_CLOSE, DISPLAY_REMAINING_MILEAGE_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 43 倒车模式 | com/yadea/smartmoto/vehicle/view/ReversingFunctionActivity.smali:144 | reversingState | REVERSING_CLOSE, REVERSING_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 44 婴儿车模式 | com/yadea/smartmoto/vehicle/view/HelpPromoteActivity.smali:144 | helpCarState | STROLLER_CLOSE, STROLLER_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 45 定速巡航 | com/yadea/smartmoto/vehicle/view/ConstantSpeedModeActivity.smali:144 | cruiseControl | CONST_SPEED_CLOSE, CONST_SPEED_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 43 倒车模式 | com/yadea/smartmoto/vehicle/view/ReversingFunctionActivity.smali:144 | reversingState | REVERSING_CLOSE, REVERSING_OPEN | A10：严格已知开关/稳定ID/无效观察；45改用原页constSpeedState | P0 / COMPLETE / A10（BLE；无运行/实车验证） |
+| 44 婴儿车模式 | com/yadea/smartmoto/vehicle/view/HelpPromoteActivity.smali:144 | helpCarState | STROLLER_CLOSE, STROLLER_OPEN | A10：严格已知开关/稳定ID/无效观察；45改用原页constSpeedState | P0 / COMPLETE / A10（BLE；无运行/实车验证） |
+| 45 定速巡航 | com/yadea/smartmoto/vehicle/view/ConstantSpeedModeActivity.smali:144 | constSpeedState | CONST_SPEED_CLOSE, CONST_SPEED_OPEN | A10：严格已知开关/稳定ID/无效观察；45改用原页constSpeedState | P0 / COMPLETE / A10（BLE；无运行/实车验证） |
 | 46 陡坡缓降 | com/yadea/smartmoto/vehicle/activity/SlopeDescentActivity.smali:154 | steepSlopeState | BLE_SLOP_DESCENT_CLOSE, BLE_SLOP_DESCENT_OPEN | A07：严格已知开关、稳定ID、失效观察降级；TCS0..7合法域；同VIN新鲜回读确认 | P0 / COMPLETE / A07（BLE；无运行/实车验证） |
 | 47 充电功率 | com/yadea/smartmoto/vehicle/view/ChargingPowerActivity.smali:628 | batteryChargingPowerStatus, batteryChargingPowerValue | COMMAND_CONST_CHARGING_POWER_STATE, COMMAND_CONST_CHARGING_POWER_STATE, COMMAND_CONST_CHARGING_POWER_VALUE | 已确认默认/钳位写入缺陷；原始参数复核后修复 | P0 / PARTIAL / A01 |
 | 48 充电上限 | com/yadea/smartmoto/vehicle/view/ChargeCapActivity.smali:438 | 无 Controller 分支；独立流程另查 | COMMAND_CONST_CHARGING_LIMIT_VALUE | 已确认默认/钳位写入缺陷；原始参数复核后修复 | P0 / PARTIAL / A01 |
@@ -218,3 +218,12 @@ A08验证：31/31精确过滤测试及全部离线构建退出0；STATIC_FLOW_VE
 - 修正80/84/94原KMP注释及0开1关错误参数；90方向原本正确。四项复用严格known/稳定ID/失效观察/在途刷新，最终132/136/13F/144拒绝非0/1。
 
 A09：32/32精确过滤测试及全部离线构建退出0；STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无运行/车辆验证。
+
+## A10：ID32/43/44/45（独立复审及验证完成）
+
+- `vehicle/view/DumpWarningActivity`、`ReversingFunctionActivity`、`HelpPromoteActivity`、`ConstantSpeedModeActivity`的onSwClick均50–108、getSettingConfigId均144，分别32/43/44/45；原触摸回调取旧checked反值，单独开/关命令，无兄弟参数。
+- `qg.smali`：TILT_WARNING_OPEN/CLOSE:2680/2941→A0/A1；REVERSING:4448/3747→A6/A7；STROLLER:6414/3453→A8/A9；CONST_SPEED:4136/5940→AA/AB。原s20无这些命令云端分支。
+- `VehicleSettingViewModel.smali`：tiltWarningStatus21142–21201、reversingState22099–22156、helpCarState22160–22217、constSpeedState22221–22277，均1开/0关。`ActivityConstantSpeedModeBindingImpl:631–661,754–756`→U2；`VehicleSettingViewModel.U2:17583–17601`→V1；V1由constSpeedState回填，原KMP误用cruiseControl，现修正。既有TTP解析已提供constSpeedState，无原始解析修改。
+- UI→Controller→CloudWriter BLE分流→MappedWriter→forItem/forConfigId→既有固定命令/编码；扩展严格已知性/稳定ID/无效观察与在途保护，未改变其他设置。没有云端猜测字段。
+
+A10：33/33精确过滤测试、全部离线构建和diff检查退出0；STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无运行/车辆验证。
