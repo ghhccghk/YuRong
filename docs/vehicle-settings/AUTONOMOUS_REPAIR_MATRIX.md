@@ -49,7 +49,7 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 39 边撑自动关机 | com/yadea/smartmoto/vehicle/view/BraceAutoShutDownActivity.smali:376 | leaveVehicleAutoLockStatus, leaveVehicleAutoLockTimeStatus, sideBraceStatus | LEAVE_THE_CAR_AUTO_LOCK_OFF, LEAVE_THE_CAR_AUTO_LOCK_ON, LEAVE_THE_CAR_AUTO_LOCK_TIME | 当前 HEAD329effd已修TTP/独立参数/取消/VIN；7/39车型门控证据限制保留UNKNOWN | P2 / PARTIAL / 基线复核 |
 | 40 彩蛋音效 | vehicle/view/EggSoundActivity.smali:88–207,306 | 无原页TTP证据 | 无BLE映射 | A13：colorEggSoundEffect配置/开启，关闭CLEAR_SOUND_EFFECT=7（修正旧0），valueJson同7；严格UNKNOWN/稳定ID | P0 / COMPLETE（云端；无运行/实车验证） / A13 |
 | 41 自定义音效 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 42 车辆显示剩余里程 | com/yadea/smartmoto/vehicle/view/ShowInstrumentEnduranceActivity.smali:260 | remainingMileageDebugStatus | DISPLAY_REMAINING_MILEAGE_CLOSE, DISPLAY_REMAINING_MILEAGE_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 42 车辆显示剩余里程 | com/yadea/smartmoto/vehicle/view/ShowInstrumentEnduranceActivity.smali:58–218,260 | remainingMileageDebugStatus | DISPLAY_REMAINING_MILEAGE_CLOSE/OPEN，A5/A4 | A14：严格TTP开关；开启先读同VIN cal2资格，非空提示仅说明不发送；Controller→带本次资格的Item→实际Writer→命令；接受与回读分离 | P0 / CONDITIONAL / A14（无运行/实车验证） |
 | 43 倒车模式 | com/yadea/smartmoto/vehicle/view/ReversingFunctionActivity.smali:144 | reversingState | REVERSING_CLOSE, REVERSING_OPEN | A10：严格已知开关/稳定ID/无效观察；45改用原页constSpeedState | P0 / COMPLETE / A10（BLE；无运行/实车验证） |
 | 44 婴儿车模式 | com/yadea/smartmoto/vehicle/view/HelpPromoteActivity.smali:144 | helpCarState | STROLLER_CLOSE, STROLLER_OPEN | A10：严格已知开关/稳定ID/无效观察；45改用原页constSpeedState | P0 / COMPLETE / A10（BLE；无运行/实车验证） |
 | 45 定速巡航 | com/yadea/smartmoto/vehicle/view/ConstantSpeedModeActivity.smali:144 | constSpeedState | CONST_SPEED_CLOSE, CONST_SPEED_OPEN | A10：严格已知开关/稳定ID/无效观察；45改用原页constSpeedState | P0 / COMPLETE / A10（BLE；无运行/实车验证） |
@@ -252,3 +252,15 @@ A10：33/33精确过滤测试、全部离线构建和diff检查退出0；STATIC_
 - 当前链：既有AppSwitchPreference（双主题）→Controller草稿/提交完整已知目标→CloudWriter稳定ID校验→16/40 Builder→既有Gateway；13→MappedWriter→forItem/forConfigId→已有62/63。直接Builder拒绝未知/错误类型，直接Writer拒绝伪造split ID。刷新保护本批在途操作，取消/VIN/代次沿原设施。结果确认只CONFIRMED_BY_RESULT，不建立车辆观察；16/40重新刷新回填configuredValue，不伪造TTP或车辆执行。
 - 34/34精确Fake过滤测试、JVM/JS/Wasm/测试源码编译、Android Debug/Desktop构建及diff退出0。首次1条失败是新测试忽略已有同VIN加载去重，修正为断言去重和A→B→A代次隔离；未放宽生产校验。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无App运行/车辆验证。
 - 同时只读跟踪42：`ShowInstrumentEnduranceActivity.onSwClick:58–218`在k5非空且旧开关off时只显示提示，不发送开启；k5 getter `VehicleSettingViewModel:28352–28370`→q2，`x(RemainingMileageData):31877–32030`使用formula/count/estimateMileage/prompt。独立资格链后续批次处理，不能直接等同于普通开关。
+
+
+### A14：42剩余里程显示（独立复审）
+
+- 原页`com/yadea/smartmoto/vehicle/view/ShowInstrumentEnduranceActivity.smali:getSettingConfigId:260`=42；`onSwClick:58–218`读取VM.k5，旧开关关闭且提示非空时仅显示“温馨提示/我知道了”；`:220–224`按钮回调为空，不能把确认按钮理解为允许强制开启。其他情况独立OPEN/CLOSE，`qg:1742–1762/4879–4898`→A5/A4。
+- 原TTP `VehicleSettingViewModel:22040–22095`→remainingMileageDebugStatus，==1为开；页面Binding→Z0。没有已证实云端开关配置字段；资格不是开关配置。
+- `jp6.h:247–329` GET bikeRealStatus/getVehRealStatus，`jp6.i:331–557`从VehicleStatusBean.soc1/soc2构造GET vehiclebase/estimateMileage/cal2，空SOC仅作为请求字符串0回退；`jp6.l:880–887`调用h/i。`jp6$d.e:131–183`成功通过b32.x传RemainingMileageData；失败/null经s提示错误。VM.s:30481只显示错误，不代表资格成立。
+- `RemainingMileageData:9–18`原字段formula:Int、count:Int、estimateMileage:Double、prompt:String?。`VM.x:31877–32030`：formula1/count>0显示剩余次数，否则固定等待提示；formula2/count>0同前，否则estimate<=0固定提示、>0用prompt；其他formula用prompt。KMP逐分支保留，所需字段缺失/非法/非有限值保留UNKNOWN；没有默认primitive字段，更不由count单独推算资格。
+- 最小新增RemainingMileageEligibility只承载同VIN的本次请求提示；不进入configured/vehicle/cache/draft。Gateway用现有transport、签名及headers执行上述两个已有GET；没有更改通用网络和原有路径。Controller开启时新读资格，在途禁止重复/刷新；VIN/代次改变后丢弃结果。关闭无需资格。
+- 资格仅附在本次submitted Item，Controller不持久化。CloudWriter校验VIN及资格，MappedWriter/forItem要求完整资格；直接forConfigId无法绕过开启门控。原始A4/A5协议、无参数帧和编码器不变；原始协议命令本身不负责云端资格业务。UI复用双主题AppAlertDialog，提示确认只清提示。
+- TTP只接受0/1；非法/缺失撤销live资格，缓存不作为LIVE。发送接受仍WAITING_READBACK；资格请求期间收到的TTP不能确认后续写入，只有写入后新鲜同VIN观察建立READBACK_MATCHED。
+- CONDITIONAL：依赖云端资格响应与BLE连接。STATIC_FLOW_VERIFIED；Fake及构建结果见历史。无运行或车辆验证。

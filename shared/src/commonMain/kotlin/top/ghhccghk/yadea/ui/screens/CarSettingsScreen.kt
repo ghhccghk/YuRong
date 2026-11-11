@@ -488,6 +488,16 @@ fun CarSettingsScreen(
         }
     }
 
+    AppAlertDialog(
+        show = state.message != null && state.valueState("cloud:42").error == state.message,
+        title = "温馨提示",
+        message = state.message.orEmpty(),
+        confirmText = "我知道了",
+        dismissText = null,
+        onConfirm = controller::clearMessage,
+        onDismissRequest = controller::clearMessage,
+    )
+
     val safetyTarget = confirmDisable
     AppAlertDialog(
         show = safetyTarget != null,

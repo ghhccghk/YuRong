@@ -201,6 +201,8 @@ data class CarSettingItem(
     val configId: String = id,
     /** Read-only cloud companion values; never inferred from a control placeholder. */
     val geofenceConfiguration: GeofenceConfiguration? = null,
+    /** Only attached to a single ID42 submission after a same-VIN eligibility read. */
+    val remainingMileageEligibility: RemainingMileageEligibility? = null,
 )
 
 enum class CarSettingConfirmationStatus {
@@ -421,7 +423,7 @@ class CarSettingsController(
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
                         configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids ||
                         configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids ||
-                        configId in CloudSwitchSettings.ids || configId in setOf("10", "73")
+                        configId in CloudSwitchSettings.ids || configId in setOf("10", "73", "42")
                 }
             }) {
             _state.value = _state.value.copy(message = "设置正在提交，请完成后刷新")
@@ -634,6 +636,7 @@ class CarSettingsController(
         item.configId !in TimerSettings.ids || TimerSettings.validItem(item.copy(kind = target))
 
     private fun validSimpleChoiceTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
+        (item.configId != "42" || RemainingMileageSettings.validItem(item.copy(kind = target))) &&
         (item.configId !in SimpleChoiceSettings.ids || SimpleChoiceSettings.validItem(item.copy(kind = target))) &&
             (item.configId !in SimpleToggleSettings.ids || SimpleToggleSettings.validItem(item.copy(kind = target))) &&
             (item.configId !in CloudSwitchSettings.ids || CloudSwitchSettings.validItem(item.copy(kind = target))) &&
@@ -742,7 +745,7 @@ class CarSettingsController(
         val operation = WriteOperation(++nextOperationId, vin, loadGeneration)
         activeOperations[id] = operation
         pendingVehicleConfirmations.remove(id)
-        val submitted = item.copy(kind = target)
+        var submitted = item.copy(kind = target)
         changeValueState(id) {
             it.copy(draftValue = null, submittedValue = target, operationId = operation.id,
                 writeState = SettingWriteState.PREPARING, writeChannel = null,
@@ -755,6 +758,22 @@ class CarSettingsController(
                 delay(debounceMs)
             }
             if (!isCurrentOperation(id, operation)) return false
+            if (item.configId == "42" && (target as CarSettingKind.Toggle).checked) {
+                val eligibility = try {
+                    gateway?.loadRemainingMileageEligibility(vin)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    null
+                }
+                if (!isCurrentOperation(id, operation)) return false
+                if (eligibility == null || eligibility.vin != vin || !eligibility.allowed) {
+                    finishFailure(id, eligibility?.takeIf { it.vin == vin }?.prompt?.takeIf { it.isNotBlank() }
+                        ?: "剩余里程开启资格未知，请刷新后重试", SettingConfirmationState.FAILED)
+                    return false
+                }
+                submitted = submitted.copy(remainingMileageEligibility = eligibility)
+            }
             val observedGeneration = vehicleStatusGeneration
             changeValueState(id) { it.copy(writeState = SettingWriteState.SUBMITTING) }
             val writeResult = try {
@@ -1104,7 +1123,7 @@ class CarSettingsController(
                     else -> item
                 }
                 "42" -> item.withToggle(
-                    status.extended.remainingMileageDebugStatus.flagOrNull(),
+                    SimpleToggleSettings.flag(status.extended.remainingMileageDebugStatus),
                 )
                 "43" -> item.withToggle(SimpleToggleSettings.flag(status.extended.reversingState))
                 "44" -> item.withToggle(SimpleToggleSettings.flag(status.extended.helpCarState))
@@ -1214,7 +1233,7 @@ class CarSettingsController(
                     val audited = configId in setOf("4", "58", "61", "55", "92") ||
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
                         configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids ||
-                        configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids || configId == "73"
+                        configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids || configId in setOf("73", "42")
                     value.copy(readbackState = SettingReadbackState.MISSING_OR_INVALID,
                         vehicleValue = if (audited) value.vehicleValue.copy(live = false) else value.vehicleValue)
                 } else value

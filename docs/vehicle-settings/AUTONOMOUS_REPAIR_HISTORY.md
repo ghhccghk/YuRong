@@ -183,3 +183,17 @@
 - 独立复审UI→Controller→实际Writer→Builder/命令：16/40没有BLE绑定/车辆回读，不把结果确认充当车辆值；13无读值时UI保持UNKNOWN禁用。没有修改协议、编码、网络架构及原始解析。
 - `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。精确过滤使用上述五个完整类名/方法；缓存均C:\Users\DozenOregano696\.gradle。
 - STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。13底层WRITE_ONLY、读取BLOCKED；16/40云端必要链路COMPLETE，不代表车辆已确认。待精确提交。
+
+
+### A13提交核对 / A14起点
+
+- A13提交041f0b126af4940b6e677533cd3d214ec1958381，11文件；tracked/index干净，原有12项untracked保持，无外部提交。
+
+## A14（独立复审及验证完成）
+
+- ID42缺少原页资格门控：补同VIN GET状态→cal2→公式/提示解释→Controller→本次资格Item→实际Writer→A4/A5；UNKNOWN不能开启，非空提示仅说明，关闭独立。严格TTP0/1、无效live撤销、在途刷新及VIN/代次保护；不改变协议、编码、原始TTP、通用网络或其他设置项。
+- 新RemainingMileageSettingsSafetyTest13项：公式分支、非法/缺失、请求格式、失败/取消、同VIN/新鲜度、草稿、旧VIN资格、直接Writer/Mapper绕过、资格读取期间观察不能确认后续写入。加Controller17、Golden3，共33/33，精确过滤退出0。
+- 首次过滤命令编译退出1（误用了未引入JSON库，已改复用已有JsonSupport）；第二次31项失败4项（新测试错误假设目录只有一个项目、误把乐观display当vehicleValue），更正为按稳定ID选取及分别断言submitted/vehicle后31/31；补两项边界后33/33。没有放宽校验或删除断言。
+- 命令：`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.RemainingMileageSettingsSafetyTest --tests top.ghhccghk.yadea.carsetting.CarSettingsControllerTest --tests top.ghhccghk.yadea.carsetting.VehicleSettingGoldenFrameTest --offline --console=plain`。全部Fake/内存，不调用真实云端或车辆。
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。缓存C:\Users\DozenOregano696\.gradle。
+- 独立重走原页→VM/jp6回调→Gateway→Controller→实际Writer→命令；资格在等待期间的新观察不算写入后确认，关闭无需资格，确认提示不发送命令。UI只复用AppAlertDialog，无主题/平台改动。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；CONDITIONAL，无RUNTIME_VERIFIED/VEHICLE_VERIFIED。待精确提交。

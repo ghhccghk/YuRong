@@ -139,6 +139,7 @@ class CloudCarSettingWriter(
         ) return CarSettingWriteResult(false)
         val vin = vinProvider().trim()
         if (vin.isBlank()) return CarSettingWriteResult(false)
+        if (item.configId == "42" && !RemainingMileageSettings.authorized(item, vin)) return CarSettingWriteResult(false)
         val update = CloudCarSettingUpdateBuilder.build(
             configId = item.configId,
             kind = item.kind,
@@ -180,13 +181,14 @@ object VehicleSettingCommands {
                 "5" -> kind is CarSettingKind.Choice
                 else -> kind is CarSettingKind.Toggle || kind is CarSettingKind.Choice
             }) ||
+            (configId == "42" && kind is CarSettingKind.Toggle) ||
             forConfigId(configId, kind)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     fun supportsItem(item: CarSettingItem): Boolean =
         if (item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids ||
             item.configId in BatterySettings.ids || item.configId in TimerSettings.ids ||
             item.configId in SimpleChoiceSettings.ids || item.configId in SimpleToggleSettings.ids ||
-            item.configId in VolumeBrightnessSettings.ids || item.configId in EnergyRecoverySettings.ids || item.configId == "73") supports(item.configId, item.kind)
+            item.configId in VolumeBrightnessSettings.ids || item.configId in EnergyRecoverySettings.ids || item.configId in setOf("73", "42")) supports(item.configId, item.kind)
         else forItem(item)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     /**
@@ -490,7 +492,7 @@ object VehicleSettingCommands {
                 )
                 else -> null
             }
-            "42" -> toggle(
+            "42" -> if (kind !is CarSettingKind.Toggle || !kind.valueKnown || kind.checked) null else toggle(
                 kind = kind,
                 onType = "DISPLAY_REMAINING_MILEAGE_OPEN",
                 offType = "DISPLAY_REMAINING_MILEAGE_CLOSE",
@@ -797,6 +799,12 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        if (item.configId == "42") {
+            if (!RemainingMileageSettings.authorized(item)) return null
+            return if ((item.kind as CarSettingKind.Toggle).checked)
+                VehicleSettingCommand("DISPLAY_REMAINING_MILEAGE_OPEN", 0xA4)
+            else forConfigId("42", item.kind)
+        }
         if (item.configId in EnergyRecoverySettings.ids) {
             if (!EnergyRecoverySettings.validItem(item)) return null
             return forConfigId(item.configId, item.kind)

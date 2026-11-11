@@ -48,6 +48,7 @@ data class CloudCarSettings(
 
 interface CarSettingsGateway {
     suspend fun load(vin: String): CloudCarSettings?
+    suspend fun loadRemainingMileageEligibility(vin: String): RemainingMileageEligibility? = null
     suspend fun update(vin: String, update: CloudCarSettingUpdate): Boolean = false
     suspend fun checkStatus(configId: String): Boolean? = null
 }
@@ -324,6 +325,31 @@ class YadeaCarSettingsGateway(
     private val timestampProvider: () -> Long,
     private val baseUrl: String = DEFAULT_BASE_URL,
 ) : CarSettingsGateway, CustomSoundGateway {
+
+    override suspend fun loadRemainingMileageEligibility(vin: String): RemainingMileageEligibility? {
+        val normalizedVin = vin.trim()
+        val token = tokenProvider().trim()
+        if (normalizedVin.isBlank() || token.isBlank()) return null
+        // jp6.h/i:247–557: cloud SOC -> cal2. The string "0" is only the
+        // original request fallback, never a setting value or an eligibility result.
+        val status = remainingMileageGet("bikeRealStatus/getVehRealStatus", mapOf("vin" to normalizedVin), token)
+            ?: return null
+        fun soc(key: String): String = textOrNumber(status, key)?.takeIf { it.isNotBlank() } ?: "0"
+        val data = remainingMileageGet("vehiclebase/estimateMileage/cal2",
+            mapOf("vin" to normalizedVin, "soc1" to soc("soc1"), "soc2" to soc("soc2")), token) ?: return null
+        return RemainingMileageSettings.parse(normalizedVin, data)
+    }
+
+    private suspend fun remainingMileageGet(path: String, fields: Map<String, String>, token: String): String? {
+        val signed = GatewaySigner.formBody(sortedJson(fields + ("_gateway" to "True")), timestampProvider())
+        val response = transport.execute(HttpRequest(method = "GET", url = baseUrl + path + "?" + signed,
+            headers = GatewayRequestHeaders.build(clientInfoProvider(), deviceIdProvider(), token))) ?: return null
+        if (response.status !in 200..299) return null
+        val decoded = Crypto.urlDecode(response.body.trim())
+        val plain = Crypto.aesEcbPkcs5Decrypt(GatewaySigner.AES_KEY, decoded) ?: decoded
+        if (JsonSupport.boolean(plain, "success") != true) return null
+        return JsonSupport.objectField(plain, "data")
+    }
 
     override suspend fun load(vin: String): CloudCarSettings? {
         val token = tokenProvider().trim()
