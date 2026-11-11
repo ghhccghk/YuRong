@@ -33,6 +33,7 @@ data class VehicleSettingCommand(
             0xC7 -> require(parameter in 0..1)
             0x9D -> require(parameter in 0..7) // BleBicycleCommandManager:2741–2749, not a guessed boolean domain.
             0xCF, 0xD9, 0xDD, 0xFB1 -> require(parameter in 0..1)
+            0x132, 0x136, 0x13F, 0x144 -> require(parameter in 0..1)
         }
         // Validate even callers that construct a composite command without the mapper.
         if (commandId == 0xC8 || commandType == "CUSTOMIZE_SETTING") {
@@ -292,15 +293,15 @@ object VehicleSettingCommands {
                 onParameter = 1,
                 offParameter = 0,
             )
-            // OTDActivity：0 表示开启，1 表示关闭。
+            // OTDActivity.onSwClick：旧开关取反，1=开、0=关。
             "80" -> toggle(
                 kind = kind,
                 onType = "COMMAND_OTD_SWITCH",
                 offType = "COMMAND_OTD_SWITCH",
                 onId = 0x132,
                 offId = 0x132,
-                onParameter = 0,
-                offParameter = 1,
+                onParameter = 1,
+                offParameter = 0,
             )
             "45" -> toggle(
                 kind = kind,
@@ -683,25 +684,25 @@ object VehicleSettingCommands {
                 onParameter = 1,
                 offParameter = 0,
             )
-            // GearMemoryActivity：value 0=开、1=关。
+            // GearMemoryActivity.onSwClick：旧开关取反，1=开、0=关。
             "94" -> toggle(
                 kind = kind,
                 onType = "COMMAND_GEAR_MEMORY",
                 offType = "COMMAND_GEAR_MEMORY",
                 onId = 0x144,
                 offId = 0x144,
-                onParameter = 0,
-                offParameter = 1,
+                onParameter = 1,
+                offParameter = 0,
             )
-            // AssistDriveLightActivity：value 0=开、1=关。
+            // AssistDriveLightActivity.onSwClick：旧开关取反，1=开、0=关。
             "84" -> toggle(
                 kind = kind,
                 onType = "BLE_CONFIG_ASSIST_DRIVE_LIGHT",
                 offType = "BLE_CONFIG_ASSIST_DRIVE_LIGHT",
                 onId = 0x136,
                 offId = 0x136,
-                onParameter = 0,
-                offParameter = 1,
+                onParameter = 1,
+                offParameter = 0,
             )
             // VehicleVolumeActivity：0..7 档。
             "20" -> {

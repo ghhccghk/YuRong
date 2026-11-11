@@ -31,7 +31,8 @@ class SimpleToggleSettingsSafetyTest {
             turnSignalReturnsAutomaticallyStatus = raw, brakePowerDownFunctionStatus = raw, templeSettingStatus = raw,
             tcsWorkMode = if (raw in 0..1) 1 - raw else raw, absFunctionStatus = raw,
             steepSlopeState = raw, rampSlopeState = raw, tPowerStatus = raw, quickBrakeLightStatus = raw,
-            longEnduranceStatus = if (raw in 0..1) 1 - raw else raw, seatPowerStatus = raw))
+            longEnduranceStatus = if (raw in 0..1) 1 - raw else raw, seatPowerStatus = raw,
+            otdSwitch = raw, blueLightSwitch = raw, trackModeStatus = raw, gearMemorySettingFeedback = raw))
         c.updateVehicleObservation(VehicleStatusObservation(vin, info, origin, seq))
     }
 
@@ -71,17 +72,21 @@ class SimpleToggleSettingsSafetyTest {
                 "68" -> 0xD9
                 "72" -> 0xDD
                 "79" -> 0xFB1
+                "80" -> 0x132
+                "84" -> 0x136
+                "90" -> 0x13F
+                "94" -> 0x144
                 else -> 0xC7
             }, command.commandId)
             assertEquals(when (id) {
-                "53", "63", "68", "79" -> if (on) 1 else 0
+                "53", "63", "68", "79", "80", "84", "90", "94" -> if (on) 1 else 0
                 "37", "72" -> if (on) 0 else 1
                 else -> -1
             }, command.parameter)
             assertNotNull(VehicleSettingFrameEncoder.encode(command))
             assertNull(CloudCarSettingUpdateBuilder.build(id, CarSettingKind.Toggle(on), "VIN-A"))
         }
-        assertEquals(24, sent.size)
+        assertEquals(32, sent.size)
     }
 
     @Test fun forgedStableIdAndWrongKindCannotBypassValidation() = runBlocking {
@@ -162,6 +167,14 @@ class SimpleToggleSettingsSafetyTest {
         for ((type, id) in listOf("COMMAND_CONST_T_POWER_SETTING" to 0xCF,
             "COMMAND_QUICK_BRAKE_LIGHT_SWITCH" to 0xD9, "LONG_ENDURANCE_SETTING" to 0xDD,
             "COMMAND_SEAT_POWER_UP" to 0xFB1)) for (raw in listOf(-1, 2, 255)) {
+            try { VehicleSettingCommand(type, id, raw); fail("invalid direct switch parameter") }
+            catch (_: IllegalArgumentException) { }
+        }
+    }
+
+    @Test fun auditedOneOnSwitchesRejectInvalidParametersEvenAtDirectCommandBoundary() {
+        for ((type, id) in listOf("COMMAND_OTD_SWITCH" to 0x132, "BLE_CONFIG_ASSIST_DRIVE_LIGHT" to 0x136,
+            "TRACK_MODE" to 0x13F, "COMMAND_GEAR_MEMORY" to 0x144)) for (raw in listOf(-1, 2, 255)) {
             try { VehicleSettingCommand(type, id, raw); fail("invalid direct switch parameter") }
             catch (_: IllegalArgumentException) { }
         }

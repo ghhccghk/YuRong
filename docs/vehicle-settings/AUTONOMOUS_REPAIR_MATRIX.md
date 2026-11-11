@@ -80,18 +80,18 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 76 定位开关 | com/yadea/smartmoto/vehicle/locationswitch/LocationSwitchActivity.smali:319 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 77 休眠模式 | com/yadea/smartmoto/vehicle/view/HibernateModeActivity.smali:1475 | sleepModeSwitch | SLEEP_MODE_SWITCH, SLEEP_MODE_SWITCH | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 79 座垫感应上电 | com/yadea/smartmoto/vehicle/view/SeatPowerUpActivity.smali:304 | seatPowerStatus | COMMAND_SEAT_POWER_UP, COMMAND_SEAT_POWER_UP | A08：63/68/79读写1开0关，72读写0开1关；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A08（BLE；无运行/实车验证） |
-| 80 OTD 开关 | com/yadea/smartmoto/vehicle/view/OTDActivity.smali:296 | otdSwitch | COMMAND_OTD_SWITCH, COMMAND_OTD_SWITCH | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 80 OTD 开关 | com/yadea/smartmoto/vehicle/view/OTDActivity.smali:296 | otdSwitch | COMMAND_OTD_SWITCH, COMMAND_OTD_SWITCH | A09：四项读写1开0关，修正三项参数反向；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A09（BLE；无运行/实车验证） |
 | 81 大灯延时 | com/yadea/smartmoto/vehicle/view/DelayLightActivity.smali:443 | withGoHomeStatus, withGoHomeTimeStatus | COMMAND_WITH_GO_HOME_CLOSE, COMMAND_WITH_GO_HOME_OPEN, COMMAND_WITH_GO_HOME_TIME_SETTING | A02：BLE0x83/84、0x85索引0..3=5/10/15/30秒；开关和时间独立 | P1 / COMPLETE / A02 |
-| 84 安全辅助小蓝灯 | com/yadea/smartmoto/vehicle/view/AssistDriveLightActivity.smali:330 | blueLightSwitch | BLE_CONFIG_ASSIST_DRIVE_LIGHT, BLE_CONFIG_ASSIST_DRIVE_LIGHT | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 84 安全辅助小蓝灯 | com/yadea/smartmoto/vehicle/view/AssistDriveLightActivity.smali:330 | blueLightSwitch | BLE_CONFIG_ASSIST_DRIVE_LIGHT, BLE_CONFIG_ASSIST_DRIVE_LIGHT | A09：四项读写1开0关，修正三项参数反向；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A09（BLE；无运行/实车验证） |
 | 85 SOS 联系人 | com/yadea/smartmoto/vehicle/view/SosContactActivity.smali:1933 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 86 仪表亮度调节 | com/yadea/smartmoto/vehicle/view/BrightnessAdjustmentActivity.smali:430 | brightnessAdjustSwitch, brightnessAdjustValue | BRIGHTNESS_ADJUST_SWITCH, BRIGHTNESS_ADJUST_SWITCH, BRIGHTNESS_ADJUST_VALUE | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 88 自定义音效 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 89 辅助骑行 | com/yadea/smartmoto/vehicle/view/HelpPromotePlus2Activity.smali:196 | customDriveLevelStatus, customDriveSwitchStatus, helpCarState | STROLLER_CLOSE, STROLLER_OPEN, COMMAND_CONST_CUSTOM_DRIVE_LEVEL_SETTING | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 90 赛道模式 | com/yadea/smartmoto/vehicle/view/TrackModeActivity.smali:131 | trackModeStatus | TRACK_MODE, TRACK_MODE | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 90 赛道模式 | com/yadea/smartmoto/vehicle/view/TrackModeActivity.smali:131 | trackModeStatus | TRACK_MODE, TRACK_MODE | A09：四项读写1开0关，修正三项参数反向；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A09（BLE；无运行/实车验证） |
 | 91 SOS 紧急呼叫 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 92 自定义骑行 | com/yadea/smartmoto/vehicle/view/VehicleCustomizeActivity2.smali:1887 | customizeEnergyLevel, customizeEnergyState, customizeTcs, customizeThrottleSensitivity | CUSTOMIZE_SETTING | 当前 HEAD 已含759c05c完整性及来源隔离；本任务不重复实现，仍需回归 | P2 / PARTIAL / 基线复核 |
 | 93 静音模式 | com/yadea/smartmoto/vehicle/view/QuietModeActivity.smali:250 | 无 Controller 分支；独立流程另查 | COMMAND_DISABLE_OVERSPEED_ALERT | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 94 档位记忆 | com/yadea/smartmoto/vehicle/view/GearMemoryActivity.smali:298 | gearMemorySettingFeedback | COMMAND_GEAR_MEMORY, COMMAND_GEAR_MEMORY | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 94 档位记忆 | com/yadea/smartmoto/vehicle/view/GearMemoryActivity.smali:298 | gearMemorySettingFeedback | COMMAND_GEAR_MEMORY, COMMAND_GEAR_MEMORY | A09：四项读写1开0关，修正三项参数反向；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A09（BLE；无运行/实车验证） |
 | 95 微信互联 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 1005 自定义按键 | 动态 Registry / 独立流程；待逐项绑定 | customFunctionLong, customFunctionShort | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 66 自动校准 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
@@ -208,3 +208,13 @@ A04最终验证：Geofence11+CloudConfigured30+CloudWriter4+WriterAccess5+ApiSem
 - 原页面sendVehicleSetting→qg仅连接BLE发送；s20无这四个命令云端分支，不创建猜测云端键。既有KMP Controller→CloudWriter BLE分流→MappedWriter→forItem/forConfigId→既有编码。四项严格已知性/稳定ID/失效观察降级，最终CF/D9/DD/FB1只接受0/1。
 
 A08验证：31/31精确过滤测试及全部离线构建退出0；STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无运行/车辆验证。
+
+## A09：ID80/84/90/94（独立复审及验证完成）
+
+- 原始触摸语义沿用A08 `YedeaOldSwitch.onTouchEvent:255–291`：回调读旧checked，未自动toggle。
+- `vehicle/view/OTDActivity.onSwClick:68–112`，ID80:296；`AssistDriveLightActivity.onSwClick:248–294`，ID84:330；`TrackModeActivity.onSwClick:50–95`，ID90:131；`GearMemoryActivity.onSwClick:68–130`，ID94:298。四项均旧checked取反作为目标，1开/0关；无复合兄弟。
+- `VehicleSettingViewModel.smali`：trackModeStatus:22012–22034、blueLightSwitch:24190–24211、otdSwitch:24706–24727、gearMemorySettingFeedback:25279–25295，均==1开；KMP只接受0/1，其他UNKNOWN。
+- `qg.smali:1348–1368` TRACK_MODE→13F；1480–1500 OTD→132；2341–2361 ASSIST_DRIVE_LIGHT→136；6237–6257 GEAR_MEMORY→144。均BLE连接门控，无s20云端分支。Controller→CloudWriter→MappedWriter→forItem/forConfigId→既有编码；不创建云端字段。
+- 修正80/84/94原KMP注释及0开1关错误参数；90方向原本正确。四项复用严格known/稳定ID/失效观察/在途刷新，最终132/136/13F/144拒绝非0/1。
+
+A09：32/32精确过滤测试及全部离线构建退出0；STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无运行/车辆验证。

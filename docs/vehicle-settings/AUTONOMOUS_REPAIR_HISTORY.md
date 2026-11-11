@@ -128,3 +128,13 @@
 - SimpleToggleSettingsSafetyTest11+Controller17+Golden3=31/31，精确过滤命令退出0；JVM/JS/Wasm/测试源码编译退出0；Android Debug/Desktop构建退出0；git diff --check退出0。所有Gradle命令--offline --console=plain。
 - 独立复审重新从UI→Controller→CloudWriter BLE分流→MappedWriter→映射及最终命令边界；0/1域、来源、草稿、VIN/序号、接受与确认分离均由Fake覆盖，无其他设置业务变化。
 - STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无运行/车辆验证。待精确提交。
+
+### A08提交核对 / A09起点
+
+- A08提交e62b59ffe98d7d97c1c1e5ef6ab9ca0244c2ec39，7文件；tracked/index干净，12既有untracked未变，无外部提交。
+## A09（独立复审及验证完成）
+
+- 只读复核80/84/90/94后，修正80/84/94开启方向并补四项严格开关保护。
+
+- A09 SimpleToggle12+Controller17+Golden3=32/32，过滤命令退出0；JVM/JS/Wasm/测试源码编译退出0；Android Debug/Desktop构建退出0；diff检查退出0，所有Gradle离线。
+- 独立重走UI→Controller→CloudWriter→MappedWriter→forItem/forConfigId→最终命令，目标四项之外无生产变化；STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED。无运行/车辆验证，待精确提交。

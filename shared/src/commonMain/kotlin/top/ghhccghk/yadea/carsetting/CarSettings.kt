@@ -968,9 +968,9 @@ class CarSettingsController(
                 "49" -> item.withToggle(SimpleToggleSettings.flag(status.extended.rampSlopeState))
                 "68" -> item.withToggle(SimpleToggleSettings.flag(status.extended.quickBrakeLightStatus))
                 "94" -> item.withToggle(
-                    status.extended.gearMemorySettingFeedback.flagOrNull(),
+                    SimpleToggleSettings.flag(status.extended.gearMemorySettingFeedback),
                 )
-                "84" -> item.withToggle(status.extended.blueLightSwitch.flagOrNull())
+                "84" -> item.withToggle(SimpleToggleSettings.flag(status.extended.blueLightSwitch))
                 "47" -> when (item.kind) {
                     is CarSettingKind.Toggle -> item.withToggle(
                         BatterySettings.flag(status.extended.batteryChargingPowerStatus),
@@ -1154,8 +1154,8 @@ class CarSettingsController(
                 "72" -> item.withToggle(SimpleToggleSettings.invertedFlag(status.extended.longEnduranceStatus))
                 "77" -> item.withToggle(status.extended.sleepModeSwitch.flagOrNull())
                 "79" -> item.withToggle(SimpleToggleSettings.flag(status.extended.seatPowerStatus))
-                "80" -> item.withToggle(status.extended.otdSwitch.flagOrNull())
-                "90" -> item.withToggle(status.extended.trackModeStatus.flagOrNull())
+                "80" -> item.withToggle(SimpleToggleSettings.flag(status.extended.otdSwitch))
+                "90" -> item.withToggle(SimpleToggleSettings.flag(status.extended.trackModeStatus))
                 "17" -> item.withToggle(
                     status.extended.slideModePowerRecoverStatus.flagOrNull(),
                 )
