@@ -18,8 +18,8 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 002 X1 感应自动开关机 | com/yadea/smartmoto/vehicle/view/BleNearlyAutoUnlockActivity.smali:182 | bleAutoTurnOnOffGearStatus, bleAutoTurnOnOffStatus | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 003 X1 制动能量回收 | com/yadea/smartmoto/vehicle/view/X1EnergyRecoveryActivity.smali:182 | brakeModePowerRecoverFunctionStatus, brakeModePowerRecoverGearStatus | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 1 一键开机 | com/yadea/smartmoto/vehicle/onekey/OneKeyDistanceActivity.smali:779<br>com/yadea/smartmoto/vehicle/onekey/OneKeyOpenActivity.smali:4224 | bleKeyDistanceLevel, bleKeyStatus | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 2 边撑感应 | com/yadea/smartmoto/vehicle/view/TempleInductionActivity.smali:209 | sideBraceStatus | SLIDE_BRACE_OFF, SLIDE_BRACE_ON | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 3 携出助力 | com/yadea/smartmoto/vehicle/view/SeatCushionSensorActivity.smali:144 | 无 Controller 分支；独立流程另查 | CARRY_OUT_CLOSE, CARRY_OUT_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 2 边撑感应 | vehicle/view/TempleInductionActivity.smali:40–173,209 | sideBraceStatus，严格0/1 | 0F开启；10独立关闭；原页条件分支AC | A15：关闭仅允许已有证据证明10安全的上下文；Controller/Writer/Mapper均保护，7/39共用锁开关互斥；没有猜选AC | P0 / PARTIAL / A15（不确定车型关闭分支BLOCKED，无运行/实车验证） |
+| 3 携出助力 | vehicle/view/SeatCushionSensorActivity.smali:50–108,144 | 原pushModeStatus，KMP原始模型/解析缺失 | CARRY_OUT_OPEN/CLOSE，11/12 | A15：独立BLE写入严格已知值/稳定ID；无可靠回填时UI保持UNKNOWN禁用；没有借用seatPowerStatus等字段 | P1 / WRITE_ONLY，读取BLOCKED / A15（无运行/实车验证） |
 | 4 档位设置 | com/yadea/smartmoto/vehicle/view/TopSpeedActivity.smali:85 | maximumSpeedCurrent | MAX_SPEED_SETTING | 当前 HEAD 已含759c05c完整性及来源隔离；本任务不重复实现，仍需回归 | P2 / PARTIAL / 基线复核 |
 | 5 车辆音效 | com/yadea/smartmoto/vehicle/activity/OldVehicleSoundEffectsActivity.smali:506 | alarmRingThemeCurrent | ALARM_THEME | 当前 HEAD329effd已修TTP/独立参数/取消/VIN；7/39车型门控证据限制保留UNKNOWN | P2 / PARTIAL / 基线复核 |
 | 7 自动落锁 | com/yadea/smartmoto/vehicle/view/AutoShutDownActivity.smali:505 | leaveVehicleAutoLockStatus, leaveVehicleAutoLockTimeStatus, sideBraceStatus | LEAVE_THE_CAR_AUTO_LOCK_OFF, LEAVE_THE_CAR_AUTO_LOCK_ON, LEAVE_THE_CAR_AUTO_LOCK_TIME | 当前 HEAD329effd已修TTP/独立参数/取消/VIN；7/39车型门控证据限制保留UNKNOWN | P2 / PARTIAL / 基线复核 |
@@ -264,3 +264,15 @@ A10：33/33精确过滤测试、全部离线构建和diff检查退出0；STATIC_
 - 资格仅附在本次submitted Item，Controller不持久化。CloudWriter校验VIN及资格，MappedWriter/forItem要求完整资格；直接forConfigId无法绕过开启门控。原始A4/A5协议、无参数帧和编码器不变；原始协议命令本身不负责云端资格业务。UI复用双主题AppAlertDialog，提示确认只清提示。
 - TTP只接受0/1；非法/缺失撤销live资格，缓存不作为LIVE。发送接受仍WAITING_READBACK；资格请求期间收到的TTP不能确认后续写入，只有写入后新鲜同VIN观察建立READBACK_MATCHED。
 - CONDITIONAL：依赖云端资格响应与BLE连接。STATIC_FLOW_VERIFIED；Fake及构建结果见历史。无运行或车辆验证。
+
+
+### A15：2边撑感应/3携出助力（独立复审）
+
+- ID2 `TempleInductionActivity.onSwClick:40–173/getSettingConfigId:209`：旧on准备关闭；w2非空（confId39）、H6主用户true、F1关联锁true、VehicleDataManager.W0=true时发BRACE_CLOSE_LOCKER_CLOSE，否则SLIDE_BRACE_OFF；开启独立SLIDE_BRACE_ON。原YedeaOldSwitch回调读取旧值，方向没有推测。
+- VM.w2:31727→e0，VM13420–13436明确confId39→e0；H6:8530→i，构造器3442–3462明确VehicleDataBean.isPrimaryUser→i（不是连接状态）；F1:8090→h0。`VehicleDataManager.W0:10500–10623`检查VehicleConfig父1021的child29；KMP当前设置Controller没有该车型/主用户快照，不以isAuth或是否存在普通39控件替代这两个标志。
+- ID2读链：`ActivityTempleInductionBindingImpl:631/756`→VM.w5:31787→A0；VM20304–20325从sideBraceStatus==1回填。KMP已有字段，收紧0/1，非法撤销live；云端没有已证实值字段。
+- 原VM20331–20540：W0分支F1=lock&&sideBrace，另一分支F1=lock。故云端本次确实无39（w2为空），或同VIN有效LIVE lock=0时，两种车型分支均选择独立10，可安全保持。39在清单中而锁未知/on、缓存、待确认目标时不构造关闭命令。qg1166–1185/5241–5260→10/0F，6199–6218→AC。当前编码器无AC且本任务禁止改帧；需要AC的分支明确BLOCKED。
+- Controller每次关闭临时构造SideBraceCloseAuthorization，同VIN实际Writer和forItem再校验；直接forConfigId不能跳过关闭分支保护。没有把许可放进车辆观察、配置、草稿或后续目录快照。2/7/39开关在途互斥，防止校验后共用锁状态被另一个写入改变；不改变7/39参数映射或时间写入。
+- ID3 `SeatCushionSensorActivity.onSwClick:50–108/getSettingConfigId:144`：开/关独立CARRY_OUT_OPEN/CLOSE；qg3954–3973/1310–1329→11/12。`ActivitySeatCushionSensorBindingImpl:613/754`→VM.H5:8510→w0；VM20241–20296从pushModeStatus==1填w0。KMP TtpInfo/原始解析无pushModeStatus，受保护范围不得补解析，因此读取BLOCKED，底层WRITE_ONLY；UI无可靠当前值仍禁用。不能借seatPowerStatus等名字相近字段。
+- 原App两项没有已证明云端字段/请求绑定；没有新增猜测字段、云端写入或命令。既有AppSwitchPreference两主题无视觉改动。关闭错误通过现有error/message回报；接受仍WAITING_READBACK，只有2的新鲜回读可确认，3无回读不确认。
+- 58/58精确Fake过滤测试通过，测试与构建实际结果见历史；2保持PARTIAL，3读取BLOCKED/底层WRITE_ONLY。未运行App，未操作车辆。

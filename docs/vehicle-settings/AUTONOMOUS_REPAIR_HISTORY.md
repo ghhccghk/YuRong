@@ -197,3 +197,17 @@
 - 命令：`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.RemainingMileageSettingsSafetyTest --tests top.ghhccghk.yadea.carsetting.CarSettingsControllerTest --tests top.ghhccghk.yadea.carsetting.VehicleSettingGoldenFrameTest --offline --console=plain`。全部Fake/内存，不调用真实云端或车辆。
 - `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。缓存C:\Users\DozenOregano696\.gradle。
 - 独立重走原页→VM/jp6回调→Gateway→Controller→实际Writer→命令；资格在等待期间的新观察不算写入后确认，关闭无需资格，确认提示不发送命令。UI只复用AppAlertDialog，无主题/平台改动。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；CONDITIONAL，无RUNTIME_VERIFIED/VEHICLE_VERIFIED。待精确提交。
+
+
+### A14提交核对 / A15起点
+
+- A14提交b0c065012d913005fd3c296a8ef2caf230af398f，9文件；tracked/index干净，12原有untracked保持，无外部提交。
+
+## A15（独立复审及验证完成）
+
+- 2边撑感应：追清原页按W0(1021/29)/39/F1选择10或AC；当前无可靠车型快照/AC帧时阻止不确定关闭。无39描述项或有效LIVE lock=0时证明独立10，开启0F不变。严格已知值/稳定ID/Writer同VIN/临时许可/观察失效；2/7/39开关在途互斥，不改共用落锁参数。
+- 3携出助力：证实pushModeStatus读绑定，但原始解析缺失受保护，读取BLOCKED。现有11/12独立写入补严格UNKNOWN/稳定ID保护，UI仍UNKNOWN禁用。
+- SideBraceSettingsSafetyTest12 + VehicleSettingsSecondPhaseTest26 + CarSettingsControllerTest17 + VehicleSettingGoldenFrameTest3，共58/58首次退出0；实际命令`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.SideBraceSettingsSafetyTest --tests top.ghhccghk.yadea.carsetting.VehicleSettingsSecondPhaseTest --tests top.ghhccghk.yadea.carsetting.CarSettingsControllerTest --tests top.ghhccghk.yadea.carsetting.VehicleSettingGoldenFrameTest --offline --console=plain`。Fake/内存隔离，不调用真实云端或车辆。
+- JVM/JS/Wasm/测试源码编译命令`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0。
+- `:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。全部缓存C:\Users\DozenOregano696\.gradle。
+- 独立重走Binding→VM字段赋值→原页→Controller→实际Writer/Mapper→已有编码；确认H6来自isPrimaryUser（VM3442–3462），未以连接/isAuth猜角色。没有改原始TTP、帧、协议、网络或其他设置映射；共享落锁仅增加必要写互斥。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；2 PARTIAL/不确定关闭BLOCKED，3底层WRITE_ONLY/读取BLOCKED。无运行/车辆验证，待精确提交。

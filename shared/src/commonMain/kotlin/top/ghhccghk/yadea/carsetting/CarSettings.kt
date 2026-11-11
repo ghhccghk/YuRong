@@ -203,6 +203,8 @@ data class CarSettingItem(
     val geofenceConfiguration: GeofenceConfiguration? = null,
     /** Only attached to a single ID42 submission after a same-VIN eligibility read. */
     val remainingMileageEligibility: RemainingMileageEligibility? = null,
+    /** Ephemeral evidence for ID2's independent close branch. */
+    val sideBraceCloseAuthorization: SideBraceCloseAuthorization? = null,
 )
 
 enum class CarSettingConfirmationStatus {
@@ -423,7 +425,7 @@ class CarSettingsController(
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
                         configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids ||
                         configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids ||
-                        configId in CloudSwitchSettings.ids || configId in setOf("10", "73", "42")
+                        configId in CloudSwitchSettings.ids || configId in setOf("10", "73", "42", "2")
                 }
             }) {
             _state.value = _state.value.copy(message = "设置正在提交，请完成后刷新")
@@ -636,6 +638,7 @@ class CarSettingsController(
         item.configId !in TimerSettings.ids || TimerSettings.validItem(item.copy(kind = target))
 
     private fun validSimpleChoiceTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
+        (item.configId != "2" || SideBraceSettings.validItem(item.copy(kind = target))) &&
         (item.configId != "42" || RemainingMileageSettings.validItem(item.copy(kind = target))) &&
         (item.configId !in SimpleChoiceSettings.ids || SimpleChoiceSettings.validItem(item.copy(kind = target))) &&
             (item.configId !in SimpleToggleSettings.ids || SimpleToggleSettings.validItem(item.copy(kind = target))) &&
@@ -649,6 +652,10 @@ class CarSettingsController(
         item.configId != "73" || AtmosphereSettings.validItem(item.copy(kind = target))
 
     private fun hasActiveSettingWrite(item: CarSettingItem): Boolean =
+        (item.configId in setOf("2", "7", "39") && item.kind is CarSettingKind.Toggle &&
+            activeOperations.keys.any { id -> findItem(id)?.let {
+                it.configId in setOf("2", "7", "39") && it.kind is CarSettingKind.Toggle
+            } == true }) ||
         item.id in activeOperations || (item.configId == "10" &&
             activeOperations.keys.any { findItem(it)?.configId == "10" }) || SecondPhaseSettings.writeKey(item)?.let { key ->
             activeOperations.keys.any { id -> findItem(id)?.let { SecondPhaseSettings.writeKey(it) == key } == true }
@@ -758,6 +765,15 @@ class CarSettingsController(
                 delay(debounceMs)
             }
             if (!isCurrentOperation(id, operation)) return false
+            if (item.configId == "2" && !(target as CarSettingKind.Toggle).checked) {
+                val liveAutoLock = latestVehicleStatus?.takeIf { it.vin == vin && it.live }
+                    ?.status?.extended?.leaveVehicleAutoLockStatus
+                if (!SideBraceSettings.canClose(_state.value, liveAutoLock)) {
+                    finishFailure(id, "边撑关联配置尚未确认，无法安全选择关闭命令", SettingConfirmationState.FAILED)
+                    return false
+                }
+                submitted = submitted.copy(sideBraceCloseAuthorization = SideBraceCloseAuthorization(vin))
+            }
             if (item.configId == "42" && (target as CarSettingKind.Toggle).checked) {
                 val eligibility = try {
                     gateway?.loadRemainingMileageEligibility(vin)
@@ -1093,7 +1109,7 @@ class CarSettingsController(
                         else -> -1
                     }.flagOrNull(),
                 )
-                "2" -> item.withToggle(status.extended.sideBraceStatus.flagOrNull())
+                "2" -> item.withToggle(SimpleToggleSettings.flag(status.extended.sideBraceStatus))
                 "32" -> item.withToggle(SimpleToggleSettings.flag(status.extended.tiltWarningStatus))
                 "45" -> item.withToggle(SimpleToggleSettings.flag(status.extended.constSpeedState))
                 "27" -> item.withIndex(
@@ -1233,7 +1249,7 @@ class CarSettingsController(
                     val audited = configId in setOf("4", "58", "61", "55", "92") ||
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
                         configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids ||
-                        configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids || configId in setOf("73", "42")
+                        configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids || configId in setOf("73", "42", "2")
                     value.copy(readbackState = SettingReadbackState.MISSING_OR_INVALID,
                         vehicleValue = if (audited) value.vehicleValue.copy(live = false) else value.vehicleValue)
                 } else value

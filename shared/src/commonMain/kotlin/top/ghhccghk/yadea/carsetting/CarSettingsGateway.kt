@@ -1745,7 +1745,7 @@ object CloudCarSettingMapper {
         // VehicleAlarmActivity binds alarmSoundSwitchAfterStatus, not the DTO-only cloud key.
         "13" -> unknownToggle()
         "16" -> cloudToggle(cloud, "dumpAlarm")
-        // 携出助力没有云端回读字段，初值保守为关闭。
+        // Original page binds pushModeStatus; the protected TTP parser lacks it.
         "3" -> unknownToggle()
         // resistanceOn exists only in DTOs; original energy page consumes the TTP flag.
         "17" -> unknownToggle()

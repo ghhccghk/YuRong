@@ -139,6 +139,7 @@ class CloudCarSettingWriter(
         ) return CarSettingWriteResult(false)
         val vin = vinProvider().trim()
         if (vin.isBlank()) return CarSettingWriteResult(false)
+        if (item.configId == "2" && !SideBraceSettings.authorized(item, vin)) return CarSettingWriteResult(false)
         if (item.configId == "42" && !RemainingMileageSettings.authorized(item, vin)) return CarSettingWriteResult(false)
         val update = CloudCarSettingUpdateBuilder.build(
             configId = item.configId,
@@ -181,14 +182,14 @@ object VehicleSettingCommands {
                 "5" -> kind is CarSettingKind.Choice
                 else -> kind is CarSettingKind.Toggle || kind is CarSettingKind.Choice
             }) ||
-            (configId == "42" && kind is CarSettingKind.Toggle) ||
+            (configId in setOf("2", "42") && kind is CarSettingKind.Toggle) ||
             forConfigId(configId, kind)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     fun supportsItem(item: CarSettingItem): Boolean =
         if (item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids ||
             item.configId in BatterySettings.ids || item.configId in TimerSettings.ids ||
             item.configId in SimpleChoiceSettings.ids || item.configId in SimpleToggleSettings.ids ||
-            item.configId in VolumeBrightnessSettings.ids || item.configId in EnergyRecoverySettings.ids || item.configId in setOf("73", "42")) supports(item.configId, item.kind)
+            item.configId in VolumeBrightnessSettings.ids || item.configId in EnergyRecoverySettings.ids || item.configId in setOf("73", "42", "2")) supports(item.configId, item.kind)
         else forItem(item)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     /**
@@ -200,7 +201,7 @@ object VehicleSettingCommands {
     fun forConfigId(configId: String, kind: CarSettingKind): VehicleSettingCommand? =
         if (configId in SimpleToggleSettings.ids && !SimpleToggleSettings.valid(kind)) null else when (configId) {
             // TempleInductionActivity：边撑感应。
-            "2" -> toggle(
+            "2" -> if (kind !is CarSettingKind.Toggle || !kind.valueKnown || !kind.checked) null else toggle(
                 kind = kind,
                 onType = "SLIDE_BRACE_ON",
                 offType = "SLIDE_BRACE_OFF",
@@ -799,6 +800,11 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        if (item.configId == "2") {
+            if (!SideBraceSettings.authorized(item)) return null
+            return if ((item.kind as CarSettingKind.Toggle).checked) forConfigId("2", item.kind)
+            else VehicleSettingCommand("SLIDE_BRACE_OFF", 0x10)
+        }
         if (item.configId == "42") {
             if (!RemainingMileageSettings.authorized(item)) return null
             return if ((item.kind as CarSettingKind.Toggle).checked)
