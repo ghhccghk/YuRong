@@ -53,6 +53,7 @@ interface CarSettingsGateway {
     suspend fun loadHibernateAuthorization(vin: String): HibernateAuthorization? = null
     suspend fun updateHibernate(vin: String, update: CloudCarSettingUpdate,
                                 authorization: HibernateAuthorization): HibernateWriteReceipt = HibernateWriteReceipt(false)
+    suspend fun updateHibernateMetadata(vin: String, authorization: HibernateAuthorization): Boolean = false
     suspend fun updateLocationSwitch(vin: String, update: CloudCarSettingUpdate,
                                      authorization: LocationSwitchAuthorization): LocationSwitchWriteReceipt =
         LocationSwitchWriteReceipt(false)
@@ -428,6 +429,14 @@ class YadeaCarSettingsGateway(
         val id = JsonSupport.topLevelScalarText(plain, "data")?.trim()
             ?.takeIf { it.isNotBlank() && it !in setOf("true", "false") }
         return HibernateWriteReceipt(true, id)
+    }
+
+    override suspend fun updateHibernateMetadata(vin: String, authorization: HibernateAuthorization): Boolean {
+        val token = tokenProvider().trim()
+        if (vin.isBlank() || token.isBlank() || authorization.vin != vin || !authorization.enterConfirmed) return false
+        val plain = postFields(UPDATE_PATH, HibernateSettings.metadataUpdate(vin).fields, token) ?: return false
+        return JsonSupport.topLevelScalarText(plain, "success") == "true" &&
+            JsonSupport.topLevelScalarText(plain, "data") != "false"
     }
 
     override suspend fun updateLocationSwitch(vin: String, update: CloudCarSettingUpdate,

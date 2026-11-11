@@ -274,3 +274,15 @@
 - 首次63/63过滤测试退出0，独立复审补“轮询成功后仍能接收TTP/新配置解除旧目标”2项后65/65退出0。HibernateSettingsSafetyTest15、CarSettingsControllerTest17、CloudConfiguredValueRefreshTest30、VehicleSettingGoldenFrameTest3。命令`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.HibernateSettingsSafetyTest --tests top.ghhccghk.yadea.carsetting.CarSettingsControllerTest --tests top.ghhccghk.yadea.carsetting.CloudConfiguredValueRefreshTest --tests top.ghhccghk.yadea.carsetting.VehicleSettingGoldenFrameTest --offline --console=plain`。全部Fake/内存；没有完整jvmTest、真实网络/车辆请求。
 - `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；缓存C:\Users\DozenOregano696\.gradle；`git diff --check`退出0。
 - 独立复审重走原页点击→P4及原回调→KMP UI/Controller→实际Writer→Builder/Gateway→结果ID轮询/车辆回读，UNKNOWN、缓存、配置、接受与确认分离。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无App运行/车辆验证。待精确提交。
+
+### A20提交核对 / A21起点
+
+- A20提交b4d33db6169d4bc247083daa7578be413b1239d0，10文件；master，tracked/index干净，原有12项untracked保持，无外部提交。
+
+## A21（独立复审及验证完成）
+
+- ID77蓝牙联动：原133分支与既有编码逐字节等价，复用MappedWriter专用阶段；普通forItem/通用write仍不能只发133。发送接受后按原P4→jp6.o独立写sleepMode=1；失败/异常/取消保留第一阶段receipt，且不得返回整体成功或车辆已确认。未改帧、协议、TTP或通用网络。
+- 首轮74项过滤测试退出1、1项新测试失败（错误期待在途可编辑草稿）；修正测试为验证在途拒绝编辑和提交前刷新保留草稿，没有放宽生产校验。独立复审新增Boolean入口部分成功保护及测试。
+- 最终75/75过滤测试退出0：HibernateLinkedWriteTest10、HibernateSettingsSafetyTest15、CarSettingsControllerTest17、CloudConfiguredValueRefreshTest30、VehicleSettingGoldenFrameTest3。命令`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.HibernateLinkedWriteTest --tests top.ghhccghk.yadea.carsetting.HibernateSettingsSafetyTest --tests top.ghhccghk.yadea.carsetting.CarSettingsControllerTest --tests top.ghhccghk.yadea.carsetting.CloudConfiguredValueRefreshTest --tests top.ghhccghk.yadea.carsetting.VehicleSettingGoldenFrameTest --offline --console=plain`。Fake/内存隔离，未运行完整jvmTest。
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；缓存C:\Users\DozenOregano696\.gradle；`git diff --check`退出0。
+- 独立重走UI→Controller→MainScreen实际接线→Writer→133既有编码→原P4/jp6.o及实际Gateway→回读；未改其他配置、帧、协议、TTP、网络或连接架构。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；立即进入CONDITIONAL，整体因自动排程仍PARTIAL。未运行App或实车验证，待精确提交。

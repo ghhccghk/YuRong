@@ -78,7 +78,7 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 73 氛围灯 | com/yadea/smartmoto/vehicle/view/FeelLightSettingActivity.smali:2404 | ambientStatus、show/color/operation、RGB1/2 | C3开关；F7完整模式组合 | A05：完整TTP回填/独立开关/不可变复合命令/新鲜回读比较；未知禁止默认补齐，完整配置才可编辑 | P0 / CONDITIONAL / A05 |
 | 75 定位器防盗 | vehicle/view/IotTamperProofActivity.smali:50–158,194；VM.t4:30788→p4 | iotRemoveAlarm，严格0/1 | 原FA；本任务禁止新增帧；云端tamperProofIotEnable仅证实整数1 | A16：可靠TTP/缓存隔离；移除无读绑定的云端配置推断；阻止未证实0关闭；开启接受后等待新鲜TTP | P0 / PARTIAL，关闭及BLE帧BLOCKED / A16 |
 | 76 定位开关 | vehicle/locationswitch/LocationSwitchActivity.smali:145–218,241–295,319 | 无已证实TTP；positioningFunc只进configuredValue | 原param-setting：POSITIONING_FUNC，0/1；返回ID轮询 | A16：同VIN云端onlineState检查、关闭确认、精确参数、实际Writer保留本次ID；缺ID不猜confId；结果成功仍非车辆回读 | P0 / CONDITIONAL / A16（无运行/实车验证） |
-| 77 休眠模式 | HibernateModeActivity:onImmediately624–682,sendCommand1143–1333；VM.P4:10208–10280 | sleepModeSwitch严格0/1；配置sleepMode独立 | 133只属于进入+云端标记联动，不作独立Toggle | A20车联网立即休眠：同VIN在线检查、显式确认、目标1、保留返回ID轮询；新鲜回读/配置解除旧目标；关闭仅退出指引；自动休眠与BLE联动待下一批 | P0 / PARTIAL / A20（无运行/实车验证） |
+| 77 休眠模式 | HibernateModeActivity:onImmediately624–682,sendCommand1143–1333；VM.P4:10208–10280 | sleepModeSwitch严格0/1；配置sleepMode独立 | 133只属于进入+云端标记联动，不作独立Toggle | A20车联网进入；A21 BLE133=1→独立云端sleepMode=1，第二步失败/取消保留第一步接受事实，Boolean不报整体成功；同VIN在线/确认、回读分离；自动排程待A22 | P0 / PARTIAL / A20–A21（无运行/实车验证） |
 | 79 座垫感应上电 | com/yadea/smartmoto/vehicle/view/SeatPowerUpActivity.smali:304 | seatPowerStatus | COMMAND_SEAT_POWER_UP, COMMAND_SEAT_POWER_UP | A08：63/68/79读写1开0关，72读写0开1关；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A08（BLE；无运行/实车验证） |
 | 80 OTD 开关 | com/yadea/smartmoto/vehicle/view/OTDActivity.smali:296 | otdSwitch | COMMAND_OTD_SWITCH, COMMAND_OTD_SWITCH | A09：四项读写1开0关，修正三项参数反向；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A09（BLE；无运行/实车验证） |
 | 81 大灯延时 | com/yadea/smartmoto/vehicle/view/DelayLightActivity.smali:443 | withGoHomeStatus, withGoHomeTimeStatus | COMMAND_WITH_GO_HOME_CLOSE, COMMAND_WITH_GO_HOME_OPEN, COMMAND_WITH_GO_HOME_TIME_SETTING | A02：BLE0x83/84、0x85索引0..3=5/10/15/30秒；开关和时间独立 | P1 / COMPLETE / A02 |
@@ -303,3 +303,11 @@ A10：33/33精确过滤测试、全部离线构建和diff检查退出0；STATIC_
 - 原页isOnline→VehicleDataBean.isOnline→VehicleStatusBean.onlineState，沿用原getVehRealStatus端点作同VIN本次在线许可，不放入配置或TTP。Controller所有通用提交入口都不能越过进入确认，真实CloudWriter和Gateway再次验证稳定ID/许可/精确字段。未知不保存；取消传播、在途刷新禁止、VIN/代次隔离及草稿保留复用原设施。
 - 本批不放行不完整的连接分支；MappedWriter/forItem/forConfigId不能只发133替代双步骤。UI解释当前只支持车联网流程，AppAlertDialog保留双主题；未改编码、协议、原始TTP或通用网络。自动休眠是f72的vehicle-base/bike-sleep-appointment/get/update、autoSleepSwitch/dayCount独立流程，下一批处理；不是此Boolean，也不是当前车辆休眠状态。
 - 整体PARTIAL，云端进入在在线/明确配置与确认条件下CONDITIONAL。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。
+
+### A21：77立即休眠蓝牙联动（独立复审及验证完成）
+
+- 原HibernateModeActivity.sendCommand1143–1220：连接且确认进入先sendVehicleSetting(SLEEP_MODE_SWITCH,1)，再VM.d9(77,p4=1)；VM.P4:10208–10280在无旧Boolean时仅构造vin/sleepMode=1；c9:25564–25638→jp6.o:977–1035→vehiclebase/bike-setting/updateBikeSetting。不是重复发云端PARAM命令，也没有本次结果ID轮询。
+- qg:1559–1595把SLEEP_MODE_SWITCH映射133并走普通e；BleBicycleCommandManager.generateBleCommand:674起，v5=6，133跳转sswitch_3e6:1845，uj.c(6,1,6,7)。uj.c:152–265先填FF、反序位域、补到1E，结果后缀FF7F+24字节FF，与既有编码178一致；新增Golden断言证明相同，未修改编码或协议。原页只证明进入1，原始命令入口拒绝0/2/负数。
+- 实际MainScreen286–296的CloudWriter接MappedWriter专用BLE阶段；普通write/forItem不能绕过联动。稳定ID、已知目标1、同VIN在线和确认仍在Controller/Writer校验。BLE接受后独立保存云端标记；第二步失败/异常/取消保留LOCAL_UPDATED/独立metadata状态及错误，不假回滚已发送事实，不重复发送；取消传播原异常。Boolean写入不把部分接受当整体成功。
+- 配置、车辆观察、草稿和两阶段receipt分别保存；车辆确认只依赖原有同VIN/新序号回读。新鲜不匹配回读仍独立反馈；标记成功不伪装车辆确认。UI复用原AppAlertDialog/双主题控件，开放完整联动、显示云端标记结果；无新增BLE、网络路径、TTP解析或平台层。
+- 75/75过滤测试和JVM/JS/Wasm/测试源码、Android Debug/Desktop构建退出0；详见历史。ID77立即进入CONDITIONAL，整体因自动排程未实现仍PARTIAL；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。

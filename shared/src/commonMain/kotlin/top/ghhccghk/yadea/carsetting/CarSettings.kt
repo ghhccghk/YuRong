@@ -252,6 +252,7 @@ data class CarSettingValueState(
     val writeChannel: CarSettingWriteChannel? = null,
     val confirmationState: SettingConfirmationState = SettingConfirmationState.UNKNOWN,
     val error: String? = null,
+    val hibernateMetadata: HibernateMetadataState? = null,
 ) {
     val busy: Boolean get() = writeState in setOf(SettingWriteState.PREPARING, SettingWriteState.SUBMITTING)
 
@@ -308,6 +309,7 @@ data class CarSettingWriteResult(
         else -> CarSettingConfirmationStatus.CLOUD_ACCEPTED
     },
     val resultId: String? = null,
+    val hibernateMetadata: HibernateMetadataState? = null,
 )
 
 object CarSettingItemAccess {
@@ -803,7 +805,8 @@ class CarSettingsController(
         changeValueState(id) {
             it.copy(draftValue = null, submittedValue = target, operationId = operation.id,
                 writeState = SettingWriteState.PREPARING, writeChannel = null,
-                confirmationState = SettingConfirmationState.UNKNOWN, error = null)
+                confirmationState = SettingConfirmationState.UNKNOWN, error = null,
+                hibernateMetadata = if (item.configId == "77") null else it.hibernateMetadata)
         }
         _state.value = _state.value.copy(pendingIds = current.pendingIds + id, message = null)
 
@@ -878,6 +881,16 @@ class CarSettingsController(
             changeValueState(id) { it.copy(writeState = SettingWriteState.SUBMITTING) }
             val writeResult = try {
                 activeWriter.writeWithResult(submitted)
+            } catch (cancelled: HibernateMetadataCancellation) {
+                if (item.configId == "77" && isCurrentOperation(id, operation)) {
+                    pendingVehicleConfirmations[id] = PendingVehicleConfirmation(target, observedGeneration, operation.id)
+                    changeValueState(id) { it.copy(writeState = SettingWriteState.LOCAL_UPDATED,
+                        writeChannel = CarSettingWriteChannel.BLE, confirmationState = SettingConfirmationState.WAITING_READBACK,
+                        hibernateMetadata = HibernateMetadataState.CANCELLED,
+                        error = "蓝牙已接收；云端休眠标记等待已取消，结果未知") }
+                    reconcileObservation(id)
+                }
+                throw cancelled.original
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -898,9 +911,16 @@ class CarSettingsController(
             pendingVehicleConfirmations[id] = PendingVehicleConfirmation(target, observedGeneration, operation.id)
             changeValueState(id) {
                 it.copy(writeState = phase, writeChannel = writeResult.channel,
-                    confirmationState = SettingConfirmationState.WAITING_READBACK)
+                    confirmationState = SettingConfirmationState.WAITING_READBACK,
+                    hibernateMetadata = writeResult.hibernateMetadata)
             }
             reconcileObservation(id)
+            if (item.configId == "77" && writeResult.hibernateMetadata == HibernateMetadataState.FAILED) {
+                val message = "蓝牙已接收，但云端休眠标记保存失败；车辆状态仍以回读为准"
+                changeValueState(id) { it.copy(error = message) }
+                _state.value = _state.value.copy(message = message)
+                return false
+            }
             _state.value = _state.value.copy(message = "设置已提交，尚需车辆确认")
 
             val cloudUpdate = CloudCarSettingUpdateBuilder.supports(
@@ -956,7 +976,8 @@ class CarSettingsController(
                     // Stop polling, but retain the receipt and pending readback reconciliation.
                     changeValueState(id) {
                         if (it.confirmationState == SettingConfirmationState.READBACK_MATCHED) it
-                        else it.copy(confirmationState = SettingConfirmationState.UNKNOWN, error = null)
+                        else it.copy(confirmationState = SettingConfirmationState.UNKNOWN,
+                            error = if (it.hibernateMetadata == HibernateMetadataState.CANCELLED) it.error else null)
                     }
                     _state.value = _state.value.copy(message = "确认等待已取消；写入结果保留，车辆状态仍未确认")
                 } else {

@@ -42,6 +42,7 @@ data class VehicleSettingCommand(
             0x46 -> require(parameter in 0..7) // Raw command domain; the volume page exposes only 0/1/2.
             0x134 -> require(parameter in 0..100)
             0x135 -> require(parameter in 0..1)
+            0x133 -> require(parameter == 1) // HibernateModeActivity only enters (1); no guessed exit.
             0x3C -> require(parameter in 0..7) // Raw protocol; EnergyRecoveryActivity exposes 1/2/3.
         }
         // Validate even callers that construct a composite command without the mapper.
@@ -93,6 +94,12 @@ interface VehicleSettingCommandSink {
 class MappedCarSettingWriter(
     private val sink: VehicleSettingCommandSink,
 ) : CarSettingWriter {
+    /** Only the linked writer uses this stage; ordinary write/forItem cannot skip the cloud marker. */
+    internal suspend fun sendHibernate(item: CarSettingItem, vin: String): Boolean {
+        if (!CarSettingItemAccess.canWrite(item) || !HibernateSettings.authorized(item, vin)) return false
+        return sink.send(VehicleSettingCommand("SLEEP_MODE_SWITCH", 0x133, 1))
+    }
+
     override suspend fun write(item: CarSettingItem): Boolean =
         writeWithResult(item).success
 
@@ -125,8 +132,10 @@ class CloudCarSettingWriter(
     private val bleFallback: CarSettingWriter? = null,
     private val bleAvailableProvider: () -> Boolean = { false },
 ) : CarSettingWriter {
-    override suspend fun write(item: CarSettingItem): Boolean =
-        writeWithResult(item).success
+    override suspend fun write(item: CarSettingItem): Boolean {
+        val result = writeWithResult(item)
+        return result.success && (result.hibernateMetadata == null || result.hibernateMetadata == HibernateMetadataState.ACCEPTED)
+    }
 
     override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult {
         if (!CarSettingItemAccess.canWrite(item)) return CarSettingWriteResult(false)
@@ -152,9 +161,21 @@ class CloudCarSettingWriter(
         if (item.configId == "33" && !SimulatedSoundSettings.authorized(item, vin)) return CarSettingWriteResult(false)
         if (item.configId == "51" && !TimeSyncSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId == "77") {
-            // The original connected branch also updates sleepMode=1. A bare BLE send
-            // cannot replace that workflow; only the proven disconnected cloud branch is enabled.
-            if (!HibernateSettings.authorized(item, vin) || bleAvailableProvider()) return CarSettingWriteResult(false)
+            if (!HibernateSettings.authorized(item, vin)) return CarSettingWriteResult(false)
+            if (bleAvailableProvider()) {
+                val ble = bleFallback as? MappedCarSettingWriter ?: return CarSettingWriteResult(false)
+                if (!ble.sendHibernate(item, vin)) return CarSettingWriteResult(false)
+                // A failed second stage must not erase the already accepted BLE send or retry it.
+                val metadata = try {
+                    vinProvider().trim() == vin && gateway.updateHibernateMetadata(vin, item.hibernateAuthorization!!)
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw HibernateMetadataCancellation(cancelled)
+                } catch (_: Exception) {
+                    false
+                }
+                return CarSettingWriteResult(true, CarSettingWriteChannel.BLE,
+                    hibernateMetadata = if (metadata) HibernateMetadataState.ACCEPTED else HibernateMetadataState.FAILED)
+            }
             val update = CloudCarSettingUpdateBuilder.build("77", item.kind, vin) ?: return CarSettingWriteResult(false)
             val receipt = gateway.updateHibernate(vin, update, item.hibernateAuthorization!!)
             if (vinProvider().trim() != vin) return CarSettingWriteResult(false)

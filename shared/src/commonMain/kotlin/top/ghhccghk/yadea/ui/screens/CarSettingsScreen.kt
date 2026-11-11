@@ -203,8 +203,6 @@ fun CarSettingsScreen(
             "正在刷新设置"
         } else if (item.configId == "93") {
             "静音控制通道尚未实现，暂不可操作"
-        } else if (item.configId == "77" && vehicleConnected) {
-            "蓝牙休眠联动流程尚未接入，当前仅支持车联网入口"
         } else if (item.configId in BLE_POWER_SETTING_IDS &&
             (!vehicleConnected || vehiclePowerOn != true)
         ) {
@@ -1597,6 +1595,8 @@ internal fun carSettingSummary(
             else -> ""
         })
         valueState.error?.let { append(" · $it") }
+        if (item.configId == "77" && valueState.hibernateMetadata == top.ghhccghk.yadea.carsetting.HibernateMetadataState.ACCEPTED)
+            append(" · 云端休眠标记已保存，车辆状态仍以回读为准")
 }.removePrefix(" · ")
 
 internal fun timeSyncStatusSummary(report: TimeSyncStatusReport?): String = if (report == null)
