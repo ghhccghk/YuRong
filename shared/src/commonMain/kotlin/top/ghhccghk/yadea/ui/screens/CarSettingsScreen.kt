@@ -200,6 +200,8 @@ fun CarSettingsScreen(
             (!vehicleConnected || vehiclePowerOn != true)
         ) {
             "请先连接车辆并开机"
+        } else if (item.configId == "33" && item.kind is CarSettingKind.Toggle && !controller.simulatedSoundAvailable) {
+            "声浪设备状态未确认或当前不可用，请等待车辆回读"
         } else if (item.configId == "86" && !VolumeBrightnessSettings.canEdit(item, state)) {
             "请先开启亮度调节并等待车辆回读确认"
         } else if (!EnergyRecoverySettings.canEdit(item, state)) {
@@ -1449,7 +1451,7 @@ internal fun carSettingsUiResetKey(state: CarSettingsState): CarSettingsUiResetK
     )
 
 private val SAFETY_CONFIRM_IDS = setOf("36", "37", "38")
-private val BLE_POWER_SETTING_IDS = setOf("37", "38", "86", "17", "18")
+private val BLE_POWER_SETTING_IDS = setOf("37", "38", "86", "17", "18", "33")
 
 internal fun settingSwitchTarget(state: CarSettingValueState, targetChecked: Boolean): CarSettingKind.Toggle? =
     (state.displayKind() as? CarSettingKind.Toggle)?.copy(checked = targetChecked, valueKnown = true)

@@ -207,6 +207,7 @@ data class CarSettingItem(
     val sideBraceCloseAuthorization: SideBraceCloseAuthorization? = null,
     /** Per-submission cloud-online proof, never retained as observed/configured state. */
     val locationSwitchAuthorization: LocationSwitchAuthorization? = null,
+    val simulatedSoundAuthorization: SimulatedSoundAuthorization? = null,
 )
 
 enum class CarSettingConfirmationStatus {
@@ -323,6 +324,7 @@ object CarSettingItemAccess {
         "73" to setOf("config"),
         "60" to setOf("enable", "level"),
         "62" to setOf("level"),
+        "33" to setOf("mode", "volume"),
         "64" to setOf("adaptive", "level"),
         "69" to setOf("fcw", "rcw", "bsd"),
         "81" to setOf("time"),
@@ -406,6 +408,10 @@ class CarSettingsController(
     val cloudAvailable: Boolean
         get() = gateway != null
 
+    val simulatedSoundAvailable: Boolean
+        get() = latestVehicleStatus?.takeIf { it.live && it.vin == _state.value.vin && it.vin == vinProvider().trim() }
+            ?.status?.extended?.simulatedSoundWaveOnlineStatus == 0
+
     /**
      * 从云端重新拉取当前 VIN 的可用设置项。
      *
@@ -428,7 +434,7 @@ class CarSettingsController(
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
                         configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids ||
                         configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids ||
-                        configId in CloudSwitchSettings.ids || configId in TrackerSettings.ids || configId in setOf("10", "73", "42", "2")
+                        configId in CloudSwitchSettings.ids || configId in TrackerSettings.ids || configId in setOf("10", "73", "42", "2", "33")
                 }
             }) {
             _state.value = _state.value.copy(message = "设置正在提交，请完成后刷新")
@@ -641,6 +647,7 @@ class CarSettingsController(
         item.configId !in TimerSettings.ids || TimerSettings.validItem(item.copy(kind = target))
 
     private fun validSimpleChoiceTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
+        (item.configId != "33" || SimulatedSoundSettings.validItem(item.copy(kind = target))) &&
         (item.configId !in TrackerSettings.ids || TrackerSettings.validItem(item.copy(kind = target))) &&
         (item.configId != "2" || SideBraceSettings.validItem(item.copy(kind = target))) &&
         (item.configId != "42" || RemainingMileageSettings.validItem(item.copy(kind = target))) &&
@@ -784,6 +791,13 @@ class CarSettingsController(
                 delay(debounceMs)
             }
             if (!isCurrentOperation(id, operation)) return false
+            if (item.configId == "33") {
+                if (!simulatedSoundAvailable) {
+                    finishFailure(id, "声浪设备状态未确认或当前不可用，请等待车辆回读", SettingConfirmationState.FAILED)
+                    return false
+                }
+                submitted = submitted.copy(simulatedSoundAuthorization = SimulatedSoundAuthorization(vin))
+            }
             if (item.configId == "76") {
                 val authorization = try {
                     gateway?.loadLocationSwitchAuthorization(vin)
@@ -1035,7 +1049,12 @@ class CarSettingsController(
                 // 原 App：tcsWorkMode == 0 为开启，1..7 为关闭，-1 表示未上报。
                 "37" -> item.withToggle(SimpleToggleSettings.tcs(status.extended.tcsWorkMode))
                 "38" -> item.withToggle(SimpleToggleSettings.flag(status.extended.absFunctionStatus))
-                "33" -> item.withToggle(status.extended.simulatedSoundWaveStatus.flagOrNull())
+                "33" -> when (item.id) {
+                    "cloud:33" -> item.withToggle(SimpleToggleSettings.flag(status.extended.simulatedSoundWaveStatus))
+                    "cloud:33:mode" -> item.withIndex(status.extended.simulatedSoundWaveModeStatus.takeIf { it in 0..1 })
+                    "cloud:33:volume" -> item.withSlider(status.extended.simulatedSoundWaveVolumeStatus.floatIn(1..16))
+                    else -> item
+                }
                 "86" -> when (item.kind) {
                     is CarSettingKind.Toggle -> item.withToggle(
                         SimpleToggleSettings.flag(status.extended.brightnessAdjustSwitch),
@@ -1290,7 +1309,7 @@ class CarSettingsController(
                     val audited = configId in setOf("4", "58", "61", "55", "92") ||
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
                         configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids ||
-                        configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids || configId in TrackerSettings.ids || configId in setOf("73", "42", "2")
+                        configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids || configId in TrackerSettings.ids || configId in setOf("73", "42", "2", "33")
                     value.copy(readbackState = SettingReadbackState.MISSING_OR_INVALID,
                         vehicleValue = if (audited) value.vehicleValue.copy(live = false) else value.vehicleValue)
                 } else value

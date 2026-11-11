@@ -1451,6 +1451,18 @@ object CloudCarSettingMapper {
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,
             )
         }
+        cloud.configs.firstOrNull { it.confId.trim() == "33" }?.let { config ->
+            val classification = classificationOf("33", config)
+            val base = CarSettingItem(
+                id = "cloud:33:mode", configId = "33", title = "模拟声浪音效",
+                summary = "车辆回读（只读）", classification = classification, group = groupOf(config, classification),
+                channel = CarSettingChannel.BLE, writable = false, sort = (config.sort.toIntOrNull() ?: 0) + 1,
+                kind = CarSettingKind.Choice(-1, SimulatedSoundSettings.modes, valueKnown = false),
+            )
+            items += base
+            items += base.copy(id = "cloud:33:volume", title = "模拟声浪音量", sort = base.sort + 1,
+                kind = CarSettingKind.Slider(1f, 1f..16f, steps = 14, valueKnown = false))
+        }
         for (pushAssistId in listOf("64", "89")) {
             cloud.configs.firstOrNull { it.confId.trim() == pushAssistId }?.let { config ->
                 items += CarSettingItem(

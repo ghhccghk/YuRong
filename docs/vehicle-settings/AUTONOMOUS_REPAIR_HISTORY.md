@@ -223,3 +223,16 @@
 - 首次过滤61/61退出0；补取消、旧VIN轮询、原始Gateway负例及严格75成功响应检查后64/64退出0。TrackerSettingsSafetyTest17、CloudConfiguredValueRefreshTest30、CarSettingsControllerTest17。实际命令：`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.TrackerSettingsSafetyTest --tests top.ghhccghk.yadea.carsetting.CloudConfiguredValueRefreshTest --tests top.ghhccghk.yadea.carsetting.CarSettingsControllerTest --offline --console=plain`。Fake/内存隔离，无真实网络/车辆请求。
 - `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；缓存C:\Users\DozenOregano696\.gradle。
 - 独立复审UI→原Binding/VM→Controller→实际Writer→Gateway→结果/回读；没有扩大其他设置映射、帧、原始TTP、网络签名或平台架构。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；75 PARTIAL/关闭及FA帧BLOCKED，76 CONDITIONAL。未运行App、无VEHICLE_VERIFIED。待精确提交。
+
+### A16提交核对 / A17起点
+
+- A16提交6e5038c5c4207cb8939facbc86c97b42e52fd4ff，10文件；tracked/index干净，原有12项untracked保持，无外部提交。
+
+## A17（独立复审及验证完成）
+
+- ID33模拟声浪：原SimulatedSoundActivity.onSwClick207–297先检查D5/R；VM21660–21709以simulatedSoundWaveOnlineStatus==0赋R。原开关95/96独立提交，当前KMP漏门控。本批在Controller提交时读取当前同VIN有效LIVE观察，附本次临时许可；实际CloudWriter检查VIN，Mapper/实际MappedWriter拒绝裸confId、缺许可、未知值及伪造条目。
+- 原Activity.onCheckChange128–205以rb_1/rb_2独立提交模式0/1；VM21556–21602回填Q。VM21608–21653仅接受音量>0；BleBicycleCommandManager2819–2855的98参数域0..16，交集1..16作为可靠回填域。qg6933–6959模式97、5844–5870音量98均无当前已确认帧，本轮不修改编码，新增两只读语义子项；云端目录无33时不展示。原APK资源与Smali R$id存在版本差异，不作为参数证据。
+- 复用已有TTP原始字段解析及VIN/序号/缓存/live基础设施；严格开关0/1、模式0/1、音量1..16，非法新观察撤销live权威。UI复用App控件并纳入原页连接/开机遮罩，未知无默认Choice。没有云端字段/写入推断。
+- 首次过滤命令退出1：新增测试夹具把Boolean权限写成String，并误用Choice.index属性，测试源码未编译；修正夹具类型/属性后同命令退出0，32/32通过（SimulatedSoundSettingsSafetyTest12、CarSettingsControllerTest17、VehicleSettingGoldenFrameTest3）。未修改生产校验。命令`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.SimulatedSoundSettingsSafetyTest --tests top.ghhccghk.yadea.carsetting.CarSettingsControllerTest --tests top.ghhccghk.yadea.carsetting.VehicleSettingGoldenFrameTest --offline --console=plain`。
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。缓存C:\Users\DozenOregano696\.gradle。Fake均内存隔离，无真实云端/BLE/车辆操作。
+- 修复后独立重走原页→Binding/VM→Controller→实际CloudWriter/Mapper/MappedWriter→既有95/96编码→新鲜回读；接受不建立车辆值，许可不持久化，模式/音量仍只读。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；整体PARTIAL，97/98写入BLOCKED，无RUNTIME_VERIFIED或VEHICLE_VERIFIED。待精确提交。

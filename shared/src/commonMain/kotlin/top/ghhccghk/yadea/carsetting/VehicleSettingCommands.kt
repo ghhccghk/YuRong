@@ -143,6 +143,7 @@ class CloudCarSettingWriter(
         if (item.configId == "2" && !SideBraceSettings.authorized(item, vin)) return CarSettingWriteResult(false)
         if (item.configId == "42" && !RemainingMileageSettings.authorized(item, vin)) return CarSettingWriteResult(false)
         if (!TrackerSettings.authorized(item, vin)) return CarSettingWriteResult(false)
+        if (item.configId == "33" && !SimulatedSoundSettings.authorized(item, vin)) return CarSettingWriteResult(false)
         val update = CloudCarSettingUpdateBuilder.build(
             configId = item.configId,
             kind = item.kind,
@@ -191,14 +192,14 @@ object VehicleSettingCommands {
                 "5" -> kind is CarSettingKind.Choice
                 else -> kind is CarSettingKind.Toggle || kind is CarSettingKind.Choice
             }) ||
-            (configId in setOf("2", "42") && kind is CarSettingKind.Toggle) ||
+            (configId in setOf("2", "42", "33") && kind is CarSettingKind.Toggle) ||
             forConfigId(configId, kind)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     fun supportsItem(item: CarSettingItem): Boolean =
         if (item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids ||
             item.configId in BatterySettings.ids || item.configId in TimerSettings.ids ||
             item.configId in SimpleChoiceSettings.ids || item.configId in SimpleToggleSettings.ids ||
-            item.configId in VolumeBrightnessSettings.ids || item.configId in EnergyRecoverySettings.ids || item.configId in setOf("73", "42", "2")) supports(item.configId, item.kind)
+            item.configId in VolumeBrightnessSettings.ids || item.configId in EnergyRecoverySettings.ids || item.configId in setOf("73", "42", "2", "33")) supports(item.configId, item.kind)
         else forItem(item)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     /**
@@ -635,14 +636,8 @@ object VehicleSettingCommands {
                 onId = 0x99,
                 offId = 0x9A,
             )
-            // SimulatedSoundActivity：0x95 开启，0x96 关闭。
-            "33" -> toggle(
-                kind = kind,
-                onType = "SIMULATED_SOUND_WAVE_OPEN",
-                offType = "SIMULATED_SOUND_WAVE_CLOSE",
-                onId = 0x95,
-                offId = 0x96,
-            )
+            // The original switch requires D5/R availability; a bare confId carries no proof.
+            "33" -> null
             // BrightnessAdjustmentActivity：开关走 0x135，手动亮度走 0x134。
             "86" -> if (!VolumeBrightnessSettings.validTarget(configId, kind)) null else when (kind) {
                 is CarSettingKind.Toggle -> toggle(
@@ -809,6 +804,12 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        if (item.configId == "33") {
+            if (!SimulatedSoundSettings.authorized(item)) return null
+            return if ((item.kind as CarSettingKind.Toggle).checked)
+                VehicleSettingCommand("SIMULATED_SOUND_WAVE_OPEN", 0x95)
+            else VehicleSettingCommand("SIMULATED_SOUND_WAVE_CLOSE", 0x96)
+        }
         if (item.configId == "2") {
             if (!SideBraceSettings.authorized(item)) return null
             return if ((item.kind as CarSettingKind.Toggle).checked) forConfigId("2", item.kind)
