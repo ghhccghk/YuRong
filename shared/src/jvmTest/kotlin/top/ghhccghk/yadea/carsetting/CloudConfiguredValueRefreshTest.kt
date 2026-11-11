@@ -221,7 +221,8 @@ class CloudConfiguredValueRefreshTest {
         assertTrue(text.contains("非车辆回读"))
         c.updateVehicleStatus("A", unknownTtp)
         assertEquals(v.configuredValue, c.value("cloud:47").configuredValue)
-        assertEquals(v.vehicleValue, c.value("cloud:47").vehicleValue)
+        assertEquals((v.vehicleValue as VehicleSettingValue.Known).copy(live = false), c.value("cloud:47").vehicleValue)
+        assertEquals(SettingReadbackState.MISSING_OR_INVALID, c.value("cloud:47").readbackState)
     }
 
     @Test fun numericAndChoiceCloudFieldsDoNotDependOnTtpOrMapperDefaults() = runBlocking {
@@ -233,7 +234,8 @@ class CloudConfiguredValueRefreshTest {
         assertEquals(350f, (c.value("cloud:47").configuredValue as CarSettingKind.Slider).value)
         assertEquals(100f, (c.value("cloud:48").configuredValue as CarSettingKind.Slider).value)
         assertEquals(0f, (c.value("cloud:61").configuredValue as CarSettingKind.Slider).value)
-        assertEquals(1, (c.value("cloud:62:level").configuredValue as CarSettingKind.Choice).selectedIndex)
+        // HeatedSeatsActivity radio listeners and seatHeatingLevel use raw 0/1/2.
+        assertEquals(2, (c.value("cloud:62:level").configuredValue as CarSettingKind.Choice).selectedIndex)
         assertEquals(BatteryCapacityOptions.valuesAh.indexOf(22), (c.value("cloud:60:level").configuredValue as CarSettingKind.Choice).selectedIndex)
         assertNull(c.value("cloud:60:enable").configuredValue)
     }
@@ -427,7 +429,7 @@ class CloudConfiguredValueRefreshTest {
     }
 
     @Test fun existingCloudBooleanMappingsDisplayBothExplicitStatesWithoutLiveTtp() = runBlocking {
-        val fields = mapOf("7" to "bleLeavePowerOffEnable", "9" to "alarmOn", "10" to "distanceOn",
+        val fields = mapOf("9" to "alarmOn", "10" to "distanceOn",
             "13" to "alarmSoundEnable", "15" to "vehiclePowerDownStatus", "16" to "dumpAlarm",
             "17" to "resistanceOn", "24" to "emergencyContact", "25" to "passwordUnlockEnable",
             "40" to "colorEggSoundEffect", "47" to "chargeWattSwitch", "52" to "bleUnlockOn",
@@ -449,6 +451,11 @@ class CloudConfiguredValueRefreshTest {
                 assertEquals(key, raw == 1, checked)
                 assertEquals(VehicleSettingValue.Unknown, c.value(key).vehicleValue)
             }
+            // A DTO key alone does not prove the ID7 page consumes it (329effd).
+            val lock = controller(FakeGateway(response("\"bleLeavePowerOffEnable\":$raw", listOf("7"))))
+            lock.refresh()
+            assertNull(lock.value("cloud:7").configuredValue)
+            assertNull(lock.value("cloud:7").displayKind())
         }
     }
 }

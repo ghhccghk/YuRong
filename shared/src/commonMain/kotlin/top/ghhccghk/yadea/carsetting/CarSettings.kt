@@ -415,7 +415,8 @@ class CarSettingsController(
         }
         if (_state.value.vin == vin && activeOperations.keys.any {
                 findItem(it)?.configId.let { configId ->
-                    configId in setOf("4", "58", "61", "55", "92") || configId in SecondPhaseSettings.ids
+                    configId in setOf("4", "58", "61", "55", "92") ||
+                        configId in SecondPhaseSettings.ids || configId in BatterySettings.ids
                 }
             }) {
             _state.value = _state.value.copy(message = "设置正在提交，请完成后刷新")
@@ -544,7 +545,7 @@ class CarSettingsController(
         if (!hasKnownSettingValue(item)) return false
         val target = transform(editable)
         if (!validDraftTarget(item.kind, target) || !validSpeedTarget(item, target) ||
-            !validSecondPhaseTarget(item, target)
+            !validSecondPhaseTarget(item, target) || !validBatteryTarget(item, target)
         ) return false
         changeValueState(id) { it.copy(draftValue = target, error = null) }
         return true
@@ -614,6 +615,9 @@ class CarSettingsController(
                 target.speedPresets == item.kind.speedPresets &&
                 VehicleSettingCommands.forConfigId(item.configId, target) != null)
 
+    private fun validBatteryTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
+        item.configId !in BatterySettings.ids || BatterySettings.validItem(item.copy(kind = target))
+
     private fun hasActiveSettingWrite(item: CarSettingItem): Boolean =
         item.id in activeOperations || SecondPhaseSettings.writeKey(item)?.let { key ->
             activeOperations.keys.any { id -> findItem(id)?.let { SecondPhaseSettings.writeKey(it) == key } == true }
@@ -674,7 +678,7 @@ class CarSettingsController(
         if (!hasKnownSettingValue(item)) return false
         val target = transform(editable)
         if (!validTarget(item.kind, target) || !validSpeedTarget(item, target) ||
-            !validSecondPhaseTarget(item, target)
+            !validSecondPhaseTarget(item, target) || !validBatteryTarget(item, target)
         ) {
             _state.value = current.copy(message = "设置值无效")
             return false
@@ -927,24 +931,25 @@ class CarSettingsController(
                 "84" -> item.withToggle(status.extended.blueLightSwitch.flagOrNull())
                 "47" -> when (item.kind) {
                     is CarSettingKind.Toggle -> item.withToggle(
-                        status.extended.batteryChargingPowerStatus.flagOrNull(),
+                        BatterySettings.flag(status.extended.batteryChargingPowerStatus),
                     )
                     is CarSettingKind.Slider -> {
                         val watt = status.extended.batteryChargingPowerValue
                             .takeIf { it in 200..1_000 }
-                            ?.let { (it / 50 * 50).toFloat() }
+                            ?.toFloat()
                         item.withSlider(watt)
                     }
                     else -> item
                 }
-                "62" -> when (val kind = item.kind) {
+                "48" -> item.withSlider(BatterySettings.chargingLimit(status.extended.batteryChargingLimitValue))
+                "62" -> when (item.kind) {
                     is CarSettingKind.Toggle -> item.withToggle(
-                        status.extended.seatHeatSwitchStatus.flagOrNull(),
+                        BatterySettings.flag(status.extended.seatHeatSwitchStatus),
                     )
                     is CarSettingKind.Choice -> {
                         val level = status.extended.seatHeatLevelStatus
                         item.withIndex(
-                            (level - 1).takeIf { level in 1..kind.options.size },
+                            level.takeIf { it in 0..2 },
                         )
                     }
                     else -> item
@@ -1048,7 +1053,7 @@ class CarSettingsController(
                 "44" -> item.withToggle(status.extended.helpCarState.flagOrNull())
                 "60" -> when {
                     item.id.endsWith(":enable") -> item.withToggle(
-                        status.extended.capacitySwitchStatus.flagOrNull(),
+                        BatterySettings.flag(status.extended.capacitySwitchStatus),
                     )
                     item.kind is CarSettingKind.Choice -> {
                         val index = BatteryCapacityOptions.valuesAh
@@ -1146,7 +1151,8 @@ class CarSettingsController(
             valueStates = current.valueStates.mapValues { (id, value) ->
                 if (id !in observations && value.vehicleValue is VehicleSettingValue.Known) {
                     val configId = findItem(id)?.configId
-                    val audited = configId in setOf("4", "58", "61", "55", "92") || configId in SecondPhaseSettings.ids
+                    val audited = configId in setOf("4", "58", "61", "55", "92") ||
+                        configId in SecondPhaseSettings.ids || configId in BatterySettings.ids
                     value.copy(readbackState = SettingReadbackState.MISSING_OR_INVALID,
                         vehicleValue = if (audited) value.vehicleValue.copy(live = false) else value.vehicleValue)
                 } else value

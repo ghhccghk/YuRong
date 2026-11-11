@@ -21,6 +21,11 @@ data class VehicleSettingCommand(
             0x55 -> require(parameter in 0..3)
             0x5E -> require(parameter in 0..2)
             0x2E -> require(parameter in 0..2) // ch.d also defines THEME_2; ID5 exposes only 0/1.
+            0xC9, 0xD2, 0xD4 -> require(parameter in 0..1)
+            0xCA -> require(parameter in 200..1000 && parameter % 50 == 0)
+            0xCB -> require(parameter in 70..100 && parameter % 5 == 0)
+            0xCD -> require(parameter in BatteryCapacityOptions.valuesAh)
+            0xD3 -> require(parameter in 0..2)
         }
         // Validate even callers that construct a composite command without the mapper.
         if (commandId == 0xC8 || commandType == "CUSTOMIZE_SETTING") {
@@ -96,6 +101,7 @@ class CloudCarSettingWriter(
 
     override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult {
         if (!CarSettingItemAccess.canWrite(item)) return CarSettingWriteResult(false)
+        if (item.configId in BatterySettings.ids && !BatterySettings.validItem(item)) return CarSettingWriteResult(false)
         if ((item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids) &&
             VehicleSettingCommands.forItem(item) == null
         ) return CarSettingWriteResult(false)
@@ -129,7 +135,8 @@ object VehicleSettingCommands {
 
     fun supports(configId: String, kind: CarSettingKind): Boolean =
         // Capability must survive unknown initial values; forItem/forConfigId validate writes.
-        (configId in setOf("55", "92") && kind is CarSettingKind.Customize) ||
+        BatterySettings.supports(configId, kind) ||
+            (configId in setOf("55", "92") && kind is CarSettingKind.Customize) ||
             (configId in setOf("4", "58", "61") && kind is CarSettingKind.Slider) ||
             (configId in SecondPhaseSettings.ids && when (configId) {
                 "5" -> kind is CarSettingKind.Choice
@@ -138,7 +145,8 @@ object VehicleSettingCommands {
             forConfigId(configId, kind)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     fun supportsItem(item: CarSettingItem): Boolean =
-        if (item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids) supports(item.configId, item.kind)
+        if (item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids ||
+            item.configId in BatterySettings.ids) supports(item.configId, item.kind)
         else forItem(item)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     /**
@@ -200,7 +208,7 @@ object VehicleSettingCommands {
                 offParameter = 0,
             )
             // HeatedSeatsActivity：座椅加热开关和档位。
-            "62" -> when (kind) {
+            "62" -> if (!BatterySettings.validTarget(configId, kind)) null else when (kind) {
                 is CarSettingKind.Toggle -> toggle(
                     kind = kind,
                     onType = "SEAT_HEAT_SWITCH",
@@ -213,7 +221,7 @@ object VehicleSettingCommands {
                 is CarSettingKind.Choice -> VehicleSettingCommand(
                     commandType = "SEAT_HEAT_LEVEL",
                     commandId = 0xD3,
-                    parameter = (kind.selectedIndex + 1).coerceIn(1, 3),
+                    parameter = kind.selectedIndex,
                 )
                 else -> null
             }
@@ -697,7 +705,8 @@ object VehicleSettingCommands {
             // ChargeCapActivity：70..100%，5% 步进。
             "48" -> {
                 val slider = kind as? CarSettingKind.Slider ?: return null
-                val percent = (slider.value.toInt() / 5 * 5).coerceIn(70, 100)
+                if (!BatterySettings.validTarget(configId, slider) || slider.value.toInt() % 5 != 0) return null
+                val percent = slider.value.toInt()
                 VehicleSettingCommand(
                     commandType = "COMMAND_CONST_CHARGING_LIMIT_VALUE",
                     commandId = 0xCB,
@@ -705,7 +714,7 @@ object VehicleSettingCommands {
                 )
             }
             // CapacitySettingActivity：电池容量开关与固定 13/15/22/25/32/38Ah 档位。
-            "60" -> when (kind) {
+            "60" -> if (!BatterySettings.validTarget(configId, kind)) null else when (kind) {
                 is CarSettingKind.Toggle -> toggle(
                     kind = kind,
                     onType = "COMMAND_CONST_CAPACITY_SWITCH_SETTING",
@@ -718,14 +727,12 @@ object VehicleSettingCommands {
                 is CarSettingKind.Choice -> VehicleSettingCommand(
                     commandType = "COMMAND_CONST_CAPACITY_SETTING",
                     commandId = 0xCD,
-                    parameter = BatteryCapacityOptions.valuesAh
-                        .getOrNull(kind.selectedIndex)
-                        ?: BatteryCapacityOptions.valuesAh.last(),
+                    parameter = BatteryCapacityOptions.valuesAh[kind.selectedIndex],
                 )
                 else -> null
             }
             // ChargingPowerActivity：开关走 0xC9，瓦数滑杆走 0xCA。
-            "47" -> when (kind) {
+            "47" -> if (!BatterySettings.validTarget(configId, kind)) null else when (kind) {
                 is CarSettingKind.Toggle -> toggle(
                     kind = kind,
                     onType = "COMMAND_CONST_CHARGING_POWER_STATE",
@@ -736,7 +743,7 @@ object VehicleSettingCommands {
                     offParameter = 1,
                 )
                 is CarSettingKind.Slider -> {
-                    val watt = (kind.value.toInt() / 50 * 50).coerceIn(200, 1000)
+                    val watt = kind.value.toInt()
                     VehicleSettingCommand(
                         commandType = "COMMAND_CONST_CHARGING_POWER_VALUE",
                         commandId = 0xCA,
@@ -749,6 +756,10 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        if (item.configId in BatterySettings.ids) {
+            if (!BatterySettings.validItem(item)) return null
+            return forConfigId(item.configId, item.kind)
+        }
         if (item.configId in SecondPhaseSettings.ids) {
             val expectedId = when (item.kind) {
                 is CarSettingKind.Toggle -> "cloud:${item.configId}"
@@ -849,25 +860,6 @@ object VehicleSettingCommands {
             }
         }
         when (item.id) {
-            "cloud:60:enable" -> return toggle(
-                kind = item.kind,
-                onType = "COMMAND_CONST_CAPACITY_SWITCH_SETTING",
-                offType = "COMMAND_CONST_CAPACITY_SWITCH_SETTING",
-                onId = 0xD4,
-                offId = 0xD4,
-                onParameter = 1,
-                offParameter = 0,
-            )
-            "cloud:60:level" -> {
-                val choice = item.kind as? CarSettingKind.Choice ?: return null
-                return VehicleSettingCommand(
-                    commandType = "COMMAND_CONST_CAPACITY_SETTING",
-                    commandId = 0xCD,
-                    parameter = BatteryCapacityOptions.valuesAh
-                        .getOrNull(choice.selectedIndex)
-                        ?: BatteryCapacityOptions.valuesAh.last(),
-                )
-            }
             "cloud:1005:short" -> return keyFunctionCommand(item.kind, short = true)
             "cloud:1005:long" -> return keyFunctionCommand(item.kind, short = false)
             "cloud:69:fcw" -> return toggle(

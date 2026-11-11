@@ -322,7 +322,13 @@ class CarSettingsControllerTest {
 
         assertTrue(ok)
         val item = controller.state.value.items.first { it.id == "security.auto_lock" }
-        assertEquals(false, (item.kind as CarSettingKind.Toggle).checked)
+        // The optimistic target is separate from the last observed item value.
+        assertEquals(true, (item.kind as CarSettingKind.Toggle).checked)
+        val value = controller.state.value.valueState(item.id)
+        assertEquals(false, (value.submittedValue as CarSettingKind.Toggle).checked)
+        assertEquals(SettingWriteState.LOCAL_UPDATED, value.writeState)
+        assertEquals(SettingConfirmationState.WAITING_READBACK, value.confirmationState)
+        assertEquals(VehicleSettingValue.Unknown, value.vehicleValue)
         assertTrue(controller.state.value.pendingIds.isEmpty())
         assertNotNull(writer.last)
     }
@@ -346,14 +352,14 @@ class CarSettingsControllerTest {
     @Test
     fun unavailableWriter_rejectsWithoutChangingValue() = runBlocking {
         val controller = CarSettingsController(items(), writer = null)
-        val before = controller.state.value.items.first { it.id == "battery.charge_limit" }
+        val before = controller.state.value.items.first { it.id == "ride.cruise" }
 
-        val ok = controller.update("battery.charge_limit") { kind ->
-            (kind as CarSettingKind.Slider).copy(value = 80f)
+        val ok = controller.update("ride.cruise") { kind ->
+            (kind as CarSettingKind.Toggle).copy(checked = true)
         }
 
         assertFalse(ok)
-        val after = controller.state.value.items.first { it.id == "battery.charge_limit" }
+        val after = controller.state.value.items.first { it.id == "ride.cruise" }
         assertEquals(before.kind, after.kind)
         assertEquals("车辆设置通道未接入", controller.state.value.message)
     }
@@ -424,7 +430,8 @@ class CarSettingsControllerTest {
             vinProvider = { "VIN" },
         )
 
-        controller.updateVehicleStatus(sampleStatus())
+        val status = sampleStatus(tcsWorkMode = 1)
+        controller.updateVehicleStatus(status.copy(extended = status.extended.copy(batteryChargingPowerValue = 350)))
         assertTrue(controller.state.value.items.isEmpty())
         assertTrue(controller.refresh())
 
@@ -474,6 +481,7 @@ class CarSettingsControllerTest {
                 ),
             ),
             writer = FakeWriter(true),
+            vinProvider = { "VIN" },
         )
 
         controller.updateVehicleStatus(sampleStatus(tcsWorkMode = 1))
@@ -556,6 +564,7 @@ class CarSettingsControllerTest {
                 ),
             ),
             writer = FakeWriter(true),
+            vinProvider = { "VIN" },
         )
 
         controller.updateVehicleStatus(
@@ -593,7 +602,7 @@ class CarSettingsControllerTest {
         )
         assertTrue(controller.refresh())
 
-        controller.updateVehicleStatus("VIN-A", sampleStatus(tcsWorkMode = 0xFF))
+        controller.updateVehicleStatus("VIN-A", sampleStatus(tcsWorkMode = 0))
 
         val item = controller.state.value.items.first { it.id == "cloud:37" }
         assertEquals(false, (item.kind as CarSettingKind.Toggle).checked)
@@ -613,7 +622,7 @@ class CarSettingsControllerTest {
             },
             vinProvider = { currentVin },
         )
-        controller.updateVehicleStatus("VIN-A", sampleStatus(tcsWorkMode = 0xFF))
+        controller.updateVehicleStatus("VIN-A", sampleStatus(tcsWorkMode = 0))
         assertEquals(
             true,
             (controller.state.value.items.first().kind as CarSettingKind.Toggle).checked,

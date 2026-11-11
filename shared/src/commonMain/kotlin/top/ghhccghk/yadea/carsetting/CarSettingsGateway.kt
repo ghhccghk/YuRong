@@ -109,7 +109,8 @@ private object VehicleParamJson {
 object CloudCarSettingUpdateBuilder {
     // Schema support is independent of completeness; build() still rejects unknown siblings.
     fun supports(configId: String, kind: CarSettingKind): Boolean =
-        (configId == "9" && kind is CarSettingKind.LowPowerInfo) ||
+        BatterySettings.supports(configId, kind) ||
+            (configId == "9" && kind is CarSettingKind.LowPowerInfo) ||
             (configId == "82" && kind is CarSettingKind.LowPowerPhone) ||
             build(configId, kind, vin = "vin") != null
 
@@ -118,6 +119,7 @@ object CloudCarSettingUpdateBuilder {
         kind: CarSettingKind,
         vin: String,
     ): CloudCarSettingUpdate? {
+        if (configId in BatterySettings.ids && !BatterySettings.validTarget(configId, kind)) return null
         val fields = linkedMapOf<String, Any?>("_gateway" to "True", "vin" to vin)
         val path: CloudCarSettingUpdatePath
         when (kind) {
@@ -251,7 +253,7 @@ object CloudCarSettingUpdateBuilder {
                         fields["valueJson"] = VehicleParamJson.capacity(value)
                     }
                     "62" -> {
-                        val value = (kind.selectedIndex + 1).coerceIn(1, 3)
+                        val value = kind.selectedIndex
                         path = CloudCarSettingUpdatePath.PARAM_SETTING
                         fields["seatHeatingLevel"] = value
                         fields["oper"] = "SET_PARAM"
@@ -919,8 +921,7 @@ object CloudCarSettingMapper {
                 "cloud:60:level" -> BatteryCapacityOptions.valuesAh.indexOf(
                     cloud.values["capacity"]?.trim()?.toIntOrNull(),
                 )
-                "cloud:62:level" -> cloud.values["seatHeatingLevel"]?.trim()?.toIntOrNull()
-                    ?.minus(1) ?: return null
+                "cloud:62:level" -> cloud.values["seatHeatingLevel"]?.trim()?.toIntOrNull() ?: return null
                 else -> return null
             }
             return index.takeIf { it in choice.options.indices }
@@ -1067,7 +1068,7 @@ object CloudCarSettingMapper {
         }
         cloud.configs.firstOrNull { it.confId.trim() == "47" }?.let { config ->
             val classification = CarSettingClassification.BATTERY
-            val enabled = cloud.boolValue("chargeWattSwitch") == true
+            val enabled = cloud.boolValue("chargeWattSwitch")
             items += CarSettingItem(
                 id = "cloud:47:enable",
                 configId = "47",
@@ -1076,7 +1077,7 @@ object CloudCarSettingMapper {
                 classification = classification,
                 group = groupOf(config, classification),
                 channel = CarSettingChannel.BLE,
-                kind = CarSettingKind.Toggle(enabled),
+                kind = CarSettingKind.Toggle(enabled == true, valueKnown = enabled != null),
                 writable = config.isAuth != false,
                 sort = (config.sort.toIntOrNull() ?: 0) - 1,
             )
@@ -1100,9 +1101,9 @@ object CloudCarSettingMapper {
             val group = groupOf(config, classification)
             val sort = config.sort.toIntOrNull() ?: 0
             val capacityIndex = BatteryCapacityOptions.valuesAh
-                .indexOf(cloud.intValue("capacity"))
+                .indexOf(cloud.values["capacity"]?.trim()?.toIntOrNull())
                 .takeIf { it >= 0 }
-                ?: BatteryCapacityOptions.labels.lastIndex
+                ?: -1
             items += CarSettingItem(
                 id = "cloud:60:enable",
                 configId = "60",
@@ -1111,7 +1112,7 @@ object CloudCarSettingMapper {
                 classification = classification,
                 group = group,
                 channel = CarSettingChannel.BLE,
-                kind = CarSettingKind.Toggle(false),
+                kind = CarSettingKind.Toggle(false, valueKnown = false),
                 writable = config.isAuth != false,
                 sort = sort + 1,
             )
@@ -1126,6 +1127,7 @@ object CloudCarSettingMapper {
                 kind = CarSettingKind.Choice(
                     selectedIndex = capacityIndex,
                     options = BatteryCapacityOptions.labels,
+                    valueKnown = capacityIndex >= 0,
                 ),
                 writable = config.isAuth != false,
                 sort = sort + 2,
@@ -1173,7 +1175,7 @@ object CloudCarSettingMapper {
             )
         }
         cloud.configs.firstOrNull { it.confId.trim() == "62" }?.let { config ->
-            val level = cloud.intValue("seatHeatingLevel")?.coerceIn(1, 3) ?: 1
+            val level = cloud.values["seatHeatingLevel"]?.trim()?.toIntOrNull()?.takeIf { it in 0..2 }
             items += CarSettingItem(
                 id = "cloud:62:level",
                 configId = "62",
@@ -1183,8 +1185,9 @@ object CloudCarSettingMapper {
                 group = groupOf(config, classificationOf("62", config)),
                 channel = CarSettingChannel.IOT,
                 kind = CarSettingKind.Choice(
-                    selectedIndex = level - 1,
-                    options = listOf("1 档", "2 档", "3 档"),
+                    selectedIndex = level ?: -1,
+                    options = BatterySettings.heatOptions,
+                    valueKnown = level != null,
                 ),
                 writable = config.isAuth != false,
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,
@@ -1509,9 +1512,9 @@ object CloudCarSettingMapper {
                         sort = classification.ordinal,
                     )
                     val capacityIndex = BatteryCapacityOptions.valuesAh
-                        .indexOf(cloud.intValue("capacity"))
+                        .indexOf(cloud.values["capacity"]?.trim()?.toIntOrNull())
                         .takeIf { it >= 0 }
-                        ?: BatteryCapacityOptions.labels.lastIndex
+                        ?: -1
                     return@flatMap sequenceOf(
                         CarSettingItem(
                             id = "cloud:60:enable",
@@ -1521,7 +1524,7 @@ object CloudCarSettingMapper {
                             classification = classification,
                             group = group,
                             channel = CarSettingChannel.BLE,
-                            kind = CarSettingKind.Toggle(false),
+                            kind = CarSettingKind.Toggle(false, valueKnown = false),
                             writable = true,
                             sort = 60,
                         ),
@@ -1536,6 +1539,7 @@ object CloudCarSettingMapper {
                             kind = CarSettingKind.Choice(
                                 selectedIndex = capacityIndex,
                                 options = BatteryCapacityOptions.labels,
+                                valueKnown = capacityIndex >= 0,
                             ),
                             writable = true,
                             sort = 61,
@@ -1890,25 +1894,24 @@ object CloudCarSettingMapper {
             // ChargingPowerActivity：200..1000W，50W 步进；最大值按云端/车型上限 1000W。
             val maxWatt = 1000
             val minWatt = 200
-            val watt = (cloud.intValue("chargeWattVal")?.coerceIn(minWatt, maxWatt) ?: 350)
-                .let { it / 50 * 50 }
-                .coerceIn(minWatt, maxWatt)
+            val watt = cloud.values["chargeWattVal"]?.trim()?.toIntOrNull()?.takeIf { it in minWatt..maxWatt }
             CarSettingKind.Slider(
-                value = watt.toFloat(),
+                value = watt?.toFloat() ?: minWatt.toFloat(),
                 range = minWatt.toFloat()..maxWatt.toFloat(),
                 steps = (maxWatt - minWatt) / 50 - 1,
                 unit = " W",
+                valueKnown = watt != null,
             )
         }
         "48" -> {
-            // ChargeCapActivity：70..100%，步进 5%。
-            val cap = cloud.intValue("chargeUlVal")?.coerceIn(70, 100) ?: 100
-            val snapped = (cap / 5 * 5).coerceIn(70, 100)
+            // VehicleSettingViewModel accepts integer 75..100; BLE encodes multiples of five only.
+            val cap = cloud.values["chargeUlVal"]?.trim()?.toIntOrNull()?.takeIf { it in 75..100 }
             CarSettingKind.Slider(
-                value = snapped.toFloat(),
-                range = 70f..100f,
-                steps = 5,
+                value = cap?.toFloat() ?: 75f,
+                range = 75f..100f,
+                steps = 24,
                 unit = "%",
+                valueKnown = cap != null,
             )
         }
         // CapacitySettingActivity：电池容量功能拆成开关与固定容量档位。
