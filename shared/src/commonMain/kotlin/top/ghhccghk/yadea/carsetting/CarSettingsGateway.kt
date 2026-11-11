@@ -107,8 +107,11 @@ private object VehicleParamJson {
  * 没有完整 valueJson 证据的项目不进入写入器。
  */
 object CloudCarSettingUpdateBuilder {
+    // Schema support is independent of completeness; build() still rejects unknown siblings.
     fun supports(configId: String, kind: CarSettingKind): Boolean =
-        build(configId, kind, vin = "vin") != null
+        (configId == "9" && kind is CarSettingKind.LowPowerInfo) ||
+            (configId == "82" && kind is CarSettingKind.LowPowerPhone) ||
+            build(configId, kind, vin = "vin") != null
 
     fun build(
         configId: String,
@@ -118,6 +121,28 @@ object CloudCarSettingUpdateBuilder {
         val fields = linkedMapOf<String, Any?>("_gateway" to "True", "vin" to vin)
         val path: CloudCarSettingUpdatePath
         when (kind) {
+            is CarSettingKind.LowPowerInfo -> {
+                if (configId != "9" || kind.edit == null || kind.alarmOn == null ||
+                    kind.alarmPower?.let { it !in 0..100 } != false
+                ) return null
+                path = CloudCarSettingUpdatePath.BIKE_SETTING
+                fields["alarmOn"] = if (kind.alarmOn) "1" else "0"
+                fields["alarmPower"] = kind.alarmPower.toString()
+            }
+            is CarSettingKind.LowPowerPhone -> {
+                if (configId != "82" || kind.edit == null ||
+                    !validLowPowerTimeRange(kind.startTime, kind.endTime)
+                ) return null
+                path = CloudCarSettingUpdatePath.BIKE_SETTING
+                if (kind.edit == CarSettingKind.LowPowerPhoneEdit.SWITCH) {
+                    val enabled = kind.enabled ?: return null
+                    fields["lowBatTelWarning"] = if (enabled) 1 else 0
+                } else if (!selectableLowPowerTime(kind.startTime) || !selectableLowPowerTime(kind.endTime)) {
+                    return null
+                }
+                fields["lowBatWarningStartTime"] = kind.startTime
+                fields["lowBatWarningEndTime"] = kind.endTime
+            }
             is CarSettingKind.Toggle -> {
                 val checkedValue = if (kind.checked) 1 else 0
                 when (configId) {
@@ -245,7 +270,6 @@ object CloudCarSettingUpdateBuilder {
 
     /** smali `s20.f()` 与 `VehicleSettingViewModel.P4()` 能直接对应的开关。 */
     private val TOGGLE_FIELDS = mapOf(
-        "9" to "alarmOn",
         "10" to "distanceOn",
         "13" to "alarmSoundEnable",
         "16" to "dumpAlarm",
@@ -842,6 +866,27 @@ class YadeaCarSettingsGateway(
 object CloudCarSettingMapper {
     /** Explicit response fields only; item defaults never establish a configuration value. */
     internal fun configuredValue(cloud: CloudCarSettings, item: CarSettingItem): CarSettingKind? {
+        when (item.kind) {
+            is CarSettingKind.LowPowerInfo -> {
+                val alarmOn = cloud.boolValue("alarmOn")
+                val alarmPower = cloud.values["alarmPower"]?.trim()?.toIntOrNull()
+                    ?.takeIf { it in 0..100 }
+                return if (alarmOn != null || alarmPower != null) {
+                    CarSettingKind.LowPowerInfo(alarmOn, alarmPower)
+                } else null
+            }
+            is CarSettingKind.LowPowerPhone -> {
+                val enabled = cloud.boolValue("lowBatTelWarning")
+                val start = cloud.values["lowBatWarningStartTime"]?.trim()
+                    ?.takeIf { it.isValidLowPowerTime() }
+                val end = cloud.values["lowBatWarningEndTime"]?.trim()
+                    ?.takeIf { it.isValidLowPowerTime() }
+                return if (enabled != null || start != null || end != null) {
+                    CarSettingKind.LowPowerPhone(enabled, start, end)
+                } else null
+            }
+            else -> Unit
+        }
         val slider = item.kind as? CarSettingKind.Slider
         if (slider != null) {
             val key = when (item.id) {
@@ -1773,10 +1818,10 @@ object CloudCarSettingMapper {
         )
         "21", "81" -> unknownToggle()
         "73" -> unknownToggle()
-        "9" -> cloudToggle(cloud, "alarmOn")
+        "9" -> CarSettingKind.LowPowerInfo()
         "24" -> cloudToggle(cloud, "emergencyContact")
         "75" -> cloudToggle(cloud, "tamperProofIotEnable")
-        "82" -> cloudToggle(cloud, "lowBatTelWarning")
+        "82" -> CarSettingKind.LowPowerPhone()
         "61" -> {
             val max = cloud.intValue("bikeSpeedMax")
                 ?.takeIf { it in 15..120 }

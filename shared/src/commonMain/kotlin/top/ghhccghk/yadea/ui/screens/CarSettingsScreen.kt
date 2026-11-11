@@ -96,6 +96,7 @@ fun CarSettingsScreen(
         customizeItem?.let { item -> controller.editDraft(item.id) { transform(it as CarSettingKind.Customize) } }
     }
     var detailItem by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
+    var showLowPowerReminder by remember(uiResetKey) { mutableStateOf(false) }
     var showCustomSounds by remember(uiResetKey) { mutableStateOf(false) }
     var showCustomKeys by remember(uiResetKey) { mutableStateOf(false) }
     var selectedSoundCategory by remember(uiResetKey) { mutableStateOf<CustomSoundCategory?>(null) }
@@ -202,8 +203,9 @@ fun CarSettingsScreen(
             settingDisabledReason(item) == null &&
             (item.id != "cloud:60:level" || capacitySwitchOn)
     }
+    val visibleItems = lowPowerReminderVisibleItems(state.items)
     val availableClassifications = CarSettingClassification.entries.filter { classification ->
-        state.items.any { it.classification == classification } ||
+        visibleItems.any { it.classification == classification } ||
             (showMissingCloudFeatures && state.missingCloudItems.any {
                 it.classification == classification
             })
@@ -212,7 +214,7 @@ fun CarSettingsScreen(
         .takeIf { it in availableClassifications }
         ?: availableClassifications.firstOrNull()
     val selectedItems = activeClassification?.let { classification ->
-        state.items.filter { it.classification == classification }
+        visibleItems.filter { it.classification == classification }
     }.orEmpty()
     val selectedMissingCloudItems = activeClassification?.let { classification ->
         state.missingCloudItems.filter { it.classification == classification }
@@ -339,7 +341,9 @@ fun CarSettingsScreen(
                             pending = item.id in state.pendingIds,
                             disabledReason = settingDisabledReason(item),
                             onOpenDetail = {
-                                if (item.kind is CarSettingKind.Atmosphere) {
+                                if (item.kind is CarSettingKind.LowPowerInfo || item.kind is CarSettingKind.LowPowerPhone) {
+                                    showLowPowerReminder = true
+                                } else if (item.kind is CarSettingKind.Atmosphere) {
                                     atmosphereItem = item
                                 } else if (item.kind is CarSettingKind.Customize) {
                                     customizeItem = item
@@ -584,6 +588,15 @@ fun CarSettingsScreen(
                 })
             }
         }
+    }
+
+    if (showLowPowerReminder) key(uiResetKey) {
+        LowPowerReminderSheet(
+            controller = controller,
+            state = state,
+            onDismissRequest = { showLowPowerReminder = false },
+            controlEnabled = settingControlEnabled,
+        )
     }
 
     val detailTarget = detailItem
@@ -1300,6 +1313,10 @@ internal data class CarSettingsUiResetKey(
     val loadedFromCloud: Boolean,
 )
 
+/** Keep cloud metadata intact, but present confId 9/82 through one issued entry. */
+internal fun lowPowerReminderVisibleItems(items: List<CarSettingItem>): List<CarSettingItem> =
+    if (items.any { it.id == "cloud:9" }) items.filterNot { it.id == "cloud:82" } else items
+
 internal fun carSettingsUiSessionKey(controller: CarSettingsController, state: CarSettingsState) =
     controller to carSettingsUiResetKey(state)
 
@@ -1414,6 +1431,9 @@ private fun CarSettingRow(
     val summary = carSettingSummary(item, valueState, pending, disabledReason)
     val observed = valueState.displayKind()
     when (val kind = observed ?: item.kind) {
+        is CarSettingKind.LowPowerInfo, is CarSettingKind.LowPowerPhone -> AppListRow(
+            title = "低电量提醒", summary = summary, value = "设置", onClick = onOpenDetail,
+        )
         is CarSettingKind.Toggle -> AppSwitchPreference(
             checked = (observed as? CarSettingKind.Toggle)?.checked ?: false,
             onCheckedChange = { checked ->
@@ -1490,6 +1510,8 @@ private fun vehicleValueLabel(state: CarSettingValueState): String {
 }
 
 private fun settingKindLabel(kind: CarSettingKind): String = when (kind) {
+    is CarSettingKind.LowPowerInfo -> "信息提醒：${kind.alarmOn?.let { if (it) "开启" else "关闭" } ?: "UNKNOWN"} / ${kind.alarmPower?.let { "$it%" } ?: "UNKNOWN"}"
+    is CarSettingKind.LowPowerPhone -> "电话告警：${kind.enabled?.let { if (it) "开启" else "关闭" } ?: "UNKNOWN"} / ${kind.startTime ?: "UNKNOWN"} — ${kind.endTime ?: "UNKNOWN"}"
     is CarSettingKind.Toggle -> if (kind.checked) "开启" else "关闭"
     is CarSettingKind.Choice -> kind.options.getOrNull(kind.selectedIndex) ?: "UNKNOWN"
     is CarSettingKind.Slider -> formatSettingValue(kind.value, kind.unit)

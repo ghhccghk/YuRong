@@ -668,7 +668,7 @@ class CarSettingsControllerTest {
                     summary = "",
                     classification = CarSettingClassification.SECURITY,
                     channel = CarSettingChannel.BLE,
-                    kind = CarSettingKind.Toggle(true),
+                    kind = CarSettingKind.LowPowerInfo(true, 20),
                 ),
             ),
             writer = writer,
@@ -679,7 +679,7 @@ class CarSettingsControllerTest {
 
         assertTrue(
             controller.update("cloud:9") { kind ->
-                (kind as CarSettingKind.Toggle).copy(checked = false)
+                (kind as CarSettingKind.LowPowerInfo).copy(alarmOn = false, edit = CarSettingKind.LowPowerInfoEdit.ALARM_SWITCH)
             },
         )
         assertEquals(0, statusChecks)

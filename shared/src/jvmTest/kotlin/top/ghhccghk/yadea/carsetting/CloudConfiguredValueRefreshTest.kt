@@ -440,7 +440,13 @@ class CloudConfiguredValueRefreshTest {
             c.refresh()
             for (id in fields.keys) {
                 val key = if (id == "47") "cloud:47:enable" else "cloud:$id"
-                assertEquals(key, raw == 1, (c.value(key).configuredValue as CarSettingKind.Toggle).checked)
+                val checked = when (val kind = c.value(key).configuredValue) {
+                    is CarSettingKind.LowPowerInfo -> kind.alarmOn
+                    is CarSettingKind.LowPowerPhone -> kind.enabled
+                    is CarSettingKind.Toggle -> kind.checked
+                    else -> null
+                }
+                assertEquals(key, raw == 1, checked)
                 assertEquals(VehicleSettingValue.Unknown, c.value(key).vehicleValue)
             }
         }

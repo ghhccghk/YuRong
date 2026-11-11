@@ -101,6 +101,20 @@ internal object AdaptivePush89Mapping {
 
 sealed interface CarSettingKind {
     data class Toggle(val checked: Boolean, val valueKnown: Boolean = true) : CarSettingKind
+    /** confId 9 always sends both siblings; nullable values never become protocol defaults. */
+    enum class LowPowerInfoEdit { ALARM_SWITCH, THRESHOLD }
+    data class LowPowerInfo(
+        val alarmOn: Boolean? = null,
+        val alarmPower: Int? = null,
+        val edit: LowPowerInfoEdit? = null,
+    ) : CarSettingKind
+    enum class LowPowerPhoneEdit { SWITCH, TIMES }
+    data class LowPowerPhone(
+        val enabled: Boolean? = null,
+        val startTime: String? = null,
+        val endTime: String? = null,
+        val edit: LowPowerPhoneEdit? = null,
+    ) : CarSettingKind
     data class Choice(val selectedIndex: Int, val options: List<String>, val valueKnown: Boolean = true) : CarSettingKind
     data class Slider(
         val value: Float,
@@ -147,6 +161,23 @@ sealed interface CarSettingKind {
         val valueKnown: Boolean = false,
     ) : CarSettingKind
 }
+
+internal fun String?.isValidLowPowerTime(): Boolean {
+    val value = this ?: return false
+    if (value.length != 5 || value[2] != ':' ||
+        value.filterIndexed { index, _ -> index != 2 }.any { it !in '0'..'9' }
+    ) return false
+    val hour = value.substring(0, 2).toIntOrNull() ?: return false
+    val minute = value.substring(3, 5).toIntOrNull() ?: return false
+    return hour in 0..23 && minute in 0..59
+}
+
+internal fun validLowPowerTimeRange(start: String?, end: String?): Boolean =
+    start != null && end != null && start.isValidLowPowerTime() &&
+        end.isValidLowPowerTime() && start < end
+
+internal fun selectableLowPowerTime(value: String?): Boolean =
+    value.isValidLowPowerTime() && value!!.substring(3).toInt() % 10 == 0
 
 data class CarSettingItem(
     val id: String,
@@ -428,7 +459,7 @@ class CarSettingsController(
             message = if (items.isEmpty()) "云端未返回可用设置项" else null,
             valueStates = items.associate { item ->
                 val retained = _state.value.valueState(item.id).takeIf { value ->
-                    (value.draftValue == null || validTarget(item.kind, value.draftValue)) &&
+                    (value.draftValue == null || validDraftTarget(item.kind, value.draftValue)) &&
                         (value.submittedValue == null || validTarget(item.kind, value.submittedValue))
                 } ?: CarSettingValueState()
                 val observed = (retained.vehicleValue as? VehicleSettingValue.Known)
@@ -491,7 +522,7 @@ class CarSettingsController(
         if (!CarSettingItemAccess.canWrite(item) || id in activeOperations) return false
         if (_state.value.vin.isNotBlank() && _state.value.vin != vinProvider().trim()) return false
         val target = transform(_state.value.valueState(id).editableKind(item.kind))
-        if (!validTarget(item.kind, target)) return false
+        if (!validDraftTarget(item.kind, target)) return false
         changeValueState(id) { it.copy(draftValue = target, error = null) }
         return true
     }
@@ -505,8 +536,27 @@ class CarSettingsController(
         return update(id) { draft }
     }
 
+    private fun validDraftTarget(original: CarSettingKind, target: CarSettingKind): Boolean = when {
+        original is CarSettingKind.LowPowerInfo && target is CarSettingKind.LowPowerInfo ->
+            target.alarmPower == null || target.alarmPower in 0..100
+        original is CarSettingKind.LowPowerPhone && target is CarSettingKind.LowPowerPhone ->
+            (target.startTime == null || target.startTime.isValidLowPowerTime()) &&
+                (target.endTime == null || target.endTime.isValidLowPowerTime())
+        else -> validTarget(original, target)
+    }
+
     private fun validTarget(original: CarSettingKind, target: CarSettingKind): Boolean = when {
         original is CarSettingKind.Toggle && target is CarSettingKind.Toggle -> true
+        original is CarSettingKind.LowPowerInfo && target is CarSettingKind.LowPowerInfo ->
+            target.edit != null && target.alarmOn != null && target.alarmPower?.let { it in 0..100 } == true
+        original is CarSettingKind.LowPowerPhone && target is CarSettingKind.LowPowerPhone ->
+            when (target.edit) {
+                CarSettingKind.LowPowerPhoneEdit.SWITCH ->
+                    target.enabled != null && validLowPowerTimeRange(target.startTime, target.endTime)
+                CarSettingKind.LowPowerPhoneEdit.TIMES -> validLowPowerTimeRange(target.startTime, target.endTime) &&
+                    selectableLowPowerTime(target.startTime) && selectableLowPowerTime(target.endTime)
+                null -> false
+            }
         original is CarSettingKind.Choice && target is CarSettingKind.Choice ->
             target.options == original.options && target.selectedIndex in original.options.indices
         original is CarSettingKind.Slider && target is CarSettingKind.Slider ->
@@ -677,6 +727,10 @@ class CarSettingsController(
 
     private fun sameValue(left: CarSettingKind, right: CarSettingKind): Boolean = when {
         left is CarSettingKind.Toggle && right is CarSettingKind.Toggle -> left.checked == right.checked
+        left is CarSettingKind.LowPowerInfo && right is CarSettingKind.LowPowerInfo ->
+            left.alarmOn == right.alarmOn && left.alarmPower == right.alarmPower
+        left is CarSettingKind.LowPowerPhone && right is CarSettingKind.LowPowerPhone ->
+            left.enabled == right.enabled && left.startTime == right.startTime && left.endTime == right.endTime
         left is CarSettingKind.Choice && right is CarSettingKind.Choice -> left.selectedIndex == right.selectedIndex
         left is CarSettingKind.Slider && right is CarSettingKind.Slider -> left.value == right.value
         left is CarSettingKind.Customize && right is CarSettingKind.Customize -> left == right

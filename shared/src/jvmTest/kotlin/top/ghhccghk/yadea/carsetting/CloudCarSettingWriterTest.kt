@@ -42,7 +42,7 @@ class CloudCarSettingWriterTest {
         summary = "",
         classification = CarSettingClassification.SECURITY,
         channel = CarSettingChannel.BOTH,
-        kind = CarSettingKind.Toggle(true),
+        kind = CarSettingKind.LowPowerInfo(true, 20, CarSettingKind.LowPowerInfoEdit.ALARM_SWITCH),
     )
 
     @Test
