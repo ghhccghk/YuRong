@@ -56,3 +56,19 @@
 - JVM/JS/Wasm/测试源码编译退出0；Android Debug/Desktop构建退出0；diff检查退出0。
 - 从UI入口重新独立审查至最终命令构造，四项目标以外无业务变化。
 - STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无运行/实车验证。待精确提交。
+
+### A03提交核对 / A04起点
+
+- A03提交2ef8896158e5bcdcaf75ec8fe4b85e3bd84c69d9，8文件；提交后tracked/index干净，12既有untracked未变，无外部提交。
+- A04以此HEAD复核ID10，发现范围及四字段伴随提交缺口，正在局部修复。
+
+## A04（独立复审及验证完成）
+
+- ID10，起始2ef8896158e5bcdcaf75ec8fe4b85e3bd84c69d9。
+- 修正200..2000米整数；新增不可变GeofenceConfiguration承载四字段同VIN快照、读取两个原始圆心字段；Controller/Builder/Writer均拒绝缺失兄弟，四字段组合保留原App语义。Cloud-only，任何split ID均无BLE回退。
+- 后续兄弟提交必须刷新到包含前次接受目标的新配置；可保留/准备草稿，有明确刷新提示。在途保护、取消/VIN/请求代次沿用原架构。
+- 修改Controller/Mapper/Commands/GeofenceSettings、GeofenceSettingsSafetyTest、CloudConfiguredValueRefreshTest、CloudCarSettingsApiSemanticsTest及3任务文档。
+- 初轮41失败4(Fake未模拟云端结果)，第二轮53失败1(旧测试没有四字段快照)；修正夹具并增强来源/请求断言，最终53/53退出0；复审改善草稿提示后再次53/53退出0。
+- 最后一次JVM/JS/Wasm/测试源码编译退出0，Android Debug/Desktop构建退出0，diff检查退出0。
+- 独立重走UI→Controller→完整性/兄弟刷新→CloudWriter→Builder→原Gateway路径；未改签名、URL、通用HTTP、帧、主题或其他设置。
+- STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；字段齐全才CONDITIONAL可写，无RUNTIME_VERIFIED/VEHICLE_VERIFIED。待精确提交。

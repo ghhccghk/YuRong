@@ -25,7 +25,7 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 7 自动落锁 | com/yadea/smartmoto/vehicle/view/AutoShutDownActivity.smali:505 | leaveVehicleAutoLockStatus, leaveVehicleAutoLockTimeStatus, sideBraceStatus | LEAVE_THE_CAR_AUTO_LOCK_OFF, LEAVE_THE_CAR_AUTO_LOCK_ON, LEAVE_THE_CAR_AUTO_LOCK_TIME | 当前 HEAD329effd已修TTP/独立参数/取消/VIN；7/39车型门控证据限制保留UNKNOWN | P2 / PARTIAL / 基线复核 |
 | 8 一键报失 | com/yadea/smartmoto/vehicle/lostmode/LostReportModeActivity.smali:549 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 9 信息提醒 | com/yadea/smartmoto/vehicle/view/LowPowerActivity.smali:997 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | 当前HEAD已有统一低电量Sheet、云端字段及时间范围保护；不重复旧缺口 | P2 / PARTIAL / 基线复核 |
-| 10 电子围栏 | com/yadea/smartmoto/vehicle/activity/UserSelectRangeActivity.smali:846 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 10 电子围栏 | com/yadea/smartmoto/vehicle/activity/UserSelectRangeActivity.smali:846 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | A04：distanceOn/distance/centerCircleLon/Lat完整云端快照；半径200..2000m整数，缺伴随字段拒绝提交；只有结果确认，无车辆回读 | P0 / CONDITIONAL / A04 |
 | 11 自动开关机 | com/yadea/smartmoto/vehicle/view/AutoOnOffActivity.smali:187 | bleAutoTurnOnOffGearStatus, bleAutoTurnOnOffStatus | AUTO_TURN_ON_OFF_CLOSE, AUTO_TURN_ON_OFF_OPEN, AUTO_TURN_ON_OFF | 当前 HEAD329effd已修TTP/独立参数/取消/VIN；7/39车型门控证据限制保留UNKNOWN | P2 / PARTIAL / 基线复核 |
 | 13 报警音 | com/yadea/smartmoto/vehicle/view/VehicleAlarmActivity.smali:144 | 无 Controller 分支；独立流程另查 | WARING_SOUND_CLOSE, WARING_SOUND_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 14 车辆报警灵敏度 | com/yadea/smartmoto/vehicle/view/VehicleAlarmSensitivityActivity.smali:87 | alarmSensitivityStatus | ALARM_SENSITIVITY_GEAR | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
@@ -155,3 +155,16 @@ A02验证：Timer12、Battery17、Cloud30过滤59/59退出0；加前两阶段、
 - 初次过滤退出1：新测试CloudCarSettings位置实参顺序错误，已改命名实参；复跑SimpleChoice9+Timer12+Controller17+Golden3=41/41，退出0。
 
 A03验证：4类41/41 Fake过滤退出0；JVM/JS/Wasm/测试源码编译退出0，Android Debug/Desktop构建退出0，diff检查退出0。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；没有App运行/车辆验证。
+
+### A04：10电子围栏（独立复审完成）
+
+- 原始证据：UserSelectRangeActivity.<init>:77–101的MINE_RADIUS=0xC8(200)、MAX_RADIUS=0x7D0(2000)；initView:243–328明确设置min/max。$b.a:61–67读取getProgress整数，$b.b显示m；setResult:508–538回传CAR_RANGE。p20.h:419–449读CAR_RANGE→s20.e→MixRequest.h(confId10)。
+- s20.e:716–868更改distance后一起发送distanceOn(String 0/1)、distance(String整数)、centerCircleLon/Lat(Double)。开关路径UserSelectRangeActivity.onSwClick:418–469→VM.d9→P4:11465–11645，同样携带半径和两个圆心值。Q6:12242+读取云端distanceOn；不是TTP字段。证据足以确认组合，不假定服务端支持省略字段。
+- 原KMP半径50..1000、18steps且单字段更新与原App不符。现在200..2000整数(1799内间隔)，不截断/钳位；缺失时placeholder200/valueKnown=false。
+- 新GeofenceConfiguration承载同VIN的已解析云端兄弟字段，个别字段UNKNOWN仍能独立显示配置，但完整性建立前不提交。经纬度必须显式存在且有限；显式0保留，不把缺失变0。无Smali地理范围校验则不发明额外业务范围。
+- 读取：YadeaGateway顶层标量解析新增两个已证实圆心字段→Mapper.toItems(cloud,vin)的只读快照；配置仍进configuredValue，不创建vehicleValue。
+- 写入：UI原有独立开关/Slider→Controller目标校验/完整快照/同VIN→CloudWriter→Builder四字段组合→原update路径。Builder无快照也拒绝，MappedWriter对confId10始终无BLE命令，伪造split ID不回退BLE；未改URL、签名、通用HTTP。
+- 同一复合配置在途时阻止刷新/兄弟提交；接受后，另一维度需刷新到包含前次目标的配置才可提交，避免旧快照覆盖已接受目标。草稿与configured/submitted分离；失败回滚、取消传播、旧VIN结果隔离沿用原机制。
+- 初次41测试失败4：新Fake缺少结果回调且pollAttempts=0，正确触发超时；补Fake结果成功并断言CONFIRMED_BY_RESULT而非车辆确认。第二次53测试失败1：旧接口测试不带兄弟配置；改为完整Fake快照并加强四字段请求断言。最终5类53/53退出0，没有放宽生产校验。
+
+A04最终验证：Geofence11+CloudConfigured30+CloudWriter4+WriterAccess5+ApiSemantics3=53/53，退出0。补充复审后允许准备兄弟草稿，但未刷新前阻止提交并明确提示，复跑53/53退出0。最后一次JVM/JS/Wasm/测试源码编译退出0、Android Debug/Desktop构建退出0、diff检查退出0。未运行App/车辆；云端结果CONFIRMED_BY_RESULT不等于车辆回读。配置字段完整且同VIN才可写(CONDITIONAL)，缺圆心需刷新/补接口证据。

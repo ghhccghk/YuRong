@@ -20,7 +20,7 @@ import top.ghhccghk.yadea.vehicle.TtpInfoParser
 /** Raw JSON -> real decoder -> mapper -> refresh -> UI policy. All I/O is in-memory. */
 class CloudConfiguredValueRefreshTest {
     private fun response(values: String = "\"distanceOn\":1,\"distance\":200", ids: List<String> = listOf("10")) =
-        """{"success":true,"data":{${if (values.isBlank()) "" else "$values,"}"bikeConfigVos":[${
+        """{"success":true,"data":{"centerCircleLon":120.25,"centerCircleLat":30.5,${if (values.isBlank()) "" else "$values,"}"bikeConfigVos":[${
             ids.joinToString(",") { """{"confId":"$it","parentId":"1002","izLab":1}""" }
         }]}}"""
 
@@ -111,7 +111,7 @@ class CloudConfiguredValueRefreshTest {
     }
 
     @Test fun fractionalOverflowNullAndOutOfPolicyRadiusNeverBecomeAValidDefault() = runBlocking {
-        for (raw in listOf("null", "0", "49", "1001", "200.5", "2e2", "9999999999999", "\"\"", "\"NaN\"", "{}")) {
+        for (raw in listOf("null", "0", "199", "2001", "200.5", "2e2", "9999999999999", "\"\"", "\"NaN\"", "{}")) {
             val c = controller(FakeGateway(response("\"distance\":$raw")))
             c.refresh()
             assertNull(raw, c.value("cloud:10:distance").configuredValue)
@@ -249,17 +249,20 @@ class CloudConfiguredValueRefreshTest {
         }
     }
 
-    @Test fun radiusRetainsExistingUnitsRangeStepsAndUnscaledCloudSubmission() = runBlocking {
+    @Test fun radiusUsesOriginalRangeAndUnscaledCloudSubmissionWithKnownCompanions() = runBlocking {
         val w = FakeWriter()
         val c = controller(FakeGateway(response()), w)
         c.refresh()
         val slider = c.value("cloud:10:distance").displayKind() as CarSettingKind.Slider
-        assertEquals(50f..1000f, slider.range)
-        assertEquals(18, slider.steps)
+        assertEquals(200f..2000f, slider.range)
+        assertEquals(1799, slider.steps)
         assertEquals(" m", slider.unit)
         assertTrue(c.update("cloud:10:distance") { slider.copy(value = 300f) })
-        val update = requireNotNull(CloudCarSettingUpdateBuilder.build("10", w.items.single().kind, "A"))
+        val sent = w.items.single()
+        val update = requireNotNull(CloudCarSettingUpdateBuilder.build("10", sent.kind, "A", sent.geofenceConfiguration))
         assertEquals("300", update.fields["distance"])
+        assertEquals("1", update.fields["distanceOn"])
+        assertEquals(120.25, update.fields["centerCircleLon"])
         assertEquals(CloudCarSettingUpdatePath.BIKE_SETTING, update.path)
         assertEquals(200f, (c.value("cloud:10:distance").configuredValue as CarSettingKind.Slider).value)
         assertEquals(VehicleSettingValue.Unknown, c.value("cloud:10:distance").vehicleValue)
@@ -278,21 +281,22 @@ class CloudConfiguredValueRefreshTest {
         assertEquals(300f, (c.value("cloud:10:distance").displayKind() as CarSettingKind.Slider).value)
     }
 
-    @Test fun refreshRetainsSubmittedTargetButInvalidatesOldWriteAndItsFinally() = runBlocking {
+    @Test fun fenceRefreshWaitsForTheInFlightCompositeWrite() = runBlocking {
         val g = FakeGateway(response())
         val w = FakeWriter().apply { wait = CompletableDeferred() }
         val c = controller(g, w)
         c.refresh()
         val job = launch(start = CoroutineStart.UNDISPATCHED) { c.update("cloud:10") { CarSettingKind.Toggle(false) } }
-        assertTrue(c.refresh())
-        val refreshed = c.state.value
+        assertFalse(c.refresh())
         assertFalse((c.value().submittedValue as CarSettingKind.Toggle).checked)
-        assertEquals(SettingWriteState.CANCELLED, c.value().writeState)
+        assertEquals(SettingWriteState.SUBMITTING, c.value().writeState)
         assertEquals(SettingConfirmationState.UNKNOWN, c.value().confirmationState)
-        assertTrue(c.state.value.pendingIds.isEmpty())
+        assertTrue(c.state.value.pendingIds.isNotEmpty())
         w.wait!!.complete(true)
         job.join()
-        assertEquals(refreshed, c.state.value)
+        assertEquals(SettingWriteState.CLOUD_ACCEPTED, c.value().writeState)
+        assertTrue(c.refresh())
+        assertTrue(c.state.value.pendingIds.isEmpty())
     }
 
     @Test fun refreshRetainsCloudReceiptAndSubmittedTargetWithoutPromotingEitherToReadback() = runBlocking {

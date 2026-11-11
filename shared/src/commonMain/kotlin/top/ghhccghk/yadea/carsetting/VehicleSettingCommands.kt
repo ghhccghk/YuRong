@@ -108,6 +108,7 @@ class CloudCarSettingWriter(
         if (item.configId in BatterySettings.ids && !BatterySettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in TimerSettings.ids && !TimerSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in SimpleChoiceSettings.ids && !SimpleChoiceSettings.validItem(item)) return CarSettingWriteResult(false)
+        if (item.configId == "10" && !GeofenceSettings.validItem(item)) return CarSettingWriteResult(false)
         if ((item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids) &&
             VehicleSettingCommands.forItem(item) == null
         ) return CarSettingWriteResult(false)
@@ -117,9 +118,11 @@ class CloudCarSettingWriter(
             configId = item.configId,
             kind = item.kind,
             vin = vin,
+            geofence = item.geofenceConfiguration,
         )
+        if (item.configId == "10" && update == null) return CarSettingWriteResult(false)
         val bleAvailable = bleAvailableProvider()
-        if (bleAvailable) {
+        if (bleAvailable && item.configId != "10") {
             val fallback = bleFallback?.writeWithResult(item)
             if (vinProvider().trim() != vin) return CarSettingWriteResult(false)
             if (fallback?.success == true) return fallback
@@ -762,6 +765,8 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        // The original fence flow is cloud-only; split IDs must not turn it into a BLE write.
+        if (item.configId == "10") return null
         if (item.configId in SimpleChoiceSettings.ids) {
             if (!SimpleChoiceSettings.validItem(item)) return null
             return forConfigId(item.configId, item.kind)

@@ -199,6 +199,8 @@ data class CarSettingItem(
     val sort: Int = 0,
     /** 云端 `BikeConfig.confId`；本地预览项可以留空。 */
     val configId: String = id,
+    /** Read-only cloud companion values; never inferred from a control placeholder. */
+    val geofenceConfiguration: GeofenceConfiguration? = null,
 )
 
 enum class CarSettingConfirmationStatus {
@@ -417,7 +419,7 @@ class CarSettingsController(
                 findItem(it)?.configId.let { configId ->
                     configId in setOf("4", "58", "61", "55", "92") ||
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
-                        configId in SimpleChoiceSettings.ids
+                        configId in SimpleChoiceSettings.ids || configId == "10"
                 }
             }) {
             _state.value = _state.value.copy(message = "设置正在提交，请完成后刷新")
@@ -464,7 +466,7 @@ class CarSettingsController(
             _state.value = _state.value.copy(loading = false, message = "云端设置加载失败，请稍后重试")
             return false
         }
-        val items = CloudCarSettingMapper.toItems(cloud)
+        val items = CloudCarSettingMapper.toItems(cloud, vin)
         val missingCloudItems = CloudCarSettingMapper.toMissingCloudItems(cloud)
         _state.value = CarSettingsState(
             items = items,
@@ -547,7 +549,8 @@ class CarSettingsController(
         val target = transform(editable)
         if (!validDraftTarget(item.kind, target) || !validSpeedTarget(item, target) ||
             !validSecondPhaseTarget(item, target) || !validBatteryTarget(item, target) || !validTimerTarget(item, target) ||
-            !validSimpleChoiceTarget(item, target)
+            !validSimpleChoiceTarget(item, target) ||
+            (item.configId == "10" && !GeofenceSettings.validItem(item.copy(kind = target)))
         ) return false
         changeValueState(id) { it.copy(draftValue = target, error = null) }
         return true
@@ -627,7 +630,8 @@ class CarSettingsController(
         item.configId !in SimpleChoiceSettings.ids || SimpleChoiceSettings.validItem(item.copy(kind = target))
 
     private fun hasActiveSettingWrite(item: CarSettingItem): Boolean =
-        item.id in activeOperations || SecondPhaseSettings.writeKey(item)?.let { key ->
+        item.id in activeOperations || (item.configId == "10" &&
+            activeOperations.keys.any { findItem(it)?.configId == "10" }) || SecondPhaseSettings.writeKey(item)?.let { key ->
             activeOperations.keys.any { id -> findItem(id)?.let { SecondPhaseSettings.writeKey(it) == key } == true }
         } == true || TimerSettings.writeKey(item)?.let { key ->
             activeOperations.keys.any { id -> findItem(id)?.let { TimerSettings.writeKey(it) == key } == true }
@@ -641,6 +645,16 @@ class CarSettingsController(
         item.configId !in SecondPhaseSettings.ids ||
             (SecondPhaseSettings.validTarget(item.configId, target) &&
                 SecondPhaseSettings.canEditChoice(item, _state.value))
+
+    private fun fenceSiblingNeedsRefresh(item: CarSettingItem): Boolean = item.configId == "10" &&
+        _state.value.items.any { sibling -> sibling.configId == "10" && sibling.id != item.id &&
+            _state.value.valueState(sibling.id).let { value ->
+                value.submittedValue?.let { submitted ->
+                    value.writeState in setOf(SettingWriteState.CLOUD_ACCEPTED, SettingWriteState.LOCAL_UPDATED) &&
+                        !GeofenceSettings.matches(item.geofenceConfiguration, submitted)
+                } == true
+            }
+        }
 
     private fun finishFailure(id: String, message: String, confirmation: SettingConfirmationState) {
         pendingVehicleConfirmations.remove(id)
@@ -682,6 +696,10 @@ class CarSettingsController(
             return false
         }
         if (id in current.pendingIds || hasActiveSettingWrite(item)) return false
+        if (fenceSiblingNeedsRefresh(item)) {
+            _state.value = current.copy(message = "围栏上次更改尚未刷新，请刷新配置后再保存")
+            return false
+        }
 
         val vin = vinProvider().trim()
         if (current.vin.isNotBlank() && current.vin != vin) return false
@@ -689,9 +707,12 @@ class CarSettingsController(
         val target = transform(editable)
         if (!validTarget(item.kind, target) || !validSpeedTarget(item, target) ||
             !validSecondPhaseTarget(item, target) || !validBatteryTarget(item, target) || !validTimerTarget(item, target) ||
-            !validSimpleChoiceTarget(item, target)
+            !validSimpleChoiceTarget(item, target) ||
+            (item.configId == "10" && (!GeofenceSettings.validItem(item.copy(kind = target)) ||
+                item.geofenceConfiguration?.let { it.complete && it.vin == vin } != true))
         ) {
-            _state.value = current.copy(message = "设置值无效")
+            _state.value = current.copy(message = if (item.configId == "10")
+                "围栏配置不完整或设置值无效，请刷新后再保存" else "设置值无效")
             return false
         }
         val operation = WriteOperation(++nextOperationId, vin, loadGeneration)

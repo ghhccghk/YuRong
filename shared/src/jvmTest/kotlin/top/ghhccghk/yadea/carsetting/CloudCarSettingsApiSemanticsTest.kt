@@ -51,6 +51,7 @@ class CloudCarSettingsApiSemanticsTest {
                 configId = "10",
                 kind = CarSettingKind.Toggle(true),
                 vin = "VIN",
+                geofence = GeofenceConfiguration("VIN", false, 200, 120.25, 30.5),
             ),
         )
         assertEquals(CloudCarSettingUpdatePath.BIKE_SETTING, update.path)
@@ -67,6 +68,9 @@ class CloudCarSettingsApiSemanticsTest {
         val json = businessJson(request)
         assertTrue(json.contains("\"_gateway\":\"True\""))
         assertTrue(json.contains("\"distanceOn\":\"1\""))
+        assertTrue(json.contains("\"distance\":\"200\""))
+        assertTrue(json.contains("\"centerCircleLon\":120.25"))
+        assertTrue(json.contains("\"centerCircleLat\":30.5"))
         assertTrue(json.contains("\"vin\":\"VIN\""))
     }
 

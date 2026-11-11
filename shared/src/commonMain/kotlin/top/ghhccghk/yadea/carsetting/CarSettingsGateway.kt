@@ -110,6 +110,7 @@ object CloudCarSettingUpdateBuilder {
     // Schema support is independent of completeness; build() still rejects unknown siblings.
     fun supports(configId: String, kind: CarSettingKind): Boolean =
         BatterySettings.supports(configId, kind) ||
+            (configId == "10" && (kind is CarSettingKind.Toggle || kind is CarSettingKind.Slider)) ||
             (configId == "9" && kind is CarSettingKind.LowPowerInfo) ||
             (configId == "82" && kind is CarSettingKind.LowPowerPhone) ||
             build(configId, kind, vin = "vin") != null
@@ -118,7 +119,17 @@ object CloudCarSettingUpdateBuilder {
         configId: String,
         kind: CarSettingKind,
         vin: String,
+        geofence: GeofenceConfiguration? = null,
     ): CloudCarSettingUpdate? {
+        if (configId == "10") {
+            if (!GeofenceSettings.validTarget(kind) || geofence?.complete != true || geofence.vin != vin) return null
+            return CloudCarSettingUpdate(configId, linkedMapOf(
+                "_gateway" to "True", "vin" to vin,
+                "distanceOn" to if ((kind as? CarSettingKind.Toggle)?.checked ?: geofence.enabled!!) "1" else "0",
+                "distance" to ((kind as? CarSettingKind.Slider)?.value?.toInt() ?: geofence.radius!!).toString(),
+                "centerCircleLon" to geofence.longitude, "centerCircleLat" to geofence.latitude,
+            ))
+        }
         if (configId in BatterySettings.ids && !BatterySettings.validTarget(configId, kind)) return null
         val fields = linkedMapOf<String, Any?>("_gateway" to "True", "vin" to vin)
         val path: CloudCarSettingUpdatePath
@@ -275,7 +286,6 @@ object CloudCarSettingUpdateBuilder {
 
     /** smali `s20.f()` 与 `VehicleSettingViewModel.P4()` 能直接对应的开关。 */
     private val TOGGLE_FIELDS = mapOf(
-        "10" to "distanceOn",
         "13" to "alarmSoundEnable",
         "16" to "dumpAlarm",
         "17" to "resistanceOn",
@@ -295,7 +305,6 @@ object CloudCarSettingUpdateBuilder {
     private val TOGGLE_INTEGER_FIELDS = setOf("75", "82")
 
     private val SLIDER_FIELDS = mapOf(
-        "10" to "distance",
         "52" to "bleDistance",
     )
 
@@ -854,7 +863,7 @@ class YadeaCarSettingsGateway(
             "bleLeavePowerOffDistance", "bleLeavePowerOffEnable", "bleUnlockOn",
             "brightnessAdjustValue", "capacity", "chargeUlVal", "chargeWattSwitch",
             "chargeWattVal",
-            "colorEggSoundEffect", "cutPowerOn", "distance", "distanceOn",
+            "colorEggSoundEffect", "cutPowerOn", "distance", "distanceOn", "centerCircleLon", "centerCircleLat",
             "dumpAlarm", "emergencyContact", "highestSpeedLimit", "lowBatTelWarning",
             "lowBatWarningEndTime", "lowBatWarningStartTime", "modeOn", "nfcOn",
             "offlineLock", "offlineLockValue", "onOffSound", "passwordUnlockEnable", "positioningFunc",
@@ -957,7 +966,7 @@ object CloudCarSettingMapper {
     /** 设置目录中的 confId 回退显示名；云端返回 confName 时始终优先使用云端值。 */
     fun titleForConfigId(configId: String): String? = TITLES[configId.trim()]
 
-    fun toItems(cloud: CloudCarSettings): List<CarSettingItem> {
+    fun toItems(cloud: CloudCarSettings, vin: String = ""): List<CarSettingItem> {
         val items = cloud.configs.mapNotNull { config ->
             val confId = config.confId.trim()
             if (confId.isBlank()) return@mapNotNull null
@@ -988,6 +997,7 @@ object CloudCarSettingMapper {
                         CloudCarSettingUpdateBuilder.supports(confId, kind)
                     ),
                 sort = config.sort.toIntOrNull() ?: 0,
+                geofenceConfiguration = if (confId == "10") GeofenceSettings.snapshot(cloud, vin) else null,
             )
         }.toMutableList()
         // ChargingPowerActivity 是“开关 + 瓦数滑杆”的二级页；云端只给一个
@@ -1133,7 +1143,7 @@ object CloudCarSettingMapper {
             )
         }
         cloud.configs.firstOrNull { it.confId.trim() == "10" }?.let { config ->
-            val distance = cloud.values["distance"]?.trim()?.toIntOrNull()?.takeIf { it in 50..1_000 }
+            val distance = cloud.values["distance"]?.trim()?.toIntOrNull()?.takeIf { it in 200..2_000 }
             items += CarSettingItem(
                 id = "cloud:10:distance",
                 configId = "10",
@@ -1143,14 +1153,15 @@ object CloudCarSettingMapper {
                 group = groupOf(config, classificationOf("10", config)),
                 channel = CarSettingChannel.IOT,
                 kind = CarSettingKind.Slider(
-                    value = distance?.toFloat() ?: 50f,
-                    range = 50f..1_000f,
-                    steps = 18,
+                    value = distance?.toFloat() ?: 200f,
+                    range = 200f..2_000f,
+                    steps = 1799,
                     unit = " m",
                     valueKnown = distance != null,
                 ),
                 writable = config.isAuth != false,
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,
+                geofenceConfiguration = GeofenceSettings.snapshot(cloud, vin),
             )
         }
         cloud.configs.firstOrNull { it.confId.trim() == "52" }?.let { config ->
