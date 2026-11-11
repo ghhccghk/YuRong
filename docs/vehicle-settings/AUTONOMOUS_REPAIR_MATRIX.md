@@ -90,7 +90,7 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 90 赛道模式 | com/yadea/smartmoto/vehicle/view/TrackModeActivity.smali:131 | trackModeStatus | TRACK_MODE, TRACK_MODE | A09：四项读写1开0关，修正三项参数反向；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A09（BLE；无运行/实车验证） |
 | 91 SOS 紧急呼叫 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 92 自定义骑行 | com/yadea/smartmoto/vehicle/view/VehicleCustomizeActivity2.smali:1887 | customizeEnergyLevel, customizeEnergyState, customizeTcs, customizeThrottleSensitivity | CUSTOMIZE_SETTING | 当前 HEAD 已含759c05c完整性及来源隔离；本任务不重复实现，仍需回归 | P2 / PARTIAL / 基线复核 |
-| 93 静音模式 | com/yadea/smartmoto/vehicle/view/QuietModeActivity.smali:250 | 无 Controller 分支；独立流程另查 | COMMAND_DISABLE_OVERSPEED_ALERT | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 93 静音模式 | QuietModeActivity:sendCommand130–227,setListener303起,getSettingConfigId250；qg6019–6045 | 原页clearCheck，无可靠当前值读绑定 | COMMAND_DISABLE_OVERSPEED_ALERT→141，经独立order39控制路径 | A19阻断错误普通3E设置帧；Controller/实际Writer/Mapper/原始命令构造均拒绝，目录入口只读UNKNOWN；不猜云端字段 | P0 / BLOCKED；正确39发送须改受保护编码 / A19（无运行/实车验证） |
 | 94 档位记忆 | com/yadea/smartmoto/vehicle/view/GearMemoryActivity.smali:298 | gearMemorySettingFeedback | COMMAND_GEAR_MEMORY, COMMAND_GEAR_MEMORY | A09：四项读写1开0关，修正三项参数反向；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A09（BLE；无运行/实车验证） |
 | 95 微信互联 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 1005 自定义按键 | 动态 Registry / 独立流程；待逐项绑定 | customFunctionLong, customFunctionShort | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
@@ -287,3 +287,10 @@ A10：33/33精确过滤测试、全部离线构建和diff检查退出0；STATIC_
 - 读绑定`ActivityLocationSwitchBindingImpl237/514`→VM.y4:32245→K0；VM12635–12655从CarSettingBean.positioningFunc回填。仅作为configuredValue；没有TTP车辆观察映射。`CarSettingsIotOnlineGuard.a`→VehicleDataBean.isOnline:4674–4698→VehicleStatusBean.onlineState:Boolean；`jp6.h:247–329`的getVehRealStatus由`jp6$c`按VehicleStatusBean解码。KMP只读同VIN该端点onlineState=true作为本次提交许可，UNKNOWN/false/异常均阻止，不当作LIVE_TTP或定位配置。
 - 关闭确认沿用AppAlertDialog，两主题保持共同回调；Controller直接入口也要求确认，Writer/Gateway校验同VIN许可、关闭确认和精确参数。许可不进入持久配置、观察或后续目录。实际Writer对76走原param-setting，不尝试以BLE可用性代替云端在线。
 - 新TrackerSettingsSafetyTest17项，CloudConfiguredValueRefreshTest30项，CarSettingsControllerTest17项，共64/64；离线JVM/JS/Wasm/测试源码及Android/Desktop构建退出0。独立从UI→Controller→Mapper→Writer→Gateway→事务/回读重走；无原始TTP、帧、协议、通用网络签名或其他参数变更。75 PARTIAL/关闭与BLE帧BLOCKED，76 CONDITIONAL；无App运行/车辆验证。
+
+### A19：93静音模式（独立复审及验证完成）
+
+- 原QuietModeActivity.sendCommand:130–227分别传old_overspeed_alert=1/new_overspeed_alert=2及old=0/new=1，orderId明确为39；setListener:303起clearCheck后两按钮独立发送，没有已证实的当前值回填。ActivityQuietModeBindingImpl:265/336/543起只绑定目录/遮罩，不代表静音状态；不采用同名DTO推断读取。
+- qg:6019–6045→f:487起→BleControlManager.k:2377–2470→wi.L:2691/2773→BleBicycleCommandManager.generateControlCommand(HashMap):6574起，8字节参数、old在byte1/new在byte4，使用显式order39，没有普通设置版本前缀。当前KMP的141普通分支会被版本前缀+3E包裹，属于错误发送路径。
+- 本批不改受保护编码/协议：forConfigId/forItem、Controller目标校验及实际Cloud/MappedWriter阻断93；VehicleSettingCommand构造器拒绝141和命令类型别名，copy同样不能绕过。目录保留只读UNKNOWN，UI解释暂不可操作，不新增默认选中或虚假回读。
+- 正确39发送及可靠当前值读取BLOCKED。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；没有RUNTIME_VERIFIED/VEHICLE_VERIFIED。测试及构建详见历史。

@@ -2,6 +2,7 @@ package top.ghhccghk.yadea.carsetting
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -104,14 +105,8 @@ class Phase4CarSettingsTest {
             VehicleSettingCommand("COMMAND_OTD_SWITCH", 0x132, 0),
             VehicleSettingCommands.forConfigId("80", CarSettingKind.Toggle(true)),
         )
-        assertEquals(
-            VehicleSettingCommand(
-                "COMMAND_DISABLE_OVERSPEED_ALERT",
-                0x141,
-                parameters = listOf(1, 2),
-            ),
-            VehicleSettingCommands.forConfigId("93", CarSettingKind.Toggle(true)),
-        )
+        // Quiet mode uses an independent order-39 frame, never an ordinary 3E setting.
+        assertNull(VehicleSettingCommands.forConfigId("93", CarSettingKind.Toggle(true)))
     }
 
     @Test

@@ -649,6 +649,7 @@ class CarSettingsController(
         item.configId !in TimerSettings.ids || TimerSettings.validItem(item.copy(kind = target))
 
     private fun validSimpleChoiceTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
+        item.configId != "93" &&
         (item.configId != "51" || TimeSyncSettings.validItem(item.copy(kind = target))) &&
         (item.configId != "33" || SimulatedSoundSettings.validItem(item.copy(kind = target))) &&
         (item.configId !in TrackerSettings.ids || TrackerSettings.validItem(item.copy(kind = target))) &&

@@ -250,3 +250,15 @@
 - 精确Fake过滤初次及局部化复审后重跑均退出0，最终33/33（TimeSyncSettingsSafetyTest12、原EighthRoundValueStateTest.timeSyncResultFlagIsNotActualSettingOrTransactionConfirmation1、Controller17、GoldenFrame3）。命令`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.TimeSyncSettingsSafetyTest --tests top.ghhccghk.yadea.carsetting.EighthRoundValueStateTest.timeSyncResultFlagIsNotActualSettingOrTransactionConfirmation --tests top.ghhccghk.yadea.carsetting.CarSettingsControllerTest --tests top.ghhccghk.yadea.carsetting.VehicleSettingGoldenFrameTest --offline --console=plain`；没有完整jvmTest或真实网络/车辆。
 - `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；缓存C:\Users\DozenOregano696\.gradle，`git diff --check`退出0。
 - 独立复审完整UI→VM/原事件→Controller→实际Writer→既有0xC1编码→回显/确认；未新增云端字段、帧、TTP解析或其他设置映射。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；整体PARTIAL，底层0xC1 WRITE_ONLY，实际校时/事务确认BLOCKED；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。待精确提交。
+
+### A18提交核对 / A19起点
+
+- A18提交fd376e3f7795bc58420c87b9213148b7c24b2c43，8文件；A19起点同此HEAD，master，index干净，原有12项untracked不变，无外部提交。
+
+## A19（独立复审及验证完成）
+
+- ID93：Smali原页使用独立order39 HashMap控制路径；KMP普通141设置命令会走3E版本帧，不等价。阻断Controller、Mapper、实际Writer和原始命令构造/copy/别名绕过；保留目录只读UNKNOWN及禁用原因，不改受保护编码、协议、网络或TTP解析。
+- QuietModeWriteSafetyTest5 + Phase4两个既有方法2 + CarSettingsControllerTest17 + VehicleSettingGoldenFrameTest3，共27/27。实际过滤命令：`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.QuietModeWriteSafetyTest --tests top.ghhccghk.yadea.carsetting.Phase4CarSettingsTest.phase4FramesCanBeEncoded --tests top.ghhccghk.yadea.carsetting.Phase4CarSettingsTest.phase4CommandsUseConfirmedIdsAndBitfields --tests top.ghhccghk.yadea.carsetting.CarSettingsControllerTest --tests top.ghhccghk.yadea.carsetting.VehicleSettingGoldenFrameTest --offline --console=plain`，退出0；全部Fake/内存隔离。
+- 前两次测试源码编译退出1（新夹具依次缺summary/classification）；编译修正后27项中1项失败（错误假定目录只有一项），修正为按稳定ID选取后退出0，未放宽生产校验或删除断言。
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0，缓存C:\Users\DozenOregano696\.gradle。
+- 完整重走UI→Controller→CloudWriter/MappedWriter→forItem/forConfigId→最终命令构造；不能发送错误141，不伪造当前值或确认。正确39通道及读取BLOCKED。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED，无运行/实车验证。待精确提交。

@@ -197,6 +197,8 @@ fun CarSettingsScreen(
     val settingDisabledReason: (CarSettingItem) -> String? = { item ->
         if (state.loading) {
             "正在刷新设置"
+        } else if (item.configId == "93") {
+            "静音控制通道尚未实现，暂不可操作"
         } else if (item.configId in BLE_POWER_SETTING_IDS &&
             (!vehicleConnected || vehiclePowerOn != true)
         ) {

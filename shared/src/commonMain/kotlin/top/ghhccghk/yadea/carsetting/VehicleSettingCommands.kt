@@ -15,6 +15,11 @@ data class VehicleSettingCommand(
     val parameters: List<Int> = emptyList(),
 ) {
     init {
+        // QuietModeActivity uses order 39/generateControlCommand, not this 3E settings envelope.
+        // Keep the existing frame encoder untouched; reject every attempted use upstream.
+        require(commandId != 0x141 && commandType != "COMMAND_DISABLE_OVERSPEED_ALERT") {
+            "Quiet mode requires its independent order-39 control path"
+        }
         // These parameter domains are established by ch.d; never let its encoder
         // fallback/clamping turn an invalid direct command into a valid write.
         when (commandId) {
@@ -125,6 +130,7 @@ class CloudCarSettingWriter(
 
     override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult {
         if (!CarSettingItemAccess.canWrite(item)) return CarSettingWriteResult(false)
+        if (item.configId == "93") return CarSettingWriteResult(false)
         if (item.configId in BatterySettings.ids && !BatterySettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in TimerSettings.ids && !TimerSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in SimpleChoiceSettings.ids && !SimpleChoiceSettings.validItem(item)) return CarSettingWriteResult(false)
@@ -441,19 +447,8 @@ object VehicleSettingCommands {
                 onParameter = 1,
                 offParameter = 0,
             )
-            // QuietModeActivity：新旧两个超速提示字段一次下发。
-            "93" -> {
-                val toggle = kind as? CarSettingKind.Toggle ?: return null
-                VehicleSettingCommand(
-                    commandType = "COMMAND_DISABLE_OVERSPEED_ALERT",
-                    commandId = 0x141,
-                    parameters = if (toggle.checked) {
-                        listOf(1, 2)
-                    } else {
-                        listOf(0, 1)
-                    },
-                )
-            }
+            // Original sends order 39 via qg.f, not the ordinary 3E setting writer.
+            "93" -> null
             // ScheduledShutDown2Activity：定时关机。
             "59" -> if (!TimerSettings.validTarget(configId, kind)) null else when (kind) {
                 is CarSettingKind.Toggle -> toggle(
@@ -805,6 +800,7 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        if (item.configId == "93") return null
         if (item.configId == "51") {
             if (!TimeSyncSettings.validItem(item)) return null
             return forConfigId("51", item.kind)
