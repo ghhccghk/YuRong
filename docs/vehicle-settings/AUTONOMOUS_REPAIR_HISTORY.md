@@ -601,3 +601,12 @@
 - 起始HEAD：604657c5deecc92e780ac47ecbea6793f56c57a9，master；tracked/index原先干净，保留全部既有untracked。
 - 直接重读CarSettingsFooterRegistry$buildAll$1$5.smali:60–77和RouterCenter.smali:1610–1628，原回调为a0()→/car_setting/LabActivity；A53误读另一方法E0(false)→RadarActivity，现更正矩阵、历史和队列。未修改生产代码。
 - 验证仅STATIC_FLOW_VERIFIED和git diff --check；未运行测试、构建、App、真实网络/BLE/车辆。
+
+## A55：ID25 密码云端写入与车辆确认协调
+
+- 起始HEAD：`6b75d4ae571f5019735ca60063018f51176226c3`，分支`master`。开始时仅两处tracked修改及一个ID25 Fake测试为本轮工作；既有日志、APK、JADX、文档和截图untracked保持原样。
+- Smali：`PassWordUnlockActivity.sendUnlockPasswordSetting:310–343`先调用`sendVehicleSetting`，随后设置`needReadStatus=true`，并`postDelayed(...,0x7d0)`；`PassWordUnlockActivity$a.onNotifyDataCallBack:84–145`要求回调处于门控窗口且`passwordUnlockSettingResult==0`才显示成功。此证据确定计时窗口从BLE发送调用返回后开始。云端密码重置仍使用已有VM API；本批未改其路径、签名、字段或BLE命令。
+- 修改：`VehiclePasswordGateway.kt`把车辆确认窗口起点移到BLE发送返回之后；继续要求同VIN、LIVE_TTP、序号晚于提交前基线、结果0且处于2000ms窗口。云端接受、BLE发送及车辆确认保持独立；新增`PasswordMessageTone`，让独立启用开关的成功/失败反馈不受旧密码写入状态染色。`CarSettingsScreen.kt`按tone呈现提示。`PasswordFlowSafetyTest.kt`新增发送耗时窗口与开关失败状态隔离用例；测试只用Fake和内存时钟。
+- 独立复审：VIN/session generation在刷新、短信验证码、校验、密码提交和状态开关请求完成前均检查；VIN变化清除回读和流程凭据。缺少写入前LIVE_TTP序号基线时不建立车辆确认；超时、迟到成功码、缓存、旧序号、错误VIN及取消均不伪报车辆成功。未知或超时保持云端接受/BLE事实，车辆结果为未知。
+- 验证：过滤命令`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.PasswordFlowSafetyTest" --offline --console=plain`通过17/17（失败/错误/跳过0）；`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`通过。没有执行App、真实网络、BLE或车辆操作。
+- 验证等级：`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`。ID25整体仍`PARTIAL`；没有`RUNTIME_VERIFIED`或`VEHICLE_VERIFIED`。本地提交Hash待本批最终Git检查。

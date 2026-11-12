@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlin.time.TimeSource
 import top.ghhccghk.yadea.auth.Crypto
 import top.ghhccghk.yadea.auth.GatewaySigner
 import top.ghhccghk.yadea.carsetting.VehicleSettingCommand
@@ -263,6 +265,12 @@ enum class PasswordWriteState {
     UNKNOWN,
 }
 
+enum class PasswordMessageTone {
+    INFO,
+    SUCCESS,
+    ERROR,
+}
+
 data class VehiclePasswordState(
     val loading: Boolean = false,
     val busy: Boolean = false,
@@ -275,7 +283,9 @@ data class VehiclePasswordState(
     val cloudAccepted: Boolean = false,
     val bleSent: Boolean = false,
     val message: String? = null,
+    val messageTone: PasswordMessageTone = PasswordMessageTone.INFO,
     val success: Boolean = false,
+    val confirmationTimedOut: Boolean = false,
 )
 
 class VehiclePasswordController(
@@ -284,11 +294,19 @@ class VehiclePasswordController(
     private val mobileProvider: () -> String,
     private val commandSink: VehicleSettingCommandSink?,
     private val scope: CoroutineScope,
+    private val monotonicNowMillis: () -> Long = TimeSource.Monotonic.markNow().let { origin ->
+        { origin.elapsedNow().inWholeMilliseconds }
+    },
+    private val waitForReadbackTimeout: suspend (Long) -> Unit = { delay(it) },
 ) {
     private val _state = MutableStateFlow(VehiclePasswordState())
     val state: StateFlow<VehiclePasswordState> = _state.asStateFlow()
     private var job: Job? = null
     private var currentVin: String? = null
+    private var sessionGeneration = 0L
+    private var readbackJob: Job? = null
+    private var pendingReadbackStartedAt: Long? = null
+    private var readbackAttempt = 0L
     private var pendingValidCode: String? = null
     private var latestObservation: VehicleStatusObservation? = null
     private var pendingReadbackVin: String? = null
@@ -297,8 +315,10 @@ class VehiclePasswordController(
     fun onVinChanged(vin: String) {
         val normalized = vin.trim()
         if (currentVin == normalized) return
+        sessionGeneration++
         job?.cancel()
         job = null
+        clearReadback()
         pendingValidCode = null
         latestObservation = null
         pendingReadbackVin = null
@@ -308,99 +328,113 @@ class VehiclePasswordController(
     }
 
     fun refresh() {
-        val vin = vinProvider().trim()
+        val vin = activeVin()
         if (vin.isBlank()) {
-            _state.value = _state.value.copy(message = "请先绑定车辆")
+            _state.value = _state.value.copy(message = "请先绑定车辆", messageTone = PasswordMessageTone.ERROR)
             return
         }
-        currentVin = vin
         if (job?.isActive == true) return
+        val generation = sessionGeneration
         job = scope.launch {
             _state.value = _state.value.copy(loading = true, message = null)
             val enable = requestCatching { gateway.getEnableState(vin) }
                 .getOrDefault(PasswordEnableState())
+            if (!currentSessionMatches(vin, generation)) return@launch
             val exists = requestCatching { gateway.exists(vin) }.getOrNull()
-            if (!currentVinMatches(vin)) return@launch
+            if (!currentSessionMatches(vin, generation)) return@launch
             _state.value = _state.value.copy(
                 loading = false,
                 hasPassword = exists ?: enable.hasPassword,
                 enabledStatus = enable.status,
                 message = if (exists == null && enable.status == null) "密码状态读取失败" else null,
+                messageTone = if (exists == null && enable.status == null) PasswordMessageTone.ERROR else PasswordMessageTone.INFO,
             )
         }
     }
 
     fun begin(flow: PasswordFlow) {
-        pendingReadbackVin = null
-        pendingReadbackAfterSequence = null
+        activeVin()
+        if (job?.isActive == true) return
+        clearReadback()
+        sessionGeneration++
+        pendingValidCode = null
         _state.value = _state.value.copy(
             flow = flow,
             codeSent = false,
-            smsVerified = flow != PasswordFlow.Forget,
+            smsVerified = flow == PasswordFlow.Set,
             writeState = PasswordWriteState.UNKNOWN,
             cloudAccepted = false,
             bleSent = false,
             message = null,
+            messageTone = PasswordMessageTone.INFO,
             success = false,
+            confirmationTimedOut = false,
         )
-        if (flow == PasswordFlow.Forget) pendingValidCode = null
     }
 
     fun sendSmsCode() {
-        val vin = vinProvider().trim()
+        val vin = activeVin()
+        if (_state.value.flow != PasswordFlow.Forget) return
         val mobile = mobileProvider().trim()
         if (vin.isBlank() || mobile.isBlank()) {
-            _state.value = _state.value.copy(message = "缺少车辆或车主手机号")
+            _state.value = _state.value.copy(message = "缺少车辆或车主手机号", messageTone = PasswordMessageTone.ERROR)
             return
         }
         if (job?.isActive == true) return
+        val generation = sessionGeneration
         job = scope.launch {
-            _state.value = _state.value.copy(busy = true, message = null)
+            _state.value = _state.value.copy(busy = true, message = null, messageTone = PasswordMessageTone.INFO)
             val result = requestCatching { gateway.sendSmsCode(vin, mobile) }
                 .getOrDefault(PasswordRequestResult(false, "网络异常"))
-            if (!currentVinMatches(vin)) return@launch
+            if (!currentSessionMatches(vin, generation)) return@launch
             _state.value = _state.value.copy(
                 busy = false,
                 codeSent = result.success,
                 message = if (result.success) "验证码已发送" else result.message.ifBlank { "验证码发送失败" },
+                messageTone = if (result.success) PasswordMessageTone.INFO else PasswordMessageTone.ERROR,
             )
         }
     }
 
     fun verifySmsCode(code: String) {
-        val vin = vinProvider().trim()
+        val vin = activeVin()
+        if (_state.value.flow != PasswordFlow.Forget) return
         val mobile = mobileProvider().trim()
         if (vin.isBlank() || mobile.isBlank() || code.isBlank()) {
-            _state.value = _state.value.copy(message = "请输入验证码")
+            _state.value = _state.value.copy(message = "请输入验证码", messageTone = PasswordMessageTone.ERROR)
             return
         }
         if (job?.isActive == true) return
+        val generation = sessionGeneration
         job = scope.launch {
-            _state.value = _state.value.copy(busy = true, message = null)
+            _state.value = _state.value.copy(busy = true, message = null, messageTone = PasswordMessageTone.INFO)
             val result = requestCatching { gateway.verifySmsCode(vin, mobile, code) }
                 .getOrDefault(PasswordSmsVerifyResult(false, message = "网络异常"))
-            if (!currentVinMatches(vin)) return@launch
-            pendingValidCode = result.validCode.ifBlank { null }
+            if (!currentSessionMatches(vin, generation)) return@launch
+            pendingValidCode = result.validCode.takeIf { result.success && it.isNotBlank() }
             _state.value = _state.value.copy(
                 busy = false,
-                smsVerified = result.success,
+                smsVerified = result.success && pendingValidCode != null,
                 message = result.message.ifBlank { if (result.success) "验证码校验成功" else "验证码校验失败" },
+                messageTone = if (result.success && pendingValidCode != null) PasswordMessageTone.SUCCESS else PasswordMessageTone.ERROR,
             )
         }
     }
 
     fun verifyCurrentPassword(password: String) {
-        val vin = vinProvider().trim()
+        val vin = activeVin()
+        if (_state.value.flow != PasswordFlow.Change) return
         if (vin.isBlank() || !isValidPassword(password)) {
-            _state.value = _state.value.copy(message = passwordError(password))
+            _state.value = _state.value.copy(message = passwordError(password), messageTone = PasswordMessageTone.ERROR)
             return
         }
         if (job?.isActive == true) return
+        val generation = sessionGeneration
         job = scope.launch {
-            _state.value = _state.value.copy(busy = true, message = null)
+            _state.value = _state.value.copy(busy = true, message = null, messageTone = PasswordMessageTone.INFO)
             val result = requestCatching { gateway.verify(vin, password) }
                 .getOrDefault(PasswordVerifyResult(false, message = "网络异常"))
-            if (!currentVinMatches(vin)) return@launch
+            if (!currentSessionMatches(vin, generation)) return@launch
             _state.value = _state.value.copy(
                 busy = false,
                 smsVerified = result.valid,
@@ -409,107 +443,171 @@ class VehiclePasswordController(
                     result.errorCode == PASSWORD_ERROR_LIMIT -> "密码输入错误次数超限制，请一小时后再试"
                     else -> result.message.ifBlank { "密码错误" }
                 },
+                messageTone = if (result.valid) PasswordMessageTone.SUCCESS else PasswordMessageTone.ERROR,
             )
         }
     }
 
     fun submitPassword(password: String) {
-        val vin = vinProvider().trim()
+        val vin = activeVin()
         if (vin.isBlank() || !isValidPassword(password)) {
-            _state.value = _state.value.copy(message = passwordError(password))
+            _state.value = _state.value.copy(message = passwordError(password), messageTone = PasswordMessageTone.ERROR)
             return
         }
         if (job?.isActive == true) return
         val flow = _state.value.flow
         val validCode = pendingValidCode
-        if (flow == PasswordFlow.Forget && validCode.isNullOrBlank()) {
-            _state.value = _state.value.copy(message = "请先完成验证码校验")
+        if (flow == null || !_state.value.smsVerified) {
+            _state.value = _state.value.copy(message = "请先完成当前流程的密码或验证码校验", messageTone = PasswordMessageTone.ERROR)
             return
         }
+        if (flow == PasswordFlow.Forget && validCode.isNullOrBlank()) {
+            _state.value = _state.value.copy(message = "请先完成验证码校验", messageTone = PasswordMessageTone.ERROR)
+            return
+        }
+        val passwordNumber = password.toIntOrNull() ?: return
+        clearReadback()
+        val generation = sessionGeneration
         job = scope.launch {
-            _state.value = _state.value.copy(
-                busy = true,
-                message = null,
-                writeState = PasswordWriteState.UNKNOWN,
-                cloudAccepted = false,
-                bleSent = false,
-                success = false,
-            )
-            val result = requestCatching {
-                if (flow == PasswordFlow.Forget) {
-                    gateway.reset(vin, password, validCode.orEmpty())
-                } else {
-                    gateway.set(vin, password)
+            try {
+                _state.value = _state.value.copy(
+                    busy = true,
+                    message = null,
+                    messageTone = PasswordMessageTone.INFO,
+                    writeState = PasswordWriteState.UNKNOWN,
+                    cloudAccepted = false,
+                    bleSent = false,
+                    success = false,
+                    confirmationTimedOut = false,
+                )
+                val result = requestCatching {
+                    if (flow == PasswordFlow.Forget) {
+                        gateway.reset(vin, password, validCode.orEmpty())
+                    } else {
+                        gateway.set(vin, password)
+                    }
+                }.getOrDefault(PasswordRequestResult(false, "网络异常"))
+                if (!currentSessionMatches(vin, generation)) return@launch
+                if (!result.success) {
+                    _state.value = _state.value.copy(
+                        busy = false,
+                        writeState = PasswordWriteState.FAILED,
+                        message = result.message.ifBlank { "密码保存失败" },
+                        messageTone = PasswordMessageTone.ERROR,
+                    )
+                    return@launch
                 }
-            }.getOrDefault(PasswordRequestResult(false, "网络异常"))
-            if (!currentVinMatches(vin)) return@launch
-            if (!result.success) {
+                if (!currentSessionMatches(vin, generation)) return@launch
+                val readbackBaseline = latestObservation
+                    ?.takeIf { it.vin == vin && it.origin == VehicleStatusOrigin.LIVE_TTP && it.info != null }
+                    ?.sequence
+                // Preserve server acceptance even if the following BLE send fails or is cancelled.
+                _state.value = _state.value.copy(cloudAccepted = true, writeState = PasswordWriteState.CLOUD_ACCEPTED)
+                val sent = requestCatching {
+                    commandSink?.send(
+                        VehicleSettingCommand(
+                            commandType = "COMMAND_PASSWORD_UNLOCK_SETTING",
+                            commandId = 0x82,
+                            parameter = passwordNumber,
+                        ),
+                    ) == true
+                }.getOrDefault(false)
+                if (!currentSessionMatches(vin, generation)) return@launch
+                val startedAt = monotonicNowMillis().takeIf { sent }
+                pendingReadbackVin = vin.takeIf { sent }
+                pendingReadbackAfterSequence = readbackBaseline.takeIf { sent }
+                pendingReadbackStartedAt = startedAt
                 _state.value = _state.value.copy(
                     busy = false,
-                    writeState = PasswordWriteState.FAILED,
-                    message = result.message.ifBlank { "密码保存失败" },
+                    success = false,
+                    cloudAccepted = true,
+                    bleSent = sent,
+                    writeState = if (sent) {
+                        PasswordWriteState.LOCAL_UPDATED
+                    } else {
+                        PasswordWriteState.CLOUD_ACCEPTED
+                    },
+                    message = if (sent) {
+                        "云端已接受，BLE 已提交，等待车辆确认"
+                    } else {
+                        "云端已接受，BLE 尚未确认发送"
+                    },
+                    messageTone = PasswordMessageTone.INFO,
                 )
-                return@launch
+                latestObservation?.let(::confirmFromObservation)
+                pendingValidCode = null
+                if (sent && startedAt != null && pendingReadbackStartedAt != null) {
+                    val attempt = readbackAttempt
+                    readbackJob = scope.launch {
+                        val remaining = (PASSWORD_READBACK_WINDOW_MS - (monotonicNowMillis() - startedAt)).coerceAtLeast(0)
+                        waitForReadbackTimeout(remaining)
+                        if (attempt == readbackAttempt && currentSessionMatches(vin, generation)) expireReadback()
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                if (currentSessionMatches(vin, generation)) {
+                    clearReadback()
+                    _state.value = _state.value.copy(
+                        success = false,
+                        message = if (_state.value.cloudAccepted) "云端已接受，后续操作已取消；车辆结果未知" else "操作已取消，结果未知",
+                        messageTone = PasswordMessageTone.INFO,
+                    )
+                }
+                throw cancelled
+            } finally {
+                if (currentSessionMatches(vin, generation)) _state.value = _state.value.copy(busy = false)
             }
-            if (!currentVinMatches(vin)) return@launch
-            val readbackBaseline = latestObservation
-                ?.takeIf { it.vin == vin }
-                ?.sequence
-            val sent = requestCatching {
-                commandSink?.send(
-                    VehicleSettingCommand(
-                        commandType = "COMMAND_PASSWORD_UNLOCK_SETTING",
-                        commandId = 0x82,
-                        parameter = password.toIntOrNull() ?: 0,
-                    ),
-                ) == true
-            }.getOrDefault(false)
-            if (!currentVinMatches(vin)) return@launch
-            pendingReadbackVin = vin.takeIf { sent }
-            pendingReadbackAfterSequence = readbackBaseline.takeIf { sent }
-            _state.value = _state.value.copy(
-                busy = false,
-                success = true,
-                cloudAccepted = true,
-                bleSent = sent,
-                writeState = if (sent) {
-                    PasswordWriteState.LOCAL_UPDATED
-                } else {
-                    PasswordWriteState.CLOUD_ACCEPTED
-                },
-                message = if (sent) {
-                    "云端已接受，BLE 已提交，等待车辆确认"
-                } else {
-                    "云端已接受，BLE 尚未确认发送"
-                },
-            )
-            latestObservation?.let(::confirmFromObservation)
-            pendingValidCode = null
         }
     }
 
     fun setEnabled(enabled: Boolean) {
-        val vin = vinProvider().trim()
+        val vin = activeVin()
         if (vin.isBlank()) return
         if (job?.isActive == true) return
+        val generation = sessionGeneration
         job = scope.launch {
-            _state.value = _state.value.copy(busy = true, message = null)
+            _state.value = _state.value.copy(busy = true, message = null, messageTone = PasswordMessageTone.INFO)
             val result = requestCatching { gateway.updateEnable(vin, enabled) }
                 .getOrDefault(PasswordRequestResult(false, "网络异常"))
-            if (!currentVinMatches(vin)) return@launch
+            if (!currentSessionMatches(vin, generation)) return@launch
             _state.value = _state.value.copy(
                 busy = false,
                 enabledStatus = if (result.success) if (enabled) 1 else 0 else _state.value.enabledStatus,
                 message = if (result.success) "密码解锁状态已更新" else result.message.ifBlank { "状态更新失败" },
+                messageTone = if (result.success) PasswordMessageTone.SUCCESS else PasswordMessageTone.ERROR,
             )
         }
+    }
+
+    private fun activeVin(): String = vinProvider().trim().also(::onVinChanged)
+
+    private fun currentSessionMatches(vin: String, generation: Long): Boolean =
+        generation == sessionGeneration && currentVinMatches(vin)
+
+    private fun clearReadback() {
+        readbackAttempt++
+        readbackJob?.cancel()
+        readbackJob = null
+        pendingReadbackStartedAt = null
+        pendingReadbackVin = null
+        pendingReadbackAfterSequence = null
+    }
+
+    private fun expireReadback() {
+        clearReadback()
+        _state.value = _state.value.copy(
+            confirmationTimedOut = true,
+            success = false,
+            message = "车辆确认超时；云端接受和BLE提交记录保留，车辆结果未知",
+            messageTone = PasswordMessageTone.INFO,
+        )
     }
 
     private fun currentVinMatches(vin: String): Boolean =
         currentVin == vin && vinProvider().trim() == vin
 
     fun updateVehicleObservation(observation: VehicleStatusObservation?) {
-        val vin = currentVin ?: vinProvider().trim()
+        val vin = activeVin()
         if (observation == null) {
             latestObservation = null
             return
@@ -521,20 +619,30 @@ class VehiclePasswordController(
     }
 
     private fun confirmFromObservation(observation: VehicleStatusObservation) {
+        val startedAt = pendingReadbackStartedAt ?: return
+        if (!currentVinMatches(observation.vin)) return
+        val elapsed = monotonicNowMillis() - startedAt
+        if (elapsed !in 0 until PASSWORD_READBACK_WINDOW_MS) {
+            expireReadback()
+            return
+        }
         val baseline = pendingReadbackAfterSequence ?: return
         if (!_state.value.bleSent || _state.value.writeState != PasswordWriteState.LOCAL_UPDATED) return
         if (pendingReadbackVin != observation.vin || observation.vin != currentVin) return
         if (observation.origin != VehicleStatusOrigin.LIVE_TTP || observation.sequence <= baseline) return
         if (observation.info?.extended?.passwordUnlockSettingResult != 0) return
-        pendingReadbackVin = null
-        pendingReadbackAfterSequence = null
+        clearReadback()
         _state.value = _state.value.copy(
+            success = true,
             writeState = PasswordWriteState.VEHICLE_CONFIRMED,
             message = "车辆已确认密码设置",
+            messageTone = PasswordMessageTone.SUCCESS,
         )
     }
 
     companion object {
+        // PassWordUnlockActivity.sendUnlockPasswordSetting: 0x7d0 ms needReadStatus window.
+        const val PASSWORD_READBACK_WINDOW_MS = 2_000L
         const val PASSWORD_ERROR_LIMIT = 165303
     }
 }

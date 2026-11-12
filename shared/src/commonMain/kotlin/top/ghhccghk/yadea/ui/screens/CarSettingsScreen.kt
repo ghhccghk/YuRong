@@ -58,6 +58,7 @@ import top.ghhccghk.yadea.vehicle.ContactType
 import top.ghhccghk.yadea.vehicle.EmergencyContactController
 import top.ghhccghk.yadea.vehicle.hasCompleteSosContactInfo
 import top.ghhccghk.yadea.vehicle.PasswordFlow
+import top.ghhccghk.yadea.vehicle.PasswordMessageTone
 import top.ghhccghk.yadea.vehicle.PasswordWriteState
 import top.ghhccghk.yadea.vehicle.VehiclePasswordController
 import top.ghhccghk.yadea.vehicle.sanitizeContactNameInput
@@ -1003,10 +1004,10 @@ fun CarSettingsScreen(
                     AppText(
                         text = message,
                         style = AppDesign.typography.summary,
-                        color = if (passwordState.success) {
-                            AppDesign.colors.primary
-                        } else {
-                            AppDesign.colors.error
+                        color = when (passwordState.messageTone) {
+                            PasswordMessageTone.INFO -> AppDesign.colors.secondary
+                            PasswordMessageTone.SUCCESS -> AppDesign.colors.primary
+                            PasswordMessageTone.ERROR -> AppDesign.colors.error
                         },
                     )
                 }
