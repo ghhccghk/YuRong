@@ -441,4 +441,4 @@
 - 修改仅限`EighthRoundValueStateTest.kt`及`SixthRoundActivityBatchTest.kt`：合法设置值/命令夹具限定0..2；raw3..6和-1验证UNKNOWN；Fake用户编辑同步设置`valueKnown=true`，模拟`CarSettingsScreen`实际拖动回调。未修改生产代码、命令构造或其他设置。
 - 精准Fake测试命令覆盖`unsupportedVolumeReadbacksRemainUnknown`、草稿/取消、失败期间回读、旧值/缺失字段与新鲜匹配、发送期间回读、非法目标及第二批稳定命令映射；首次运行7项中5项通过，2项因Fake漏掉UI显式选择的`valueKnown=true`失败，修正测试夹具后7/7通过，未放宽断言。
 - JVM/JS/Wasm/测试源码编译命令退出0；Android Debug/Desktop离线构建命令退出0；`git diff --check`退出0。测试只用Fake，不连接网络/BLE/车辆；没有运行App，无RUNTIME_VERIFIED或VEHICLE_VERIFIED。
-- 状态：ID20既有生产链路不变；本批为测试回归维护，等级UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED。精确提交哈希在提交后补入记录。
+- 状态：ID20既有生产链路不变；本批为测试回归维护，等级UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED。精确提交：`e5b9b968055a7841f1612ff06f10cfc0a3a2ff06`（`test: align volume fixtures with confirmed three-level mapping`）。

@@ -4,12 +4,12 @@
 
 ## 正在处理
 
-- A36 ID20回归夹具与旧音量假设清理：测试、跨平台编译及Android/Desktop构建已通过；本批精确提交待完成。基线`41a559ce7d2915ebd825e81391529d367aca5a9f`。
+- 无。A36 ID20回归夹具与旧音量假设清理已验证并提交`e5b9b968055a7841f1612ff06f10cfc0a3a2ff06`；起始HEAD`41a559ce7d2915ebd825e81391529d367aca5a9f`。
 
 ## 待处理（候选，须先证据复核）
 
 - 雷达告警模式/音量：`COMMAND_RADAR_ALARM`/0x12F的完整允许值、UI边界及可信回填尚未证实；补齐Smali资源/绑定或其他可靠证据前不得接入。
-- 回归维护补充：A36已将EighthRoundValueStateTest和SixthRoundActivityBatchTest中ID20的合法编辑/命令夹具限定到原页三档0..2；3..6及解析哨兵-1仅作为UNKNOWN拒绝样本。已完成定向Fake测试和离线构建，待精确提交。
+- 回归维护补充：A36已提交，EighthRoundValueStateTest和SixthRoundActivityBatchTest中ID20的合法编辑/命令夹具限定到原页三档0..2；3..6及解析哨兵-1仅作为UNKNOWN拒绝样本。
 - 回归维护：Phase4CarSettingsTest的62索引、10围栏快照及ID72/80动态页方向夹具已按对应调用路径修正；ID72/80独立页与动态页行为差异仍需保留审计，不合并语义。
 - 回归维护：A34已修正`SimpleToggleSettingsSafetyTest`对ID3/13的回读假设与命令码默认分支；整类 Fake 13/13通过。读取仍BLOCKED，不修改原始TTP解析。
 - 其他全部项：按功能地图逐项核对读取、写入、门控及独立流程；发现安全问题优先插队。
@@ -31,6 +31,8 @@
 每批开始读本文件、地图、历史、HEAD和staged/unstaged/untracked；只从最近成功提交后继续。禁止清理或暂存用户原有12项未跟踪内容。未通过测试、构建、自审及精确diff时不提交；不调用真实网络/车辆。
 
 ## 已完成
+
+- A36：ID20音量回归夹具改用Smali证实的0..2三档，并模拟UI编辑的`valueKnown`语义；7项Fake过滤测试、跨平台编译、Android Debug/Desktop构建通过。提交`e5b9b968055a7841f1612ff06f10cfc0a3a2ff06`。
 
 - A34：隔离ID3/13的WRITE_ONLY/读取BLOCKED状态测试；确保无原始TTP字段时车辆值/缓存继续UNKNOWN，写入后只保持WAITING_READBACK，并按Smali验证0x11/0x12及0x62/0x63命令码。13项Fake过滤测试、JVM/JS/Wasm/Android/Desktop构建通过。提交`292f9c3040fa417006faea0034b85d15e7e2001e`。
 

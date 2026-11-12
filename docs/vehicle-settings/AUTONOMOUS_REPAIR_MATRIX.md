@@ -349,4 +349,4 @@ A10：33/33精确过滤测试、全部离线构建和diff检查退出0；STATIC_
 - KMP生产映射已限定为0..2；`CarSettingsScreen`用户拖动会将编辑目标标记`valueKnown=true`。本批发现两份较早测试把音量扩为3..7，并且Fake编辑没有模拟真实UI的known标记，导致测试拒绝目标，而非生产映射故障。
 - 仅修正`EighthRoundValueStateTest.kt`和`SixthRoundActivityBatchTest.kt`：有效读数/提交值使用0..2，3..6与-1明确断言UNKNOWN；测试用户编辑时设置`valueKnown=true`。没有生产代码或命令映射修改。
 - 验证：精准7项Fake测试通过；共享JVM/JS/Wasm/测试源码编译通过；Android Debug/Desktop离线构建通过；`git diff --check`通过。首次精准运行5/7通过，另2项因Fake未标记显式用户选择为known而失败；修正夹具后7/7通过，未删除断言或放宽校验。
-- 状态：ID20原有实现STATIC_FLOW_VERIFIED、UNIT_TESTED、BUILD_VERIFIED；本批为回归夹具维护。未运行App或真实车辆，未标记RUNTIME_VERIFIED/VEHICLE_VERIFIED。提交哈希以本批提交记录为准。
+- 状态：ID20原有实现STATIC_FLOW_VERIFIED、UNIT_TESTED、BUILD_VERIFIED；本批为回归夹具维护。未运行App或真实车辆，未标记RUNTIME_VERIFIED/VEHICLE_VERIFIED。精确提交`e5b9b968055a7841f1612ff06f10cfc0a3a2ff06`。
