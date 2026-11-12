@@ -15,8 +15,25 @@ import top.ghhccghk.yadea.vehicle.PasswordVerifyResult
 import top.ghhccghk.yadea.vehicle.PasswordWriteState
 import top.ghhccghk.yadea.vehicle.VehiclePasswordController
 import top.ghhccghk.yadea.vehicle.VehiclePasswordGateway
+import top.ghhccghk.yadea.vehicle.TtpInfoParser
+import top.ghhccghk.yadea.vehicle.VehicleStatusObservation
+import top.ghhccghk.yadea.vehicle.VehicleStatusOrigin
 
 class SixthRoundReviewTest {
+
+    private fun passwordObservation(
+        vin: String,
+        sequence: Long,
+        origin: VehicleStatusOrigin = VehicleStatusOrigin.LIVE_TTP,
+        result: Int = 0,
+    ) = TtpInfoParser.parse(ByteArray(256) { -1 }).let { info ->
+        VehicleStatusObservation(
+            vin = vin,
+            info = info.copy(extended = info.extended.copy(passwordUnlockSettingResult = result)),
+            origin = origin,
+            sequence = sequence,
+        )
+    }
 
     private class FakePasswordGateway : VehiclePasswordGateway {
         override suspend fun getEnableState(vin: String) = PasswordEnableState(status = 1, hasPassword = true)
@@ -49,6 +66,7 @@ class SixthRoundReviewTest {
             scope = CoroutineScope(Dispatchers.Unconfined),
         )
         controller.onVinChanged("VIN-A")
+        controller.updateVehicleObservation(passwordObservation("VIN-A", sequence = 10))
         controller.begin(PasswordFlow.Set)
         controller.submitPassword("1357")
 
@@ -57,8 +75,35 @@ class SixthRoundReviewTest {
         assertTrue(accepted.bleSent)
         assertEquals(PasswordWriteState.LOCAL_UPDATED, accepted.writeState)
 
-        controller.onVehiclePasswordResult(0)
+        controller.updateVehicleObservation(passwordObservation("VIN-A", sequence = 10))
+        assertEquals(PasswordWriteState.LOCAL_UPDATED, controller.state.value.writeState)
+        controller.updateVehicleObservation(
+            passwordObservation("VIN-A", sequence = 11, origin = VehicleStatusOrigin.CACHED_TTP),
+        )
+        assertEquals(PasswordWriteState.LOCAL_UPDATED, controller.state.value.writeState)
+        controller.updateVehicleObservation(passwordObservation("VIN-B", sequence = 12))
+        assertEquals(PasswordWriteState.LOCAL_UPDATED, controller.state.value.writeState)
+        controller.updateVehicleObservation(passwordObservation("VIN-A", sequence = 12, result = 1))
+        assertEquals(PasswordWriteState.LOCAL_UPDATED, controller.state.value.writeState)
+        controller.updateVehicleObservation(passwordObservation("VIN-A", sequence = 13))
         assertEquals(PasswordWriteState.VEHICLE_CONFIRMED, controller.state.value.writeState)
+    }
+
+    @Test
+    fun passwordResultWithoutPreWriteObservationCannotConfirm() = runBlocking {
+        val controller = VehiclePasswordController(
+            gateway = FakePasswordGateway(),
+            vinProvider = { "VIN-A" },
+            mobileProvider = { "13800138000" },
+            commandSink = RecordingSink(),
+            scope = CoroutineScope(Dispatchers.Unconfined),
+        )
+        controller.onVinChanged("VIN-A")
+        controller.begin(PasswordFlow.Set)
+        controller.submitPassword("1357")
+
+        controller.updateVehicleObservation(passwordObservation("VIN-A", sequence = 1))
+        assertEquals(PasswordWriteState.LOCAL_UPDATED, controller.state.value.writeState)
     }
 
     @Test

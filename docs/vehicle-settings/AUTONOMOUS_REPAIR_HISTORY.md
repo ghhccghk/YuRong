@@ -539,3 +539,14 @@
 - KMP复核：动态ID41/88入口均触发共享自定义音效Sheet；`CustomSoundController`具有VIN/请求代次/草稿/服务端状态；Gateway覆盖云端目录、资源列表、启停、应用和结果轮询，以及资源新增/删除/重命名。KMP当前应用路径没有调用`BleCustomSoundControl`或车辆BLE Writer，故原App设备侧BLE与场景流程未形成KMP调用链；服务端接受不代表车辆音效已应用。
 - 结论：ID41/88保留PARTIAL；原App确有设备侧流程，但KMP缺少已接通的音效传输能力。当前批不修改BLE协议、帧或平台实现，待单独核实Smali helper实现、现有跨平台BLE能力和可测试边界后评估。无安全可独立完成的生产代码修复。
 - 验证：只读静态审计，`git diff --check`通过；未运行测试、编译、App、网络、BLE或车辆操作。仅`STATIC_FLOW_VERIFIED`；无`UNIT_TESTED`、`BUILD_VERIFIED`、`RUNTIME_VERIFIED`、`VEHICLE_VERIFIED`。审计文档精确提交待记录。
+
+## A48（ID25 密码解锁车辆确认新鲜度）
+
+- 起始HEAD：`087fb4519e6f2a9ef46357166a1fb8262f50b8e2`，分支`master`；tracked工作区及index干净；保留既有untracked日志、APK、截图、JADX目录和文档。
+- Smali证据：`PassWordUnlockActivity.sendUnlockPasswordSetting:310–343`先发送`BLE_CONFIG_COMMAND_PASSWORD_SETTING`，随后设置`needReadStatus=true`，并安排2秒后清除此门控；`PassWordUnlockActivity$a.onNotifyDataCallBack:84–145`仅当TTP存在、`passwordUnlockSettingResult==0`且`needReadStatus`为true时显示成功并清除门控。`l76.smali:9714–9725`从TTP byte `0x31`解析结果字段。
+- 缺陷：KMP MainScreen曾将当前状态整数直接交给Controller；Controller仅检查历史`bleSent`，未绑定观察VIN、LIVE来源或新鲜序号，可能将旧/缓存/其他VIN的结果码认作本次成功。
+- 修复：`VehiclePasswordController`跟踪同VIN观察及BLE提交前序号基线；只有基线之后的新鲜`LIVE_TTP`、同VIN且结果为0才置`VEHICLE_CONFIRMED`。缓存、旧序号、错误VIN、非零和缺基线均不确认；不对非零码臆断为写入失败。MainScreen传递完整`VehicleStatusObservation`。未修改密码云端API、状态字段映射、BLE协议或命令。
+- 修改文件：`VehiclePasswordGateway.kt`、`MainScreen.kt`、`SixthRoundReviewTest.kt`、本矩阵、队列和本历史。
+- Fake-only过滤测试：`:shared:jvmTest --tests 'top.ghhccghk.yadea.carsetting.SixthRoundReviewTest' --offline --console=plain`退出0；共5项测试，覆盖新鲜同VIN LIVE确认以及旧序号、缓存、异VIN、非零结果和缺基线不确认。
+- 构建：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。构建包含既有弃用/unchecked警告，无本批错误。
+- 状态：确认链达到`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；ID25整体仍`PARTIAL`。没有App运行、真实网络、BLE或车辆验证。提交Hash待最终Git检查。

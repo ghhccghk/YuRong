@@ -4,7 +4,7 @@
 
 ## 正在处理
 
-- 无。A46已补齐ID62独立座椅加热排程CRUD；ID62总体仍PARTIAL，因为任务云端记录不等于车辆执行回读，且即时档位配置读取绑定未证实。A47已静态审计ID41/88，设备侧BLE音效应用保持PARTIAL/BLOCKED；下一批仍需按证据/风险复核选择。
+- 无。A48已修正ID25旧TTP密码设置成功码可误确认本次写入的问题；ID25仍PARTIAL，独立密码云端流程、超时和BLE设置状态协调未闭环。A46已补齐ID62独立座椅加热排程CRUD；ID62总体仍PARTIAL。A47已静态审计ID41/88，设备侧BLE音效应用保持PARTIAL/BLOCKED；后续按证据/风险继续选择。
 
 ## 待处理（候选，须先证据复核）
 
@@ -69,7 +69,7 @@
 
 - A31：ID52未知距离值保持UNKNOWN/只读，移除未经Smali证实的云字段映射，并在最终Writer拒绝Slider以阻断BLE/云端旁路。56项Fake过滤测试、JVM/JS/Wasm/测试源码编译、Android/Desktop构建通过；ID52测距字段关系仍BLOCKED。提交`f6cb9ad285aca3797e790e1a3d92d964059fe630`。
 
-- A30：ID25密码解锁状态来源隔离已提交`12c1e8dcc8619fbbd67e622b83d63f70fbf0ebf1`；独立密码验证/找回与BLE回读协调仍PARTIAL。
+- A30/A48：ID25密码解锁状态来源隔离和新鲜回读确认门控已完成；云端密码设定、BLE发送和车辆回读仍为独立状态。跨云端密码管理、失败/超时协调仍PARTIAL。
 
 - A29：ID8 Smali确认`sendCode=10`、`smsScene=10`，短信验证后调用`common-cmd/low-freq/set-param/loss`，`value=00/01`；云端状态`lossState=0`表示开启。KMP已有独立短信/报失Gateway、Controller和诊断UI；修正2xx响应缺少`success=true`时误报成功。修正过期Fake对签名表单的断言。Fake整类过滤6/6，跨平台编译与Android/Desktop构建通过；服务端接受仍不是车辆确认，无真实请求/App/车辆操作。提交记录见历史。
 

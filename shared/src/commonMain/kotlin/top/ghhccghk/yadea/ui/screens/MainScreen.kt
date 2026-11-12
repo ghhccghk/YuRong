@@ -440,17 +440,13 @@ fun MainScreen(
             carSettingsController.refresh()
         }
     }
-    LaunchedEffect(vehicleProfile?.vin, vehiclePasswordController) {
+    LaunchedEffect(vehicleProfile?.vin, vehicleObservation, vehiclePasswordController) {
         vehiclePasswordController?.onVinChanged(vehicleProfile?.vin.orEmpty())
+        vehiclePasswordController?.updateVehicleObservation(vehicleObservation)
     }
     LaunchedEffect(vehicleProfile?.vin, vehicleObservation, carSettingsController) {
         carSettingsController.onVinChanged(vehicleProfile?.vin.orEmpty())
         carSettingsController.updateVehicleObservation(vehicleObservation)
-    }
-    LaunchedEffect(vehicleProfile?.vin, vehicleStatus?.hex, vehiclePasswordController) {
-        vehiclePasswordController?.onVehiclePasswordResult(
-            vehicleStatus?.extended?.passwordUnlockSettingResult ?: -1,
-        )
     }
     var autoConnectAttempted by remember { mutableStateOf(false) }
     LaunchedEffect(authUiState.session.isLoggedIn, vehicleProfile?.vin) {

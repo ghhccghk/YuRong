@@ -290,6 +290,9 @@ class VehiclePasswordController(
     private var job: Job? = null
     private var currentVin: String? = null
     private var pendingValidCode: String? = null
+    private var latestObservation: VehicleStatusObservation? = null
+    private var pendingReadbackVin: String? = null
+    private var pendingReadbackAfterSequence: Long? = null
 
     fun onVinChanged(vin: String) {
         val normalized = vin.trim()
@@ -297,6 +300,9 @@ class VehiclePasswordController(
         job?.cancel()
         job = null
         pendingValidCode = null
+        latestObservation = null
+        pendingReadbackVin = null
+        pendingReadbackAfterSequence = null
         currentVin = normalized
         _state.value = VehiclePasswordState()
     }
@@ -325,6 +331,8 @@ class VehiclePasswordController(
     }
 
     fun begin(flow: PasswordFlow) {
+        pendingReadbackVin = null
+        pendingReadbackAfterSequence = null
         _state.value = _state.value.copy(
             flow = flow,
             codeSent = false,
@@ -444,6 +452,9 @@ class VehiclePasswordController(
                 return@launch
             }
             if (!currentVinMatches(vin)) return@launch
+            val readbackBaseline = latestObservation
+                ?.takeIf { it.vin == vin }
+                ?.sequence
             val sent = requestCatching {
                 commandSink?.send(
                     VehicleSettingCommand(
@@ -454,6 +465,8 @@ class VehiclePasswordController(
                 ) == true
             }.getOrDefault(false)
             if (!currentVinMatches(vin)) return@launch
+            pendingReadbackVin = vin.takeIf { sent }
+            pendingReadbackAfterSequence = readbackBaseline.takeIf { sent }
             _state.value = _state.value.copy(
                 busy = false,
                 success = true,
@@ -470,6 +483,7 @@ class VehiclePasswordController(
                     "云端已接受，BLE 尚未确认发送"
                 },
             )
+            latestObservation?.let(::confirmFromObservation)
             pendingValidCode = null
         }
     }
@@ -494,11 +508,29 @@ class VehiclePasswordController(
     private fun currentVinMatches(vin: String): Boolean =
         currentVin == vin && vinProvider().trim() == vin
 
-    fun onVehiclePasswordResult(result: Int) {
-        if (result < 0 || !_state.value.bleSent || _state.value.writeState == PasswordWriteState.VEHICLE_CONFIRMED) return
+    fun updateVehicleObservation(observation: VehicleStatusObservation?) {
+        val vin = currentVin ?: vinProvider().trim()
+        if (observation == null) {
+            latestObservation = null
+            return
+        }
+        if (vin.isBlank() || observation.vin != vin) return
+        if (latestObservation?.let { observation.sequence <= it.sequence } == true) return
+        latestObservation = observation
+        confirmFromObservation(observation)
+    }
+
+    private fun confirmFromObservation(observation: VehicleStatusObservation) {
+        val baseline = pendingReadbackAfterSequence ?: return
+        if (!_state.value.bleSent || _state.value.writeState != PasswordWriteState.LOCAL_UPDATED) return
+        if (pendingReadbackVin != observation.vin || observation.vin != currentVin) return
+        if (observation.origin != VehicleStatusOrigin.LIVE_TTP || observation.sequence <= baseline) return
+        if (observation.info?.extended?.passwordUnlockSettingResult != 0) return
+        pendingReadbackVin = null
+        pendingReadbackAfterSequence = null
         _state.value = _state.value.copy(
-            writeState = if (result == 0) PasswordWriteState.VEHICLE_CONFIRMED else PasswordWriteState.FAILED,
-            message = if (result == 0) "车辆已确认密码设置" else "车辆未确认密码设置",
+            writeState = PasswordWriteState.VEHICLE_CONFIRMED,
+            message = "车辆已确认密码设置",
         )
     }
 
