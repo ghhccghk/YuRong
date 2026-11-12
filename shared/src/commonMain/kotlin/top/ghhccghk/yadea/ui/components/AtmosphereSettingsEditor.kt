@@ -16,11 +16,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -45,7 +43,6 @@ import top.ghhccghk.yadea.carsetting.CarSettingKind
 import top.ghhccghk.yadea.carsetting.AtmosphereSettings
 import top.yukonga.miuix.kmp.basic.Slider as MiuixSlider
 import top.yukonga.miuix.kmp.basic.SliderDefaults as MiuixSliderDefaults
-import top.yukonga.miuix.kmp.basic.Surface as MiuixSurface
 
 // Presentation order differs from the existing command values. Do not use list indices as payloads.
 internal val atmosphereModeOptions = listOf(0 to "常亮", 2 to "闪烁", 1 to "呼吸", 3 to "流水")
@@ -92,10 +89,15 @@ internal fun AtmosphereSettingsEditor(
                     horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing),
                 ) {
                     atmosphereModeOptions.forEach { (value, label) ->
-                        AppAtmosphereOption(
-                            label, hasSelection && draft.showMode == value, enabled,
+                        AppFilterChip(
+                            label = label,
+                            selected = hasSelection && draft.showMode == value,
+                            enabled = enabled,
                             onClick = { onEdit { it.copy(showMode = value) } },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).semantics {
+                                selected = hasSelection && draft.showMode == value
+                                role = Role.RadioButton
+                            },
                         )
                     }
                 }
@@ -109,10 +111,15 @@ internal fun AtmosphereSettingsEditor(
                     atmosphereRunOptions.chunked(2).forEach { options ->
                         Row(horizontalArrangement = Arrangement.spacedBy(dimensions.controlSpacing)) {
                             options.forEach { (value, label) ->
-                                AppAtmosphereOption(
-                                    label, draft.runMode == value, enabled,
+                                AppFilterChip(
+                                    label = label,
+                                    selected = draft.runMode == value,
+                                    enabled = enabled,
                                     onClick = { onEdit { it.copy(runMode = value) } },
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.weight(1f).semantics {
+                                        selected = draft.runMode == value
+                                        role = Role.RadioButton
+                                    },
                                 )
                             }
                         }
@@ -178,40 +185,6 @@ internal fun AtmosphereSettingsEditor(
             }
         }
     }
-}
-
-@Composable
-private fun AppAtmosphereOption(
-    label: String,
-    selected: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val shape = RoundedCornerShape(8.dp)
-    val color = AppDesign.colors.surface
-    val contentColor = AppDesign.colors.onSurface
-    val tileModifier = modifier
-        .alpha(if (enabled) 1f else 0.45f)
-        .border(if (selected) 2.dp else 1.dp, if (selected) contentColor else AppDesign.colors.outline, shape)
-        .semantics { this.selected = selected; role = Role.RadioButton }
-    val content: @Composable () -> Unit = {
-        Box(
-            Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 4.dp, vertical = 12.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            AppText(label, style = AppDesign.typography.label, textAlign = TextAlign.Center)
-        }
-    }
-    AppStyleContent(
-        material = {
-            Surface(
-                onClick = onClick, modifier = tileModifier, enabled = enabled,
-                shape = shape, color = color, contentColor = contentColor, content = content,
-            )
-        },
-        miuix = { MiuixSurface(onClick = onClick, modifier = tileModifier, enabled = enabled, shape = shape, color = color, contentColor = contentColor, content = content) },
-    )
 }
 
 @Composable
