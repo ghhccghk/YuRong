@@ -550,3 +550,11 @@
 - Fake-only过滤测试：`:shared:jvmTest --tests 'top.ghhccghk.yadea.carsetting.SixthRoundReviewTest' --offline --console=plain`退出0；共5项测试，覆盖新鲜同VIN LIVE确认以及旧序号、缓存、异VIN、非零结果和缺基线不确认。
 - 构建：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。构建包含既有弃用/unchecked警告，无本批错误。
 - 状态：确认链达到`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；ID25整体仍`PARTIAL`。没有App运行、真实网络、BLE或车辆验证。提交Hash待最终Git检查。
+
+## A49（ID41/88 自定义音效 BLE 协议边界复核）
+
+- 起始HEAD：`999c2bfff356e278a13cf9a7bb77b039b74960a3`，分支`master`；tracked工作区及index干净；保留既有untracked日志、APK、截图、JADX目录和文档。
+- Smali证据：`BleSoundService.s:645–708`接收本地`uploadFilePath`并启动仪表BLE连接；连接回调创建`BleCustomSoundControl`并进入专用初始化。`BleCustomSoundControl.k:264–310`使用service `f000ffc0-0451-4000-b000-000000000000`、characteristic `f000ffc2-0451-4000-b000-000000000000`注册专用回调。握手返回类型后，`BleSoundService$setConnectStatus$1$1$a.a:34–107`以`BleSoundHelper.c(path)`通过`FileInputStream`读取整份本地音频为字节数组，再调用`BleCustomSoundControl.r(bytes,type)`。`t:1496–1594`建立MTU/notify初始化条件；`w:1722–1870`启动发送/重试门控；`r:1362–1482`设置音效类型与音频大小；`o:520–1096`解析握手、配置和分片应答（分支码含`20`、`24`及失败`F0/F1`）；`p:1097–1211`按序发送分片并等待继续；`v:1626–1672`将音频拆成固定256字节块，末块以`0xFF`填充。`q:1212–1361`构造传输消息并进入BLE命令发送回调。原页面选择/触发证据见`BootSoundEffectActivity.applySound:732–940`及A47记录。
+- KMP复核：`CustomSoundController`/`CustomSoundGateway`只接云端资源、开关、资源应用和结果轮询；无`BleCustomSoundControl`等价物或对BLE Writer的音效传输调用。`BleAdapter`提供通用GATT接口，Android实现有MTU/通知/写入原语；JVM、iOS、JS、Wasm具体适配器均继承`UnsupportedBleAdapter`。因此通用接口存在不代表自定义音效协议已支持。
+- 结论：设备侧上传缺口仍真实存在。原App的BLE字节源已证实为本地音频文件；KMP自定义资源主要以云端资源URL表示，如何取得原App要求的本地文件字节、如何与本地上传入口/所选车辆资源映射，以及跨平台GATT能力仍无已接通契约。不得将音效数据伪装成普通车辆设置帧或只在Android暗中旁路；本批保持ID41/88 `PARTIAL/BLOCKED`，不改业务代码。
+- 修改文件：仅本矩阵、队列和本历史。验证：静态Smali/KMP调用链复核及`git diff --check`；未运行测试、构建、App、真实网络、BLE或车辆操作。验证等级仅`STATIC_FLOW_VERIFIED`。文档提交Hash待最终Git检查。
