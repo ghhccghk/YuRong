@@ -16,7 +16,7 @@
 - ID24/85：A42确认Android已注入联系人Controller，Desktop未注入；iOS/JS/Wasm的HTTP传输明确不可用。等待各平台认证头/device identity与HTTP transport的正式实现，不用空适配或Android默认请求头伪造支持。
 - ID91：A50确认云端配置读写字段和原页开关前置联系人校验；当前完整资料来自既有联系人Gateway，非Android平台的联系人Controller/HTTP能力仍受A42限制，缺联系人资料时保守禁用开启。
 - ID66：A51确认`1002/66`是原App一键开机校准能力/引导门控，不是已有证据支持的普通云端开关或BLE设置；KMP保持只读。等待完整钥匙校准事务及车辆结果协议证据，不从自动/手动引导名推断命令。
-- A53动态入口复核：ID95继续按项目规范隐藏。`special:meter_wallpaper_skin`、`special:meter_gauge_sync`、`special:footer_intelligence`、`special:footer_lab`及`footer_device_detail`均是独立页面入口而非普通设置字段；壁纸传输、家庭车设置页、雷达页与车辆详情需按独立流程继续审计，不把标题/入口ID映射为云端或BLE参数。
+- A53动态入口复核：ID95继续按项目规范隐藏。`special:meter_wallpaper_skin`、`special:meter_gauge_sync`、`special:footer_intelligence`、`special:footer_lab`及`footer_device_detail`均是独立页面入口而非普通设置字段；壁纸传输、家庭车设置页、实验室聚合页与车辆详情需按独立流程继续审计（A54更正：实验室回调a0→LabActivity，不是E0→RadarActivity），不把标题/入口ID映射为云端或BLE参数。
 - 其他全部项：按功能地图逐项核对读取、写入、门控及独立流程；发现安全问题优先插队。
 - 基线4/58/61/55/92、9/82：检查当前代码并回归，避免重复历史修复。
 - ID5/7/11/39：A39/A52重新核对页面、TTP回填、命令和KMP入口。ID5未知Choice走显式选项面板且最终值校验为0/1；ID11开关/距离独立回填且距离受同VIN实时父开关门控；无新增可安全修复缺口。ID7/39原页`VehicleDataManager.W0`的1021/29车型门控在KMP缺少等价可信来源，继续保留UNKNOWN/PARTIAL，不用默认值放开。

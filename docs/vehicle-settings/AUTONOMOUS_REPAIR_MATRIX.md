@@ -100,7 +100,7 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | special:meter_wallpaper_skin 壁纸皮肤设置 | `CarSettingsMeterRegistry.buildDynamicEntrances:1–7`；仅有`VehicleDataManager.D()`车型子配置时生成；点击经`CarSettingsNavigation.m`检查仪表BLE连接、车辆开机/P档后进入`WallpaperSkinActivity`（`RouterCenter.g1`） | KMP有通用入口行，无等价跳转/壁纸管理流程 | 不是普通confId写入；这是需仪表连接的独立页面 | 独立功能缺失；实现前需审计 WallpaperSkinActivity 的资源、协议和平台能力，不能复用车辆主题图片配置猜测 | P2 / PARTIAL / A53；独立页面事务待审 |
 | special:meter_gauge_sync 车辆信息同步 | `CarSettingsMeterRegistry.buildDynamicEntrances:8–11`；`VehicleDataManager.r()`非空时生成；点击`CarSettingsNavigation.k(title)`→`MsgAsyncActivity` | KMP有通用入口行，无等价目标页 | 已证实为标题透传的独立信息页，未证明是配置写入项 | 页面内容及是否有状态变更尚待审；当前不创建云端/BLE设置映射 | P3 / BLOCKED / A53 |
 | special:footer_intelligence 用户智能识别 | `CarSettingsFooterRegistry.buildAll:1–8`由`g()`门控；点击`CarSettingsNavigation.f`→`RouterCenter.O`→`FamilyCarSettingActivity` | KMP只有通用入口行，无该页面导航 | 进入独立家庭车辆设置页，不是单一普通配置项 | 页面内能力需单独审计，禁止映射为单个confId | P2 / PARTIAL / A53 |
-| special:footer_lab 实验室 | `CarSettingsFooterRegistry.buildAll:12–17`由`h()`门控；点击`RouterCenter.E0(false)`→`RadarActivity` | KMP入口存在，但点击只显示通用只读说明 | 原App的“实验室”footer 实际跳转雷达页；通用雷达项仍按69/70/78独立审计 | 导航缺口可修复性待核：需先核对KMP雷达控制器与原RadarActivity完整流程 | P2 / PARTIAL / A53 |
+| special:footer_lab 实验室 | CarSettingsFooterRegistry$buildAll$1$5.a:60–77调用RouterCenter.a0:1610–1628→LabActivity，由Registry.h()门控 | KMP有实验室分类筛选，special点击仅显示通用只读说明 | 原App进入实验室聚合页，不是雷达页或单个写入字段 | 聚合目录与KMP分类覆盖需继续核对；A54纠正A53误读E0为该回调 | P2 / PARTIAL / A54 |
 | footer_device_detail 设备详情 | `CarSettingsFooterRegistry.b`固定创建；点击回调取当前`VehicleInfoBean`并经`ARouterHelper.k0`打开车辆详情 | KMP通用入口只显示只读说明，无等价车辆详情导航 | 车辆信息详情入口，不是车辆设置读写项 | 属于车辆详情页面缺口，不新增车辆设置字段；后续检查现有车辆资料页是否可复用 | P3 / PARTIAL / A53 |
 
 ## 动态/独立流程补充
