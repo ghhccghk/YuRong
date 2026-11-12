@@ -433,3 +433,12 @@
 - 修改文件：`VehicleSettingCommands.kt`、`CustomKeySettingsSafetyTest.kt`、`CarSettingsControllerTest.kt`、本矩阵、队列和历史。Fake测试覆盖两个命令方向、0..8及14映射、未知占位能力但阻止写入、非法条目/索引不触达Fake sink、直接命令边界，以及raw 9..14显示兼容与raw 15 UNKNOWN。
 - 验证：专用过滤`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.CustomKeySettingsSafetyTest" --tests "top.ghhccghk.yadea.carsetting.CarSettingsControllerTest.customKeyFunctionsReadBackFromCustomFunctionBits" --offline --console=plain`通过4/4。较早一次测试在伪造条目ID用例失败，发现通用fallback可绕过精确ID分支；修复为ID1005封闭分流后重跑4/4通过。`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。
 - 自审结论：BLE Writer仍只接收`forItem`构造的已验证命令；命令对象本身也拒绝越界与错配，且编码器仍按现有bit 0x1F 低/高nibble编码。读取映射和UNKNOWN未改变，不涉及其他设置。状态`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；未执行App、真实网络、BLE或车辆验证，运行态保持`PARTIAL`。功能提交：`0e462bd093173a7c343ec42677b277a9eec6eeee`（`fix: harden custom key setting commands`）。
+
+## A36（ID20音量回归夹具）
+
+- 起始HEAD：`41a559ce7d2915ebd825e81391529d367aca5a9f`，分支`master`；staged为空。仅两份tracked测试文件已有本批修改；既有untracked日志、APK、文档、截图和工具目录全部保留且未暂存。
+- Smali：`VehicleVolumeActivity.getSettingConfigId:87–95`为20；`VehicleVolumeActivity.setListener:108–143`读初始化值并绑定SeekBar；`VehicleVolumeActivity$a.b:86–104`接收`seekParams.e`，`$a.a:40–62`将thumbPosition作为`VOLUME`参数。`hp6.m:671–715`明示0低、1中、2高；ViewModel只接受TTP 0..2，解析哨兵-1保持UNKNOWN；三刻度资源证据见矩阵A11。
+- 修改仅限`EighthRoundValueStateTest.kt`及`SixthRoundActivityBatchTest.kt`：合法设置值/命令夹具限定0..2；raw3..6和-1验证UNKNOWN；Fake用户编辑同步设置`valueKnown=true`，模拟`CarSettingsScreen`实际拖动回调。未修改生产代码、命令构造或其他设置。
+- 精准Fake测试命令覆盖`unsupportedVolumeReadbacksRemainUnknown`、草稿/取消、失败期间回读、旧值/缺失字段与新鲜匹配、发送期间回读、非法目标及第二批稳定命令映射；首次运行7项中5项通过，2项因Fake漏掉UI显式选择的`valueKnown=true`失败，修正测试夹具后7/7通过，未放宽断言。
+- JVM/JS/Wasm/测试源码编译命令退出0；Android Debug/Desktop离线构建命令退出0；`git diff --check`退出0。测试只用Fake，不连接网络/BLE/车辆；没有运行App，无RUNTIME_VERIFIED或VEHICLE_VERIFIED。
+- 状态：ID20既有生产链路不变；本批为测试回归维护，等级UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED。精确提交哈希在提交后补入记录。

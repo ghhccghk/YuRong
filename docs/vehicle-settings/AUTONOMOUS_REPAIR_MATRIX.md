@@ -342,3 +342,11 @@ A10：33/33精确过滤测试、全部离线构建和diff检查退出0；STATIC_
 - 目标同时携带两个有依据的整数，Writer直接调用独立Gateway，不走通用Builder/PARAM或BLE。合法范围/稳定ID/许可在实际Writer/Gateway校验；成功后重读云端配置，失败/不一致保留接受状态及错误，不建立车辆确认；无效重读不能抹去已接受目标。草稿、旧请求、VIN切换及取消均隔离。
 - UI独立AutoHibernateSheet复用AppBottomSheet、AppSwitchPreference、AppTextField、AppButton/AppOutlinedButton及局部滚动。空天数不产生默认草稿，确认才提交；未知/只读/立即休眠遮罩及在途状态禁用。共享commonMain实现，两主题共同回调；没有修改全局主题或Sheet。
 - 89/89 Fake-only过滤及JVM/JS/Wasm/测试源码、Android Debug/Desktop构建退出0；git diff检查退出0。独立复审重走原页/回调→目录→UI→Controller→实际Writer/Gateway→配置重读，没有协议/帧/TTP解析/网络签名/其他设置参数变更。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；ID77 CONDITIONAL，车辆排程实际执行及UI视觉交互未验证，无RUNTIME_VERIFIED/VEHICLE_VERIFIED。
+
+## A36：ID20 三档音量回归夹具（本批验证完成）
+
+- Smali复核：`VehicleVolumeActivity.getSettingConfigId:87–95`返回20；`setListener:108–143`从ViewModel值初始化`thumbPosition`并连接SeekBar；`VehicleVolumeActivity$a.b:86–104`把SeekBar `seekParams.e`记为thumbPosition，`$a.a:40–62`将该值原样作为`VOLUME`参数发送。`hp6.m:671–715`将0/1/2分别映射“低/中/高”，其他值无标签；`VehicleSettingViewModel:21717+`回填同样只接受0/1/2，TTP解析哨兵-1保持未定义。原页资源范围及三刻度证据见A11。
+- KMP生产映射已限定为0..2；`CarSettingsScreen`用户拖动会将编辑目标标记`valueKnown=true`。本批发现两份较早测试把音量扩为3..7，并且Fake编辑没有模拟真实UI的known标记，导致测试拒绝目标，而非生产映射故障。
+- 仅修正`EighthRoundValueStateTest.kt`和`SixthRoundActivityBatchTest.kt`：有效读数/提交值使用0..2，3..6与-1明确断言UNKNOWN；测试用户编辑时设置`valueKnown=true`。没有生产代码或命令映射修改。
+- 验证：精准7项Fake测试通过；共享JVM/JS/Wasm/测试源码编译通过；Android Debug/Desktop离线构建通过；`git diff --check`通过。首次精准运行5/7通过，另2项因Fake未标记显式用户选择为known而失败；修正夹具后7/7通过，未删除断言或放宽校验。
+- 状态：ID20原有实现STATIC_FLOW_VERIFIED、UNIT_TESTED、BUILD_VERIFIED；本批为回归夹具维护。未运行App或真实车辆，未标记RUNTIME_VERIFIED/VEHICLE_VERIFIED。提交哈希以本批提交记录为准。

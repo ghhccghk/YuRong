@@ -36,7 +36,7 @@ class EighthRoundValueStateTest {
         c.updateVehicleStatus("VIN-A", unknown)
         ids.forEach { assertEquals(VehicleSettingValue.Unknown, c.value(it).vehicleValue) }
         val valid = unknown.copy(extended = unknown.extended.copy(
-            alarmSensitivityStatus = 1, alarmWarningVolumeLevel = 4, withGoHomeTimeStatus = 2,
+            alarmSensitivityStatus = 1, alarmWarningVolumeLevel = 1, withGoHomeTimeStatus = 2,
             offModeStatus = 1, metricSystemStatus = 1, voltageSettingStatus = 2,
         ))
         c.updateVehicleStatus("VIN-OLD", valid)
@@ -50,32 +50,40 @@ class EighthRoundValueStateTest {
         ids.forEach { assertEquals(prior[it], c.value(it).vehicleValue) }
     }
 
+    @Test fun unsupportedVolumeReadbacksRemainUnknown() = runBlocking {
+        for (raw in (3..6) + -1) {
+            val c = controller(listOf("20"))
+            c.updateVehicleStatus("VIN-A", volume(raw))
+            assertEquals("raw volume $raw", VehicleSettingValue.Unknown, c.value("cloud:20").vehicleValue)
+        }
+    }
+
     @Test fun draftAndCancellationDoNotChangeVehicleValue() = runBlocking {
         val c = controller(listOf("20"))
-        c.updateVehicleStatus("VIN-A", volume(3))
+        c.updateVehicleStatus("VIN-A", volume(1))
         val observed = c.value("cloud:20").vehicleValue
-        assertTrue(c.editDraft("cloud:20") { (it as CarSettingKind.Slider).copy(value = 5f) })
-        c.updateVehicleStatus("VIN-A", volume(4))
-        assertEquals(5f, (c.value("cloud:20").draftValue as CarSettingKind.Slider).value)
+        assertTrue(c.editDraft("cloud:20") { (it as CarSettingKind.Slider).copy(value = 2f, valueKnown = true) })
+        c.updateVehicleStatus("VIN-A", volume(0))
+        assertEquals(2f, (c.value("cloud:20").draftValue as CarSettingKind.Slider).value)
         assertNotEquals(observed, c.value("cloud:20").vehicleValue)
         c.cancelDraft("cloud:20")
         assertNull(c.value("cloud:20").draftValue)
-        assertEquals(4f, ((c.value("cloud:20").vehicleValue as VehicleSettingValue.Known).kind as CarSettingKind.Slider).value)
+        assertEquals(0f, ((c.value("cloud:20").vehicleValue as VehicleSettingValue.Known).kind as CarSettingKind.Slider).value)
     }
 
     @Test fun failurePreservesReadbackReceivedDuringSending() = runBlocking {
         val result = CompletableDeferred<Boolean>()
         val writer = object : CarSettingWriter { override suspend fun write(item: CarSettingItem) = result.await() }
         val c = controller(listOf("20"), writer)
-        c.updateVehicleStatus("VIN-A", volume(3))
+        c.updateVehicleStatus("VIN-A", volume(1))
         val job = launch(start = CoroutineStart.UNDISPATCHED) {
-            assertFalse(c.update("cloud:20") { (it as CarSettingKind.Slider).copy(value = 5f) })
+            assertFalse(c.update("cloud:20") { (it as CarSettingKind.Slider).copy(value = 2f, valueKnown = true) })
         }
-        c.updateVehicleStatus("VIN-A", volume(4))
+        c.updateVehicleStatus("VIN-A", volume(0))
         result.complete(false)
         job.join()
         val state = c.value("cloud:20")
-        assertEquals(4f, ((state.vehicleValue as VehicleSettingValue.Known).kind as CarSettingKind.Slider).value)
+        assertEquals(0f, ((state.vehicleValue as VehicleSettingValue.Known).kind as CarSettingKind.Slider).value)
         assertEquals(SettingWriteState.FAILED, state.writeState)
         assertNull(state.submittedValue)
         assertNotNull(state.error)
@@ -83,9 +91,9 @@ class EighthRoundValueStateTest {
 
     @Test fun receiptsAndUnrelatedOrOldReadbackNeverConfirmWriteOnlyItem() = runBlocking {
         val c = controller(listOf("50", "20"))
-        c.updateVehicleStatus("VIN-A", volume(3))
+        c.updateVehicleStatus("VIN-A", volume(1))
         assertTrue(c.update("cloud:50") { (it as CarSettingKind.Choice).copy(selectedIndex = 1) })
-        c.updateVehicleStatus("VIN-A", volume(4))
+        c.updateVehicleStatus("VIN-A", volume(2))
         val state = c.value("cloud:50")
         assertEquals(VehicleSettingValue.Unknown, state.vehicleValue)
         assertEquals(SettingWriteState.LOCAL_UPDATED, state.writeState)
@@ -98,14 +106,14 @@ class EighthRoundValueStateTest {
 
     @Test fun oldEqualValueAndMissingFieldCannotConfirmButFreshMatchCan() = runBlocking {
         val c = controller(listOf("20"))
-        c.updateVehicleStatus("VIN-A", volume(3))
-        assertTrue(c.update("cloud:20") { (it as CarSettingKind.Slider).copy(value = 3f) })
+        c.updateVehicleStatus("VIN-A", volume(1))
+        assertTrue(c.update("cloud:20") { (it as CarSettingKind.Slider).copy(value = 1f, valueKnown = true) })
         assertEquals(SettingConfirmationState.WAITING_READBACK, c.value("cloud:20").confirmationState)
         c.updateVehicleStatus("VIN-A", unknown)
         assertEquals(SettingConfirmationState.WAITING_READBACK, c.value("cloud:20").confirmationState)
-        c.updateVehicleStatus("VIN-A", volume(4))
+        c.updateVehicleStatus("VIN-A", volume(2))
         assertEquals(SettingConfirmationState.READBACK_MISMATCH, c.value("cloud:20").confirmationState)
-        c.updateVehicleStatus("VIN-A", volume(3))
+        c.updateVehicleStatus("VIN-A", volume(1))
         assertEquals(SettingConfirmationState.READBACK_MATCHED, c.value("cloud:20").confirmationState)
         assertNull(c.value("cloud:20").submittedValue)
     }
@@ -118,9 +126,9 @@ class EighthRoundValueStateTest {
         }
         val c = controller(listOf("20"), writer)
         val job = launch(start = CoroutineStart.UNDISPATCHED) {
-            c.update("cloud:20") { (it as CarSettingKind.Slider).copy(value = 5f) }
+            c.update("cloud:20") { (it as CarSettingKind.Slider).copy(value = 2f, valueKnown = true) }
         }
-        c.updateVehicleStatus("VIN-A", volume(5))
+        c.updateVehicleStatus("VIN-A", volume(2))
         assertEquals(SettingConfirmationState.UNKNOWN, c.value("cloud:20").confirmationState)
         receipt.complete(CarSettingWriteResult(true, CarSettingWriteChannel.BLE))
         job.join()
@@ -175,7 +183,7 @@ class EighthRoundValueStateTest {
         val c = controller(listOf("20"))
         assertFalse(c.update("cloud:20") { (it as CarSettingKind.Slider).copy(value = Float.NaN) })
         assertTrue(c.state.value.pendingIds.isEmpty())
-        assertTrue(c.editDraft("cloud:20") { (it as CarSettingKind.Slider).copy(value = 5f) })
+        assertTrue(c.editDraft("cloud:20") { (it as CarSettingKind.Slider).copy(value = 2f, valueKnown = true) })
         assertTrue(c.submitDraft("cloud:20"))
         assertEquals(VehicleSettingValue.Unknown, c.value("cloud:20").vehicleValue)
     }

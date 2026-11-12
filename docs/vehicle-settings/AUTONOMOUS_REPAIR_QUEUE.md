@@ -4,12 +4,12 @@
 
 ## 正在处理
 
-- 无。A35实现及验证完成；功能提交`0e462bd093173a7c343ec42677b277a9eec6eeee`，哈希也已写入历史。
+- A36 ID20回归夹具与旧音量假设清理：测试、跨平台编译及Android/Desktop构建已通过；本批精确提交待完成。基线`41a559ce7d2915ebd825e81391529d367aca5a9f`。
 
 ## 待处理（候选，须先证据复核）
 
 - 雷达告警模式/音量：`COMMAND_RADAR_ALARM`/0x12F的完整允许值、UI边界及可信回填尚未证实；补齐Smali资源/绑定或其他可靠证据前不得接入。
-- 回归维护补充：EighthRoundValueStateTest、SixthRoundActivityBatchTest仍有音量3..7旧夹具，后续专项按三档Smali修正；不得放宽生产范围。
+- 回归维护补充：A36已将EighthRoundValueStateTest和SixthRoundActivityBatchTest中ID20的合法编辑/命令夹具限定到原页三档0..2；3..6及解析哨兵-1仅作为UNKNOWN拒绝样本。已完成定向Fake测试和离线构建，待精确提交。
 - 回归维护：Phase4CarSettingsTest的62索引、10围栏快照及ID72/80动态页方向夹具已按对应调用路径修正；ID72/80独立页与动态页行为差异仍需保留审计，不合并语义。
 - 回归维护：A34已修正`SimpleToggleSettingsSafetyTest`对ID3/13的回读假设与命令码默认分支；整类 Fake 13/13通过。读取仍BLOCKED，不修改原始TTP解析。
 - 其他全部项：按功能地图逐项核对读取、写入、门控及独立流程；发现安全问题优先插队。

@@ -30,7 +30,7 @@ class SixthRoundActivityBatchTest {
         val cases = listOf(
             Triple("cloud:3", CarSettingKind.Toggle(true), 0x11),
             Triple("cloud:4", CarSettingKind.Slider(80f, 15f..120f, steps = 105), 0x36),
-            Triple("cloud:20", CarSettingKind.Slider(5f, 0f..7f, steps = 7), 0x46),
+            Triple("cloud:20", CarSettingKind.Slider(2f, 0f..2f, steps = 1), 0x46),
             Triple("cloud:36", CarSettingKind.Toggle(false), 0x9C),
             Triple("cloud:53", CarSettingKind.Toggle(true), 0xC7),
         )
