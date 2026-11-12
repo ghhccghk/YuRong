@@ -4,10 +4,11 @@
 
 ## 正在处理
 
-- 无。A46已补齐ID62独立座椅加热排程CRUD；ID62总体仍PARTIAL，因为任务云端记录不等于车辆执行回读，且即时档位配置读取绑定未证实。下一批需从既有候选中按证据/风险复核选择。
+- 无。A46已补齐ID62独立座椅加热排程CRUD；ID62总体仍PARTIAL，因为任务云端记录不等于车辆执行回读，且即时档位配置读取绑定未证实。A47已静态审计ID41/88，设备侧BLE音效应用保持PARTIAL/BLOCKED；下一批仍需按证据/风险复核选择。
 
 ## 待处理（候选，须先证据复核）
 
+- ID41/88自定义音效：A47确认KMP已接云端资源目录/管理、资源应用结果轮询和开关；原App `BootSoundEffectActivity.applySound:732–940`另有`BLE_CLEAR_SOUND`、`BleSoundHelper.k`及场景操作，KMP未接入设备侧音效传输。云端接受不等于车辆音效实际应用。保持PARTIAL/BLOCKED；后续先审计原Smali BLE helper及KMP跨平台能力，不新增猜测帧/平台旁路。
 - 雷达告警模式/音量（A38）：`COMMAND_RADAR_ALARM`/0x12F 的参数来自 `RadarActivity.mCurrentPosition`，但完整允许值、UI边界和该参数与任何 TTP 字段之间的映射尚未证实；保持 BLOCKED，不接入写入。若后续获得可信资源/绑定或抓包证据再复核。
 - 回归维护补充：A36已提交，EighthRoundValueStateTest和SixthRoundActivityBatchTest中ID20的合法编辑/命令夹具限定到原页三档0..2；3..6及解析哨兵-1仅作为UNKNOWN拒绝样本。
 - 回归维护：Phase4CarSettingsTest的62索引、10围栏快照及ID72/80动态页方向夹具已按对应调用路径修正；ID72/80独立页与动态页行为差异仍需保留审计，不合并语义。
@@ -36,6 +37,8 @@
 ## 已完成
 
 - A46：ID62独立座椅加热排程，新增/更新/列表/删除/启停接入现有签名 HTTP Gateway 和局部 BottomSheet；严格UNKNOWN、VIN、权限、最多3项、HH:mm、重复/周日0映射、`status=0`开/`1`关及显式成功响应校验。Fake-only过滤测试6/6，JVM/JS/Wasm/测试源码编译、Android Debug/Desktop构建通过。实现提交`97141aa`；审计记录单独提交。
+
+- A47：ID41/88自定义音效静态调用链复核。KMP云端目录、资源CRUD、setResourceBike和轮询已实现；原App启动音效BLE分支还发`BLE_CLEAR_SOUND`、调用`BleSoundHelper.k`及场景设置，KMP未接设备侧链路。云端状态不代表车辆确认；保留PARTIAL/BLOCKED，不改协议。仅静态审计，无测试/构建/运行；审计记录见提交历史。
 
 - A45：ID62移除未经Smali读取绑定证实的`seatHeating`/`seatHeatingLevel` configuredValue映射；未知开关/档位不再显示为OFF或默认选择，Controller阻止UNKNOWN目标编辑/提交。Fake 19/19、跨平台编译和Android/Desktop构建通过；实现提交`ab7b99b663d4c30e1718c527aa3d88111352f44b`。
 

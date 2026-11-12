@@ -531,3 +531,11 @@
 - 构建：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline`退出0；`:androidApp:assembleDebug :desktopApp:build --offline`退出0。精确过滤测试6/6，`git diff --check`和`git diff --cached --check`均退出0。实现提交`97141aa`（`fix: add heated seat schedule management`），9个文件、701 insertions/2 deletions；提交后tracked工作区干净，原有untracked内容未暂存。
 - 独立复审：排程字段未并入confId 62即时开关/档位，既有TTP/BLE命令与通用设置更新器未改。任务记录不伪装车辆状态；历史数据、无效值、跨VIN和不完整响应不建立已知任务列表。没有运行App、真实网络、BLE或车辆操作。
 - 状态：排程CRUD达到`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；整体ID62仍`PARTIAL`，无`RUNTIME_VERIFIED`/`VEHICLE_VERIFIED`。实现提交：`97141aa`（`fix: add heated seat schedule management`）；审计记录随后单独提交。
+
+## A47（ID41/88 自定义音效设备侧应用缺口审计）
+
+- 起始HEAD：`3f61fe15e311a0631146c6a2177ada095ecbf556`，分支`master`；tracked工作区干净；保留既有untracked日志、APK、截图、JADX目录及文档，未触碰。
+- Smali证据：`OldVehicleSoundEffectsActivity.getSettingConfigId:506`返回41。`BootSoundEffectActivity.applySound:644–651`查询`BleSoundHelper.j()`；若BLE分支成立，`732–840`经`VehiclePlugin.h`发送`BLE_CLEAR_SOUND`并调用`BleSoundHelper.k(sonConfId, resourceId)`，`851–940`另调用`BootSoundEffectViewModel.o1/k1`处理场景配置。另一路`668–729`走`l1(type="4", resourceId="-1", ...)`。`BootSoundEffectModel.setResourceBikeResource:335–430`构造`resourcesBike/setResourceBike`及六项业务字段；不能将云端配置与BLE传输合并为同一状态。
+- KMP复核：动态ID41/88入口均触发共享自定义音效Sheet；`CustomSoundController`具有VIN/请求代次/草稿/服务端状态；Gateway覆盖云端目录、资源列表、启停、应用和结果轮询，以及资源新增/删除/重命名。KMP当前应用路径没有调用`BleCustomSoundControl`或车辆BLE Writer，故原App设备侧BLE与场景流程未形成KMP调用链；服务端接受不代表车辆音效已应用。
+- 结论：ID41/88保留PARTIAL；原App确有设备侧流程，但KMP缺少已接通的音效传输能力。当前批不修改BLE协议、帧或平台实现，待单独核实Smali helper实现、现有跨平台BLE能力和可测试边界后评估。无安全可独立完成的生产代码修复。
+- 验证：只读静态审计，`git diff --check`通过；未运行测试、编译、App、网络、BLE或车辆操作。仅`STATIC_FLOW_VERIFIED`；无`UNIT_TESTED`、`BUILD_VERIFIED`、`RUNTIME_VERIFIED`、`VEHICLE_VERIFIED`。审计文档精确提交待记录。

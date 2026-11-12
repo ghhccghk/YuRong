@@ -48,7 +48,7 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 38 ABS 防抱死 | com/yadea/smartmoto/vehicle/view/AntiLockActivity.smali:152 | absFunctionStatus | ABS_ANTI_LOCK_CLOSE, ABS_ANTI_LOCK_OPEN | A07：严格已知开关、稳定ID、失效观察降级；TCS0..7合法域；同VIN新鲜回读确认 | P0 / COMPLETE / A07（BLE；无运行/实车验证） |
 | 39 边撑自动关机 | com/yadea/smartmoto/vehicle/view/BraceAutoShutDownActivity.smali:376 | leaveVehicleAutoLockStatus, leaveVehicleAutoLockTimeStatus, sideBraceStatus | LEAVE_THE_CAR_AUTO_LOCK_OFF, LEAVE_THE_CAR_AUTO_LOCK_ON, LEAVE_THE_CAR_AUTO_LOCK_TIME | A39：与ID7共享原App锁状态/时间命令并保持独立条目；时间要求同VIN有效LIVE_TTP父开关开启且无父草稿/提交/在途写入；车型条件不足时不伪造开启状态 | P2 / PARTIAL / A39 |
 | 40 彩蛋音效 | vehicle/view/EggSoundActivity.smali:88–207,306 | 无原页TTP证据 | 无BLE映射 | A13：colorEggSoundEffect配置/开启，关闭CLEAR_SOUND_EFFECT=7（修正旧0），valueJson同7；严格UNKNOWN/稳定ID | P0 / COMPLETE（云端；无运行/实车验证） / A13 |
-| 41 自定义音效 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 41 自定义音效 | `OldVehicleSoundEffectsActivity.getSettingConfigId:506`；入口转入自定义音效目录/启动音效流程 | KMP使用独立`CustomSoundController`云端目录/资源状态；无KMP BLE音效传输回读 | 自定义应用云端调用存在；原App启动音效BLE应用未接入KMP | 云端资源目录、开关、setResourceBike及结果轮询已在KMP；原App `BootSoundEffectActivity.applySound:644–940`另包含`BLE_CLEAR_SOUND`、`BleSoundHelper.k`与场景操作。KMP无这些调用；不得把云端接受当车辆应用确认 | P1 / PARTIAL；BLE应用链路BLOCKED待协议/平台能力专审 |
 | 42 车辆显示剩余里程 | com/yadea/smartmoto/vehicle/view/ShowInstrumentEnduranceActivity.smali:58–218,260 | remainingMileageDebugStatus | DISPLAY_REMAINING_MILEAGE_CLOSE/OPEN，A5/A4 | A14：严格TTP开关；开启先读同VIN cal2资格，非空提示仅说明不发送；Controller→带本次资格的Item→实际Writer→命令；接受与回读分离 | P0 / CONDITIONAL / A14（无运行/实车验证） |
 | 43 倒车模式 | com/yadea/smartmoto/vehicle/view/ReversingFunctionActivity.smali:144 | reversingState | REVERSING_CLOSE, REVERSING_OPEN | A10：严格已知开关/稳定ID/无效观察；45改用原页constSpeedState | P0 / COMPLETE / A10（BLE；无运行/实车验证） |
 | 44 婴儿车模式 | com/yadea/smartmoto/vehicle/view/HelpPromoteActivity.smali:144 | helpCarState | STROLLER_CLOSE, STROLLER_OPEN | A10：严格已知开关/稳定ID/无效观察；45改用原页constSpeedState | P0 / COMPLETE / A10（BLE；无运行/实车验证） |
@@ -87,7 +87,7 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 84 安全辅助小蓝灯 | com/yadea/smartmoto/vehicle/view/AssistDriveLightActivity.smali:330 | blueLightSwitch | BLE_CONFIG_ASSIST_DRIVE_LIGHT, BLE_CONFIG_ASSIST_DRIVE_LIGHT | A09：四项读写1开0关，修正三项参数反向；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A09（BLE；无运行/实车验证） |
 | 85 SOS 联系人 | `SosContactActivity.getSettingConfigId:1933`；`getSettingConfigIdList:1083`含24/91 | 与ID24共用EmergencyContactsData云端字段 | 不走车辆BLE；`addOwnerInfo`/`addContactInfo`→`insertData:1170`→VM.s6 | KMP ID85入口复用联系人BottomSheet和独立Gateway；UI受同一个可选EmergencyContactController控制，平台实例化/transport限制同ID24；ID91 SOS开关仍单独映射 | P1 / PARTIAL；平台支持限制见ID24 / A26/A42 |
 | 86 仪表亮度调节 | com/yadea/smartmoto/vehicle/view/BrightnessAdjustmentActivity.smali:430 | brightnessAdjustSwitch, brightnessAdjustValue | BRIGHTNESS_ADJUST_SWITCH, BRIGHTNESS_ADJUST_VALUE | A11：开关与整数0..100独立；去除伪造80；UI连接/供电门控，Controller要求开关有效LIVE回读才调亮度；无已证实云端配置 | P0 / CONDITIONAL / A11（BLE；无运行/实车验证） |
-| 88 自定义音效 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 88 自定义音效 | `OldVehicleSoundEffectsActivity`共享入口及动态目录项；与41共用音效管理流程 | 同ID41；KMP独立`CustomSoundController` | 同ID41 | 当前云端资源管理链路存在；原App启动音效应用还需设备侧BLE操作，KMP未接入；两ID是否在所有车型均同路径仍依赖动态目录门控 | P1 / PARTIAL；BLE应用链路BLOCKED待协议/平台能力专审 |
 | 89 辅助骑行 | vehicle/view/HelpPromotePlus2Activity:onCbClick94–130,onSwClick132–173；$a.a | customDriveLevelStatus0..2、customDriveSwitchStatus==2、helpCarState0/1 | A8/A9、D0=0/2、D1=0..2，均独立提交 | A23：保持89与64不同的D0参数；严格UNKNOWN/稳定ID/目标范围/失效观察；缓存、云端、接受与车辆确认分离 | P0 / COMPLETE（BLE静态/Fake；无运行/实车验证） / A23 |
 | 90 赛道模式 | com/yadea/smartmoto/vehicle/view/TrackModeActivity.smali:131 | trackModeStatus | TRACK_MODE, TRACK_MODE | A09：四项读写1开0关，修正三项参数反向；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A09（BLE；无运行/实车验证） |
 | 91 SOS 紧急呼叫 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
@@ -151,6 +151,13 @@ A45验证与精确提交记录见`AUTONOMOUS_REPAIR_HISTORY.md`；无真实App�
 | 状态与限制 | 排程CRUD为独立云端记录，并非`seatHeating`开关/档位配置，也无车辆执行回读；服务端接受仅标记为排程请求接受。UI按原App最多3个时段门控。ID62页面仍为`PARTIAL`：即时加热配置读取绑定仍未证实，且排程执行未获车辆确认。验证仅Fake与构建，无运行/实车验证。|
 
 A46完整字段证据、测试、构建与提交见`AUTONOMOUS_REPAIR_HISTORY.md`。
+
+### A47：ID41/88 自定义音效云端与车辆侧应用链路审计
+
+- 原App证据：`OldVehicleSoundEffectsActivity.getSettingConfigId:506`为41入口。`BootSoundEffectActivity.applySound:644–651`先检查`BleSoundHelper.j()`；BLE分支`732–840`向`VehiclePlugin`发`BLE_CLEAR_SOUND`、随后调用`BleSoundHelper.k(sonConfId, resourceId)`；`851–940`另调用`BootSoundEffectViewModel.o1/k1`处理场景设置。不同勾选分支`668–729`会走`l1(type="4", resourceId="-1", ...)`，故不能把云端与设备侧路径合并成单一步骤。`BootSoundEffectModel.setResourceBikeResource:335–430`使用`resourcesBike/setResourceBike`，参数含`type/resourceId/parentConfId/parentConfName/sonConfId/sonConfName`，结果回调和轮询另有流程。
+- KMP证据：动态ID41/88入口在`CarSettingsScreen.kt`打开同一个自定义音效Sheet；`CustomSoundController`管理请求代次、VIN、草稿和云端接受状态。`YadeaCarSettingsGateway.loadCustomSoundState`读取资源、配置目录、车辆资源映射及次数；`setCustomSoundEnabled/applyCustomSound`调用云端协议与`resourcesBike/setResourceBike`并轮询；资源新增/删除/重命名使用各自Gateway路径。`CarSettingsGateway.kt`与`CustomSoundGateway.kt`没有`BleCustomSoundControl`/BLE Writer调用。KMP云端应用成功不会生成车辆侧确认。
+- 结论：云端目录/资源管理路径为PARTIAL；原App BLE设备侧应用、场景命令以及云端/设备两支的协调没有在KMP闭环。Smali能证明原调用存在，但当前KMP缺少已接通的自定义音效设备传输能力；本批不新增BLE协议、帧或平台专属旁路，记为BLOCKED，待单独审计既有`BleCustomSoundControl`协议和跨平台能力后再定安全实现范围。
+- 验证：只读静态审计；未改业务代码，未运行测试或构建，未运行App、云端、BLE或车辆操作。等级为STATIC_FLOW_VERIFIED（所列静态分支/调用），整体PARTIAL/BLOCKED。
 
 ### A24：69/70/78 雷达开关（独立复审及验证完成）
 
