@@ -484,3 +484,10 @@
 - Smali证据：`TempleInductionActivity.onSwClick:42–153`在开关目标为关闭时，只有w2非空、`H6()==true`、`F1()==true`且`VehicleDataManager.W0()==true`才发送`BRACE_CLOSE_LOCKER_CLOSE`；否则发送`SLIDE_BRACE_OFF`。`VehicleDataManager.W0:10500–10634`要求`VehicleDataBean.vehicleConfig`存在父configId `1021`，并在其childConfigs中找到可解析为整数`29`的configId。页面ID为2（`getSettingConfigId:209+`）。
 - KMP复核：`SideBraceSettings.canClose`继续拒绝不能证明安全的状态；当前只在同VIN有效实时状态满足既有约束时允许安全的`SLIDE_BRACE_OFF`路径。未找到可证明KMP状态模型等价于原App `w2/H6/F1/W0`组合条件的来源映射，故特定车型命令仍BLOCKED；不放宽Controller、Writer或Mapper限制。
 - 本批只更新功能矩阵及队列，不改代码，不运行测试或构建。验证等级为STATIC_FLOW_VERIFIED；无RUNTIME_VERIFIED或VEHICLE_VERIFIED。
+
+## A42（ID24/85跨平台入口与传输审计）
+
+- 起始HEAD：`61cbb57131b52e6100134d08aa4700118db0265b`，分支`master`；tracked/index干净，保留既存untracked内容。
+- KMP证据：`CarSettingsScreen`只在`emergencyContactController != null`时创建联系人Sheet；全仓构造调用只在`androidApp/MainActivity.kt`。Desktop `main.kt`未传联系人Controller；iOS、web、wasm入口也未传入。`shared/src/jvmMain/.../HttpTransport.jvm.kt`有JVM HTTP实现，但JS、Wasm、iOS `createHttpTransport()`返回`UnavailableHttpTransport`。Android请求初始化还使用持久化loginId/bootstrap deviceId及Android package/build/vehicle series组成的`GatewayClientInfo`；其他平台当前没有等价注入来源。
+- 结论：ID24/85的Controller、Gateway及Fake链路已在commonMain，但其他平台运行能力不完整。不能用默认Android `os`、空deviceId或`UnavailableHttpTransport`假装读写成功；本批不改请求、签名或通用HTTP层。后续需在明确的平台网络/身份架构授权和证据下逐平台接入。
+- 本批只更新矩阵、队列和历史，不改代码，不运行测试或构建。验证等级为STATIC_FLOW_VERIFIED；没有运行平台App或真实云端请求。

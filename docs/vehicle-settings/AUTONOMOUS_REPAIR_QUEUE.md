@@ -4,7 +4,7 @@
 
 ## 正在处理
 
-- 无。A40 已补 ID3/13 Smali 证实的TTP读取与同VIN实时状态回填；过滤测试及跨平台/Android/Desktop构建通过，原写入路径未变。
+- 无。A40 已补 ID3/13 TTP读取并通过验证；A41复核ID2后维持安全门控；A42复核ID24/85的平台注入限制，不改通用网络层。
 
 ## 待处理（候选，须先证据复核）
 
@@ -12,6 +12,7 @@
 - 回归维护补充：A36已提交，EighthRoundValueStateTest和SixthRoundActivityBatchTest中ID20的合法编辑/命令夹具限定到原页三档0..2；3..6及解析哨兵-1仅作为UNKNOWN拒绝样本。
 - 回归维护：Phase4CarSettingsTest的62索引、10围栏快照及ID72/80动态页方向夹具已按对应调用路径修正；ID72/80独立页与动态页行为差异仍需保留审计，不合并语义。
 - A38雷达告警继续BLOCKED；ID3/13读取缺口已由A40解决，写入接受仍不等于车辆确认。
+- ID24/85：A42确认Android已注入联系人Controller，Desktop未注入；iOS/JS/Wasm的HTTP传输明确不可用。等待各平台认证头/device identity与HTTP transport的正式实现，不用空适配或Android默认请求头伪造支持。
 - 其他全部项：按功能地图逐项核对读取、写入、门控及独立流程；发现安全问题优先插队。
 - 基线4/58/61/55/92、9/82：检查当前代码并回归，避免重复历史修复。
 - ID5/7/11/39：A39已收紧子项父开关状态门控；7/39车型门控证据仍不足，继续保留UNKNOWN/PARTIAL，不用默认值放开。
@@ -32,6 +33,9 @@
 每批开始读本文件、地图、历史、HEAD和staged/unstaged/untracked；只从最近成功提交后继续。禁止清理或暂存用户原有12项未跟踪内容。未通过测试、构建、自审及精确diff时不提交；不调用真实网络/车辆。
 
 ## 已完成
+
+- A42：审计ID24/85联系人能力的平台注入。Android已实例化；Desktop入口缺注入；iOS/JS/Wasm transport不可用，保持PARTIAL/BLOCKED，不改通用网络层。静态验证，无App或网络验证。
+- A41：只读复核ID2边撑感应车型关闭分支，确认W0要求父1021/子29且原页另需H6/F1；映射证据不足，维持BLOCKED。更新矩阵/队列/历史，仅静态验证。提交`61cbb57`。
 
 - A40：ID3/13读取补全；Fake过滤测试54/54，JVM/JS/Wasm及测试源码编译通过；Android/Desktop构建通过。矩阵已更新；无App运行或实车验证。
 
