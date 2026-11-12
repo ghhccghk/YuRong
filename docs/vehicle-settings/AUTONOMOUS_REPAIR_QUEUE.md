@@ -4,13 +4,12 @@
 
 ## 正在处理
 
-- A37：001/002/003 X1 三档 TTP/UI 转换已修复、测试与构建通过，等待本批精确提交。起始 HEAD `f93c4dce1d11627fb2dc678b2e80d62b7347b84f`。
+- 无。A37 已提交 `4e20f45`（`fix: complete X1 vehicle setting mappings`）；起始 HEAD `f93c4dce1d11627fb2dc678b2e80d62b7347b84f`。
 
 ## 待处理（候选，须先证据复核）
 
 - 雷达告警模式/音量：`COMMAND_RADAR_ALARM`/0x12F的完整允许值、UI边界及可信回填尚未证实；补齐Smali资源/绑定或其他可靠证据前不得接入。
 - 回归维护补充：A36已提交，EighthRoundValueStateTest和SixthRoundActivityBatchTest中ID20的合法编辑/命令夹具限定到原页三档0..2；3..6及解析哨兵-1仅作为UNKNOWN拒绝样本。
-- A37当前改动：002原始档位0/1/2和003原始档位1/2/3都映射UI 0/50/100%；只接受精确刻度并逆映射。002档位编辑/写入还要求同VIN有效LIVE_TTP显示开关已开。Fake测试7/7及构建已通过，待提交。
 - 回归维护：Phase4CarSettingsTest的62索引、10围栏快照及ID72/80动态页方向夹具已按对应调用路径修正；ID72/80独立页与动态页行为差异仍需保留审计，不合并语义。
 - 回归维护：A34已修正`SimpleToggleSettingsSafetyTest`对ID3/13的回读假设与命令码默认分支；整类 Fake 13/13通过。读取仍BLOCKED，不修改原始TTP解析。
 - 其他全部项：按功能地图逐项核对读取、写入、门控及独立流程；发现安全问题优先插队。
@@ -33,7 +32,7 @@
 
 ## 已完成
 
-- A37完成条件已满足，提交后补入Hash：001/002/003 TTP字段及命令入口复核；Fake覆盖五个稳定条目、VIN/LIVE来源、UNKNOWN及两条滑块映射；无生产协议/帧编码/通用网络改动。App和车辆运行验证未执行。
+- A37：001/002/003 X1 TTP/百分比档位映射及002开启门控；Fake测试7/7，JVM/JS/Wasm、Android Debug、Desktop构建通过；无App/实车验证。提交`4e20f45`。
 
 - A36：ID20音量回归夹具改用Smali证实的0..2三档，并模拟UI编辑的`valueKnown`语义；7项Fake过滤测试、跨平台编译、Android Debug/Desktop构建通过。提交`e5b9b968055a7841f1612ff06f10cfc0a3a2ff06`。
 

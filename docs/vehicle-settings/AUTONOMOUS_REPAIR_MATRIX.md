@@ -359,4 +359,4 @@ A10：33/33精确过滤测试、全部离线构建和diff检查退出0；STATIC_
 - 修复：新增`X1GearMapping`严格互逆转换；TTP raw映射到UI `0/50/100%`，云端目录生成的两个Slider都保持 `valueKnown=false`、0..100范围及两步间隔；最终命令入口只接受已知的精确0/50/100刻度并转换回原始BLE参数。002 UI与Controller草稿/直接更新入口均要求同VIN有效LIVE_TTP开关回读为开。非法/越界/UNKNOWN仍不生成命令。云端目录不伪装configuredValue。
 - Fake测试：`FifthRoundX1MappingTest`覆盖条目拆分和未知初始值、两种滑块全部 raw/UI 方向映射、非法原始值与非刻度拒绝、命令类型/ID/原始参数、Controller的VIN/live来源回填及configuredValue隔离、负哨兵/非法值UNKNOWN，以及002开关UNKNOWN/关闭/开启时两个Controller入口的门控。
 - 验证：过滤测试7/7；`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。均为离线/Fake；无App运行、真实网络、BLE或车辆验证。
-- 状态：`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；运行态整体`PARTIAL`，无`RUNTIME_VERIFIED`/`VEHICLE_VERIFIED`。批次待精确提交。
+- 状态：`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；运行态整体`PARTIAL`，无`RUNTIME_VERIFIED`/`VEHICLE_VERIFIED`。提交：`4e20f45`（`fix: complete X1 vehicle setting mappings`）。
