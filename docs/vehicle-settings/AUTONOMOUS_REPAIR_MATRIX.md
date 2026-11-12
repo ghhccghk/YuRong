@@ -141,6 +141,17 @@ A44 Fake复核覆盖TTP容量/开关/档位映射、缓存与LIVE隔离、VIN/�
 
 A45验证与精确提交记录见`AUTONOMOUS_REPAIR_HISTORY.md`；无真实App运行、云端写入、BLE或车辆验证。
 
+### A46：ID62 独立座椅加热排程 CRUD
+
+| 项目 | 审计与修复 |
+|---|---|
+| 原App证据 | `HeatedSeatsActivity.getSettingConfigId:2596`=62。`HeatedSeatsActivity.showTaskPop:2453–2557`限制最多3项；`insertTask:1124–1259`发送`vin`、`workTime`、`izRepeat`，仅重复任务发送`weekNumberList`；`editTask:391–461`额外带`id`。`HeatedSeatsHelper.<clinit>:105–189`确认周值`0=周日,1..6=周一至周六`；`HeatedSeatsAdapter:219–245`明确`status=0`映射开关开启，Activity点击监听`719–742`用户打开时提交0、关闭时提交1。VM `q6/n6/p6/o6/r6`对应CRUD/启停，路径常量见`p4$b:90–106`。列表字段来自`HeatedSeatSelectData`，为`id/vin/workTime/izRepeat/weekNumbers/status`。|
+| KMP调用链 | ID62动态行附加定时入口 → `HeatedSeatTasksSheet` → `CarSettingsController`校验当前VIN、云端已加载、confId 62和写权限 → `CarSettingsGateway` → `YadeaCarSettingsGateway`签名HTTP GET/POST。新增/更新字段、整数星期数组、单次省略周列表均有Fake请求形状测试。任务列表状态与车辆TTP/即时加热状态分离。|
+| UNKNOWN与失败保护 | 空任务仅在响应明确给出`data`数组时成立；任务时间、重复值、周值和VIN非法时拒绝解析。创建时间/重复方式由用户明确选择；取消异常继续传播，普通传输异常显示未确认。写入响应缺少`success=true`时不报成功。VIN切换期间旧请求不被标为当前车辆成功。|
+| 状态与限制 | 排程CRUD为独立云端记录，并非`seatHeating`开关/档位配置，也无车辆执行回读；服务端接受仅标记为排程请求接受。UI按原App最多3个时段门控。ID62页面仍为`PARTIAL`：即时加热配置读取绑定仍未证实，且排程执行未获车辆确认。验证仅Fake与构建，无运行/实车验证。|
+
+A46完整字段证据、测试、构建与提交见`AUTONOMOUS_REPAIR_HISTORY.md`。
+
 ### A24：69/70/78 雷达开关（独立复审及验证完成）
 
 - `vehicle/radar/RadarBaseActivity.getSettingConfigIdList:548–658`分别收集三个配置项的confId；`VehicleSettingViewModel.j1:27878–27900`对69/70/78逐项识别。此前KMP把三个开关都挂在69上，导致车型目录和`isAuth`门控不准确；现改为每个真实confId独立生成稳定条目，保留各自分组/排序/权限。

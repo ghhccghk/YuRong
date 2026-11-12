@@ -108,6 +108,7 @@ fun CarSettingsScreen(
     }
     var detailItem by remember(uiResetKey) { mutableStateOf<CarSettingItem?>(null) }
     var showLowPowerReminder by remember(uiResetKey) { mutableStateOf(false) }
+    var showHeatedSeatTasks by remember(uiResetKey) { mutableStateOf(false) }
     var showAutoHibernate by remember(uiResetKey) { mutableStateOf(false) }
     var showCustomSounds by remember(uiResetKey) { mutableStateOf(false) }
     var showCustomKeys by remember(uiResetKey) { mutableStateOf(false) }
@@ -436,6 +437,15 @@ fun CarSettingsScreen(
                                 },
                             )
                         }
+                        if (item.configId == "62") {
+                            AppActionPreference(
+                                title = "座椅加热定时",
+                                summary = "独立管理云端加热时段；云端接受不代表车辆已执行",
+                                value = "设置",
+                                enabled = controller.cloudAvailable && state.vin.isNotBlank() && !state.loading,
+                                onClick = { showHeatedSeatTasks = true },
+                            )
+                        }
                         if (item.configId in setOf("24", "85") &&
                             emergencyContactController != null
                         ) {
@@ -757,6 +767,13 @@ fun CarSettingsScreen(
             state = state,
             onDismissRequest = { showLowPowerReminder = false },
             controlEnabled = settingControlEnabled,
+        )
+    }
+    if (showHeatedSeatTasks) key(uiResetKey) {
+        HeatedSeatTasksSheet(
+            controller = controller,
+            state = state,
+            onDismissRequest = { showHeatedSeatTasks = false },
         )
     }
 

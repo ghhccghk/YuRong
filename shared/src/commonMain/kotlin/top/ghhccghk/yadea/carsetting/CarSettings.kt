@@ -460,6 +460,73 @@ class CarSettingsController(
     val cloudAvailable: Boolean
         get() = gateway != null
 
+    private fun heatedSeatTaskContext(vin: String, requireWritable: Boolean): Boolean {
+        val normalized = vin.trim()
+        if (normalized.isBlank() || normalized != vinProvider().trim() || !_state.value.loadedFromCloud ||
+            _state.value.vin != normalized) return false
+        val item = findItem("cloud:62") ?: return false
+        return !requireWritable || CarSettingItemAccess.canWrite(item)
+    }
+
+    suspend fun loadHeatedSeatTasks(vin: String): List<HeatedSeatTask>? {
+        val activeGateway = gateway ?: return null
+        if (!heatedSeatTaskContext(vin, requireWritable = false)) return null
+        val generation = loadGeneration
+        val tasks = try {
+            activeGateway.loadHeatedSeatTasks(vin.trim())
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return null
+        } ?: return null
+        if (generation != loadGeneration || !heatedSeatTaskContext(vin, requireWritable = false) ||
+            tasks.any { it.vin != vin.trim() }) return null
+        return tasks
+    }
+
+    suspend fun saveHeatedSeatTask(vin: String, draft: HeatedSeatTaskDraft, taskId: String? = null): Boolean {
+        val activeGateway = gateway ?: return false
+        if (!heatedSeatTaskContext(vin, requireWritable = true) ||
+            (taskId != null && taskId.isBlank()) || !HeatedSeatTaskRules.valid(draft)) return false
+        val generation = loadGeneration
+        val accepted = try {
+            activeGateway.saveHeatedSeatTask(vin.trim(), draft, taskId)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            false
+        }
+        return accepted && generation == loadGeneration && heatedSeatTaskContext(vin, requireWritable = true)
+    }
+
+    suspend fun setHeatedSeatTaskStatus(vin: String, taskId: String, status: Int): Boolean {
+        val activeGateway = gateway ?: return false
+        if (!heatedSeatTaskContext(vin, requireWritable = true) || taskId.isBlank() || status !in 0..1) return false
+        val generation = loadGeneration
+        val accepted = try {
+            activeGateway.setHeatedSeatTaskStatus(vin.trim(), taskId, status)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            false
+        }
+        return accepted && generation == loadGeneration && heatedSeatTaskContext(vin, requireWritable = true)
+    }
+
+    suspend fun deleteHeatedSeatTask(vin: String, taskId: String): Boolean {
+        val activeGateway = gateway ?: return false
+        if (!heatedSeatTaskContext(vin, requireWritable = true) || taskId.isBlank()) return false
+        val generation = loadGeneration
+        val accepted = try {
+            activeGateway.deleteHeatedSeatTask(vin.trim(), taskId)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            false
+        }
+        return accepted && generation == loadGeneration && heatedSeatTaskContext(vin, requireWritable = true)
+    }
+
     val simulatedSoundAvailable: Boolean
         get() = latestVehicleStatus?.takeIf { it.live && it.vin == _state.value.vin && it.vin == vinProvider().trim() }
             ?.status?.extended?.simulatedSoundWaveOnlineStatus == 0

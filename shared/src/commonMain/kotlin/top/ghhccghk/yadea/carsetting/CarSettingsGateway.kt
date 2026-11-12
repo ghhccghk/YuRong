@@ -64,6 +64,10 @@ interface CarSettingsGateway {
         LocationSwitchWriteReceipt(false)
     suspend fun update(vin: String, update: CloudCarSettingUpdate): Boolean = false
     suspend fun checkStatus(configId: String): Boolean? = null
+    suspend fun loadHeatedSeatTasks(vin: String): List<HeatedSeatTask>? = null
+    suspend fun saveHeatedSeatTask(vin: String, draft: HeatedSeatTaskDraft, taskId: String? = null): Boolean = false
+    suspend fun setHeatedSeatTaskStatus(vin: String, taskId: String, status: Int): Boolean = false
+    suspend fun deleteHeatedSeatTask(vin: String, taskId: String): Boolean = false
 }
 
 /** 已确认的云端设置写入字段。 */
@@ -341,6 +345,99 @@ class YadeaCarSettingsGateway(
     private val timestampProvider: () -> Long,
     private val baseUrl: String = DEFAULT_BASE_URL,
 ) : CarSettingsGateway, CustomSoundGateway {
+
+    override suspend fun loadHeatedSeatTasks(vin: String): List<HeatedSeatTask>? {
+        val normalizedVin = vin.trim()
+        val token = tokenProvider().trim()
+        if (normalizedVin.isBlank() || token.isBlank()) return null
+        val plain = heatedSeatGet("vehicle-base/seat-heating-job/list", mapOf("vin" to normalizedVin), token)
+            ?: return null
+        if (JsonSupport.boolean(plain, "success") != true) return null
+        if (!Regex("\\\"data\\\"\\s*:\\s*\\[").containsMatchIn(plain)) return null
+        val objects = JsonSupport.arrayObjects(plain, "data")
+        val parsed = objects.map(HeatedSeatTaskRules::parse)
+        if (parsed.any { it == null }) return null
+        return parsed.filterNotNull().takeIf { tasks -> tasks.all { it.vin == normalizedVin } }
+    }
+
+    override suspend fun saveHeatedSeatTask(vin: String, draft: HeatedSeatTaskDraft, taskId: String?): Boolean {
+        val normalizedVin = vin.trim()
+        val normalizedTaskId = taskId?.trim()
+        val token = tokenProvider().trim()
+        if (normalizedVin.isBlank() || token.isBlank() || (taskId != null && normalizedTaskId.isNullOrBlank()) ||
+            !HeatedSeatTaskRules.valid(draft)) return false
+        val fields = linkedMapOf<String, Any?>("vin" to normalizedVin)
+        normalizedTaskId?.let { fields["id"] = it }
+        if (draft.repeat == 0) fields["weekNumberList"] = HeatedSeatTaskRules.apiWeekdays(draft.weekdayPositions) ?: return false
+        fields["workTime"] = draft.workTime
+        fields["izRepeat"] = draft.repeat
+        val path = if (normalizedTaskId == null) HEATED_SEAT_INSERT_PATH else HEATED_SEAT_UPDATE_PATH
+        val plain = postHeatedSeatTask(path, fields, token) ?: return false
+        return JsonSupport.boolean(plain, "success") == true && JsonSupport.boolean(plain, "data") != false
+    }
+
+    override suspend fun setHeatedSeatTaskStatus(vin: String, taskId: String, status: Int): Boolean =
+        heatedSeatMutation("vehicle-base/seat-heating-job/status", vin, taskId, status)
+
+    override suspend fun deleteHeatedSeatTask(vin: String, taskId: String): Boolean =
+        heatedSeatMutation("vehicle-base/seat-heating-job/del", vin, taskId, null)
+
+    private suspend fun heatedSeatMutation(path: String, vin: String, taskId: String, status: Int?): Boolean {
+        val normalizedVin = vin.trim()
+        val normalizedId = taskId.trim()
+        val token = tokenProvider().trim()
+        if (normalizedVin.isBlank() || normalizedId.isBlank() || token.isBlank() ||
+            (status != null && status !in 0..1)) return false
+        val fields = buildMap {
+            put("id", normalizedId)
+            if (status != null) put("status", status.toString())
+        }
+        val plain = heatedSeatGet(path, fields, token) ?: return false
+        return JsonSupport.boolean(plain, "success") == true && JsonSupport.boolean(plain, "data") != false
+    }
+
+    private suspend fun heatedSeatGet(path: String, fields: Map<String, String>, token: String): String? {
+        val signed = GatewaySigner.formBody(sortedJson(fields + ("_gateway" to "True")), timestampProvider())
+        val response = transport.execute(HttpRequest(
+            method = "GET",
+            url = baseUrl + path + "?" + signed,
+            headers = GatewayRequestHeaders.build(clientInfoProvider(), deviceIdProvider(), token),
+        )) ?: return null
+        if (response.status !in 200..299) return null
+        val decoded = Crypto.urlDecode(response.body.trim())
+        return Crypto.aesEcbPkcs5Decrypt(GatewaySigner.AES_KEY, decoded) ?: decoded
+    }
+
+    private suspend fun postHeatedSeatTask(path: String, fields: Map<String, Any?>, token: String): String? {
+        val json = buildString {
+            append('{')
+            fields.keys.sorted().forEachIndexed { index, key ->
+                if (index > 0) append(',')
+                append('"').append(key).append("\":")
+                val value = fields.getValue(key)
+                if (key == "weekNumberList") {
+                    val days = value as? List<*> ?: return null
+                    if (days.any { it !is Int || it !in 0..6 }) return null
+                    append(days.joinToString(",", "[", "]"))
+                } else {
+                    append(jsonLiteral(value))
+                }
+            }
+            append('}')
+        }
+        val response = transport.execute(
+            HttpRequest(
+                method = "POST",
+                url = baseUrl + path,
+                headers = GatewayRequestHeaders.build(clientInfoProvider(), deviceIdProvider(), token),
+                body = GatewaySigner.formBody(json, timestampProvider()),
+                contentType = "application/x-www-form-urlencoded; charset=utf-8",
+            ),
+        ) ?: return null
+        if (response.status !in 200..299) return null
+        val decoded = Crypto.urlDecode(response.body.trim())
+        return Crypto.aesEcbPkcs5Decrypt(GatewaySigner.AES_KEY, decoded) ?: decoded
+    }
 
     override suspend fun loadRemainingMileageEligibility(vin: String): RemainingMileageEligibility? {
         val normalizedVin = vin.trim()
@@ -969,6 +1066,8 @@ class YadeaCarSettingsGateway(
         const val UPDATE_PATH = "vehiclebase/bike-setting/updateBikeSetting"
         const val CHECK_STATUS_PATH = "common-cmd/low-freq/info/param"
         const val PARAM_UPDATE_PATH = "low-freq/common-cmd/param-setting"
+        const val HEATED_SEAT_INSERT_PATH = "vehicle-base/seat-heating-job/insert"
+        const val HEATED_SEAT_UPDATE_PATH = "vehicle-base/seat-heating-job/update"
         const val DEFAULT_BASE_URL = "https://gw.yadeaiot.com.cn/api/app/"
 
         private val VALUE_KEYS = listOf(

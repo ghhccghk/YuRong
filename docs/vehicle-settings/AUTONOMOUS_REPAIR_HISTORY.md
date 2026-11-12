@@ -521,3 +521,13 @@
 - 构建：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。
 - 自审：ID62未知Toggle不会渲染成OFF开关，未确认档位不会以`selectedIndex=-1`交给Choice控件；Controller草稿与直接更新入口都要求合法已知值。已知值仍保留当前TTP/配置/缓存来源分离；写入接受不等于回读确认。验证等级`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；无运行或车辆验证。实现提交：`ab7b99b663d4c30e1718c527aa3d88111352f44b`（`fix: preserve unknown seat heating state`）。
 - 状态：ID62即时加热仍为`PARTIAL`，独立排程CRUD未实现，云端读取字段绑定未证实。未运行App、真实网络、BLE或车辆操作。
+
+## A46：ID62 独立座椅加热任务 CRUD
+
+- 起始HEAD：`c23444da05babdd93cb6eca51ee690622e6060a5`，分支`master`；开始时index为空，tracked工作区仅有前序A46未提交的`CarSettings.kt`、`CarSettingsGateway.kt`和新`HeatedSeatTasks.kt`；既有untracked日志、APK、截图、JADX目录及文档均保留且未暂存。
+- Smali复核：`HeatedSeatsActivity.getSettingConfigId:2596`返回62；`showTaskPop:2453–2557`新建/编辑弹窗并限制最多3项；`insertTask:1124–1259`对新增发送`vin`、`workTime`、`izRepeat`，仅`izRepeat=0`时增加`weekNumberList`；`editTask:391–461`还发送`id`。`HeatedSeatsHelper.<clinit>:105–189`映射周一至周六`1..6`、周日`0`。`HeatedSeatsAdapter:219–245`以`status=0`显示启用；`HeatedSeatsActivity:719–742`用户打开提交0、关闭提交1。`VehicleSettingViewModel.q6:30140–30190`以当前VIN GET列表，`n6:29214–29243` POST新增，`p6:29950–29980` POST更新，`o6:29516–29552` GET删除，`r6:30382–30413` GET启停；路径常量见`p4$b:90–106`。列表DTO字段为`id/vin/workTime/izRepeat/weekNumbers/status`（`HeatedSeatSelectData`）。没有TTP任务执行确认证据。
+- KMP修复：新增排程数据与严格规则，Controller仅在当前VIN、已加载云端目录和confId 62成立时允许调用，并复核请求代次；普通异常显示未确认、取消原样传播。`YadeaCarSettingsGateway`接入五个Smali路径，要求显式`success=true`；新增局部POST数组序列化，避免通用标量序列化将`weekNumberList`错误写成字符串。UI在动态ID62项下提供一个AppBottomSheet管理列表、新增/编辑时间、单次/重复/星期、启停和删除；新排程不预填时间或类型，状态未知不渲染成关闭，启用/停用严格使用`0/1`原App极性。写入接受仅表示云端排程接口接受，不建立车辆确认状态。
+- Fake-only测试：`HeatedSeatTasksTest`过滤测试6/6通过；覆盖HH:mm边界、周日0映射、`status=0`开启/`1`关闭回填与写入、非法重复/星期拒绝、VIN任务过滤、整数数组请求shape、单次省略周列表、CRUD路径/方法、缺少success拒绝、明确空数组与缺失data区分、取消传播及VIN切换保护。首次测试发现数组序列化问题及独立复审发现状态极性相反，均局部修正，未放宽生产校验。
+- 构建：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline`退出0；`:androidApp:assembleDebug :desktopApp:build --offline`退出0。精确过滤测试退出0。最终`git diff --check`与Git提交后状态待记录。
+- 独立复审：排程字段未并入confId 62即时开关/档位，既有TTP/BLE命令与通用设置更新器未改。任务记录不伪装车辆状态；历史数据、无效值、跨VIN和不完整响应不建立已知任务列表。没有运行App、真实网络、BLE或车辆操作。
+- 状态：排程CRUD达到`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；整体ID62仍`PARTIAL`，无`RUNTIME_VERIFIED`/`VEHICLE_VERIFIED`。本批提交Hash待提交后回填。
