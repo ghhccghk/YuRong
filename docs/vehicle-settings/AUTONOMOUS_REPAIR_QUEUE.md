@@ -4,7 +4,7 @@
 
 ## 正在处理
 
-- 无。A32仅测试/审计文档变更，已通过本批精确验证，待提交。
+- 无。A32已提交`5b357d6011d21b21edade275b78cdc046b15e284`；下一批开始前从当前HEAD恢复检查。
 
 ## 待处理（候选，须先证据复核）
 
@@ -32,7 +32,7 @@
 
 ## 已完成
 
-- A32：区分ID72动态`bikeConfigVos`内联写入与独立Activity两种不同极性；KMP动态路径符合内联Smali，修正回归聚合断言并新增精确Fake用例。提交待精确复核后记录。
+- A32：区分ID72动态`bikeConfigVos`内联写入与独立Activity两种不同极性；KMP动态路径符合内联Smali，修正回归聚合断言并新增精确Fake用例。提交`5b357d6011d21b21edade275b78cdc046b15e284`。
 
 - A31：ID52未知距离值保持UNKNOWN/只读，移除未经Smali证实的云字段映射，并在最终Writer拒绝Slider以阻断BLE/云端旁路。56项Fake过滤测试、JVM/JS/Wasm/测试源码编译、Android/Desktop构建通过；ID52测距字段关系仍BLOCKED。提交`f6cb9ad285aca3797e790e1a3d92d964059fe630`。
 
