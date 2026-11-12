@@ -311,3 +311,15 @@
 - 首次37项过滤测试退出1：两个新断言包括动态页脚；一个旧控制器夹具没有三点Slider元数据。修正断言范围/夹具，不放宽生产校验。补测控制器、UI门控、三点滑杆集成共55/55通过：AdaptivePushWriteSafetyTest7、TenthRoundAdaptivePushTest13、CarSettingsControllerTest17、EleventhRoundUiGatingTest8、EleventhRoundSliderIntegrationTest10。Fake Gateway/Writer及内存TTP；无网络/车辆。
 - `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；缓存C:\Users\DozenOregano696\.gradle，`git diff --check`退出0。
 - 独立重走UI→Controller→CloudCarSettingWriter/MappedCarSettingWriter→forItem/forConfigId→VehicleSettingCommand构造及编码入口。检验未知、错误ID、无效Float、未编辑占位Slider、失败/取消、缓存、旧序号及写入接受不等于车辆回读。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无App运行或实车验证。ID64/89为COMPLETE（静态/Fake定义，运行仍未验证）。
+
+### A23提交核对 / A24起点
+
+- A23已提交`870cfb186c6383fd292d779754843e821eb9a35c`（`fix: harden adaptive push vehicle settings`）。A24起始HEAD为该提交，master；tracked/index干净，保留既有未跟踪用户内容。
+
+## A24（69/70/78雷达开关，独立复审及验证完成）
+
+- Smali：`RadarBaseActivity.getSettingConfigIdList:548–658`动态收集FCW/RCW/BSD各自配置项；`VehicleSettingViewModel.j1:27878–27900`分别识别confId 69/70/78。原`VehicleSettingViewModel.b9:25055–25077,25093–25115,25160–25183`按各自TTP字段`==1`置开、其他值置关。KMP现准确映射raw1为开、raw0/2为关、全1无效哨兵为UNKNOWN；没有根据非零推断开启。
+- 原提交入口`RadarActivity$e/$c/$d`分别传`COMMAND_FRONT_COLLISION`、`COMMAND_RADAR_RCW`、`COMMAND_RADAR_BSD`及显式0/1；`qg.smali:2759–2870,3197–3218`映射0x12D/0x12E/0x13A。KMP按稳定itemId和对应confId构命令；UI/Controller/Writer保持UNKNOWN保护、每项权限门控及接受/车辆回读分离。移除未使用且类型名不符的旧confId 69通用分支。
+- 同页`RadarActivity$a`→`COMMAND_RADAR_ALARM`→qg 0x12F尚无足够证据确定SeekBar合法范围及回填，继续BLOCKED；本批不实现。
+- `RadarSettingsSafetyTest` 7/7通过；测试命令`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.RadarSettingsSafetyTest --offline --console=plain`退出0。验证到raw2语义后修正映射和夹具；新增全1哨兵UNKNOWN覆盖。所有测试均Fake/内存隔离。
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`在提交前执行。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无App运行或实车验证。待精确提交。

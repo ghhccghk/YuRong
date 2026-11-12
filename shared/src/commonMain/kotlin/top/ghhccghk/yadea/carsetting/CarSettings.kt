@@ -336,7 +336,6 @@ object CarSettingItemAccess {
         "33" to setOf("mode", "volume"),
         "77" to setOf("auto"),
         "64" to setOf("adaptive", "level"),
-        "69" to setOf("fcw", "rcw", "bsd"),
         "81" to setOf("time"),
         "86" to setOf("value"),
         "89" to setOf("adaptive", "level"),
@@ -344,7 +343,11 @@ object CarSettingItemAccess {
     )
 
     fun canWrite(item: CarSettingItem): Boolean {
-        if (!item.writable || !isStableEntryId(item)) return false
+        if (!item.writable) return false
+        if (item.configId in RadarSettings.configIds) {
+            return RadarSettings.isToggleItem(item) && VehicleSettingCommands.supportsItem(item)
+        }
+        if (!isStableEntryId(item)) return false
         return VehicleSettingCommands.supportsItem(item) ||
             CloudCarSettingUpdateBuilder.supports(item.configId, item.kind)
     }
@@ -352,6 +355,7 @@ object CarSettingItemAccess {
     private fun isStableEntryId(item: CarSettingItem): Boolean {
         val id = item.id
         val configId = item.configId
+        if (configId in RadarSettings.configIds) return RadarSettings.definitionForItem(item) != null
         if (id == "cloud:$configId" || id == "missing:$configId") return true
         if (!id.startsWith("cloud:$configId:")) return true
         val suffix = id.substringAfter("cloud:$configId:")
@@ -582,7 +586,7 @@ class CarSettingsController(
         if (_state.value.vin.isNotBlank() && _state.value.vin != vinProvider().trim()) return false
         if (!hasKnownSettingValue(item)) return false
         val target = transform(editable)
-        if (!validDraftTarget(item.kind, target) || !validSpeedTarget(item, target) ||
+        if (!validRadarTarget(item, target) || !validDraftTarget(item.kind, target) || !validSpeedTarget(item, target) ||
             !validSecondPhaseTarget(item, target) || !validBatteryTarget(item, target) || !validTimerTarget(item, target) ||
             !validSimpleChoiceTarget(item, target) || !validAtmosphereTarget(item, target) ||
             (item.configId == "10" && !GeofenceSettings.validItem(item.copy(kind = target)))
@@ -610,6 +614,9 @@ class CarSettingsController(
                 (target.endTime == null || target.endTime.isValidLowPowerTime())
         else -> validTarget(original, target)
     }
+
+    private fun validRadarTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
+        item.configId !in RadarSettings.configIds || RadarSettings.validTarget(item, target)
 
     private fun hasKnownSettingValue(item: CarSettingItem): Boolean {
         if (item.configId == "73" && item.kind is CarSettingKind.Atmosphere) {
@@ -809,7 +816,7 @@ class CarSettingsController(
             _state.value = current.copy(message = "请确认关闭定位提示后再保存")
             return false
         }
-        if (!validTarget(item.kind, target) || !validSpeedTarget(item, target) ||
+        if (!validRadarTarget(item, target) || !validTarget(item.kind, target) || !validSpeedTarget(item, target) ||
             !validSecondPhaseTarget(item, target) || !validBatteryTarget(item, target) || !validTimerTarget(item, target) ||
             !validSimpleChoiceTarget(item, target) || !validAtmosphereTarget(item, target) ||
             (item.configId == "10" && (!GeofenceSettings.validItem(item.copy(kind = target)) ||
@@ -1264,14 +1271,7 @@ class CarSettingsController(
                     }
                     item.withIndex(customKeyIndex(raw))
                 }
-                "69" -> item.withToggle(
-                    when (item.id) {
-                        "cloud:69:fcw" -> status.extended.frontCollisionWarning
-                        "cloud:69:rcw" -> status.extended.rcwRadarSwitch
-                        "cloud:69:bsd" -> status.extended.bsdRadar
-                        else -> -1
-                    }.flagOrNull(),
-                )
+                in RadarSettings.configIds -> item.withToggle(RadarSettings.observedValue(item, status))
                 "2" -> item.withToggle(SimpleToggleSettings.flag(status.extended.sideBraceStatus))
                 "32" -> item.withToggle(SimpleToggleSettings.flag(status.extended.tiltWarningStatus))
                 "45" -> item.withToggle(SimpleToggleSettings.flag(status.extended.constSpeedState))
@@ -1418,7 +1418,7 @@ class CarSettingsController(
             valueStates = current.valueStates.mapValues { (id, value) ->
                 if (id !in observations && value.vehicleValue is VehicleSettingValue.Known) {
                     val configId = findItem(id)?.configId
-                    val audited = configId in setOf("4", "58", "61", "55", "92") ||
+                    val audited = configId in setOf("4", "58", "61", "55", "92") || configId in RadarSettings.configIds ||
                         configId in SecondPhaseSettings.ids || configId in BatterySettings.ids || configId in TimerSettings.ids ||
                         configId in SimpleChoiceSettings.ids || configId in SimpleToggleSettings.ids ||
                         configId in VolumeBrightnessSettings.ids || configId in EnergyRecoverySettings.ids ||

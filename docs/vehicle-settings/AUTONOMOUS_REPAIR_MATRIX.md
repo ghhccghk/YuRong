@@ -6,7 +6,7 @@
 
 Smali 根：`F:/android app code/YadeaHook/temp_smali`。KMP 根：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/`。下表由当前源文件逐方法索引生成，索引存在不代表链路完成；待逐批复核的项统一 PARTIAL。命令、字段仍需检查具体分支、调用者和合法值。COMPLETE 只指静态及 Fake 证明的必要链路，不包含运行/实车验证。
 
-扫描了全部 getSettingConfigId 定义、设置基类继承者、七类动态 Registry、Navigation，以及当前 Mapper/Controller/命令映射。81 个数字 confId（含 X1 001/002/003），另有5个无 confId 的目录入口。动态父子项单列，不把空 ID 基类计作设置。指定的 full-read-write-audit-2026-11-11.md 未找到；其他历史文档仅作检索入口。
+扫描了全部 getSettingConfigId 定义、设置基类继承者、七类动态 Registry、Navigation，以及当前 Mapper/Controller/命令映射。83 个数字 confId（含 X1 001/002/003），另有5个无 confId 的目录入口。动态父子项单列，不把空 ID 基类计作设置。指定的 full-read-write-audit-2026-11-11.md 未找到；其他历史文档仅作检索入口。
 
 KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引为 VehicleSettingCommands.kt 的 forConfigId。forItem 的分支、CloudCarSettingUpdateBuilder、独立 Gateway 另在批次证据中核对。所有项目共同受 bikeConfigVos/isAuth/izLab/isUserLabFun 门控；目录中的不适用不等于字段未实现。
 
@@ -71,7 +71,9 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 63 超级狂暴模式 | com/yadea/smartmoto/vehicle/view/TPowerActivity.smali:114 | tPowerStatus | COMMAND_CONST_T_POWER_SETTING, COMMAND_CONST_T_POWER_SETTING | A08：63/68/79读写1开0关，72读写0开1关；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A08（BLE；无运行/实车验证） |
 | 64 辅助推行 | vehicle/view/HelpPromotePlusActivity:onCbClick94–122,onSwClick124–165；$a.a:40–70 | customDriveLevelStatus0..2、customDriveSwitchStatus==1、helpCarState0/1 | A8/A9、D0=0/1、D1=0..2，均独立提交 | A23：Controller/实际Writer/forItem/forConfigId/原始命令边界拒绝未知、伪造ID和非法目标；无效后续观察降级；保留原有连接/开机/主开关UI门控 | P0 / COMPLETE（BLE静态/Fake；无运行/实车验证） / A23 |
 | 68 急刹爆闪 | com/yadea/smartmoto/vehicle/view/SuddenBrakingActivity.smali:147 | quickBrakeLightStatus | COMMAND_QUICK_BRAKE_LIGHT_SWITCH, COMMAND_QUICK_BRAKE_LIGHT_SWITCH | A08：63/68/79读写1开0关，72读写0开1关；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A08（BLE；无运行/实车验证） |
-| 69 雷达 | 动态 Registry / 独立流程；待逐项绑定 | bsdRadar, frontCollisionWarning, rcwRadarSwitch | COMMAND_FRONT_COLLISION_CLOSE, COMMAND_FRONT_COLLISION_OPEN | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 69 前向碰撞预警（FCW） | vehicle/radar/RadarBaseActivity.getSettingConfigIdList:548–658；VehicleSettingViewModel.b9:25055–25077 | frontCollisionWarning；仅原值1为开，0/2为关，全1无效 | COMMAND_FRONT_COLLISION→0x13A，参数0/1 | A24：按各自confId动态展示/授权；UNKNOWN不显示关闭态；同VIN新鲜TTP回填及回读确认；无云端值映射 | P1 / COMPLETE（BLE静态/Fake；无运行/实车验证） / A24 |
+| 70 盲区监测（BSD） | vehicle/radar/RadarBaseActivity.getSettingConfigIdList:548–658；VehicleSettingViewModel.b9:25160–25183 | bsdRadar；仅原值1为开，0/2为关，全1无效 | COMMAND_RADAR_BSD→0x12E，参数0/1 | A24：仅目录含confId 70时展示并继承其权限；UNKNOWN保持未知；同VIN新鲜TTP回填及回读确认；无云端值映射 | P1 / COMPLETE（BLE静态/Fake；无运行/实车验证） / A24 |
+| 78 后向碰撞预警（RCW） | vehicle/radar/RadarBaseActivity.getSettingConfigIdList:548–658；VehicleSettingViewModel.b9:25093–25115 | rcwRadarSwitch；仅原值1为开，0/2为关，全1无效 | COMMAND_RADAR_RCW→0x12D，参数0/1 | A24：仅目录含confId 78时展示并继承其权限；UNKNOWN保持未知；同VIN新鲜TTP回填及回读确认；无云端值映射 | P1 / COMPLETE（BLE静态/Fake；无运行/实车验证） / A24 |
 | 82 电话告警 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | 当前HEAD已有统一低电量Sheet、云端字段及时间范围保护；不重复旧缺口 | P2 / PARTIAL / 基线复核 |
 | 71 仪表设置 | com/yadea/smartmoto/vehicle/view/GaugeSettingsActivity.smali:621 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 72 长续航模式 | com/yadea/smartmoto/vehicle/view/EnduranceModeActivity.smali:303 | longEnduranceStatus | LONG_ENDURANCE_SETTING, LONG_ENDURANCE_SETTING | A08：63/68/79读写1开0关，72读写0开1关；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A08（BLE；无运行/实车验证） |
@@ -103,13 +105,22 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 
 ## 动态/独立流程补充
 
-- EnergyRecoveryActivity：动态17/18；CustomizeKeyActivity：1005；RadarActivity/RadarBaseActivity：69；不是未发现的空 confId 设置。
+- EnergyRecoveryActivity：动态17/18；CustomizeKeyActivity：1005；RadarActivity/RadarBaseActivity：69/70/78；不是未发现的空 confId 设置。
 - WallpaperSkinActivity、ReadyPActivity、MsgAsyncActivity：无独立固定 ID；分别审查壁纸皮肤、启动P档、信息同步流程。
 - LowPowerModeInfoActivity、MultifunctionActivity、StartLightActivity、TemperatureUnitActivity、SmartBootActivity：需区分真实可写功能、说明页、外设流程；不得仅凭页面名添加车辆设置。
 - ID41/88 使用 CustomSoundGateway/Controller，不能按通用命令缺失标记为未实现。
 - ID51 syncTimeResultStatus 已被排除车辆实际值确认；没有关联事务证据时不建立确认。
 
 ## 批次证据
+
+### A24：69/70/78 雷达开关（独立复审及验证完成）
+
+- `vehicle/radar/RadarBaseActivity.getSettingConfigIdList:548–658`分别收集三个配置项的confId；`VehicleSettingViewModel.j1:27878–27900`对69/70/78逐项识别。此前KMP把三个开关都挂在69上，导致车型目录和`isAuth`门控不准确；现改为每个真实confId独立生成稳定条目，保留各自分组/排序/权限。
+- `VehicleSettingViewModel.b9:25055–25077`将`frontCollisionWarning == 1`回填FCW；`25093–25115`将`rcwRadarSwitch == 1`回填RCW；`25160–25183`将`bsdRadar == 1`回填BSD。KMP复用已有TTP字段，但忠实采用相等于1才开：有效原始0/2回填关；2-bit全1值由既有`Ttp.G`解析为-1，保持UNKNOWN。缓存不冒充LIVE；写入接受与新鲜同VIN TTP确认分离。
+- `RadarActivity$e/$c/$d`分别构造`COMMAND_FRONT_COLLISION`、`COMMAND_RADAR_RCW`、`COMMAND_RADAR_BSD`，参数为显式0/1；`qg.smali:2759–2870,3197–3218`映射0x12D/0x12E/0x13A。KMP以稳定itemId+confId绑定命令，Controller、`forItem`、实际Writer均拒绝错配/未知目标；`forConfigId`不提供绕过路径。移除了原残留的错误通用confId 69命令映射。
+- 同页`RadarActivity$a`另有`COMMAND_RADAR_ALARM`，`qg:7118–7135`映射0x12F；当前证据不足以确定该滑杆合法域和完整状态回填，继续BLOCKED，不新增参数或入口。
+- `RadarSettingsSafetyTest`最终7/7通过，命令`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.RadarSettingsSafetyTest --offline --console=plain`退出0。初次测试误把TTP全1哨兵3当开启；根据Smali的`==1`及解析器哨兵规则修正为raw1开、raw0/2关、raw3 UNKNOWN，并新增哨兵回归用例。
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。Fake-only，无真实云端、BLE或车辆操作。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。
 
 ### A01：47/48/60/62（独立复审完成）
 

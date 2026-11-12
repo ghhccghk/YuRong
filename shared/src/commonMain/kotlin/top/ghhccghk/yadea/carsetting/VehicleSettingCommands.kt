@@ -32,6 +32,9 @@ data class VehicleSettingCommand(
             0xCD -> require(parameter in BatteryCapacityOptions.valuesAh)
             0xD3 -> require(parameter in 0..2)
             0xD0, 0xD1 -> require(parameter in 0..2)
+            0x12D -> require(commandType == "COMMAND_RADAR_RCW" && parameter in 0..1)
+            0x12E -> require(commandType == "COMMAND_RADAR_BSD" && parameter in 0..1)
+            0x13A -> require(commandType == "COMMAND_FRONT_COLLISION" && parameter in 0..1)
             0x7D -> require(parameter in 0..20)
             0x85 -> require(parameter in 0..3)
             0x3F -> require(parameter in 0..2) // Raw protocol includes 2; ID50 exposes 0/1.
@@ -141,6 +144,9 @@ class CloudCarSettingWriter(
     override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult {
         if (!CarSettingItemAccess.canWrite(item)) return CarSettingWriteResult(false)
         if (item.configId == "93") return CarSettingWriteResult(false)
+        if (item.configId in RadarSettings.configIds && VehicleSettingCommands.forItem(item) == null) {
+            return CarSettingWriteResult(false)
+        }
         if (item.configId in AdaptivePushSettings.ids && !AdaptivePushSettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in BatterySettings.ids && !BatterySettings.validItem(item)) return CarSettingWriteResult(false)
         if (item.configId in TimerSettings.ids && !TimerSettings.validItem(item)) return CarSettingWriteResult(false)
@@ -241,7 +247,8 @@ object VehicleSettingCommands {
             forConfigId(configId, kind)?.let { VehicleSettingFrameEncoder.encode(it) != null } == true
 
     fun supportsItem(item: CarSettingItem): Boolean =
-        if (item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids ||
+        if (item.configId in RadarSettings.configIds) RadarSettings.isToggleItem(item)
+        else if (item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids ||
             item.configId in BatterySettings.ids || item.configId in TimerSettings.ids ||
             item.configId in SimpleChoiceSettings.ids || item.configId in SimpleToggleSettings.ids ||
             item.configId in VolumeBrightnessSettings.ids || item.configId in EnergyRecoverySettings.ids ||
@@ -255,7 +262,8 @@ object VehicleSettingCommands {
      * 但保持只读，避免向车辆发送猜测出来的命令。
      */
     fun forConfigId(configId: String, kind: CarSettingKind): VehicleSettingCommand? =
-        if (configId in SimpleToggleSettings.ids && !SimpleToggleSettings.valid(kind)) null else when (configId) {
+        if (configId in RadarSettings.configIds) null
+        else if (configId in SimpleToggleSettings.ids && !SimpleToggleSettings.valid(kind)) null else when (configId) {
             // TempleInductionActivity：边撑感应。
             "2" -> if (kind !is CarSettingKind.Toggle || !kind.valueKnown || !kind.checked) null else toggle(
                 kind = kind,
@@ -468,16 +476,6 @@ object VehicleSettingCommands {
                     parameter = choice.selectedIndex,
                 )
             }
-            // RadarActivity：具体分项由 forItem 按条目 id 区分。
-            "69" -> toggle(
-                kind = kind,
-                onType = "COMMAND_FRONT_COLLISION_OPEN",
-                offType = "COMMAND_FRONT_COLLISION_CLOSE",
-                onId = 0x13A,
-                offId = 0x13A,
-                onParameter = 1,
-                offParameter = 0,
-            )
             // Original sends order 39 via qg.f, not the ordinary 3E setting writer.
             "93" -> null
             // ScheduledShutDown2Activity：定时关机。
@@ -831,6 +829,16 @@ object VehicleSettingCommands {
         }
 
     fun forItem(item: CarSettingItem): VehicleSettingCommand? {
+        if (item.configId in RadarSettings.configIds) {
+            val definition = RadarSettings.definitionForItem(item) ?: return null
+            val toggle = item.kind as? CarSettingKind.Toggle ?: return null
+            if (!toggle.valueKnown) return null
+            return VehicleSettingCommand(
+                commandType = definition.commandType,
+                commandId = definition.commandId,
+                parameter = if (toggle.checked) 1 else 0,
+            )
+        }
         if (item.configId in AdaptivePushSettings.ids && !AdaptivePushSettings.validItem(item)) return null
         if (item.configId == "77") return null
         if (item.configId == "93") return null
@@ -970,33 +978,6 @@ object VehicleSettingCommands {
         when (item.id) {
             "cloud:1005:short" -> return keyFunctionCommand(item.kind, short = true)
             "cloud:1005:long" -> return keyFunctionCommand(item.kind, short = false)
-            "cloud:69:fcw" -> return toggle(
-                kind = item.kind,
-                onType = "COMMAND_FRONT_COLLISION_OPEN",
-                offType = "COMMAND_FRONT_COLLISION_CLOSE",
-                onId = 0x13A,
-                offId = 0x13A,
-                onParameter = 1,
-                offParameter = 0,
-            )
-            "cloud:69:rcw" -> return toggle(
-                kind = item.kind,
-                onType = "COMMAND_RADAR_RCW",
-                offType = "COMMAND_RADAR_RCW",
-                onId = 0x12D,
-                offId = 0x12D,
-                onParameter = 1,
-                offParameter = 0,
-            )
-            "cloud:69:bsd" -> return toggle(
-                kind = item.kind,
-                onType = "COMMAND_RADAR_BSD",
-                offType = "COMMAND_RADAR_BSD",
-                onId = 0x12E,
-                offId = 0x12E,
-                onParameter = 1,
-                offParameter = 0,
-            )
         }
         // 自适应推行与总开关共用 confId 64，需要按条目 id 区分。
         if (item.id.endsWith(":adaptive") && item.configId in setOf("64", "89")) {

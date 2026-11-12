@@ -44,6 +44,7 @@ import top.ghhccghk.yadea.carsetting.TimeSyncStatusReport
 import top.ghhccghk.yadea.carsetting.CarSettingsController
 import top.ghhccghk.yadea.carsetting.CarSettingsState
 import top.ghhccghk.yadea.carsetting.SecondPhaseSettings
+import top.ghhccghk.yadea.carsetting.RadarSettings
 import top.ghhccghk.yadea.carsetting.VolumeBrightnessSettings
 import top.ghhccghk.yadea.carsetting.EnergyRecoverySettings
 import top.ghhccghk.yadea.carsetting.CustomSoundController
@@ -1628,7 +1629,15 @@ private fun CarSettingRow(
         is CarSettingKind.LowPowerInfo, is CarSettingKind.LowPowerPhone -> AppListRow(
             title = "低电量提醒", summary = summary, value = "设置", onClick = onOpenDetail,
         )
-        is CarSettingKind.Toggle -> AppSwitchPreference(
+        is CarSettingKind.Toggle -> if (item.configId in RadarSettings.configIds && !kind.valueKnown) {
+            AppActionPreference(
+                title = item.title,
+                summary = "$summary · 状态未知，等待车辆回读",
+                value = "未知",
+                enabled = false,
+                onClick = {},
+            )
+        } else AppSwitchPreference(
             checked = (observed as? CarSettingKind.Toggle)?.checked ?: false,
             onCheckedChange = { checked ->
                 settingSwitchTarget(valueState, checked)?.let { target -> onUpdate { target } }

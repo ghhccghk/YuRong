@@ -1090,6 +1090,8 @@ object CloudCarSettingMapper {
             if (confId == "1") return@mapNotNull null
             // X1 002/003 各自包含开关与档位，下面拆成稳定条目；001 是独立单位选择。
             if (confId == "002" || confId == "003") return@mapNotNull null
+            // RadarActivity obtains each sub-control's visibility and permission from its own confId.
+            if (confId in RadarSettings.configIds) return@mapNotNull null
             val classification = classificationOf(confId, config)
             val kind = kindOf(confId, cloud)
             val title = titleOf(config)
@@ -1561,24 +1563,20 @@ object CloudCarSettingMapper {
                 )
             }
         }
-        cloud.configs.firstOrNull { it.confId.trim() == "69" }?.let { config ->
-            val radarItems = listOf(
-                Triple("fcw", "前向碰撞预警 (FCW)", "前方车辆或障碍物接近时提醒"),
-                Triple("rcw", "后向碰撞预警 (RCW)", "后方车辆接近时提醒"),
-                Triple("bsd", "盲区监测 (BSD)", "侧后方盲区有车辆时提醒"),
-            )
-            radarItems.forEachIndexed { index, (key, title, summary) ->
+        RadarSettings.definitions.forEach { definition ->
+            cloud.configs.firstOrNull { it.confId.trim() == definition.configId }?.let { config ->
+                val classification = classificationOf(definition.configId, config)
                 items += CarSettingItem(
-                    id = "cloud:69:$key",
-                    configId = "69",
-                    title = title,
-                    summary = summary,
-                    classification = classificationOf("69", config),
-                    group = groupOf(config, classificationOf("69", config)),
+                    id = definition.itemId,
+                    configId = definition.configId,
+                    title = definition.title,
+                    summary = definition.summary,
+                    classification = classification,
+                    group = groupOf(config, classification),
                     channel = CarSettingChannel.BLE,
-                    kind = CarSettingKind.Toggle(false),
+                    kind = CarSettingKind.Toggle(false, valueKnown = false),
                     writable = config.isAuth != false,
-                    sort = (config.sort.toIntOrNull() ?: 0) + index + 1,
+                    sort = (config.sort.toIntOrNull() ?: 0) + 1,
                 )
             }
         }
@@ -2088,7 +2086,7 @@ object CloudCarSettingMapper {
     )
     private val METER_IDS = setOf("31", "42", "50", "51", "71", "86")
     private val SECURITY_IDS = setOf(
-        "8", "10", "13", "14", "16", "24", "27", "32", "36", "37", "38", "69",
+        "8", "10", "13", "14", "16", "24", "27", "32", "36", "37", "38", "69", "70", "78",
         "75", "76", "77", "82", "85", "91",
     )
     private val IOT_IDS = setOf(
