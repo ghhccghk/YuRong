@@ -586,3 +586,12 @@
 - ID11证据：`AutoOnOffActivity.getSettingConfigId:187–194`返回11；开关处理提交`AUTO_TURN_ON_OFF_OPEN/CLOSE`，`l76.smali:9340–9351`回填`bleAutoTurnOnOffStatus/GearStatus`；ViewModel `19729–19960`消费两字段。KMP解析及`CarSettings.kt:1344–1348`分别回填开关和距离Choice，Controller、UI及最终命令检查父开关LIVE/同VIN门控和合法选项。未找到新增可安全补充的缺口。
 - 结论：本批只读静态复核，没有生产代码变更。ID5、ID11的静态字段/命令映射无新增缺口；ID7/39车型条件来源仍`BLOCKED`，总体继续`PARTIAL`。不得把现有Fake和静态审计描述成运行或车辆验证。
 - 修改文件：仅功能矩阵、任务队列和本历史。验证：`git diff --check`；未运行测试、构建、App、真实网络、BLE或车辆操作。验证等级仅`STATIC_FLOW_VERIFIED`，无`UNIT_TESTED`、`BUILD_VERIFIED`、`RUNTIME_VERIFIED`或`VEHICLE_VERIFIED`。
+
+## A53：动态 special 入口与 ID95 门控复核
+
+- 起始HEAD：`083d1d07c87fd50e11298fc47e8848f3cad26a2f`，分支`master`；tracked与index干净。保留全部既有untracked日志、APK、JADX目录、截图和文档。
+- Smali：`CarSettingsMeterRegistry.buildDynamicEntrances`仅在`VehicleDataManager.D()`/`r()`车型子配置存在时创建壁纸皮肤和车辆信息同步入口。壁纸点击进入`CarSettingsNavigation.m`，先检查仪表BLE连接，后检查车辆开机/P档，再由`RouterCenter.g1`进入`WallpaperSkinActivity`；信息同步点击`CarSettingsNavigation.k(title)`进入`MsgAsyncActivity`。`CarSettingsFooterRegistry.buildAll`按`g()`门控展示用户智能识别并跳转`FamilyCarSettingActivity`；`h()`门控的“实验室”入口跳转`RadarActivity`；固定设备详情入口读取`VehicleInfoBean`并经`ARouterHelper.k0`导航。上述入口没有因此成为普通confId字段写入。
+- ID95：`CarSettingsFooterRegistry.buildAll`仅在`r20.j("95")`且车辆主用户条件成立时创建微信互联入口；KMP `CarSettingsGateway.toItems`隐藏95，符合仓库`AGENTS.md`既定约束，不恢复该项。
+- KMP：`CarSettingsGateway.kt`把五个special ID映射成`CarSettingKind.Entrance`，`CarSettingsScreen.kt`通用点击落入只读说明对话框；没有这些独立导航的等价目标页。矩阵已分别记录其页面/门控和分类：壁纸皮肤、用户智能识别、实验室雷达及设备详情为独立页面缺口；车辆信息同步目标内容尚待审；未添加推测字段或命令。
+- 结论：只完成静态入口和导航审计，未做代码修复。需要对WallpaperSkinActivity的资源/传输、FamilyCarSettingActivity子项、RadarActivity和车辆详情页逐个审计后，才能判断哪些属于可移植设置能力。A53不以未实现的导航误标为普通设置读写缺失。
+- 修改文件：仅`AUTONOMOUS_REPAIR_MATRIX.md`、本历史及任务队列。验证：静态Smali/KMP调用链复核、`git diff --check`；文档-only，未运行测试或构建，未运行App、真实网络、BLE或车辆操作。仅`STATIC_FLOW_VERIFIED`；无`UNIT_TESTED`、`BUILD_VERIFIED`、`RUNTIME_VERIFIED`或`VEHICLE_VERIFIED`。
