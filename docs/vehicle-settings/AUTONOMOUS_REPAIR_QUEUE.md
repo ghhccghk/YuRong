@@ -4,7 +4,7 @@
 
 ## 正在处理
 
-- 暂无。A27已完成并提交；从ID52校准及其他尚未逐项复核的功能继续。
+- A28：ID52证据审计完成，无代码改动；独立标定的BLE阶段/结果存储与云端`bleDistance`映射缺原App绑定证据，保持BLOCKED。下一项审计ID8。
 
 ## 待处理（候选，须先证据复核）
 
@@ -16,12 +16,14 @@
 
 ## 证据限制候选
 
+- 52：`CustomPowerOnDistancesActivity`/`CustomPowerOnDistancesViewModel`运行独立测距流程并上报`phoneBluetoothRecord/add`，尚未证实其结果关联云端`bleDistance`。KMP当前将缺失`bleDistance`默认显示3并钳到1..12；这是UNKNOWN伪造风险，但在取得原App字段绑定证据前不得改为可写映射或增命令。A28只记录，不改代码。
+
 - 42：A14已追清jp6.h/i→cal2→VM.x→k5。资格响应缺失/非法时阻止开启；未运行App或实车验证。
 - 13：原页TTP alarmSoundSwitchAfterStatus已有Smali证据，但KMP原始TTP模型/解析缺失；本任务禁止修改原始解析，读链路BLOCKED，保持UNKNOWN。低层写入WRITE_ONLY；UI无已知值时继续禁用，不猜测DTO字段。
 - 3：Binding.H5→VM.w0→TTP pushModeStatus；KMP原始解析缺失，读取BLOCKED；现有11/12写入经严格UNKNOWN/稳定ID保护，UI继续UNKNOWN禁用。
 - 2：原页关闭可能按车型1021/29+39状态选择AC。无对应车型来源/既有AC编码时阻止不确定关闭；39未下发或有效LIVE锁状态0时可以证明10安全。保持PARTIAL，不新增帧。
 - 75：原页和内联均读iotRemoveAlarm；P4/s20对非null Boolean固定写tamperProofIotEnable=1，0关闭缺证据，已阻止。原FA帧受保护边界限制；不补帧、不将字段名当云端配置读取证据。
-- 52校准、51事务关联、77排程、33模式、93当前值、1005特定名称、复杂独立页面：复核后逐项列出BLOCKED/PARTIAL原因；此处不是最终判定。
+- 51事务关联、77排程、33模式、93当前值、1005特定名称、复杂独立页面：复核后逐项列出BLOCKED/PARTIAL原因；此处不是最终判定。
 
 ## 恢复规则
 

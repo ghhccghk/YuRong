@@ -358,3 +358,10 @@
 - 共享编译`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；Android/Desktop `:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。`git diff --check`退出0。
 - 独立复审覆盖可写门控→Controller两入口→`forItem`→命令参数→0x37最终帧编码；未知值不能被占位值替代，来源状态未改，其他设置未改。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无App运行或实车验证。普通档位安全写入完成，ID1自定义距离标定仍BLOCKED/PARTIAL。
 - 本批提交标题`fix: harden one-key distance setting writes`；提交Hash及精确文件在下一批起点记录。仅本地提交，不push。
+
+## A28（ID52手动距离自定义证据审计）
+
+- 起始HEAD：`d971f7a2e15c7430b23660959138704643da1c65`，master；tracked/index干净，保留原有12组untracked。
+- Smali：`OneKeyOpenActivity.getSettingConfigId:4197`检查bikeConfigVos中是否有52并据此选择页面埋点；`CustomPowerOnDistancesActivity.initBleDistances:382+`观察蓝牙连接/状态并注册测距状态监听；`startRanging:1143+`改变测距中/等待UI；ViewModel `c1:300+`发送`COMMAND_CONST_CUSTOM_BLE_RANGING`，`b1:265+`发送`COMMAND_CONST_BLE_RANGING_END`；Activity断开/中断分支发送`COMMAND_CONST_BLE_RANGING_INTERRUPT`；ViewModel `d1:333+`在结束流程调用`phoneBluetoothRecord/add`，提交`bluetoothSignalValue`、phone/model/account、MAC、VIN、`operationType=1`。当前找到的标定链没有证明将测距结果写入`CarSettingBean.bleDistance`。
+- KMP已有`cloud:52:distance`读取/写入构建映射`bleDistance`，但缺失时用`3`回退且将云端读数钳位到1..12；由于原App独立页的字段联系未证实，不把Smali之外的字段名当业务绑定，未作代码修改。
+- 状态：BLOCKED/PARTIAL。下一步需要可定位的原App设置详情/云端写入调用者或抓包证据来证明bleDistance绑定及范围；本批不发送命令、不做网络或车辆操作。只更新矩阵、队列、历史。
