@@ -101,7 +101,7 @@ class Phase4CarSettingsTest {
         // Bare BLE omits the original branch's cloud metadata update.
         assertNull(VehicleSettingCommands.forConfigId("77", CarSettingKind.Toggle(true)))
         assertEquals(
-            VehicleSettingCommand("COMMAND_OTD_SWITCH", 0x132, 0),
+            VehicleSettingCommand("COMMAND_OTD_SWITCH", 0x132, 1),
             VehicleSettingCommands.forConfigId("80", CarSettingKind.Toggle(true)),
         )
         // Quiet mode uses an independent order-39 frame, never an ordinary 3E setting.
@@ -118,6 +118,18 @@ class Phase4CarSettingsTest {
         assertEquals(
             VehicleSettingCommand("LONG_ENDURANCE_SETTING", 0xDD, 1),
             VehicleSettingCommands.forConfigId("72", CarSettingKind.Toggle(false)),
+        )
+    }
+
+    @Test
+    fun dynamicOtdSwitchPassesInlineTargetPolarity() {
+        assertEquals(
+            VehicleSettingCommand("COMMAND_OTD_SWITCH", 0x132, 1),
+            VehicleSettingCommands.forConfigId("80", CarSettingKind.Toggle(true)),
+        )
+        assertEquals(
+            VehicleSettingCommand("COMMAND_OTD_SWITCH", 0x132, 0),
+            VehicleSettingCommands.forConfigId("80", CarSettingKind.Toggle(false)),
         )
     }
 
