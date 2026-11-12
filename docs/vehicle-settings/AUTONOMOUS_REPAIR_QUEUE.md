@@ -40,7 +40,7 @@
 
 ## 已完成
 
-- A55：ID25密码云端提交、BLE发送与车辆确认状态协调；按Smali `sendUnlockPasswordSetting:310–343` 将确认窗口置于BLE发送返回后并限定2000ms，显式隔离消息tone。Fake-only 17/17；JVM/JS/Wasm/测试源码编译、Android Debug/Desktop构建、`git diff --check`通过。ID25仍PARTIAL；无App运行或车辆验证。实现与文档提交Hash待最终检查。
+- A55：ID25密码云端提交、BLE发送与车辆确认状态协调；按Smali `sendUnlockPasswordSetting:310–343` 将确认窗口置于BLE发送返回后并限定2000ms，显式隔离消息tone。Fake-only 17/17；JVM/JS/Wasm/测试源码编译、Android Debug/Desktop构建、`git diff --check`通过。ID25仍PARTIAL；无App运行或车辆验证。实现提交`9cdf943`。
 
 - A53：静态复核五个special动态/页脚入口的车型/用户门控及点击路由；更新矩阵分类。ID95主用户与云端目录门控已核实，KMP隐藏符合仓库约束。未改代码；文档-only，`git diff --check`通过后精确本地提交；未运行测试、构建、App、网络、BLE或车辆操作。
 

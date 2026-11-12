@@ -609,4 +609,4 @@
 - 修改：`VehiclePasswordGateway.kt`把车辆确认窗口起点移到BLE发送返回之后；继续要求同VIN、LIVE_TTP、序号晚于提交前基线、结果0且处于2000ms窗口。云端接受、BLE发送及车辆确认保持独立；新增`PasswordMessageTone`，让独立启用开关的成功/失败反馈不受旧密码写入状态染色。`CarSettingsScreen.kt`按tone呈现提示。`PasswordFlowSafetyTest.kt`新增发送耗时窗口与开关失败状态隔离用例；测试只用Fake和内存时钟。
 - 独立复审：VIN/session generation在刷新、短信验证码、校验、密码提交和状态开关请求完成前均检查；VIN变化清除回读和流程凭据。缺少写入前LIVE_TTP序号基线时不建立车辆确认；超时、迟到成功码、缓存、旧序号、错误VIN及取消均不伪报车辆成功。未知或超时保持云端接受/BLE事实，车辆结果为未知。
 - 验证：过滤命令`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.PasswordFlowSafetyTest" --offline --console=plain`通过17/17（失败/错误/跳过0）；`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`通过。没有执行App、真实网络、BLE或车辆操作。
-- 验证等级：`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`。ID25整体仍`PARTIAL`；没有`RUNTIME_VERIFIED`或`VEHICLE_VERIFIED`。本地提交Hash待本批最终Git检查。
+- 验证等级：`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`。ID25整体仍`PARTIAL`；没有`RUNTIME_VERIFIED`或`VEHICLE_VERIFIED`。实现提交：`9cdf943`。

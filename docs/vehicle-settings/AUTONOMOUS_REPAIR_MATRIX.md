@@ -420,4 +420,4 @@ A10：33/33精确过滤测试、全部离线构建和diff检查退出0；STATIC_
 - Smali复核：`PassWordUnlockActivity.sendUnlockPasswordSetting:310–343`先调用`sendVehicleSetting`，再置`needReadStatus=true`并安排`0x7d0`ms延时；`PassWordUnlockActivity$a.onNotifyDataCallBack:84–145`仅在该门控有效且`passwordUnlockSettingResult==0`时确认成功。
 - 修复：KMP将2000ms单调时钟窗口起点改为BLE发送返回后；仅同VIN、基线之后的新鲜LIVE_TTP、窗口内结果0可确认。云端接受、BLE发送和车辆确认继续独立。新增消息tone，防止密码提交状态影响独立启用开关的成功/失败颜色。
 - 验证：`PasswordFlowSafetyTest` 17/17 Fake-only通过；共享JVM/JS/Wasm及测试源码编译、Android Debug、Desktop离线构建退出0；`git diff --check`通过。未运行App、真实云端、BLE或车辆操作。
-- 状态：`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；ID25整体`PARTIAL`，未标记`RUNTIME_VERIFIED`或`VEHICLE_VERIFIED`。
+- 状态：`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；ID25整体`PARTIAL`，未标记`RUNTIME_VERIFIED`或`VEHICLE_VERIFIED`。实现提交`9cdf943`。
