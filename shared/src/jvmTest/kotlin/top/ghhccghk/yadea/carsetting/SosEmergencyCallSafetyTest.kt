@@ -1,11 +1,18 @@
 package top.ghhccghk.yadea.carsetting
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import top.ghhccghk.yadea.vehicle.EmergencyContacts
+import top.ghhccghk.yadea.vehicle.ContactType
+import top.ghhccghk.yadea.vehicle.EmergencyContactController
+import top.ghhccghk.yadea.vehicle.EmergencyContactGateway
 import top.ghhccghk.yadea.vehicle.hasCompleteSosContactInfo
 
 class SosEmergencyCallSafetyTest {
@@ -96,5 +103,45 @@ class SosEmergencyCallSafetyTest {
             sosContactReadyProvider = { false },
         )
         assertTrue(disableController.update("cloud:91") { CarSettingKind.Toggle(false) })
+    }
+
+    @Test
+    fun loadingSharedContactControllerEnablesSosOnlyForItsCurrentVin() = runBlocking {
+        var vin = "VIN-A"
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val gateway = object : EmergencyContactGateway {
+            override suspend fun load(vin: String) = contacts(vin = vin)
+            override suspend fun save(vin: String, type: ContactType, name: String, mobile: String) = false
+        }
+        val contactController = EmergencyContactController(gateway, { vin }, scope = scope)
+        val writer = FakeWriter()
+        val controller = CarSettingsController(
+            initialItems = listOf(CarSettingItem(
+                id = "cloud:91", configId = "91", title = "SOS", summary = "",
+                classification = CarSettingClassification.SECURITY,
+                channel = CarSettingChannel.IOT, kind = CarSettingKind.Toggle(false),
+            )),
+            writer = writer, vinProvider = { vin }, debounceMs = 0L, statusPollAttempts = 0,
+            sosContactReadyProvider = { currentVin ->
+                hasCompleteSosContactInfo(contactController.state.value.contacts, currentVin)
+            },
+        )
+        try {
+            assertFalse(controller.update("cloud:91") { CarSettingKind.Toggle(true) })
+            assertTrue(writer.writes.isEmpty())
+
+            contactController.load()
+            assertTrue(controller.update("cloud:91") { CarSettingKind.Toggle(true) })
+            assertEquals(1, writer.writes.size)
+            assertEquals("VIN-A", contactController.state.value.contacts?.vin)
+
+            vin = "VIN-B"
+            assertFalse(hasCompleteSosContactInfo(contactController.state.value.contacts, vin))
+            assertFalse(controller.update("cloud:91") { CarSettingKind.Toggle(true) })
+            assertEquals(1, writer.writes.size)
+        } finally {
+            contactController.dispose()
+            scope.cancel()
+        }
     }
 }

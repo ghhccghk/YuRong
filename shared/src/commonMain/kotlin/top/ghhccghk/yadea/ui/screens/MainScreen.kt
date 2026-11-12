@@ -886,6 +886,8 @@ private fun MainDestinationContent(
                 accountMobile = accountMobile,
                 onRefreshVehicleCloudStatus = onRefreshVehicleCloudStatus,
                 vehicleBindingController = vehicleBindingController,
+                emergencyContactController = emergencyContactController,
+                vehiclePasswordController = vehiclePasswordController,
                 currentUser = currentUser,
                 vehicleBackgroundContent = vehicleBackgroundContent,
                 vehicleImageContent = vehicleImageContent,

@@ -1,5 +1,16 @@
 # 自主修复历史
 
+## A58：联系人、密码管理与 SOS 的宿主 Controller 传递
+
+- 起始 HEAD：`e04daa5bab2d22457c31eb256b3565793d226341`，master；index 无内容差异。上轮撤回 ID51 试作后四处仅换行/stat 状态已逐文件与 HEAD blob 核对；非本批内容未纳入提交。既有14项 untracked 状态保持原样。
+- Smali 复核：`vehicle/view/EmergencyContactActivity.getSettingConfigId:964`=24、`observe:975–985`→VM.R6，`insertData`→VM.s6（643）；`vehicle/view/SosContactActivity.getSettingConfigId:1933`=85、`getSettingConfigIdList:1083`=24/91、`onSwClick:1222–1380`要求四项联系人资料；`vehicle/pwdunlock/PassWordUnlockActivity.getSettingConfigId:845`=25。沿用既有已核实字段和 Gateway，无新字段或协议。
+- 确认缺陷：Android MainActivity 已实例化两个 Controller 并传到 MainScreen/MainScreenContent/MainDestinationContent；但最后调用 VehicleHubScreen 时漏传，内部默认 null 隐藏联系人与密码面板，SOS 也无法通过该界面补联系人。A42 仅检查平台实例化，未证明末端 UI 可达，现予以更正。
+- 修复：MainScreen 显式传递原 Controller 实例；DeviceScreen 的内部 VehicleHubScreen 两个 nullable 参数移除默认 null，遗漏将编译失败，平台入口仍可显式传 null。CarSettingsScreen 继续使用既有加载/保存、密码流程和 SOS 门槛；不改变权限、网络、BLE 或状态语义。
+- Fake-only：新增共享联系人 Controller→加载→SOS 放行→VIN 切换拒绝沿用用例。过滤 `SosEmergencyCallSafetyTest` 4/4、`PasswordFlowSafetyTest` 17/17、`EmergencyContactValidationTest` 8/8，共29/29，退出0。未增加仅镜像参数赋值的测试；内部必传参数以各平台编译约束防漏。
+- 编译：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain` 退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain` 退出0；`git diff --check` 退出0。过滤测试使用相同 Gradle 缓存，未执行完整 jvmTest。
+- 独立复审：Android 注入→MainScreen 三层宿主→VehicleHubScreen→CarSettingsScreen，联系人/密码回调与 SOS 检查读取同一实例；VIN 和请求代次仍由既有 Controller 校验。没有真实 App、网络、BLE、车辆操作；仅 `STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`，整体仍 PARTIAL。实现提交见 Git 中 `fix: complete vehicle setting controller forwarding`。
+- ID51 撤回记录：曾试作 C0 编码及独立状态，复审发现违反本任务帧编码保护边界，已精确反向撤回全部九个文件的试作；其16项测试和构建通过不作为本批保留代码的验证。重读 `l76.G:336` 证明是2位解析，`l76:11532–11539`的 syncTimeResultStatus 只能0/1/2或-1，与 VehicleService 比较5分支冲突；不能把5直接命名为已证实失败码。C0 仍因受保护编码缺失、触发/结果语义未闭环而 BLOCKED。
+
 ## A56（静态复核完成，BLOCKED，无代码改动）
 
 - 设置项：ID51 仪表时间同步。起始 HEAD：`3c326495374424f1d149db3d92650341e71e973b`，分支 `master`；tracked/index 初始干净，已有 untracked 日志、APK、JADX、截图及用户文档均保持未暂存。

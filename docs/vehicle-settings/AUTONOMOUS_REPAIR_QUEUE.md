@@ -4,6 +4,9 @@
 
 ## 正在处理
 
+- A58已修复联系人/密码Controller在MainDestinationContent→VehicleHubScreen漏传；29项Fake过滤、JVM/JS/Wasm/测试源码编译、Android/Desktop离线构建通过，待精确提交。ID24/25/85/91整体仍PARTIAL，无运行/车辆验证。接续审查MsgAsync/GaugeSettings独立立即同步及剩余special页面。
+- ID51补充：C0试作已因触及受保护帧编码边界撤回；`l76.G`两位解析的结果域与VehicleService比较5分支冲突，raw5不能直接认作已证实失败码。保持BLOCKED，不重做该试作。
+
 - A56完成ID51仪表时间同步静态复核：Smali证明C0时间帧和两个延迟触发源，但KMP缺少独立操作状态与触发链。未改生产代码；当前标记PARTIAL/BLOCKED，文档提交`b002dea512fd343d4b2af02a21ef181d5d485aa8`。A57队列复核确认ID93与ID77已处理，无需重复修改；剩余前置候选ID41/88和雷达参数均受证据/架构契约阻塞，不进入写入批次。A55完成ID25密码流程与车辆确认协调的有证据局部修复；ID25仍PARTIAL，独立云端密码事务与车辆状态并非原子流程，也未做App/实车验证。A53/A54入口静态复核已结束。A50已补齐ID91开启SOS前的同VIN完整联系人门槛；ID91云端配置链路静态完整，仍未做App/云端/车辆运行验证。A46已补齐ID62独立座椅加热排程CRUD；ID62总体仍PARTIAL。A47/A49确认ID41/88设备侧BLE音效应用保持PARTIAL/BLOCKED。
 
 ## 待处理（候选，须先证据复核）
