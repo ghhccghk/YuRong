@@ -144,6 +144,11 @@ class CloudCarSettingWriter(
 
     override suspend fun writeWithResult(item: CarSettingItem): CarSettingWriteResult {
         if (!CarSettingItemAccess.canWrite(item)) return CarSettingWriteResult(false)
+        // ID 52's distance child has no Smali-verified persistence mapping. Reject it
+        // before either BLE fallback or the cloud update path, even for forged items.
+        if (item.configId == "52" && item.kind is CarSettingKind.Slider) {
+            return CarSettingWriteResult(false)
+        }
         if (item.configId == "93") return CarSettingWriteResult(false)
         if (item.configId in RadarSettings.configIds && VehicleSettingCommands.forItem(item) == null) {
             return CarSettingWriteResult(false)

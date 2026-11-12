@@ -1,6 +1,7 @@
 package top.ghhccghk.yadea.carsetting
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -87,7 +88,7 @@ class Phase4CarSettingsTest {
             VehicleSettingCommands.forConfigId("62", CarSettingKind.Toggle(true)),
         )
         assertEquals(
-            VehicleSettingCommand("SEAT_HEAT_LEVEL", 0xD3, 2),
+            VehicleSettingCommand("SEAT_HEAT_LEVEL", 0xD3, 1),
             VehicleSettingCommands.forConfigId(
                 "62",
                 CarSettingKind.Choice(1, listOf("1 档", "2 档", "3 档")),
@@ -137,34 +138,31 @@ class Phase4CarSettingsTest {
             mapOf(
                 "_gateway" to "True",
                 "distanceOn" to "1",
+                "distance" to "200",
+                "centerCircleLon" to 120.25,
+                "centerCircleLat" to 30.5,
                 "vin" to "VIN",
             ),
             CloudCarSettingUpdateBuilder.build(
                 configId = "10",
                 kind = CarSettingKind.Toggle(true),
                 vin = "VIN",
+                geofence = GeofenceConfiguration("VIN", false, 200, 120.25, 30.5),
             )?.fields,
         )
+        assertNull(CloudCarSettingUpdateBuilder.build(
+            configId = "52",
+            kind = CarSettingKind.Slider(5f, 1f..12f),
+            vin = "VIN",
+        ))
         assertEquals(
             mapOf(
                 "_gateway" to "True",
-                "bleDistance" to "5",
-                "vin" to "VIN",
-            ),
-            CloudCarSettingUpdateBuilder.build(
-                configId = "52",
-                kind = CarSettingKind.Slider(5f, 1f..12f),
-                vin = "VIN",
-            )?.fields,
-        )
-        assertEquals(
-            mapOf(
-                "_gateway" to "True",
-                "seatHeatingLevel" to 3,
+                "seatHeatingLevel" to 2,
                 "oper" to "SET_PARAM",
                 "id" to "SEAT_HEATING_LEVEL",
-                "value" to 3,
-                "valueJson" to "[{\"byteCount\":1,\"dataType\":1,\"sort\":1,\"value\":3}]",
+                "value" to 2,
+                "valueJson" to "[{\"byteCount\":1,\"dataType\":1,\"sort\":1,\"value\":2}]",
                 "vin" to "VIN",
             ),
             CloudCarSettingUpdateBuilder.build(
@@ -208,7 +206,7 @@ class Phase4CarSettingsTest {
             ),
             CloudCarSettingUpdateBuilder.build(
                 configId = "48",
-                kind = CarSettingKind.Slider(90f, 70f..100f),
+                kind = CarSettingKind.Slider(90f, 75f..100f),
                 vin = "VIN",
             )?.fields,
         )
@@ -293,10 +291,13 @@ class Phase4CarSettingsTest {
         assertTrue(items.first { it.id == "cloud:10" }.kind is CarSettingKind.Toggle)
         assertTrue(items.first { it.id == "cloud:10:distance" }.kind is CarSettingKind.Slider)
         assertTrue(items.first { it.id == "cloud:52" }.kind is CarSettingKind.Toggle)
-        assertTrue(items.first { it.id == "cloud:52:distance" }.kind is CarSettingKind.Slider)
+        val manualDistance = items.first { it.id == "cloud:52:distance" }
+        assertTrue(manualDistance.kind is CarSettingKind.Slider)
+        assertFalse(manualDistance.writable)
+        assertFalse((manualDistance.kind as CarSettingKind.Slider).valueKnown)
         assertTrue(items.first { it.id == "cloud:62" }.kind is CarSettingKind.Toggle)
         assertEquals(
-            1,
+            2,
             (items.first { it.id == "cloud:62:level" }.kind as CarSettingKind.Choice)
                 .selectedIndex,
         )

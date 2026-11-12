@@ -386,4 +386,14 @@
 - 修复：TTP状态映射明确为0/2关闭、1开启；状态3、负值及其他未知编码不生成Boolean。移除ID25对`passwordUnlockEnable`的通用云配置/更新字段绑定，不改独立`VehiclePasswordGateway` API、ID25 BLE切换/设密命令和其他ID映射。Fake回归验证状态边界、未知云字段不成为configuredValue且不能构造confId25云更新。
 - 修改文件：`CarSettings.kt`、`CarSettingsGateway.kt`、`CloudConfiguredValueRefreshTest.kt`、`FourthRoundVehicleSettingsTest.kt`及本矩阵/队列/历史。
 - 验证：`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.CloudConfiguredValueRefreshTest" --tests "top.ghhccghk.yadea.carsetting.FourthRoundVehicleSettingsTest" --offline --console=plain`通过42/42（36+6，失败/错误/跳过0）；`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。首次过滤因新增断言缺少`assertNull`导入而在测试源码编译阶段失败；补导入后同命令通过，未改变生产代码验证强度。独立复审确认ID25 TTP映射、通用Cloud Mapper/Builder和BLE命令边界；`git diff --check`与提交复核待最终执行。
-- 状态仍为`PARTIAL`：跨云端密码管理与BLE设密/回读的状态协调和异常恢复仍需独立审计；没有App运行、真实云端或车辆验证。精确提交：待最终Git复核后记录。
+- 状态仍为`PARTIAL`：跨云端密码管理与BLE设密/回读的状态协调和异常恢复仍需独立审计；没有App运行、真实云端或车辆验证。精确提交：`12c1e8dcc8619fbbd67e622b83d63f70fbf0ebf1`（`fix: preserve unknown password unlock status`）。
+
+## A31（ID52未知距离禁止伪造与提交）
+
+- 起始HEAD：`12c1e8dcc8619fbbd67e622b83d63f70fbf0ebf1`，分支`master`；开始时tracked/index干净，保留原有12组untracked。
+- Smali复核：`OneKeyOpenActivity.getSettingConfigId:4224–4231`返回`1`；`OneKeyOpenActivity:4197+`对52的出现仅影响入口/埋点；`CustomPowerOnDistancesActivity.startRanging:1143+`和`CustomPowerOnDistancesViewModel.c1/b1`处理测距开始/结束，结束后`VehicleSettingViewModel`向`phoneBluetoothRecord/add`上报手机蓝牙记录，Activity中断路径发`...RANGING_INTERRUPT`。没有找到该结果写入`CarSettingBean.bleDistance`或将`bleDistance`绑定confId 52的页面读写调用。
+- KMP原问题：`CloudCarSettingMapper.toItems`把缺失`bleDistance`回退为3并作为已知Slider；允许编辑；Mapper从该字段回填并且Builder能生成`bleDistance`云更新。虽Smali DTO含同名属性，但没有字段业务绑定证据。
+- 修复：confId 52距离子项继续依云端清单展示，但初始值明确`valueKnown=false`、`writable=false`；读取不消费未经证实的`bleDistance`字段，Builder不构造该更新。`CloudCarSettingWriter.writeWithResult`再拒绝confId 52的Slider，阻断伪造可写项绕过UI后触发BLE fallback或云端写入。保留独立测距流程和原有命令接口不动。
+- 修改文件：`CarSettingsGateway.kt`、`VehicleSettingCommands.kt`、`CloudConfiguredValueRefreshTest.kt`、`Phase4CarSettingsTest.kt`及本矩阵/队列/历史。
+- 验证：Fake过滤命令`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.CloudConfiguredValueRefreshTest" --tests "top.ghhccghk.yadea.carsetting.Phase4CarSettingsTest.cloudFieldsCoverConfirmedRequestShapes" --tests "top.ghhccghk.yadea.carsetting.Phase4CarSettingsTest.mapperCreatesSecondBatchControls" --tests "top.ghhccghk.yadea.carsetting.BatterySettingsSafetyTest" --offline --console=plain`通过56/56（37+2+17，失败/错误/跳过0）。测试包括配置未知与只读、伪造可写对象在最终Writer边界被拒绝且BLE/云端调用均为0。宽过滤探测`Phase4CarSettingsTest`另有ID72 `LONG_ENDURANCE_SETTING`方向断言与当前实现不符；该测试及ID72实现不属于A31，已记录为后续审计项。`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm :androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`待最终复核。
+- 状态：UNKNOWN伪造与未经证实的云/BLE写入路径已关闭；ID52字段关联及测距结果持久化仍`BLOCKED/PARTIAL`，不宣称功能闭环，无真实网络/App/车辆验证。精确提交待最终复核。

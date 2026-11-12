@@ -321,9 +321,7 @@ object CloudCarSettingUpdateBuilder {
 
     private val TOGGLE_INTEGER_FIELDS = setOf("71", "75", "82")
 
-    private val SLIDER_FIELDS = mapOf(
-        "52" to "bleDistance",
-    )
+    private val SLIDER_FIELDS = emptyMap<String, String>()
 
     private data class ChoiceField(val field: String, val offset: Int)
 
@@ -977,7 +975,7 @@ class YadeaCarSettingsGateway(
             "alarmOn", "alarmPower", "alarmSoundEnable", "bikeInfoSyncName",
             "bikeModelTopSpeedMax", "bikeModelTopSpeedMin", "bikeSpeedMax",
             "bikeSpeedMaxDefaultMax", "bikeSpeedMaxDefaultMin",
-            "bleApproachPowerOnDistance", "bleApproachPowerOnEnable", "bleDistance",
+            "bleApproachPowerOnDistance", "bleApproachPowerOnEnable",
             "bleLeavePowerOffDistance", "bleLeavePowerOffEnable", "bleUnlockOn",
             "brightnessAdjustValue", "capacity", "chargeUlVal", "chargeWattSwitch",
             "chargeWattVal",
@@ -1005,6 +1003,7 @@ object CloudCarSettingMapper {
         // DTO declarations alone do not prove these pages use the similarly named
         // cloud fields. Their current value is established by the verified TTP path.
         if (item.configId in SecondPhaseSettings.ids || item.configId in TimerSettings.ids) return null
+        if (item.id == "cloud:52:distance") return null
         when (item.kind) {
             is CarSettingKind.LowPowerInfo -> {
                 val alarmOn = cloud.boolValue("alarmOn")
@@ -1030,7 +1029,6 @@ object CloudCarSettingMapper {
         if (slider != null) {
             val key = when (item.id) {
                 "cloud:10:distance" -> "distance"
-                "cloud:52:distance" -> "bleDistance"
                 else -> when (item.configId) {
                     "4", "58" -> "bikeSpeedMax"
                     "47" -> "chargeWattVal"
@@ -1284,7 +1282,6 @@ object CloudCarSettingMapper {
             )
         }
         cloud.configs.firstOrNull { it.confId.trim() == "52" }?.let { config ->
-            val distance = cloud.intValue("bleDistance")?.coerceIn(1, 12) ?: 3
             items += CarSettingItem(
                 id = "cloud:52:distance",
                 configId = "52",
@@ -1294,12 +1291,13 @@ object CloudCarSettingMapper {
                 group = groupOf(config, classificationOf("52", config)),
                 channel = CarSettingChannel.BLE,
                 kind = CarSettingKind.Slider(
-                    value = distance.toFloat(),
+                    value = 3f,
                     range = 1f..12f,
                     steps = 10,
                     unit = " m",
+                    valueKnown = false,
                 ),
-                writable = config.isAuth != false,
+                writable = false,
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,
             )
         }

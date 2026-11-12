@@ -4,19 +4,19 @@
 
 ## 正在处理
 
-- A30（ID25）代码、Fake测试和离线构建已完成，正在精确提交前复核；独立密码验证/找回业务仍为PARTIAL，不据本批标记为闭环。
+- 无。A31实现、过滤验证、跨平台编译和Android/Desktop构建已完成，待提交复核。
 
 ## 待处理（候选，须先证据复核）
 
 - 雷达告警模式/音量：`COMMAND_RADAR_ALARM`/0x12F的完整允许值、UI边界及可信回填尚未证实；补齐Smali资源/绑定或其他可靠证据前不得接入。
 - 回归维护补充：EighthRoundValueStateTest、SixthRoundActivityBatchTest仍有音量3..7旧夹具，后续专项按三档Smali修正；不得放宽生产范围。
-- 回归维护：Phase4CarSettingsTest含旧62索引/72方向/10不完整快照等过时断言，最终专项修正夹具；不得放宽生产校验。
+- 回归维护：Phase4CarSettingsTest的62原始档位索引和10围栏完整快照夹具已在A31同步修正；仍有ID72 `LONG_ENDURANCE_SETTING`方向断言与当前Writer映射不一致，需单独Smali复核，勿在其他设置批次顺手改写。
 - 其他全部项：按功能地图逐项核对读取、写入、门控及独立流程；发现安全问题优先插队。
 - 基线4/58/61/55/92、5/7/11/39、9/82：检查当前代码并回归，避免重复历史修复。
 
 ## 证据限制候选
 
-- 52：`CustomPowerOnDistancesActivity`/`CustomPowerOnDistancesViewModel`运行独立测距流程并上报`phoneBluetoothRecord/add`，尚未证实其结果关联云端`bleDistance`。KMP当前将缺失`bleDistance`默认显示3并钳到1..12；这是UNKNOWN伪造风险，但在取得原App字段绑定证据前不得改为可写映射或增命令。A28只记录，不改代码。
+- 52：A31已关闭缺省`bleDistance=3`伪造、未证实字段回填/云更新和最终Writer BLE fallback。`CustomPowerOnDistancesActivity`/`CustomPowerOnDistancesViewModel`运行独立测距流程并上报`phoneBluetoothRecord/add`；测距结果与云端`bleDistance`关联仍未证实，保持BLOCKED，不增命令。
 
 - 42：A14已追清jp6.h/i→cal2→VM.x→k5。资格响应缺失/非法时阻止开启；未运行App或实车验证。
 - 13：原页TTP alarmSoundSwitchAfterStatus已有Smali证据，但KMP原始TTP模型/解析缺失；本任务禁止修改原始解析，读链路BLOCKED，保持UNKNOWN。低层写入WRITE_ONLY；UI无已知值时继续禁用，不猜测DTO字段。
@@ -31,7 +31,9 @@
 
 ## 已完成
 
-- A30：ID25 密码解锁 TTP 状态和未经证实云字段隔离；验证通过，提交完成后移入已完成。
+- A31：ID52未知距离值保持UNKNOWN/只读，移除未经Smali证实的云字段映射，并在最终Writer拒绝Slider以阻断BLE/云端旁路。56项Fake过滤测试、JVM/JS/Wasm/测试源码编译、Android/Desktop构建通过；ID52测距字段关系仍BLOCKED。待精确提交。
+
+- A30：ID25密码解锁状态来源隔离已提交`12c1e8dcc8619fbbd67e622b83d63f70fbf0ebf1`；独立密码验证/找回与BLE回读协调仍PARTIAL。
 
 - A29：ID8 Smali确认`sendCode=10`、`smsScene=10`，短信验证后调用`common-cmd/low-freq/set-param/loss`，`value=00/01`；云端状态`lossState=0`表示开启。KMP已有独立短信/报失Gateway、Controller和诊断UI；修正2xx响应缺少`success=true`时误报成功。修正过期Fake对签名表单的断言。Fake整类过滤6/6，跨平台编译与Android/Desktop构建通过；服务端接受仍不是车辆确认，无真实请求/App/车辆操作。提交记录见历史。
 

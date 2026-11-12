@@ -297,16 +297,46 @@ class CloudConfiguredValueRefreshTest {
         assertEquals(before, c.state.value.valueStates)
     }
 
-    @Test fun cloudAndBleCapableSettingsDisplayCloudWithNoBleConnection() = runBlocking {
+    @Test fun unverifiedManualDistanceConfigRemainsUnknownAndReadOnly() = runBlocking {
         val c = controller(FakeGateway(response("\"chargeWattSwitch\":1,\"chargeWattVal\":350,\"bleDistance\":2,\"bleUnlockOn\":1", listOf("47", "52"))))
         c.refresh()
-        for (id in listOf("cloud:47", "cloud:47:enable", "cloud:52", "cloud:52:distance")) {
+        for (id in listOf("cloud:47", "cloud:47:enable", "cloud:52")) {
             val item = c.state.value.items.first { it.id == id }
             if (item.configId == "47") assertTrue(VehicleSettingCommands.supportsItem(item))
             assertTrue(CloudCarSettingUpdateBuilder.supports(item.configId, item.kind))
             assertNotNull(c.value(id).displayKind())
             assertEquals(VehicleSettingValue.Unknown, c.value(id).vehicleValue)
         }
+        val manualDistance = c.state.value.items.first { it.id == "cloud:52:distance" }
+        assertFalse(manualDistance.writable)
+        assertNull(c.value(manualDistance.id).configuredValue)
+        assertNull(c.value(manualDistance.id).displayKind())
+        assertEquals(VehicleSettingValue.Unknown, c.value(manualDistance.id).vehicleValue)
+        assertNull(CloudCarSettingUpdateBuilder.build("52", manualDistance.kind, "A"))
+    }
+
+    @Test fun unverifiedManualDistanceWriterRejectsBeforeBleOrCloud() = runBlocking {
+        val gateway = FakeGateway(response("\"bleDistance\":2", listOf("52")))
+        val c = controller(gateway)
+        assertTrue(c.refresh())
+        val template = c.state.value.items.first { it.id == "cloud:52:distance" }
+        val forgedWritableItem = template.copy(
+            writable = true,
+            kind = (template.kind as CarSettingKind.Slider).copy(value = 5f, valueKnown = true),
+        )
+        val bleFallback = FakeWriter()
+        val writer = CloudCarSettingWriter(
+            gateway = gateway,
+            vinProvider = { "A" },
+            bleFallback = bleFallback,
+            bleAvailableProvider = { true },
+        )
+
+        val result = writer.writeWithResult(forgedWritableItem)
+
+        assertFalse(result.success)
+        assertTrue(bleFallback.items.isEmpty())
+        assertEquals(0, gateway.updateCalls)
     }
 
     @Test fun liveChargingPowerWinsWhileConflictingCloudConfigurationRemainsInspectable() = runBlocking {
