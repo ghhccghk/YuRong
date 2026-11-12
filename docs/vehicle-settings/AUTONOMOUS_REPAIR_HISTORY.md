@@ -413,3 +413,12 @@
 - 修改：Phase4聚合测试和独立Fake断言覆盖ID80动态目标参数；仅修测试夹具并更新矩阵/队列，不改生产代码。
 - 验证：`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.Phase4CarSettingsTest.dynamicOtdSwitchPassesInlineTargetPolarity" --tests "top.ghhccghk.yadea.carsetting.Phase4CarSettingsTest.commandMappingsMatchOriginalQqBranches" --offline --console=plain`通过2/2；第一次宽过滤`Phase4CarSettingsTest`仍因该过期断言失败，修正后所选两项通过。`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm :androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。`git diff --check`及staged check退出0。
 - 状态：KMP动态列表路径STATIC_FLOW_VERIFIED、UNIT_TESTED、BUILD_VERIFIED；独立Activity与动态内联路径仍存在冲突，整体PARTIAL，无App运行/车辆验证。精确提交：`1c139fa10e89b80fffb8fb254796f14406e24f74`（`test: align OTD regression with inline setting path`）。
+
+## A34（ID3/13回读受限测试隔离）
+
+- 起始HEAD：`bf9a3d62ba9aac8f9330bc5adbf94c022411e8fd`，分支`master`；工作区tracked/index干净，仅保留原有untracked。
+- Smali证据：ID3 `SeatCushionSensorActivity.onSwClick`发`CARRY_OUT_OPEN/CLOSE`，命令映射0x11/0x12；ID13 `VehicleAlarmActivity.onSwClick`发`WARING_SOUND_OPEN/CLOSE`，命令映射0x62/0x63。当前KMP原始TTP模型没有两项对应回读字段，故继续保持车辆值UNKNOWN，不借用其他字段。
+- 原测试缺陷：聚合回读断言把其他设置的TTP状态套给ID3/13；命令码默认分支也将两项误期望为0xC7。Fake用例还假定缺失车辆字段会产生缓存值或读回确认。
+- 修改：测试将有已建模回读字段的ID与3/13 WRITE_ONLY/读取BLOCKED项分别断言；后两者确认实时/缓存值保持UNKNOWN，写入提交后`WAITING_READBACK`不因其他字段变化而伪造确认；添加精确Smali命令ID期望。未修改生产代码或TTP解析。
+- 验证：`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.SimpleToggleSettingsSafetyTest" --offline --console=plain`13/13通过。跨平台编译/Android/Desktop构建、diff检查和提交待补。
+- 状态：Fake回归语义UNIT_TESTED；ID3/13车辆读取仍BLOCKED、命令静态映射可复核；无App运行/车辆验证。提交待记录。

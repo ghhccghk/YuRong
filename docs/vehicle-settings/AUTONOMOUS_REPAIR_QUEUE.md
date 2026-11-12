@@ -4,14 +4,14 @@
 
 ## 正在处理
 
-- 无。A33已提交`1c139fa10e89b80fffb8fb254796f14406e24f74`；下一批从当前HEAD重新恢复检查。
+- A34：修正ID3/13回归测试，将可观察状态集合与WRITE_ONLY/读取BLOCKED设置分离；修正ID3/13独立命令码期望，不改生产行为。
 
 ## 待处理（候选，须先证据复核）
 
 - 雷达告警模式/音量：`COMMAND_RADAR_ALARM`/0x12F的完整允许值、UI边界及可信回填尚未证实；补齐Smali资源/绑定或其他可靠证据前不得接入。
 - 回归维护补充：EighthRoundValueStateTest、SixthRoundActivityBatchTest仍有音量3..7旧夹具，后续专项按三档Smali修正；不得放宽生产范围。
 - 回归维护：Phase4CarSettingsTest的62索引、10围栏快照及ID72/80动态页方向夹具已按对应调用路径修正；ID72/80独立页与动态页行为差异仍需保留审计，不合并语义。
-- 回归维护：`SimpleToggleSettingsSafetyTest`整类过滤仍有若干旧夹具/期望失败（未映射为A32产品缺陷）；需逐项核对Smali和测试隔离，禁止为绿测修改其他设置业务。
+- 回归维护：A34已修正`SimpleToggleSettingsSafetyTest`对ID3/13的回读假设与命令码默认分支；整类 Fake 13/13通过。读取仍BLOCKED，不修改原始TTP解析。
 - 其他全部项：按功能地图逐项核对读取、写入、门控及独立流程；发现安全问题优先插队。
 - 基线4/58/61/55/92、5/7/11/39、9/82：检查当前代码并回归，避免重复历史修复。
 
@@ -31,6 +31,8 @@
 每批开始读本文件、地图、历史、HEAD和staged/unstaged/untracked；只从最近成功提交后继续。禁止清理或暂存用户原有12项未跟踪内容。未通过测试、构建、自审及精确diff时不提交；不调用真实网络/车辆。
 
 ## 已完成
+
+- A34：隔离ID3/13的WRITE_ONLY/读取BLOCKED状态测试；确保无原始TTP字段时车辆值/缓存继续UNKNOWN，写入后只保持WAITING_READBACK，并按Smali验证0x11/0x12及0x62/0x63命令码。过滤测试通过；待构建与提交复核。
 
 - A33：区分ID80动态`bikeConfigVos`内联写入与独立`OTDActivity`的反向参数行为；KMP动态路径符合内联Smali，校正Phase4回归断言并新增精确Fake用例。提交`1c139fa10e89b80fffb8fb254796f14406e24f74`。
 

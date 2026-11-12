@@ -13,6 +13,7 @@ import top.ghhccghk.yadea.vehicle.VehicleStatusOrigin
 
 class SimpleToggleSettingsSafetyTest {
     private val unknown = TtpInfoParser.parse(ByteArray(256) { 0xFF.toByte() })
+    private val readbackIds = SimpleToggleSettings.ids - setOf("3", "13")
     private val cloud = CloudCarSettings(configs = SimpleToggleSettings.ids.map { CloudBikeConfig(it) },
         values = mapOf("bleApproachPowerOnEnable" to "1"))
     private class Gateway(val action: suspend () -> CloudCarSettings) : CarSettingsGateway {
@@ -62,6 +63,8 @@ class SimpleToggleSettingsSafetyTest {
             assertTrue(w.write(item(c, id).copy(kind = CarSettingKind.Toggle(on))))
             val command = sent.last()
             assertEquals(when (id) {
+                "3" -> if (on) 0x11 else 0x12
+                "13" -> if (on) 0x62 else 0x63
                 "19" -> if (on) 0x25 else 0x26
                 "26" -> if (on) 0x23 else 0x24
                 "36" -> if (on) 0x9B else 0x9C
@@ -81,7 +84,8 @@ class SimpleToggleSettingsSafetyTest {
                 "43" -> if (on) 0xA6 else 0xA7
                 "44" -> if (on) 0xA8 else 0xA9
                 "45" -> if (on) 0xAA else 0xAB
-                else -> 0xC7
+                "53" -> 0xC7
+                else -> error("No command expectation for config $id")
             }, command.commandId)
             assertEquals(when (id) {
                 "53", "63", "68", "79", "80", "84", "90", "94" -> if (on) 1 else 0
@@ -91,7 +95,7 @@ class SimpleToggleSettingsSafetyTest {
             assertNotNull(VehicleSettingFrameEncoder.encode(command))
             assertNull(CloudCarSettingUpdateBuilder.build(id, CarSettingKind.Toggle(on), "VIN-A"))
         }
-        assertEquals(40, sent.size)
+        assertEquals(SimpleToggleSettings.ids.size * 2, sent.size)
     }
 
     @Test fun forgedStableIdAndWrongKindCannotBypassValidation() = runBlocking {
@@ -113,27 +117,38 @@ class SimpleToggleSettingsSafetyTest {
         val c = controller(); assertTrue(c.refresh())
         for (raw in 0..1) {
             observe(c, raw, raw + 1L)
-            for (id in SimpleToggleSettings.ids) {
+            for (id in readbackIds) {
                 val value = c.state.value.valueState("cloud:$id")
                 val live = value.vehicleValue as VehicleSettingValue.Known
                 assertTrue(live.live); assertEquals(raw == 1, (live.kind as CarSettingKind.Toggle).checked)
                 assertNull(value.configuredValue)
             }
+            for (id in listOf("3", "13")) {
+                assertTrue(c.state.value.valueState("cloud:$id").vehicleValue is VehicleSettingValue.Unknown)
+            }
         }
         observe(c, 99, 3)
-        for (id in SimpleToggleSettings.ids) {
+        for (id in readbackIds) {
             val value = c.state.value.valueState("cloud:$id")
             assertFalse((value.vehicleValue as VehicleSettingValue.Known).live)
             assertEquals(SettingReadbackState.MISSING_OR_INVALID, value.readbackState)
+        }
+        for (id in listOf("3", "13")) {
+            assertTrue(c.state.value.valueState("cloud:$id").vehicleValue is VehicleSettingValue.Unknown)
         }
     }
 
     @Test fun cacheWrongVinAndOldSequenceCannotClaimFreshReadback() = runBlocking {
         val c = controller(); assertTrue(c.refresh()); observe(c, 1, origin = VehicleStatusOrigin.CACHED_TTP)
-        for (id in SimpleToggleSettings.ids) {
+        for (id in readbackIds) {
             val value = c.state.value.valueState("cloud:$id")
             assertTrue(value.vehicleValue is VehicleSettingValue.Unknown)
             assertFalse(requireNotNull(value.cachedValue).live)
+        }
+        for (id in listOf("3", "13")) {
+            val value = c.state.value.valueState("cloud:$id")
+            assertTrue(value.vehicleValue is VehicleSettingValue.Unknown)
+            assertNull(value.cachedValue)
         }
         observe(c, 0, 10)
         val before = c.state.value.valueStates
@@ -205,14 +220,22 @@ class SimpleToggleSettingsSafetyTest {
             assertTrue(c.editDraft("cloud:$id") { CarSettingKind.Toggle(true) })
         }
         assertTrue(c.refresh())
-        for (id in SimpleToggleSettings.ids) {
+        for (id in readbackIds) {
             assertEquals(CarSettingKind.Toggle(true), c.state.value.valueState("cloud:$id").draftValue)
             assertTrue(c.submitDraft("cloud:$id"))
             assertEquals(SettingConfirmationState.WAITING_READBACK, c.state.value.valueState("cloud:$id").confirmationState)
             assertFalse(((c.state.value.valueState("cloud:$id").vehicleValue as VehicleSettingValue.Known).kind as CarSettingKind.Toggle).checked)
         }
+        for (id in listOf("3", "13")) {
+            assertTrue(c.submitDraft("cloud:$id"))
+            val value = c.state.value.valueState("cloud:$id")
+            assertTrue(value.vehicleValue is VehicleSettingValue.Unknown)
+            assertEquals(SettingConfirmationState.WAITING_READBACK, value.confirmationState)
+        }
         observe(c, 1, 2)
-        for (id in SimpleToggleSettings.ids) assertEquals(SettingConfirmationState.READBACK_MATCHED,
+        for (id in readbackIds) assertEquals(SettingConfirmationState.READBACK_MATCHED,
+            c.state.value.valueState("cloud:$id").confirmationState)
+        for (id in listOf("3", "13")) assertEquals(SettingConfirmationState.WAITING_READBACK,
             c.state.value.valueState("cloud:$id").confirmationState)
     }
 
@@ -225,7 +248,11 @@ class SimpleToggleSettingsSafetyTest {
                 catch (e: CancellationException) { assertTrue(cancel) }
                 val value = c.state.value.valueState("cloud:$id")
                 assertEquals(if (cancel) SettingWriteState.CANCELLED else SettingWriteState.FAILED, value.writeState)
-                assertFalse(((value.vehicleValue as VehicleSettingValue.Known).kind as CarSettingKind.Toggle).checked)
+                if (id in readbackIds) {
+                    assertFalse(((value.vehicleValue as VehicleSettingValue.Known).kind as CarSettingKind.Toggle).checked)
+                } else {
+                    assertTrue(value.vehicleValue is VehicleSettingValue.Unknown)
+                }
             }
         }
     }
