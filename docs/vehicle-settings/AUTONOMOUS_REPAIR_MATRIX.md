@@ -118,9 +118,17 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 - `vehicle/radar/RadarBaseActivity.getSettingConfigIdList:548–658`分别收集三个配置项的confId；`VehicleSettingViewModel.j1:27878–27900`对69/70/78逐项识别。此前KMP把三个开关都挂在69上，导致车型目录和`isAuth`门控不准确；现改为每个真实confId独立生成稳定条目，保留各自分组/排序/权限。
 - `VehicleSettingViewModel.b9:25055–25077`将`frontCollisionWarning == 1`回填FCW；`25093–25115`将`rcwRadarSwitch == 1`回填RCW；`25160–25183`将`bsdRadar == 1`回填BSD。KMP复用已有TTP字段，但忠实采用相等于1才开：有效原始0/2回填关；2-bit全1值由既有`Ttp.G`解析为-1，保持UNKNOWN。缓存不冒充LIVE；写入接受与新鲜同VIN TTP确认分离。
 - `RadarActivity$e/$c/$d`分别构造`COMMAND_FRONT_COLLISION`、`COMMAND_RADAR_RCW`、`COMMAND_RADAR_BSD`，参数为显式0/1；`qg.smali:2759–2870,3197–3218`映射0x12D/0x12E/0x13A。KMP以稳定itemId+confId绑定命令，Controller、`forItem`、实际Writer均拒绝错配/未知目标；`forConfigId`不提供绕过路径。移除了原残留的错误通用confId 69命令映射。
-- 同页`RadarActivity$a`另有`COMMAND_RADAR_ALARM`，`qg:7118–7135`映射0x12F；当前证据不足以确定该滑杆合法域和完整状态回填，继续BLOCKED，不新增参数或入口。
+- 同页`RadarActivity$a.a`另有`COMMAND_RADAR_ALARM`，使用`mCurrentPosition`作为参数；`qg.smali:7118–7135`映射0x12F。A38复核确认`RadarActivity.refreshSeekbarStatus`只实现启用门控并在禁用时将UI进度设为0，`VehicleSettingViewModel`分别回填`fcwRadarMode`到独立LiveData；现有Smali证据没有证明该TTP字段与告警滑杆参数相同，也未证实滑杆完整取值范围/选项语义。因此保持BLOCKED，不新增字段映射、参数或写入入口。
+
 - `RadarSettingsSafetyTest`最终7/7通过，命令`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.RadarSettingsSafetyTest --offline --console=plain`退出0。初次测试误把TTP全1哨兵3当开启；根据Smali的`==1`及解析器哨兵规则修正为raw1开、raw0/2关、raw3 UNKNOWN，并新增哨兵回归用例。
 - `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。Fake-only，无真实云端、BLE或车辆操作。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。
+
+### A38：雷达告警滑杆参数证据复核
+
+- `vehicle/radar/RadarActivity$a.smali`：监听回调读取`seekParams.e`并保存到`RadarActivity.mCurrentPosition`；提交回调在`e5()`或`F2()`任一为`true`时，构造`CommandBean("COMMAND_RADAR_ALARM", mCurrentPosition)`，延迟参数为3000ms。
+- `qg.smali:7118–7135`：`COMMAND_RADAR_ALARM`分支通过`qg.e`使用命令ID `0x12F`。
+- `VehicleSettingViewModel.smali:25082+`：TTP `fcwRadarMode`被单独写入LiveData；未见该值被绑定到`RadarActivity.mCurrentPosition`的证据。禁用时SeekBar显示进度0属于UI行为，不能证明0是有效业务档位或车辆当前值。
+- 结论：参数域、刻度/枚举含义、告警滑杆的可信TTP回填均未证实。A38不改代码，保持BLOCKED；不运行测试/构建，不做真实网络或车辆操作。
 
 ### A25：71 仪表同步配置
 

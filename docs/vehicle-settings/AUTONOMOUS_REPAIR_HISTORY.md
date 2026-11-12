@@ -452,3 +452,10 @@
 - 测试：`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.FifthRoundX1MappingTest" --offline --console=plain`通过7/7。覆盖001/002/003拆分、0/50/100转换、非法值和非刻度拒绝、命令参数、TTP回填来源、UNKNOWN，以及002未知/关闭开关时Controller草稿和直接更新均拒绝。测试仅使用内存Gateway/Writer，无真实网络、BLE。
 - 构建：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0。Android/Desktop默认4GiB daemon 首次在R8阶段因native memory不足崩溃（退出1）；使用`--no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx2048M...`离线重试后`:androidApp:assembleDebug :desktopApp:build`退出0。崩溃日志留在工作区且不纳入提交。
 - 验证等级：STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。功能提交`4e20f45`（`fix: complete X1 vehicle setting mappings`）；后续审计记录提交Hash待补录。
+
+## A38（雷达告警滑杆参数证据复核）
+
+- 起始HEAD：`3a64467e034ab5ead89b7ab8bcc12a287a041946`，分支`master`；tracked/index干净；既有untracked日志、APK、文档、截图和工具目录均保留。
+- Smali：`vehicle/radar/RadarActivity$a.smali`的`b`回调取`seekParams.e`写入`RadarActivity.mCurrentPosition`；`a`回调在`VehicleSettingViewModel.e5()`或`F2()`任一为true时，以该position构造`COMMAND_RADAR_ALARM`并经`SettingBaseActivity.sendVehicleSetting`提交。`qg.smali:7118–7135`将该命令映射为`0x12F`。`RadarActivity.refreshSeekbarStatus`根据相关LiveData门控SeekBar，禁用时将UI进度置0；此UI重置不构成有效业务值证据。`VehicleSettingViewModel.smali:25082+`将TTP `fcwRadarMode`写入独立LiveData，未证实其与告警滑杆参数相连。
+- 结论：`COMMAND_RADAR_ALARM`参数允许域、刻度/枚举含义及可信回填字段无法由现有静态证据确认。保持BLOCKED，不新增映射或写入能力；等待布局/资源绑定或其他可靠证据。未修改生产代码，未运行测试、构建、App或车辆操作。
+- 文档复核：更新功能矩阵及任务队列；`git diff --check`在提交前检查。验证等级仅为STATIC_FLOW_VERIFIED（命令分派及独立TTP字段静态可见），功能整体BLOCKED，无UNIT_TESTED、BUILD_VERIFIED、RUNTIME_VERIFIED或VEHICLE_VERIFIED。

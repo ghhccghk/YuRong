@@ -4,11 +4,11 @@
 
 ## 正在处理
 
-- 无。A37 已提交 `4e20f45`（`fix: complete X1 vehicle setting mappings`）；起始 HEAD `f93c4dce1d11627fb2dc678b2e80d62b7347b84f`。
+- 无。A38 雷达告警参数已完成证据复核，因参数范围及回填映射无法证实而转为 BLOCKED；记录见矩阵和历史。
 
 ## 待处理（候选，须先证据复核）
 
-- 雷达告警模式/音量：`COMMAND_RADAR_ALARM`/0x12F的完整允许值、UI边界及可信回填尚未证实；补齐Smali资源/绑定或其他可靠证据前不得接入。
+- 雷达告警模式/音量（A38）：`COMMAND_RADAR_ALARM`/0x12F 的参数来自 `RadarActivity.mCurrentPosition`，但完整允许值、UI边界和该参数与任何 TTP 字段之间的映射尚未证实；保持 BLOCKED，不接入写入。若后续获得可信资源/绑定或抓包证据再复核。
 - 回归维护补充：A36已提交，EighthRoundValueStateTest和SixthRoundActivityBatchTest中ID20的合法编辑/命令夹具限定到原页三档0..2；3..6及解析哨兵-1仅作为UNKNOWN拒绝样本。
 - 回归维护：Phase4CarSettingsTest的62索引、10围栏快照及ID72/80动态页方向夹具已按对应调用路径修正；ID72/80独立页与动态页行为差异仍需保留审计，不合并语义。
 - 回归维护：A34已修正`SimpleToggleSettingsSafetyTest`对ID3/13的回读假设与命令码默认分支；整类 Fake 13/13通过。读取仍BLOCKED，不修改原始TTP解析。
@@ -33,6 +33,8 @@
 ## 已完成
 
 - A37：001/002/003 X1 TTP/百分比档位映射及002开启门控；Fake测试7/7，JVM/JS/Wasm、Android Debug、Desktop构建通过；无App/实车验证。提交`4e20f45`。
+
+- A38：雷达告警滑杆静态复核；未改业务代码。Smali确认 `RadarActivity$a.a` 在允许条件下提交 `COMMAND_RADAR_ALARM(mCurrentPosition)`，`qg.smali` 将其映射到 `0x12F`；`VehicleSettingViewModel` 将 `fcwRadarMode` 单独写入 LiveData，现有证据未证明它就是该滑杆值。范围、选项/单位及可信回填仍 BLOCKED。文档提交后停止本批；无测试或构建（仅文档更新），无 App/车辆验证。
 
 - A36：ID20音量回归夹具改用Smali证实的0..2三档，并模拟UI编辑的`valueKnown`语义；7项Fake过滤测试、跨平台编译、Android Debug/Desktop构建通过。提交`e5b9b968055a7841f1612ff06f10cfc0a3a2ff06`。
 
