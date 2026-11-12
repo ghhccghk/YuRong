@@ -4,7 +4,7 @@
 
 ## 正在处理
 
-- 无。A31实现、过滤验证、跨平台编译和Android/Desktop构建已完成，待提交复核。
+- 无。A31已于`f6cb9ad285aca3797e790e1a3d92d964059fe630`提交，验证记录见历史；继续下一批前复核当前HEAD和工作区。
 
 ## 待处理（候选，须先证据复核）
 
@@ -31,7 +31,7 @@
 
 ## 已完成
 
-- A31：ID52未知距离值保持UNKNOWN/只读，移除未经Smali证实的云字段映射，并在最终Writer拒绝Slider以阻断BLE/云端旁路。56项Fake过滤测试、JVM/JS/Wasm/测试源码编译、Android/Desktop构建通过；ID52测距字段关系仍BLOCKED。待精确提交。
+- A31：ID52未知距离值保持UNKNOWN/只读，移除未经Smali证实的云字段映射，并在最终Writer拒绝Slider以阻断BLE/云端旁路。56项Fake过滤测试、JVM/JS/Wasm/测试源码编译、Android/Desktop构建通过；ID52测距字段关系仍BLOCKED。提交`f6cb9ad285aca3797e790e1a3d92d964059fe630`。
 
 - A30：ID25密码解锁状态来源隔离已提交`12c1e8dcc8619fbbd67e622b83d63f70fbf0ebf1`；独立密码验证/找回与BLE回读协调仍PARTIAL。
 
