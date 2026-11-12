@@ -568,3 +568,11 @@
 - 构建：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；专项测试退出0；`git diff --check`通过。
 - 独立复审：原页四项门槛→联系人Gateway同VIN加载→共享UI禁用/引导编辑→Controller重验→既有CloudWriter/Builder；关闭不受门槛影响；cloud configuredValue、写入接受及vehicleValue语义未混淆。没有真实App、云端或车辆验证。
 - 状态：ID91配置读写为`STATIC_FLOW_VERIFIED`；门槛为`UNIT_TESTED`；共享跨平台编译、Android/Desktop构建通过；整体运行态仍`PARTIAL`，无`RUNTIME_VERIFIED`或`VEHICLE_VERIFIED`。功能提交：`25b1e1f`（`fix: gate SOS enablement on contact readiness`）。
+
+## A51：ID66 自动校准入口及车辆能力门控审计
+
+- 起始HEAD：`f99cd298237a9d4ada5cb94e74a08c71e8fb17ed`，分支`master`；tracked/index干净；保留原有untracked用户日志、APK、截图、JADX和文档。
+- Smali证据：`VehicleDataManager.V0:10180–10298`只检查`VehicleDataBean.vehicleConfig`父`1002`是否含child configId `66`；`RangingStateHelper.autoCalibrationOnlyFlag:156–177`和`manualCalibrationOnlyFlag:694+`将能力与其他状态共同用于选择校准分支。实际一键开机页是`OneKeyOpenActivity.getSettingConfigId:4224`返回1，`showGuidePop:3871–3918`选择自动/手动引导。`MaxSpeedSettingActivity.getSettingConfigId:220`返回58，其listener中的字面量66被传给`w2.n`统计接口，不是ID66设置写入证据。
+- KMP复核：`CarSettingsGateway.kt`将`BLUETOOTH_KEY_IDS={66}`映射为只读Info，`toItems`排除通用写权限；未找到ID66的Controller、TTP值或云端更新字段构建。该门控避免把车辆能力项误作普通开关。KMP没有实现原App一键开机校准/结果事务。
+- 结论：目录项66保持`CONDITIONAL/PARTIAL`；校准执行与结果确认`BLOCKED`，原因是完整RangingState依赖、校准命令/参数与车辆完成结果协议未闭环。不得新增Cloud/BLE普通设置映射；本批只更新矩阵和队列。
+- 验证：静态Smali/KMP调用链审计、`git diff --check`；未运行测试、构建、App、云端、BLE或车辆操作。仅`STATIC_FLOW_VERIFIED`，没有`UNIT_TESTED`、`BUILD_VERIFIED`、`RUNTIME_VERIFIED`或`VEHICLE_VERIFIED`。
