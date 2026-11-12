@@ -4,7 +4,7 @@
 
 ## 正在处理
 
-- 无。A55完成ID25密码流程与车辆确认协调的有证据局部修复；ID25仍PARTIAL，独立云端密码事务与车辆状态并非原子流程，也未做App/实车验证。下一批从ID41/88自定义音效证据限制和雷达告警BLOCKED候选复核开始，再继续全矩阵其余未覆盖项。A53/A54入口静态复核已结束。A50已补齐ID91开启SOS前的同VIN完整联系人门槛；ID91云端配置链路静态完整，仍未做App/云端/车辆运行验证。A46已补齐ID62独立座椅加热排程CRUD；ID62总体仍PARTIAL。A47/A49确认ID41/88设备侧BLE音效应用保持PARTIAL/BLOCKED。
+- A56完成ID51仪表时间同步静态复核：Smali证明C0时间帧和两个延迟触发源，但KMP缺少独立操作状态与触发链。未改生产代码；当前标记PARTIAL/BLOCKED，具体证据见历史及功能地图。下一候选ID41/88自定义音效设备侧链路与雷达告警BLOCKED项复核，然后继续全矩阵其余未覆盖项。A55完成ID25密码流程与车辆确认协调的有证据局部修复；ID25仍PARTIAL，独立云端密码事务与车辆状态并非原子流程，也未做App/实车验证。A53/A54入口静态复核已结束。A50已补齐ID91开启SOS前的同VIN完整联系人门槛；ID91云端配置链路静态完整，仍未做App/云端/车辆运行验证。A46已补齐ID62独立座椅加热排程CRUD；ID62总体仍PARTIAL。A47/A49确认ID41/88设备侧BLE音效应用保持PARTIAL/BLOCKED。
 
 ## 待处理（候选，须先证据复核）
 
@@ -32,7 +32,8 @@
 - 3：A40已接通`l76`解析→`TtpExtendedInfo`→Controller→ID3 UI的LIVE_TTP读取；只接受raw 0/1。现有11/12写入保持原状，运行态/车辆确认未验证。
 - 2：A41确认原页特定关闭命令要求w2非空、H6/F1为true且W0为true；W0检查VehicleDataBean.vehicleConfig父1021及子29。KMP未证实H6/F1对应来源，特定车型分支保持BLOCKED；继续仅允许已有证明安全的路径，不新增帧或推断权限映射。
 - 75：原页和内联均读iotRemoveAlarm；P4/s20对非null Boolean固定写tamperProofIotEnable=1，0关闭缺证据，已阻止。原FA帧受保护边界限制；不补帧、不将字段名当云端配置读取证据。
-- 51事务关联、77排程、33模式、93当前值、复杂独立页面：复核后逐项列出BLOCKED/PARTIAL原因；此处不是最终判定。
+- 51：A56已核对`ble_sync_gauge_time`事件、`MainActivityLogic.q0`及C0编码分支；KMP缺独立同步操作状态与触发路径。不能与C1开关写入共用一个结果；保持PARTIAL/BLOCKED，待实现独立操作及失败重试状态。
+- 77排程、33模式、93当前值、复杂独立页面：复核后逐项列出BLOCKED/PARTIAL原因；此处不是最终判定。
 
 ## 恢复规则
 

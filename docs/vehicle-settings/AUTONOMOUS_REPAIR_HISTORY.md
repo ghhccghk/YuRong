@@ -1,5 +1,13 @@
 # 自主修复历史
 
+## A56（静态复核完成，BLOCKED，无代码改动）
+
+- 设置项：ID51 仪表时间同步。起始 HEAD：`3c326495374424f1d149db3d92650341e71e973b`，分支 `master`；tracked/index 初始干净，已有 untracked 日志、APK、JADX、截图及用户文档均保持未暂存。
+- Smali：`BleMeterTimeSyncActivity.onSwClick:67–187` 在启用开关时延迟2秒发布 `ble_sync_gauge_time`；`VehicleService` 检测 `syncTimeResultStatus==5` 后以1秒延迟发布同一事件（仅一次门控）；`MainActivityLogic.W0:2037` 接事件并调用 `q0:6464–6485`；`q0` 从 `DateUtils.getCurrentHMS:39–107` 取得本地 `%02d%02d%02d` 的 HHmmss，转Int后发 `COMMAND_CONST_TIME_SYNC`。`qg.smali:~2530` 映射C0；`BleBicycleCommandManager.generateBleCommand:~1290–1368` 以40字节FF后接时/分/秒三段 `decInt2hexString`。原状态开关命令另走C1。
+- KMP：ID51有C1开关映射、`TimeSyncStatusReport`来源/同VIN回显和未知目标保护；`VehicleSettingFrameEncoder` 无C0，`TimeSyncSettingsSafetyTest` 明确断言C0无法编码。KMP未建模事件触发、status 5失败重试或独立同步操作结果。
+- 判定：没有把C0塞进C1写入器。现有写入结果只描述开关命令；若把第二条命令合并，可能在开关已被车辆接受、校时发送失败时错误回滚开关，也会丢失单独的同步状态。安全修复需要独立同步操作状态、明确触发入口，以及对raw status 5的证据化解析/确认策略；本批只审计，未触碰源代码。
+- 验证：静态Smali/KMP调用链复核；没有运行测试或构建（文档更新批次）；未运行App、网络、BLE或车辆操作。等级：`STATIC_FLOW_VERIFIED`、`PARTIAL`、`BLOCKED`。无提交（待本次文档记录精确提交）。
+
 ## 任务起点
 
 - 日期：2026-11-12。
