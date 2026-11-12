@@ -501,4 +501,4 @@
 - 共享编译：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0。
 - Android/Desktop：`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。`git diff --check`退出0。
 - 状态：ID47读取修正达到`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；ID48本批为静态复核。未执行App运行、云端请求、BLE或车辆操作，故无`RUNTIME_VERIFIED`/`VEHICLE_VERIFIED`。
-- 提交前与提交后HEAD、文件清单、工作区状态在本节提交完成后追加。
+- 功能提交：`569a0e98d54abd1c599bff0a61f7a854b7a2bd34`（`fix: complete vehicle setting charge power readback`），5个文件，内容仅限ID47/48、测试和三份审计文档。提交后HEAD为该Hash；tracked/index干净，既有untracked文件保持未暂存。
