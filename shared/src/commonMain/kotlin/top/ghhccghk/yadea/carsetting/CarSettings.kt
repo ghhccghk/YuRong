@@ -79,6 +79,37 @@ internal object AlarmSensitivityMapping {
     }
 }
 
+/** X1 TTP levels are raw ordinals while the original UI uses three percentage ticks. */
+internal object X1GearMapping {
+    fun autoUnlockProgress(raw: Int): Float? = when (raw) {
+        0 -> 0f
+        1 -> 50f
+        2 -> 100f
+        else -> null
+    }
+
+    fun autoUnlockLevel(progress: Float): Int? = when (progress) {
+        0f -> 0
+        50f -> 1
+        100f -> 2
+        else -> null
+    }
+
+    fun energyRecoveryProgress(raw: Int): Float? = when (raw) {
+        1 -> 0f
+        2 -> 50f
+        3 -> 100f
+        else -> null
+    }
+
+    fun energyRecoveryLevel(progress: Float): Int? = when (progress) {
+        0f -> 1
+        50f -> 2
+        100f -> 3
+        else -> null
+    }
+}
+
 internal object AdaptivePush64Mapping {
     fun checkedFromRaw(raw: Int): Boolean? = when (raw) {
         0, 2 -> false
@@ -594,7 +625,9 @@ class CarSettingsController(
         val originalKind = if (item.configId == "71")
             _state.value.valueState(id).configuredValue ?: item.kind else item.kind
         if (!CarSettingItemAccess.canWrite(item) || hasActiveSettingWrite(item)) return false
-        if (_state.value.vin.isNotBlank() && _state.value.vin != vinProvider().trim()) return false
+        val currentVin = vinProvider().trim()
+        if (_state.value.vin.isNotBlank() && _state.value.vin != currentVin) return false
+        if (!x1AutoUnlockLevelEnabled(_state.value, item, currentVin)) return false
         if (!hasKnownSettingValue(item)) return false
         val target = transform(editable)
         if (!validRadarTarget(item, target) || !validDraftTarget(originalKind, target) || !validOneKeyDistanceTarget(item, target) || !validSpeedTarget(item, target) ||
@@ -666,6 +699,14 @@ class CarSettingsController(
                 else -> false
             }
         }
+    }
+
+    private fun x1AutoUnlockLevelEnabled(state: CarSettingsState, item: CarSettingItem, vin: String): Boolean {
+        if (item.id != "cloud:002:level") return true
+        val observed = state.valueState("cloud:002:enable").vehicleValue as? VehicleSettingValue.Known ?: return false
+        val toggle = observed.kind as? CarSettingKind.Toggle ?: return false
+        return observed.vin == vin && observed.source == SettingValueSource.LIVE_TTP && observed.live &&
+            toggle.valueKnown && toggle.checked
     }
 
     private fun validTarget(original: CarSettingKind, target: CarSettingKind): Boolean = when {
@@ -834,6 +875,10 @@ class CarSettingsController(
 
         val vin = vinProvider().trim()
         if (current.vin.isNotBlank() && current.vin != vin) return false
+        if (!x1AutoUnlockLevelEnabled(current, item, vin)) {
+            _state.value = current.copy(message = "请先开启感应自动开关机并等待车辆回读确认")
+            return false
+        }
         if (!hasKnownSettingValue(item)) return false
         val target = transform(editable)
         val hibernateCurrent = current.valueState(id).copy(draftValue = null).editableKind(item.kind) as? CarSettingKind.Toggle
@@ -1404,7 +1449,7 @@ class CarSettingsController(
                         status.extended.bleAutoTurnOnOffStatus.flagOrNull(),
                     )
                     item.kind is CarSettingKind.Slider -> item.withSlider(
-                        status.extended.bleAutoTurnOnOffGearStatus.floatIn(0..2),
+                        X1GearMapping.autoUnlockProgress(status.extended.bleAutoTurnOnOffGearStatus),
                     )
                     else -> item
                 }
@@ -1413,7 +1458,7 @@ class CarSettingsController(
                         status.extended.brakeModePowerRecoverFunctionStatus.flagOrNull(),
                     )
                     item.kind is CarSettingKind.Slider -> item.withSlider(
-                        status.extended.brakeModePowerRecoverGearStatus.floatIn(1..3),
+                        X1GearMapping.energyRecoveryProgress(status.extended.brakeModePowerRecoverGearStatus),
                     )
                     else -> item
                 }

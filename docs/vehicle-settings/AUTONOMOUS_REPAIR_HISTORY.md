@@ -442,3 +442,13 @@
 - 精准Fake测试命令覆盖`unsupportedVolumeReadbacksRemainUnknown`、草稿/取消、失败期间回读、旧值/缺失字段与新鲜匹配、发送期间回读、非法目标及第二批稳定命令映射；首次运行7项中5项通过，2项因Fake漏掉UI显式选择的`valueKnown=true`失败，修正测试夹具后7/7通过，未放宽断言。
 - JVM/JS/Wasm/测试源码编译命令退出0；Android Debug/Desktop离线构建命令退出0；`git diff --check`退出0。测试只用Fake，不连接网络/BLE/车辆；没有运行App，无RUNTIME_VERIFIED或VEHICLE_VERIFIED。
 - 状态：ID20既有生产链路不变；本批为测试回归维护，等级UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED。精确提交：`e5b9b968055a7841f1612ff06f10cfc0a3a2ff06`（`test: align volume fixtures with confirmed three-level mapping`）。
+
+## A37（X1 设置 001/002/003 TTP 与 UI 档位映射）
+
+- 起始HEAD：`f93c4dce1d11627fb2dc678b2e80d62b7347b84f`，分支`master`；tracked/index干净。既有未跟踪文件和目录保留、不纳入本批。
+- Smali证据：`X1DistanceUnitActivity.getSettingConfigId:182–190`=001，命令`METRIC_SYSTEM_SETTING`/`BRITISH_SYSTEM_SETTING`；`BleNearlyAutoUnlockActivity.getSettingConfigId:182–190`=002，`X1EnergyRecoveryActivity.getSettingConfigId:182–190`=003。`X1VehicleSettingViewModel.z1:1554–1845`回填相关TTP字段；002 raw档位0/1/2对应LiveData滑块0/50/100，003 raw档位1/2/3对应0/50/100。`BleNearlyAutoUnlockActivity$a.a/b:44–75`下发原始档位0..2；`X1EnergyRecoveryActivity$a.a/b:40–72`下发thumbPosition+1即1..3。开关正数raw仅1为开、负哨兵未报告；原始字段解析见`l76.smali`。
+- 修改前缺陷：KMP读取链已回填同VIN TTP，但002/003显示 raw ordinal 而非原 App 百分比刻度；命令转换对浮点中间值使用取整/钳位；002档位命令还缺少原 App要求的开关已开门控。
+- 修改文件：`CarSettings.kt`新增`X1GearMapping`，将可信TTP raw转换成0/50/100%，未知档位保持UNKNOWN，并在草稿及直接更新入口验证002开关为同VIN有效LIVE_TTP开启；`CarSettingsGateway.kt`用0..100%未知初始Slider表达原生刻度；`VehicleSettingCommands.kt`拒绝unknown/非精确刻度，并反向映射回原始命令档位；`CarSettingsScreen.kt`在开关未知或关闭时禁用002档位控件；`FifthRoundX1MappingTest.kt`覆盖映射、稳定条目、Controller Fake回填、VIN/LIVE来源、configuredValue不串写、UNKNOWN样本及前置门控。更新功能矩阵、队列和历史文档。
+- 测试：`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.FifthRoundX1MappingTest" --offline --console=plain`通过7/7。覆盖001/002/003拆分、0/50/100转换、非法值和非刻度拒绝、命令参数、TTP回填来源、UNKNOWN，以及002未知/关闭开关时Controller草稿和直接更新均拒绝。测试仅使用内存Gateway/Writer，无真实网络、BLE。
+- 构建：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0。Android/Desktop默认4GiB daemon 首次在R8阶段因native memory不足崩溃（退出1）；使用`--no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx2048M...`离线重试后`:androidApp:assembleDebug :desktopApp:build`退出0。崩溃日志留在工作区且不纳入提交。
+- 验证等级：STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。提交Hash待补录。

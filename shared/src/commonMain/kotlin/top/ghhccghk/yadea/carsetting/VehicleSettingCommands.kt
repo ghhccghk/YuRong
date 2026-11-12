@@ -945,10 +945,11 @@ object VehicleSettingCommands {
             )
             "cloud:002:level" -> {
                 val slider = item.kind as? CarSettingKind.Slider ?: return null
+                if (!slider.valueKnown) return null
                 return VehicleSettingCommand(
                     commandType = "AUTO_TURN_ON_OFF",
                     commandId = 0x5E,
-                    parameter = slider.value.toInt().coerceIn(0, 2),
+                    parameter = X1GearMapping.autoUnlockLevel(slider.value) ?: return null,
                 )
             }
             "cloud:003:enable" -> return toggle(
@@ -960,10 +961,11 @@ object VehicleSettingCommands {
             )
             "cloud:003:level" -> {
                 val slider = item.kind as? CarSettingKind.Slider ?: return null
+                if (!slider.valueKnown) return null
                 return VehicleSettingCommand(
                     commandType = "BRAKE_RECOVER_LEVEL",
                     commandId = 0x3D,
-                    parameter = slider.value.toInt().coerceIn(1, 3),
+                    parameter = X1GearMapping.energyRecoveryLevel(slider.value) ?: return null,
                 )
             }
             "cloud:1:enable" -> return toggle(

@@ -14,9 +14,9 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 
 | confId / 项目 | 原 App 页面及 getSettingConfigId 位置 | TTP 字段（当前 KMP 消费） | BLE 命令索引 | 云端字段/实际链路与缺口 | 优先级/状态/批次 |
 |---|---|---|---|---|---|
-| 001 X1 距离单位 | com/yadea/smartmoto/vehicle/view/X1DistanceUnitActivity.smali:187 | metricSystemStatus | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 002 X1 感应自动开关机 | com/yadea/smartmoto/vehicle/view/BleNearlyAutoUnlockActivity.smali:182 | bleAutoTurnOnOffGearStatus, bleAutoTurnOnOffStatus | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
-| 003 X1 制动能量回收 | com/yadea/smartmoto/vehicle/view/X1EnergyRecoveryActivity.smali:182 | brakeModePowerRecoverFunctionStatus, brakeModePowerRecoverGearStatus | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 001 X1 距离单位 | `X1DistanceUnitActivity.getSettingConfigId:182–190` | `metricSystemStatus`，TTP 0/1 | `METRIC_SYSTEM_SETTING`/0x89、`BRITISH_SYSTEM_SETTING`/0x8A | KMP `cloud:001` Choice 只由同 VIN TTP 回填；云端条目只提供目录/权限，不设 configuredValue；BLE Writer 经 `forItem` 路由 | P1 / PARTIAL（STATIC/Fake/build；无运行验证）/ A37 |
+| 002 X1 感应自动开关机 | `BleNearlyAutoUnlockActivity.getSettingConfigId:182–190` | `bleAutoTurnOnOffStatus`、`bleAutoTurnOnOffGearStatus`；开关负哨兵 UNKNOWN，原页正数中仅1为开、其他为关；档位0..2 ↔ UI 0/50/100% | `AUTO_TURN_ON_OFF_OPEN/CLOSE`、`AUTO_TURN_ON_OFF`；0x5C/0x5D/0x5E；档位只允许LIVE开关回读为开时提交 | KMP 稳定拆分 `cloud:002:enable/level`；TTP 分别回填，Controller/UI均要求同VIN有效LIVE开关已开启；目录不充当当前值 | P1 / PARTIAL（STATIC/Fake/build；无运行验证）/ A37 |
+| 003 X1 制动能量回收 | `X1EnergyRecoveryActivity.getSettingConfigId:182–190` | `brakeModePowerRecoverFunctionStatus`、`brakeModePowerRecoverGearStatus`；开关负哨兵 UNKNOWN；档位1..3 ↔ UI 0/50/100% | `BRAKE_RECOVER_OPEN/CLOSE`、`BRAKE_RECOVER_LEVEL`；0x15/0x16/0x3D；档位参数为UI刻度逆映射 | KMP 稳定拆分 `cloud:003:enable/level`；TTP 分别回填，Slider显示百分比且不将目录值当作当前值 | P1 / PARTIAL（STATIC/Fake/build；无运行验证）/ A37 |
 | 1 一键开机 | `OneKeyDistanceActivity.getSettingConfigId:779`；`OneKeyOpenActivity.getSettingConfigId:4224`；`ModeGearView$onSeekChangeListener$1.a:87–178` | `bleKeyDistanceLevel`、`bleKeyStatus` | `cloud:1:distance` → `NEARBY_BLE_UNLOCK`/0x37；开关0x0D/0x0E | A27修复UNKNOWN/非整数/越界穿透和帧编码钳位；TTP 3位全1(raw7)按协议INVALID保持UNKNOWN；写入只记LOCAL_UPDATED，仍未实车确认 | P0安全 / PARTIAL（普通0..7命令档已STATIC_FLOW_VERIFIED、UNIT_TESTED、BUILD_VERIFIED；自定义标定仍BLOCKED）/ A27 |
 | 2 边撑感应 | vehicle/view/TempleInductionActivity.smali:40–173,209 | sideBraceStatus，严格0/1 | 0F开启；10独立关闭；原页条件分支AC | A15：关闭仅允许已有证据证明10安全的上下文；Controller/Writer/Mapper均保护，7/39共用锁开关互斥；没有猜选AC | P0 / PARTIAL / A15（不确定车型关闭分支BLOCKED，无运行/实车验证） |
 | 3 携出助力 | vehicle/view/SeatCushionSensorActivity.smali:50–108,144 | 原pushModeStatus，KMP原始模型/解析缺失 | CARRY_OUT_OPEN/CLOSE，11/12 | A15：独立BLE写入严格已知值/稳定ID；无可靠回填时UI保持UNKNOWN禁用；A34 Fake回归确认不能借用其他开关字段、缓存缺失保持空、云端接受仅保持WAITING_READBACK；没有借用seatPowerStatus等字段 | P1 / WRITE_ONLY，读取BLOCKED / A15/A34（无运行/实车验证） |
@@ -350,3 +350,13 @@ A10：33/33精确过滤测试、全部离线构建和diff检查退出0；STATIC_
 - 仅修正`EighthRoundValueStateTest.kt`和`SixthRoundActivityBatchTest.kt`：有效读数/提交值使用0..2，3..6与-1明确断言UNKNOWN；测试用户编辑时设置`valueKnown=true`。没有生产代码或命令映射修改。
 - 验证：精准7项Fake测试通过；共享JVM/JS/Wasm/测试源码编译通过；Android Debug/Desktop离线构建通过；`git diff --check`通过。首次精准运行5/7通过，另2项因Fake未标记显式用户选择为known而失败；修正夹具后7/7通过，未删除断言或放宽校验。
 - 状态：ID20原有实现STATIC_FLOW_VERIFIED、UNIT_TESTED、BUILD_VERIFIED；本批为回归夹具维护。未运行App或真实车辆，未标记RUNTIME_VERIFIED/VEHICLE_VERIFIED。精确提交`e5b9b968055a7841f1612ff06f10cfc0a3a2ff06`。
+
+## A37：X1 设置 001/002/003 TTP 与三档 UI 映射
+
+- 起始 HEAD：`f93c4dce1d11627fb2dc678b2e80d62b7347b84f`，`master`；tracked/index 原先干净，保留已有未跟踪内容。
+- Smali：`X1DistanceUnitActivity.getSettingConfigId:182–190` 返回001，选项命令为 `METRIC_SYSTEM_SETTING`/`BRITISH_SYSTEM_SETTING`；`BleNearlyAutoUnlockActivity.getSettingConfigId:182–190` 返回002，`X1EnergyRecoveryActivity.getSettingConfigId:182–190` 返回003。`X1VehicleSettingViewModel.z1:1554–1845` 消费字段：002开关raw==1为开、非负其他值为关，负值不回填；002档位0/1/2映射滑块0/50/100；003开关仅raw==1为开、负值不回填；003档位1/2/3映射滑块0/50/100。`BleNearlyAutoUnlockActivity$a.a/b`发送滑块原始档位0..2；`X1EnergyRecoveryActivity$a.a/b`发送`thumbPosition+1`（1..3）。TTP位字段由`l76.smali`解析。
+- 修改前差异：KMP已将五个值回填到稳定条目，但002/003把TTP档位raw直接呈现为“档”，与原 App 百分比滑块不一致；命令映射依赖取整/钳位；002还缺少原页“只有自动开启后才提交档位”的门控。
+- 修复：新增`X1GearMapping`严格互逆转换；TTP raw映射到UI `0/50/100%`，云端目录生成的两个Slider都保持 `valueKnown=false`、0..100范围及两步间隔；最终命令入口只接受已知的精确0/50/100刻度并转换回原始BLE参数。002 UI与Controller草稿/直接更新入口均要求同VIN有效LIVE_TTP开关回读为开。非法/越界/UNKNOWN仍不生成命令。云端目录不伪装configuredValue。
+- Fake测试：`FifthRoundX1MappingTest`覆盖条目拆分和未知初始值、两种滑块全部 raw/UI 方向映射、非法原始值与非刻度拒绝、命令类型/ID/原始参数、Controller的VIN/live来源回填及configuredValue隔离、负哨兵/非法值UNKNOWN，以及002开关UNKNOWN/关闭/开启时两个Controller入口的门控。
+- 验证：过滤测试7/7；`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。均为离线/Fake；无App运行、真实网络、BLE或车辆验证。
+- 状态：`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；运行态整体`PARTIAL`，无`RUNTIME_VERIFIED`/`VEHICLE_VERIFIED`。批次待精确提交。

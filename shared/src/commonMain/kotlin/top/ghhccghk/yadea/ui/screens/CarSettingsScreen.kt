@@ -36,6 +36,7 @@ import top.ghhccghk.yadea.carsetting.CarSettingKind
 import top.ghhccghk.yadea.carsetting.CarSettingItemAccess
 import top.ghhccghk.yadea.carsetting.CarSettingValueState
 import top.ghhccghk.yadea.carsetting.VehicleSettingValue
+import top.ghhccghk.yadea.carsetting.SettingValueSource
 import top.ghhccghk.yadea.carsetting.SettingWriteState
 import top.ghhccghk.yadea.carsetting.SettingConfirmationState
 import top.ghhccghk.yadea.carsetting.CarSettingWriteChannel
@@ -213,6 +214,14 @@ fun CarSettingsScreen(
             "声浪设备状态未确认或当前不可用，请等待车辆回读"
         } else if (item.configId == "86" && !VolumeBrightnessSettings.canEdit(item, state)) {
             "请先开启亮度调节并等待车辆回读确认"
+        } else if (item.id == "cloud:002:level" && run {
+                val observed = state.valueState("cloud:002:enable").vehicleValue as? VehicleSettingValue.Known
+                val toggle = observed?.kind as? CarSettingKind.Toggle
+                observed?.vin != state.vin || observed.source != SettingValueSource.LIVE_TTP || !observed.live ||
+                    toggle?.let { it.valueKnown && it.checked } != true
+            }
+        ) {
+            "请先开启感应自动开关机并等待车辆回读确认"
         } else if (!EnergyRecoverySettings.canEdit(item, state)) {
             "请先开启能量回收并等待车辆回读确认"
         } else {

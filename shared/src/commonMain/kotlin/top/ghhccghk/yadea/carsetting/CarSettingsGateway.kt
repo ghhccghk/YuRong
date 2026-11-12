@@ -1159,7 +1159,7 @@ object CloudCarSettingMapper {
                 val classification = classificationOf(x1Id, config)
                 val group = groupOf(config, classification)
                 val sort = config.sort.toIntOrNull() ?: 0
-                val levelTitle = if (x1Id == "002") "感应距离档位" else "制动回收档位"
+                val levelTitle = if (x1Id == "002") "感应距离" else "制动回收"
                 items += CarSettingItem(
                     id = "cloud:$x1Id:enable",
                     configId = x1Id,
@@ -1176,15 +1176,15 @@ object CloudCarSettingMapper {
                     id = "cloud:$x1Id:level",
                     configId = x1Id,
                     title = levelTitle,
-                    summary = if (x1Id == "002") "原 App 使用 0..2 档" else "原 App 使用 1..3 档",
+                    summary = "原 App 提供 0%、50%、100% 三档",
                     classification = classification,
                     group = group,
                     channel = CarSettingChannel.BLE,
                     kind = CarSettingKind.Slider(
-                        value = if (x1Id == "002") 0f else 1f,
-                        range = if (x1Id == "002") 0f..2f else 1f..3f,
+                        value = 0f,
+                        range = 0f..100f,
                         steps = 1,
-                        unit = " 档",
+                        unit = "%",
                         valueKnown = false,
                     ),
                     writable = config.isAuth != false,
