@@ -1,6 +1,8 @@
 package top.ghhccghk.yadea.vehicle
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -158,6 +160,63 @@ class EmergencyContactValidationTest {
     }
 
     @Test
+    fun contactsFromPreviousVinAreClearedAndCannotBeSavedToCurrentVin() {
+        var currentVin = "VIN-A"
+        val gateway = RecordingEmergencyContactGateway().apply {
+            contacts = EmergencyContacts(vin = "VIN-A", ownerMobile = "13900139000")
+        }
+        val scope = CoroutineScope(Dispatchers.Unconfined)
+        val controller = EmergencyContactController(
+            gateway = gateway,
+            vinProvider = { currentVin },
+            scope = scope,
+        )
+
+        controller.load()
+        assertEquals("VIN-A", controller.state.value.contacts?.vin)
+
+        currentVin = "VIN-B"
+        controller.load()
+        assertNull(controller.state.value.contacts)
+        controller.save(ContactType.Owner, "车主B", "13800138000")
+
+        assertEquals(0, gateway.saveCalls)
+        assertEquals("请先加载当前车辆联系人", controller.state.value.message)
+        controller.dispose()
+        scope.cancel()
+    }
+
+    @Test
+    fun lateLoadForPreviousVinCannotReplaceCurrentVinContacts() = runBlocking {
+        var currentVin = "VIN-A"
+        val oldVinResult = CompletableDeferred<EmergencyContacts?>()
+        val loadVins = mutableListOf<String>()
+        val gateway = object : EmergencyContactGateway {
+            override suspend fun load(vin: String): EmergencyContacts? {
+                loadVins += vin
+                return if (vin == "VIN-A") oldVinResult.await()
+                else EmergencyContacts(vin = vin, ownerName = "车主B")
+            }
+
+            override suspend fun save(vin: String, type: ContactType, name: String, mobile: String) = true
+        }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val controller = EmergencyContactController(gateway, { currentVin }, scope = scope)
+
+        controller.load()
+        currentVin = "VIN-B"
+        controller.load()
+        oldVinResult.complete(EmergencyContacts(vin = "VIN-A", ownerName = "车主A"))
+
+        assertEquals(listOf("VIN-A", "VIN-B"), loadVins)
+        assertEquals("VIN-B", controller.state.value.contacts?.vin)
+        assertEquals("车主B", controller.state.value.contacts?.ownerName)
+        assertNull(controller.state.value.message)
+        controller.dispose()
+        scope.cancel()
+    }
+
+    @Test
     fun contactNameInputMatchesConfirmedEmojiRanges() {
         assertEquals(
             "车主",
@@ -166,7 +225,7 @@ class EmergencyContactValidationTest {
             ),
         )
         assertEquals(
-            "\uD83C\uDEFF\uD83D\uDE50\uD83D\uDF00\u27C0\uFE10\uD83E\uDE00\uD83E\uDF00",
+            "\uD83C\uDEFF\uD83D\uDFFF\uD83D\uDE50\uD83D\uDF00\u27C0\uFE10\uD83E\uDE00\uD83E\uDF00",
             sanitizeContactNameInput(
                 "\uD83C\uDEFF\uD83C\uDF00\uD83D\uDFFF\uD83D\uDE00\uD83D\uDE4F\uD83D\uDE50" +
                     "\uD83D\uDE80\uD83D\uDEFF\uD83D\uDF00\u2600\u27BF\u27C0" +

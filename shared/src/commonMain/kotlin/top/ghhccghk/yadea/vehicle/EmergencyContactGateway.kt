@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 import top.ghhccghk.yadea.auth.Crypto
 import top.ghhccghk.yadea.auth.GatewaySigner
 import top.ghhccghk.yadea.network.GatewayClientInfo
@@ -215,19 +216,46 @@ class EmergencyContactController(
     private val _state = MutableStateFlow(EmergencyContactUiState())
     val state: StateFlow<EmergencyContactUiState> = _state.asStateFlow()
     private var job: Job? = null
+    private var requestGeneration = 0L
+    private var requestVin: String? = null
 
     fun load() {
         val gateway = gateway ?: return
         val vin = vinProvider().trim()
-        if (vin.isBlank() || job?.isActive == true) return
+        if (vin.isBlank()) {
+            requestGeneration++
+            requestVin = null
+            job?.cancel()
+            job = null
+            _state.value = EmergencyContactUiState()
+            return
+        }
+        if (job?.isActive == true && requestVin == vin) return
+        val generation = ++requestGeneration
+        requestVin = vin
+        job?.cancel()
+        val retainedContacts = _state.value.contacts?.takeIf { it.vin == vin }
+        _state.value = _state.value.copy(
+            loading = true,
+            savingType = null,
+            contacts = retainedContacts,
+            message = null,
+            success = false,
+        )
         job = scope.launch {
-            _state.value = _state.value.copy(loading = true, message = null)
-            val contacts = runCatching { gateway.load(vin) }
-                .getOrNull()
+            val loaded = try {
+                gateway.load(vin)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
+            if (!isCurrentRequest(generation, vin)) return@launch
+            val contacts = loaded?.takeIf { it.vin == vin }
                 ?.withOwnerMobileFallback(ownerMobileFallbackProvider)
             _state.value = _state.value.copy(
                 loading = false,
-                contacts = contacts ?: _state.value.contacts,
+                contacts = contacts ?: retainedContacts,
                 message = if (contacts == null) "紧急联系人加载失败" else null,
                 success = contacts != null,
             )
@@ -238,7 +266,7 @@ class EmergencyContactController(
         val gateway = gateway ?: return
         val vin = vinProvider().trim()
         if (vin.isBlank() || job?.isActive == true) return
-        val contacts = _state.value.contacts
+        val contacts = _state.value.contacts?.takeIf { it.vin == vin }
         val otherMobile = when (type) {
             ContactType.Owner -> contacts?.emergencyMobile.orEmpty()
             ContactType.Emergency -> contacts?.ownerMobile.orEmpty()
@@ -257,25 +285,47 @@ class EmergencyContactController(
             )
             return
         }
+        if (contacts == null) {
+            _state.value = _state.value.copy(
+                savingType = null,
+                message = "请先加载当前车辆联系人",
+                success = false,
+            )
+            return
+        }
+        val generation = ++requestGeneration
+        requestVin = vin
         job = scope.launch {
             _state.value = _state.value.copy(
                 savingType = type,
                 message = null,
                 success = false,
             )
-            val saved = runCatching { gateway.save(vin, type, name, mobile) }
-                .getOrDefault(false)
-            val contacts = if (saved) {
-                runCatching { gateway.load(vin) }
-                    .getOrNull()
-                    ?.withOwnerMobileFallback(ownerMobileFallbackProvider)
-                    ?: _state.value.contacts
-            } else {
-                _state.value.contacts
+            val saved = try {
+                gateway.save(vin, type, name, mobile)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                false
             }
+            if (!isCurrentRequest(generation, vin)) return@launch
+            val reloaded = if (saved) {
+                try {
+                    gateway.load(vin)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    null
+                }
+            } else {
+                null
+            }
+            if (!isCurrentRequest(generation, vin)) return@launch
+            val updatedContacts = reloaded?.takeIf { it.vin == vin }
+                ?.withOwnerMobileFallback(ownerMobileFallbackProvider) ?: contacts
             _state.value = _state.value.copy(
                 savingType = null,
-                contacts = contacts,
+                contacts = updatedContacts,
                 message = if (saved) "联系人已保存" else "联系人保存失败",
                 success = saved,
             )
@@ -294,7 +344,12 @@ class EmergencyContactController(
     }
 
     fun dispose() {
+        requestGeneration++
+        requestVin = null
         job?.cancel()
         job = null
     }
+
+    private fun isCurrentRequest(generation: Long, vin: String): Boolean =
+        requestGeneration == generation && requestVin == vin && vinProvider().trim() == vin
 }

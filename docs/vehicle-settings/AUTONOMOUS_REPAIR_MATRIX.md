@@ -36,7 +36,7 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 19 自动大灯 | com/yadea/smartmoto/vehicle/view/AutomaticLightActivity.smali:144 | automaticHeadlightFunctionStatus | AUTOMATIC_HEADLIGHT_CLOSE, AUTOMATIC_HEADLIGHT_OPEN | A06：严格已知开关/稳定ID/失效观察降级；同VIN新鲜回读确认。36关闭二次确认；53无已证实云端配置，禁用猜测字段 | P0 / COMPLETE / A06（BLE；无运行/实车验证） |
 | 20 车辆音量 | com/yadea/smartmoto/vehicle/view/VehicleVolumeActivity.smali:87 | alarmWarningVolumeLevel | VOLUME | A11：原页0/1/2三档；拒绝默认未知、取整钳位和越界观察；独立回读确认 | P0 / COMPLETE / A11（BLE；无运行/实车验证） |
 | 21 伴我回家灯 | com/yadea/smartmoto/vehicle/view/BackLightActivity.smali:178 | withGoHomeStatus, withGoHomeTimeStatus | COMMAND_WITH_GO_HOME_CLOSE, COMMAND_WITH_GO_HOME_OPEN, COMMAND_WITH_GO_HOME_TIME_SETTING | A02：BLE0x83/84、0x85索引0..3=15/30/45/60秒；开关和时间独立 | P1 / COMPLETE / A02 |
-| 24 紧急联系人 | com/yadea/smartmoto/vehicle/view/EmergencyContactActivity.smali:964 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 24 紧急联系人 | `EmergencyContactActivity.getSettingConfigId:964`；`SosContactActivity.getSettingConfigIdList:1083` | EmergencyContactsData云端`userName/userMobile/emergencyContactName/emergencyContactMobile` | 不走车辆BLE；VM.R6查询、s6保存 | KMP共用`YadeaEmergencyContactGateway` select/insert；A26修正VIN隔离、取消传播及旧请求保护；Android已注入，其他平台未接入 | P1 / PARTIAL（云端读写；跨平台入口/回读确认不完整） / A26 |
 | 25 密码解锁 | com/yadea/smartmoto/vehicle/pwdunlock/PassWordUnlockActivity.smali:845 | passwordUnlockStatus | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 26 转向灯自动回位 | com/yadea/smartmoto/vehicle/view/TurnSignalActivity.smali:283 | turnSignalReturnsAutomaticallyStatus | COMMAND_DIRECTION_LIGHT_RESET_OFF, COMMAND_DIRECTION_LIGHT_RESET_ON | A06：严格已知开关/稳定ID/失效观察降级；同VIN新鲜回读确认。36关闭二次确认；53无已证实云端配置，禁用猜测字段 | P0 / COMPLETE / A06（BLE；无运行/实车验证） |
 | 27 设防模式 | com/yadea/smartmoto/vehicle/view/ArmedModeActivity.smali:231 | offModeStatus | FORTIFY_MODE_AUTO, FORTIFY_MODE_NO | A03：TTP回填已核；显式Choice→Controller→forItem→MappedWriter，最终边界拒绝未知/越界/伪造选项；无云端猜测 | P0 / COMPLETE / A03 |
@@ -85,7 +85,7 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 80 OTD 开关 | com/yadea/smartmoto/vehicle/view/OTDActivity.smali:296 | otdSwitch | COMMAND_OTD_SWITCH, COMMAND_OTD_SWITCH | A09：四项读写1开0关，修正三项参数反向；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A09（BLE；无运行/实车验证） |
 | 81 大灯延时 | com/yadea/smartmoto/vehicle/view/DelayLightActivity.smali:443 | withGoHomeStatus, withGoHomeTimeStatus | COMMAND_WITH_GO_HOME_CLOSE, COMMAND_WITH_GO_HOME_OPEN, COMMAND_WITH_GO_HOME_TIME_SETTING | A02：BLE0x83/84、0x85索引0..3=5/10/15/30秒；开关和时间独立 | P1 / COMPLETE / A02 |
 | 84 安全辅助小蓝灯 | com/yadea/smartmoto/vehicle/view/AssistDriveLightActivity.smali:330 | blueLightSwitch | BLE_CONFIG_ASSIST_DRIVE_LIGHT, BLE_CONFIG_ASSIST_DRIVE_LIGHT | A09：四项读写1开0关，修正三项参数反向；严格UNKNOWN/稳定ID/观察及最终参数保护 | P0 / COMPLETE / A09（BLE；无运行/实车验证） |
-| 85 SOS 联系人 | com/yadea/smartmoto/vehicle/view/SosContactActivity.smali:1933 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
+| 85 SOS 联系人 | `SosContactActivity.getSettingConfigId:1933`；`getSettingConfigIdList:1083`含24/91 | 与ID24共用EmergencyContactsData云端字段 | 不走车辆BLE；`addOwnerInfo`/`addContactInfo`→`insertData:1170`→VM.s6 | KMP ID85入口复用联系人BottomSheet和独立Gateway；A26修正跨VIN状态隔离；ID91 SOS开关仍单独映射 | P1 / PARTIAL（云端读写；跨平台入口/回读确认不完整） / A26 |
 | 86 仪表亮度调节 | com/yadea/smartmoto/vehicle/view/BrightnessAdjustmentActivity.smali:430 | brightnessAdjustSwitch, brightnessAdjustValue | BRIGHTNESS_ADJUST_SWITCH, BRIGHTNESS_ADJUST_VALUE | A11：开关与整数0..100独立；去除伪造80；UI连接/供电门控，Controller要求开关有效LIVE回读才调亮度；无已证实云端配置 | P0 / CONDITIONAL / A11（BLE；无运行/实车验证） |
 | 88 自定义音效 | 动态 Registry / 独立流程；待逐项绑定 | 无 Controller 分支；独立流程另查 | forItem / Cloud / 独立 Gateway 待核 | UI 已有目录类型；云端字段、Writer 与确认待复核 | P1 / PARTIAL / 待审 |
 | 89 辅助骑行 | vehicle/view/HelpPromotePlus2Activity:onCbClick94–130,onSwClick132–173；$a.a | customDriveLevelStatus0..2、customDriveSwitchStatus==2、helpCarState0/1 | A8/A9、D0=0/2、D1=0..2，均独立提交 | A23：保持89与64不同的D0参数；严格UNKNOWN/稳定ID/目标范围/失效观察；缓存、云端、接受与车辆确认分离 | P0 / COMPLETE（BLE静态/Fake；无运行/实车验证） / A23 |
@@ -121,6 +121,17 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 - 同页`RadarActivity$a`另有`COMMAND_RADAR_ALARM`，`qg:7118–7135`映射0x12F；当前证据不足以确定该滑杆合法域和完整状态回填，继续BLOCKED，不新增参数或入口。
 - `RadarSettingsSafetyTest`最终7/7通过，命令`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.RadarSettingsSafetyTest --offline --console=plain`退出0。初次测试误把TTP全1哨兵3当开启；根据Smali的`==1`及解析器哨兵规则修正为raw1开、raw0/2关、raw3 UNKNOWN，并新增哨兵回归用例。
 - `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。Fake-only，无真实云端、BLE或车辆操作。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。
+
+### A25：71 仪表同步配置
+
+- 见A25提交`3bf4645616b18f93e4db058e94d2797796d57597`及历史记录；云端配置读取/写入和复读已完成，仪表执行仍PARTIAL。
+
+### A26：24/85 联系人跨 VIN 状态隔离
+
+- `EmergencyContactActivity.getSettingConfigId:964`为24；`SosContactActivity.getSettingConfigId:1933`为85，`getSettingConfigIdList:1083`包含24/91。`VehicleSettingViewModel.R6:16868`请求`vehiclebase/bikeEmergencyContact/select`并以VIN查询；`Y3`提供联系人数据。
+- 两页的插入构造`vin/name/mobile/type`并调用`VehicleSettingViewModel.s6:30618`至`vehiclebase/bikeEmergencyContact/insert`；Owner callback传"1"，Emergency callback传"2"。这是云端联系人，不是BLE车辆命令。
+- KMP `CarSettingsScreen.kt:423–433,1353–1438`让24/85复用同一联系人BottomSheet；Android `MainActivity.kt:300`注入Gateway和当前VIN。A26修复Controller旧VIN数据暂留/误提交、取消吞噬和旧请求写回。其他平台尚未注入联系人Gateway，保持PARTIAL。
+- Fake过滤测试`EmergencyContactValidationTest` 8/8、`YadeaEmergencyContactGatewayTest` 1/1；共享JVM/JS/Wasm/测试源码编译及Android/Desktop构建退出0。无真实网络、App运行或车辆验证。
 
 ### A01：47/48/60/62（独立复审完成）
 
