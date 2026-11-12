@@ -6,7 +6,13 @@
 - Smali：`BleMeterTimeSyncActivity.onSwClick:67–187` 在启用开关时延迟2秒发布 `ble_sync_gauge_time`；`VehicleService` 检测 `syncTimeResultStatus==5` 后以1秒延迟发布同一事件（仅一次门控）；`MainActivityLogic.W0:2037` 接事件并调用 `q0:6464–6485`；`q0` 从 `DateUtils.getCurrentHMS:39–107` 取得本地 `%02d%02d%02d` 的 HHmmss，转Int后发 `COMMAND_CONST_TIME_SYNC`。`qg.smali:~2530` 映射C0；`BleBicycleCommandManager.generateBleCommand:~1290–1368` 以40字节FF后接时/分/秒三段 `decInt2hexString`。原状态开关命令另走C1。
 - KMP：ID51有C1开关映射、`TimeSyncStatusReport`来源/同VIN回显和未知目标保护；`VehicleSettingFrameEncoder` 无C0，`TimeSyncSettingsSafetyTest` 明确断言C0无法编码。KMP未建模事件触发、status 5失败重试或独立同步操作结果。
 - 判定：没有把C0塞进C1写入器。现有写入结果只描述开关命令；若把第二条命令合并，可能在开关已被车辆接受、校时发送失败时错误回滚开关，也会丢失单独的同步状态。安全修复需要独立同步操作状态、明确触发入口，以及对raw status 5的证据化解析/确认策略；本批只审计，未触碰源代码。
-- 验证：静态Smali/KMP调用链复核；没有运行测试或构建（文档更新批次）；未运行App、网络、BLE或车辆操作。等级：`STATIC_FLOW_VERIFIED`、`PARTIAL`、`BLOCKED`。无提交（待本次文档记录精确提交）。
+- 验证：静态Smali/KMP调用链复核；没有运行测试或构建（文档更新批次）；未运行App、网络、BLE或车辆操作。等级：`STATIC_FLOW_VERIFIED`、`PARTIAL`、`BLOCKED`。精确文档提交：`b002dea512fd343d4b2af02a21ef181d5d485aa8`。
+
+## A57（队列复核，文档-only）
+
+- 起始 HEAD：`b002dea512fd343d4b2af02a21ef181d5d485aa8`。核对队列、矩阵和既往提交：ID93已有A19最终拒绝保护；ID77已有A20–A22立即休眠及独立云端自动排程；ID41/88已有A47/A49设备音效数据/跨平台BLE契约阻塞；雷达滑杆已有A38参数域和回填证据阻塞。
+- 没有重复改业务代码。把这些仍未闭环项作为证据/架构阻塞保留，并同步队列与ID51精确提交哈希。
+- 仅静态文档核对；未运行测试、构建、App、云端、BLE或车辆操作。工作区原有untracked内容保持不变。
 
 ## 任务起点
 
