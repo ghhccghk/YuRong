@@ -4,7 +4,7 @@
 
 ## 正在处理
 
-- A25：71仪表同步配置开关；起点d4dbcf46e402b7e4d056fa5c46fae7e93adec2f5。Smali复核、CloudConfiguredValueRefreshTest 35/35、JVM/JS/Wasm/测试源码编译、Android/Desktop构建及git diff --check均通过；待最终staged diff复核和精确本地提交。独立“立即同步”接口暂不接入，仪表执行状态无可靠回读，保持PARTIAL。
+- 暂无。A25已提交；下一批候选先完成只读复核。
 
 ## 待处理（候选，须先证据复核）
 
@@ -28,6 +28,8 @@
 每批开始读本文件、地图、历史、HEAD和staged/unstaged/untracked；只从最近成功提交后继续。禁止清理或暂存用户原有12项未跟踪内容。未通过测试、构建、自审及精确diff时不提交；不调用真实网络/车辆。
 
 ## 已完成
+
+- A25：71仪表同步配置开关，提交`3bf4645616b18f93e4db058e94d2797796d57597`；35/35 Fake过滤测试、JVM/JS/Wasm/测试源码编译、Android/Desktop构建及`git diff --check`退出0。云端配置写入/复读已完成，仪表执行确认和独立立即同步流程仍PARTIAL；提交前保留12项既有untracked内容。
 
 - A24：69/70/78雷达开关，提交`d4dbcf46e402b7e4d056fa5c46fae7e93adec2f5`；7项Fake过滤测试及跨平台编译、Android/Desktop构建退出0；`COMMAND_RADAR_ALARM`/0x12F仍BLOCKED。原有12项untracked保持。
 

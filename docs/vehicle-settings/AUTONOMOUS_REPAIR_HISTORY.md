@@ -328,7 +328,7 @@
 
 - A24已提交`d4dbcf46e402b7e4d056fa5c46fae7e93adec2f5`（`fix: complete radar vehicle setting readback`），9文件。A25起点即该HEAD，master；tracked/index干净，保留原有12项untracked。
 
-## A25（ID71仪表同步配置开关）
+## A25（ID71仪表同步配置开关，已提交）
 
 - Smali证据：`GaugeSettingsActivity.getSettingConfigId:621–629`返回71；`observe$2.invoke`读取`CarSettingBean.bikeInfoSyncName`，只有整数1显示开启；`syncCarInfo:525–598`读取旧开关并取反后调用VM.Z8。`VehicleSettingViewModel.Z8:18810–18857`构造`bikeInfoSyncName`整数及VIN并调用`jp6.o`；`jp6.o:977–1039`发至`vehiclebase/bike-setting/updateBikeSetting`，`jp6$i.onSuccess`接收Boolean结果。原字段声明见`CarSettingBean.smali:35`。
 - 分离流程：`GaugeSettingsActivity.refreshCarInfo:512–523`调用VM.Z6；`Z6:18732–18783`以VIN调用`jp6.k`；`jp6.k:574–666`请求`protocol-lowfreq/bike-info-sync-name/refresh?vin=...`并带VIN body，返回只结束loading，未产生仪表状态回读。`GaugeSettingsActivity$e.onClick:95–153`另有车机配对跳转/车辆供电门控。本批不混同配置开关、即时刷新和配对入口。
@@ -336,3 +336,4 @@
 - 写入成功后使用现有`selectBikeSettingByVin`读取配置并比较目标。匹配只更新configuredValue并清除已读回的提交草稿，confirmationState仍UNKNOWN、readbackState=UNSUPPORTED、vehicleValue仍UNKNOWN；不调用通用confId结果轮询，不声称仪表执行或车辆确认。独立即时刷新动作未接入，保持PARTIAL。
 - 新增5项Fake-only用例覆盖精确字段/类型、缺失非法值拒绝、配置回填、云端复读与车辆确认分离（包括云端接受但复读不一致）及真实Cloud Writer路由不触发BLE fallback。最新过滤测试`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.CloudConfiguredValueRefreshTest" --offline`通过，35/35，失败/错误/跳过均0；没有真实网络/车辆请求。
 - 最新代码验证：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。
+- 本批提交`3bf4645616b18f93e4db058e94d2797796d57597`（`fix: complete vehicle setting gauge sync configuration`），精确7文件；提交后tracked工作区干净，分支相对上游ahead 45/behind 0，原有12组untracked保持。
