@@ -35,7 +35,7 @@
 
 ## 已完成
 
-- A46：ID62独立座椅加热排程，新增/更新/列表/删除/启停接入现有签名 HTTP Gateway 和局部 BottomSheet；严格UNKNOWN、VIN、权限、最多3项、HH:mm、重复/周日0映射、`status=0`开/`1`关及显式成功响应校验。Fake-only过滤测试、JVM/JS/Wasm/测试源码编译、Android Debug/Desktop构建最终结果见历史。提交待本批最终复审后记录。
+- A46：ID62独立座椅加热排程，新增/更新/列表/删除/启停接入现有签名 HTTP Gateway 和局部 BottomSheet；严格UNKNOWN、VIN、权限、最多3项、HH:mm、重复/周日0映射、`status=0`开/`1`关及显式成功响应校验。Fake-only过滤测试6/6，JVM/JS/Wasm/测试源码编译、Android Debug/Desktop构建通过。实现提交`97141aa`；审计记录单独提交。
 
 - A45：ID62移除未经Smali读取绑定证实的`seatHeating`/`seatHeatingLevel` configuredValue映射；未知开关/档位不再显示为OFF或默认选择，Controller阻止UNKNOWN目标编辑/提交。Fake 19/19、跨平台编译和Android/Desktop构建通过；实现提交`ab7b99b663d4c30e1718c527aa3d88111352f44b`。
 
