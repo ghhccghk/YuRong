@@ -1,5 +1,15 @@
 # 自主修复历史
 
+## A60：SOS 双向提交联系人门槛
+
+- 起始HEAD：`7092deba14a246bc12b301639fbee52b76746dc0`，master；tracked/index干净，保留原有14项untracked。A59实现提交即该HEAD。
+- Smali复核：`vehicle/view/SosContactActivity.onSwClick:1222–1430`先逐个检查车主姓名/电话及联系人姓名/电话，再检查网络，最后读取checked取反并调用VM.d9；没有关闭方向豁免。A50仅限制开启是实现遗漏，原UI本来已限制两方向。
+- 修复：CarSettingsController.update移除target.checked前置判断，两方向提交均要求既有sosContactReadyProvider给出当前VIN完整资料。拒绝发生在Writer/草稿提交前，不改已有值。没有新增云端参数或协议。
+- Fake-only：SosEmergencyCallSafetyTest 4/4、vehicle.EmergencyContactValidationTest 8/8，共12/12，失败/错误/跳过0。覆盖缺资料关闭不写入且保留开启状态、齐全资料允许开启及关闭、VIN切换拒绝旧联系人。首次过滤误写EmergencyContactValidationTest包名为carsetting，命令退出0但只执行4项；核对XML发现后改为vehicle包重新执行12项，未将未执行项计数。
+- 命令：`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.SosEmergencyCallSafetyTest --tests top.ghhccghk.yadea.vehicle.EmergencyContactValidationTest --offline --console=plain`退出0；共享JVM/JS/Wasm/测试源码离线编译退出0；Android Debug/Desktop离线构建退出0；git diff --check退出0。
+- 独立自审：重走原页→UI禁用→MainScreen联系人同VINProvider→Controller两方向重验→既有Writer/Builder，拒绝路径没有写入、值变化或伪造确认；修改限定ID91与Fake测试。A50历史“关闭不受限”由本批更正，不作为当前行为。
+- 验证等级：STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED。无RUNTIME_VERIFIED/VEHICLE_VERIFIED；整体仍PARTIAL。提交标题`fix: complete vehicle setting SOS contact guards`，精确Hash见后续恢复记录。
+
 ## A59：ID71 仪表车辆信息立即同步
 
 - 起始 HEAD：`4ec625ad6e36bb603e8763bd214a5c3e2007c174`，master；tracked/index干净，保留原有14项untracked。A58实现提交为该HEAD。

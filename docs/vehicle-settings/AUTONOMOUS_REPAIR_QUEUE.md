@@ -4,6 +4,8 @@
 
 ## 正在处理
 
+- A60：ID91直接Controller关闭也要求同VIN四项联系人，与原页及现有UI一致；修正A50仅限制开启的遗漏。专项Fake 12/12、共享编译和Android/Desktop构建退出0，待精确提交。其余设置不变。
+
 - A59已补ID71独立立即同步请求；44项Fake过滤及全部要求的离线构建通过，待精确提交。只在已加载当前VIN目录71且云端配置明确开启时允许；接受与仪表结果分开。special-only车型独立入口仍PARTIAL，继续审查剩余special页面。
 - A58已修复联系人/密码Controller在MainDestinationContent→VehicleHubScreen漏传；实现提交`4ec625ad6e36bb603e8763bd214a5c3e2007c174`。29项Fake过滤及所有要求构建通过。ID24/25/85/91整体仍PARTIAL，无运行/车辆验证。
 - ID51补充：C0试作已因触及受保护帧编码边界撤回；`l76.G`两位解析的结果域与VehicleService比较5分支冲突，raw5不能直接认作已证实失败码。保持BLOCKED，不重做该试作。

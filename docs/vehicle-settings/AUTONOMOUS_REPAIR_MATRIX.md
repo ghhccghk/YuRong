@@ -12,6 +12,8 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 
 ## 全集索引
 
+ID91更正（A60）：原页`SosContactActivity.onSwClick:1222–1430`先检查四项联系人，再读取checked并取反，两种方向均受门槛限制。A50“关闭不受限”的Controller行为与原页及现有UI不一致；现Controller两方向均要求同VIN完整联系人，拒绝时不调用Writer、不修改已有值。12项Fake及共享编译、Android/Desktop构建通过；未做运行或车辆验证。
+
 宿主补充（A58）：A42所述Android已实例化不等于UI已接通。MainDestinationContent→VehicleHubScreen漏传联系人/密码Controller，现显式转发同一实例，并移除内部参数默认null以防再次遗漏。ID24/85联系人管理、ID25密码管理、ID91联系人编辑的静态可达性已修复；非Android注入限制仍在。29项Fake及全部要求的离线构建通过，无App/车辆验证。
 
 ID51证据更正（A58）：下表早先“status 5失败重试”仅指VehicleService的比较分支，不是可信错误码映射。`l76.G:336`是两位解析，`11532–11539`写入syncTimeResultStatus只可能0/1/2或-1，与比较5冲突。缺C0编码且本任务禁止修改帧编码，实际同步保持BLOCKED；不得据此分支实现未经证实的失败确认。

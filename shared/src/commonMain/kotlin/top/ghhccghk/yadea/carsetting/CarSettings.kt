@@ -1020,7 +1020,8 @@ class CarSettingsController(
         }
         if (!hasKnownSettingValue(item)) return false
         val target = transform(editable)
-        if (item.configId == "91" && target is CarSettingKind.Toggle && target.checked &&
+        // SosContactActivity.onSwClick checks all four contact fields before either toggle direction.
+        if (item.configId == "91" && target is CarSettingKind.Toggle &&
             !sosContactReadyProvider(vin)
         ) {
             _state.value = current.copy(message = "请先补齐当前车辆的车主和紧急联系人信息")

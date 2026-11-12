@@ -71,7 +71,7 @@ class SosEmergencyCallSafetyTest {
     }
 
     @Test
-    fun currentVinContactEvidenceAllowsEnableAndMissingContactsDoNotBlockDisable() = runBlocking {
+    fun currentVinContactEvidenceAllowsEnableAndMissingContactsBlockDisable() = runBlocking {
         val writer = FakeWriter()
         val item = CarSettingItem(
             id = "cloud:91",
@@ -94,15 +94,22 @@ class SosEmergencyCallSafetyTest {
         assertTrue(controller.update("cloud:91") { CarSettingKind.Toggle(true) })
         assertEquals(true, (writer.writes.single().kind as CarSettingKind.Toggle).checked)
 
+        val disableWriter = FakeWriter()
         val disableController = CarSettingsController(
             initialItems = listOf(item.copy(kind = CarSettingKind.Toggle(true))),
-            writer = FakeWriter(),
+            writer = disableWriter,
             vinProvider = { "VIN-A" },
             debounceMs = 0L,
             statusPollAttempts = 0,
             sosContactReadyProvider = { false },
         )
-        assertTrue(disableController.update("cloud:91") { CarSettingKind.Toggle(false) })
+        assertFalse(disableController.update("cloud:91") { CarSettingKind.Toggle(false) })
+        assertTrue(disableWriter.writes.isEmpty())
+        assertEquals(true, (disableController.state.value.items.single().kind as CarSettingKind.Toggle).checked)
+        assertEquals("请先补齐当前车辆的车主和紧急联系人信息", disableController.state.value.message)
+
+        assertTrue(controller.update("cloud:91") { CarSettingKind.Toggle(false) })
+        assertEquals(listOf(true, false), writer.writes.map { (it.kind as CarSettingKind.Toggle).checked })
     }
 
     @Test
