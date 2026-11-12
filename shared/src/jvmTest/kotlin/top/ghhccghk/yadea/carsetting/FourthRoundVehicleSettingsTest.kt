@@ -3,6 +3,7 @@ package top.ghhccghk.yadea.carsetting
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import top.ghhccghk.yadea.vehicle.TtpInfoParser
@@ -139,6 +140,8 @@ class FourthRoundVehicleSettingsTest {
         assertNotNull(items.firstOrNull { it.id == "cloud:1:enable" })
         assertNotNull(items.firstOrNull { it.id == "cloud:1:distance" })
         assertNotNull(items.firstOrNull { it.id == "cloud:25" })
+        assertNull(CloudCarSettingMapper.configuredValue(cloud, items.first { it.id == "cloud:25" }))
+        assertNull(CloudCarSettingUpdateBuilder.build("25", CarSettingKind.Toggle(true), "VIN-A"))
         assertNotNull(items.firstOrNull { it.id == "cloud:73:config" })
     }
 }

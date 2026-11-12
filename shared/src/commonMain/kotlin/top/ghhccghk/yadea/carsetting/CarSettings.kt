@@ -316,6 +316,12 @@ data class CarSettingWriteResult(
     val hibernateMetadata: HibernateMetadataState? = null,
 )
 
+internal fun passwordUnlockStatusFlag(raw: Int): Boolean? = when (raw) {
+    0, 2 -> false
+    1 -> true
+    else -> null
+}
+
 object CarSettingItemAccess {
     private val splitSuffixes = mapOf(
         "7" to setOf("time"),
@@ -1411,7 +1417,7 @@ class CarSettingsController(
                     )
                     else -> item
                 }
-                "25" -> item.withToggle(status.extended.passwordUnlockStatus.flagOrNull())
+                "25" -> item.withToggle(passwordUnlockStatusFlag(status.extended.passwordUnlockStatus))
                 "73" -> when (item.kind) {
                     is CarSettingKind.Atmosphere -> AtmosphereSettings.observe(status.extended)?.let { item.copy(kind = it) } ?: item
                     else -> item.withToggle(status.extended.ambientStatus.takeIf { it in 0..1 }?.let { it == 1 })

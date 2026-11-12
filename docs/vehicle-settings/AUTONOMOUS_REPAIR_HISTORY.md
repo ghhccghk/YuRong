@@ -376,3 +376,14 @@
 - 验证：初次完整过滤发现既有Fake错误要求请求body明文包含`modelNo`；生产使用`GatewaySigner.formBody`，传输表单字段实际为`gatewaySign`/`gatewayTimestamp`。仅修正此测试断言，不改生产请求。最终`VehicleDiagnosticsTest` 6/6通过（含ID8未知响应、失败响应测试）；`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。
 - 验证等级：STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；未运行App/真实云端/车辆，服务端接受不等于车辆实际回读确认，状态PARTIAL。
 - 精确提交：待最终Git复核后记录。
+
+## A30（ID25密码解锁状态/配置来源收敛）
+
+- 起始HEAD：`3a57244a3ffb75dbe24ab60f580702f08a79f10c`，分支`master`；staged和tracked unstaged为空，保留原有12组untracked。
+- Smali证据：`PassWordUnlockActivity.getSettingConfigId:845–852`为25；`sendUnlockPasswordSetting:310–343`发送`BLE_CONFIG_COMMAND_PASSWORD_SETTING`并等待TTP；`toggleSwitch:464–508`用`COMMAND_PASSWORD_UNLOCK_OPEN`/`BLE_CONFIG_COMMAND_PASSWORD_UNLOCK`切换；`ch.smali:3788–3812,549–572,2894–2926`映射开启0x80、关闭0x81、设密0x82。`l76.smali:9714–9725`从TTP byte `0x31`解析passwordUnlockStatus及passwordUnlockSettingResult；`VehicleSettingViewModel.smali:21409+`消费状态；`PassWordUnlockActivity.updateUI:628–821`显示1开、0/2关、3特殊提示；成功提示须结果0且等待回读（`PassWordUnlockActivity$a.smali:84–145`）。
+- Smali另证实密码状态/存在/设置/重置/验证走独立`unlock/password/enable/get`、`exists`、`enable/update`及相关密码Gateway流程（`VehicleSettingViewModel.smali:17178+、17261+、29064+、25863+、29672+`）。全Smali搜索未找到`passwordUnlockEnable`与confId 25的绑定。
+- KMP原问题：`CarSettings.kt`以通用`flagOrNull`把TTP状态3折叠为关闭；`CarSettingsGateway.kt`把未证实的`passwordUnlockEnable`纳入通用配置标量、confId映射及更新字段映射。现有ID25专属BLE和密码管理路径独立保留。
+- 修复：TTP状态映射明确为0/2关闭、1开启；状态3、负值及其他未知编码不生成Boolean。移除ID25对`passwordUnlockEnable`的通用云配置/更新字段绑定，不改独立`VehiclePasswordGateway` API、ID25 BLE切换/设密命令和其他ID映射。Fake回归验证状态边界、未知云字段不成为configuredValue且不能构造confId25云更新。
+- 修改文件：`CarSettings.kt`、`CarSettingsGateway.kt`、`CloudConfiguredValueRefreshTest.kt`、`FourthRoundVehicleSettingsTest.kt`及本矩阵/队列/历史。
+- 验证：`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.CloudConfiguredValueRefreshTest" --tests "top.ghhccghk.yadea.carsetting.FourthRoundVehicleSettingsTest" --offline --console=plain`通过42/42（36+6，失败/错误/跳过0）；`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。首次过滤因新增断言缺少`assertNull`导入而在测试源码编译阶段失败；补导入后同命令通过，未改变生产代码验证强度。独立复审确认ID25 TTP映射、通用Cloud Mapper/Builder和BLE命令边界；`git diff --check`与提交复核待最终执行。
+- 状态仍为`PARTIAL`：跨云端密码管理与BLE设密/回读的状态协调和异常恢复仍需独立审计；没有App运行、真实云端或车辆验证。精确提交：待最终Git复核后记录。

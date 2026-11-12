@@ -309,7 +309,6 @@ object CloudCarSettingUpdateBuilder {
         "71" to "bikeInfoSyncName",
         "16" to "dumpAlarm",
         "24" to "emergencyContact",
-        "25" to "passwordUnlockEnable",
         "40" to "colorEggSoundEffect",
         "41" to "userDefinedSoundEffect",
         "52" to "bleUnlockOn",
@@ -985,7 +984,7 @@ class YadeaCarSettingsGateway(
             "colorEggSoundEffect", "cutPowerOn", "distance", "distanceOn", "centerCircleLon", "centerCircleLat",
             "dumpAlarm", "emergencyContact", "highestSpeedLimit", "lowBatTelWarning",
             "lowBatWarningEndTime", "lowBatWarningStartTime", "modeOn", "nfcOn",
-            "offlineLock", "offlineLockValue", "onOffSound", "passwordUnlockEnable", "positioningFunc",
+            "offlineLock", "offlineLockValue", "onOffSound", "positioningFunc",
             "rechargeAppointment", "rechargeAppointmentBeginTime",
             "rechargeAppointmentEndTime", "resistanceOn", "sendBikeRecDynaOn",
             "shakeOn", "shutDownTime", "sleepMode", "sosEmergencyCall",
@@ -1066,7 +1065,6 @@ object CloudCarSettingMapper {
                 "10" -> "distanceOn"
                 "16" -> "dumpAlarm"
                 "24" -> "emergencyContact"
-                "25" -> "passwordUnlockEnable"
                 "40" -> "colorEggSoundEffect"
                 "52" -> "bleUnlockOn"
                 "62" -> "seatHeating"
@@ -1880,7 +1878,6 @@ object CloudCarSettingMapper {
             valueKnown = false,
         )
         "002", "003" -> unknownToggle()
-        "25" -> cloudToggle(cloud, "passwordUnlockEnable")
         "53" -> unknownToggle()
         "10" -> cloudToggle(cloud, "distanceOn")
         "52" -> cloudToggle(cloud, "bleUnlockOn")

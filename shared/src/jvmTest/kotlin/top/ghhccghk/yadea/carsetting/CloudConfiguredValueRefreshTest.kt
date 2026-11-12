@@ -516,11 +516,21 @@ class CloudConfiguredValueRefreshTest {
         assertTrue((c.value().displayKind() as CarSettingKind.Toggle).checked)
     }
 
-    @Test fun suppliedPasswordFlagIsNotDroppedByTheGatewayScalarWhitelist() = runBlocking {
+    @Test fun unverifiedPasswordCloudFlagDoesNotBecomeConfigurationState() = runBlocking {
         val c = controller(FakeGateway(response("\"passwordUnlockEnable\":1", listOf("25"))))
         c.refresh()
-        assertTrue((c.value("cloud:25").configuredValue as CarSettingKind.Toggle).checked)
+        assertNull(c.value("cloud:25").configuredValue)
+        assertNull(c.value("cloud:25").displayKind())
         assertEquals(VehicleSettingValue.Unknown, c.value("cloud:25").vehicleValue)
+    }
+
+    @Test fun passwordTtpSpecialStatusRemainsUnknownInsteadOfBeingCollapsedToOff() {
+        assertFalse(passwordUnlockStatusFlag(0)!!)
+        assertTrue(passwordUnlockStatusFlag(1)!!)
+        assertFalse(passwordUnlockStatusFlag(2)!!)
+        assertNull(passwordUnlockStatusFlag(3))
+        assertNull(passwordUnlockStatusFlag(-1))
+        assertNull(passwordUnlockStatusFlag(4))
     }
 
     @Test fun unknownNumericEditorDoesNotPresentItsPlaceholderAsAKnownPosition() = runBlocking {
@@ -540,7 +550,7 @@ class CloudConfiguredValueRefreshTest {
     @Test fun existingCloudBooleanMappingsDisplayBothExplicitStatesWithoutLiveTtp() = runBlocking {
         val fields = mapOf("9" to "alarmOn", "10" to "distanceOn",
             "16" to "dumpAlarm",
-            "24" to "emergencyContact", "25" to "passwordUnlockEnable",
+            "24" to "emergencyContact",
             "40" to "colorEggSoundEffect", "47" to "chargeWattSwitch", "52" to "bleUnlockOn",
             "62" to "seatHeating",
             "76" to "positioningFunc", "77" to "sleepMode",
