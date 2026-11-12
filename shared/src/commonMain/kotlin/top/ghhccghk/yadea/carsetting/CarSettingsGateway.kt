@@ -988,7 +988,7 @@ class YadeaCarSettingsGateway(
             "shakeOn", "shutDownTime", "sleepMode", "sosEmergencyCall",
             "tamperProofIotEnable",
             "userDefinedSoundEffect", "vehiclePowerDownStatus", "voltage", "wxhlBind",
-            "bleUnlockOn", "seatHeating", "seatHeatingLevel",
+            "bleUnlockOn",
         )
     }
 }
@@ -1002,7 +1002,7 @@ object CloudCarSettingMapper {
             ?.let { CarSettingKind.Toggle(checked = it, valueKnown = true) }
         // DTO declarations alone do not prove these pages use the similarly named
         // cloud fields. Their current value is established by the verified TTP path.
-        if (item.configId in SecondPhaseSettings.ids || item.configId in TimerSettings.ids) return null
+        if (item.configId in SecondPhaseSettings.ids || item.configId in TimerSettings.ids || item.configId == "62") return null
         if (item.id == "cloud:52:distance") return null
         when (item.kind) {
             is CarSettingKind.LowPowerInfo -> {
@@ -1049,7 +1049,6 @@ object CloudCarSettingMapper {
                 "cloud:60:level" -> BatteryCapacityOptions.valuesAh.indexOf(
                     cloud.values["capacity"]?.trim()?.toIntOrNull(),
                 )
-                "cloud:62:level" -> cloud.values["seatHeatingLevel"]?.trim()?.toIntOrNull() ?: return null
                 else -> return null
             }
             return index.takeIf { it in choice.options.indices }
@@ -1065,7 +1064,6 @@ object CloudCarSettingMapper {
                 "24" -> "emergencyContact"
                 "40" -> "colorEggSoundEffect"
                 "52" -> "bleUnlockOn"
-                "62" -> "seatHeating"
                 "76" -> "positioningFunc"
                 "77" -> "sleepMode"
                 "82" -> "lowBatTelWarning"
@@ -1302,7 +1300,6 @@ object CloudCarSettingMapper {
             )
         }
         cloud.configs.firstOrNull { it.confId.trim() == "62" }?.let { config ->
-            val level = cloud.values["seatHeatingLevel"]?.trim()?.toIntOrNull()?.takeIf { it in 0..2 }
             items += CarSettingItem(
                 id = "cloud:62:level",
                 configId = "62",
@@ -1312,9 +1309,9 @@ object CloudCarSettingMapper {
                 group = groupOf(config, classificationOf("62", config)),
                 channel = CarSettingChannel.IOT,
                 kind = CarSettingKind.Choice(
-                    selectedIndex = level ?: -1,
+                    selectedIndex = -1,
                     options = BatterySettings.heatOptions,
-                    valueKnown = level != null,
+                    valueKnown = false,
                 ),
                 writable = config.isAuth != false,
                 sort = (config.sort.toIntOrNull() ?: 0) + 1,
@@ -1879,7 +1876,7 @@ object CloudCarSettingMapper {
         "53" -> unknownToggle()
         "10" -> cloudToggle(cloud, "distanceOn")
         "52" -> cloudToggle(cloud, "bleUnlockOn")
-        "62" -> cloudToggle(cloud, "seatHeating")
+        "62" -> unknownToggle()
         "63", "72", "79", "80", "90" -> unknownToggle()
         "77" -> cloudToggle(cloud, "sleepMode")
         "91" -> cloudToggle(cloud, "sosEmergencyCall")

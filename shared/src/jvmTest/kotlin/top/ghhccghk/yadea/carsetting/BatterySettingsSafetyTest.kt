@@ -100,11 +100,35 @@ class BatterySettingsSafetyTest {
             val c = controller(FakeGateway(cloud(mapOf("seatHeatingLevel" to "$level", "chargeWattVal" to "351",
                 "chargeUlVal" to "76", "capacity" to "22", "chargeWattSwitch" to "1"))))
             assertTrue(c.refresh())
-            assertEquals(level, (c.state.value.valueState("cloud:62:level").configuredValue as CarSettingKind.Choice).selectedIndex)
+            assertNull(c.state.value.valueState("cloud:62:level").configuredValue)
             assertEquals(351f, (c.state.value.valueState("cloud:47").configuredValue as CarSettingKind.Slider).value)
             assertEquals(76f, (c.state.value.valueState("cloud:48").configuredValue as CarSettingKind.Slider).value)
             assertEquals(VehicleSettingValue.Unknown, c.state.value.valueState("cloud:47").vehicleValue)
         }
+    }
+
+    @Test fun unverifiedCloudSeatHeatingFieldsNeverBecomeConfiguredValues() = runBlocking {
+        val c = controller(FakeGateway(cloud(mapOf("seatHeating" to "1", "seatHeatingLevel" to "2"))))
+        assertTrue(c.refresh())
+        for (id in listOf("cloud:62", "cloud:62:level")) {
+            assertNull(c.state.value.valueState(id).configuredValue)
+            assertNull(c.state.value.valueState(id).displayKind())
+            assertEquals(VehicleSettingValue.Unknown, c.state.value.valueState(id).vehicleValue)
+        }
+    }
+
+    @Test fun unknownSeatHeatStateCannotBeEditedOrSubmittedUntilTtpReadback() = runBlocking {
+        val writer = FakeWriter()
+        val c = controller(w = writer)
+        assertTrue(c.refresh())
+        val toggle = item(c, "cloud:62")
+        assertFalse(c.editDraft(toggle.id) { (it as CarSettingKind.Toggle).copy(checked = true, valueKnown = true) })
+        assertFalse(c.update(toggle.id) { (it as CarSettingKind.Toggle).copy(checked = true, valueKnown = true) })
+        assertTrue(writer.writes.isEmpty())
+
+        observe(c, status(heat = 2, enabled = 1))
+        assertTrue(c.update(toggle.id) { (it as CarSettingKind.Toggle).copy(checked = false, valueKnown = true) })
+        assertEquals(false, (writer.writes.single().kind as CarSettingKind.Toggle).checked)
     }
 
     @Test fun everyCapacityAndHeatChoiceUsesItsExactRawParameter() {

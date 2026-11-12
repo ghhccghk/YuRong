@@ -511,3 +511,13 @@
 - 独立复审未发现本批范围内可安全修复的生产代码缺陷；本批只更新矩阵、队列和历史，不改命令、参数、网络或BLE协议。
 - 验证：`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.BatterySettingsSafetyTest" --offline --console=plain`通过17/17（Fake-only）；`git diff --check`通过。文档-only批次未运行编译或Android/Desktop构建。验证等级`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`；无`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`、`RUNTIME_VERIFIED`或`VEHICLE_VERIFIED`。
 - 本批无生产修复提交；本次审计文档的精确Git提交在验证后记录。
+
+## A45：ID62 座椅加热配置来源与 UNKNOWN 编辑保护
+
+- 起始HEAD：`5ce5589b2f03830476d7d621dc57affbe0d8269b`，分支`master`；开始时index为空，tracked工作区仅有本批ID62源码/测试差异；既有untracked日志、APK、截图、文档和JADX目录保留且不纳入提交。
+- Smali复核：`vehicle/viewmodel/VehicleSettingViewModel.smali:21201–21275、23887–24022`从TTP读取并回填`seatHeatSwitchStatus`/`seatHeatLevelStatus`；`s20.smali:1045–1112`构造已证实的开关和档位写入字段。未找到同名字段作为原App云端读取回填值的页面绑定证据，因此云DTO键不能证明配置读映射。
+- 修复：`CarSettingsGateway.kt`移除ID62 `seatHeating`/`seatHeatingLevel`配置读映射，保留confId目录中的未知项、TTP回填和原有云端/BLE写入字段。复审发现UNKNOWN Toggle此前可能显示为unchecked并接受操作；`CarSettingsScreen.kt`将未知开关/档位显示为禁用“未知”，`CarSettings.kt`要求ID62编辑和直接提交前存在合法已知值，避免UI或Controller把UNKNOWN当作关闭/默认选择。没有改变请求、命令、值域或写入字段。
+- 测试：`:shared:jvmTest --tests 'top.ghhccghk.yadea.carsetting.BatterySettingsSafetyTest' --offline --console=plain`通过19/19（Fake-only）。
+- 构建：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。
+- 自审：ID62未知Toggle不会渲染成OFF开关，未确认档位不会以`selectedIndex=-1`交给Choice控件；Controller草稿与直接更新入口都要求合法已知值。已知值仍保留当前TTP/配置/缓存来源分离；写入接受不等于回读确认。验证等级`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；无运行或车辆验证。精确本地提交Hash在提交后补录。
+- 状态：ID62即时加热仍为`PARTIAL`，独立排程CRUD未实现，云端读取字段绑定未证实。未运行App、真实网络、BLE或车辆操作。

@@ -673,6 +673,14 @@ class CarSettingsController(
             (item.kind as? CarSettingKind.Slider)?.let { target is CarSettingKind.Slider && target.range == it.range } == true)
 
     private fun hasKnownSettingValue(item: CarSettingItem): Boolean {
+        if (item.configId == "62") {
+            val state = _state.value.valueState(item.id)
+            return listOfNotNull(
+                state.configuredValue,
+                (state.vehicleValue as? VehicleSettingValue.Known)?.kind,
+                state.cachedValue?.kind,
+            ).any { BatterySettings.validTarget("62", it) }
+        }
         if (item.id == "cloud:1:distance" && item.configId == "1") {
             val state = _state.value.valueState(item.id)
             return listOfNotNull(state.configuredValue,
@@ -853,6 +861,10 @@ class CarSettingsController(
         if (item.configId == "71" &&
             (_state.value.valueState(id).configuredValue as? CarSettingKind.Toggle)?.valueKnown != true) {
             _state.value = current.copy(message = "仪表同步配置未知，请刷新后再修改")
+            return false
+        }
+        if (item.configId == "62" && !hasKnownSettingValue(item)) {
+            _state.value = current.copy(message = "座椅加热状态未知，请等待车辆回读后再修改")
             return false
         }
         val editable = current.valueState(id).editableKind(item.kind)

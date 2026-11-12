@@ -322,7 +322,7 @@ class Phase4CarSettingsTest {
         assertFalse((manualDistance.kind as CarSettingKind.Slider).valueKnown)
         assertTrue(items.first { it.id == "cloud:62" }.kind is CarSettingKind.Toggle)
         assertEquals(
-            2,
+            -1,
             (items.first { it.id == "cloud:62:level" }.kind as CarSettingKind.Choice)
                 .selectedIndex,
         )

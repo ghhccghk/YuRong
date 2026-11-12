@@ -232,6 +232,13 @@ fun CarSettingsScreen(
         val displayedKind = state.valueState(item.id).displayKind() ?: item.kind
         controller.available &&
             CarSettingItemAccess.canWrite(item) &&
+            (item.configId != "62" || state.valueState(item.id).displayKind()?.let { kind ->
+                when (kind) {
+                    is CarSettingKind.Toggle -> kind.valueKnown
+                    is CarSettingKind.Choice -> kind.valueKnown && kind.selectedIndex in kind.options.indices
+                    else -> false
+                }
+            } == true) &&
             SecondPhaseSettings.canEditChoice(item, state) &&
             VolumeBrightnessSettings.canEdit(item, state) &&
             EnergyRecoverySettings.canEdit(item, state) &&
@@ -1638,7 +1645,7 @@ private fun CarSettingRow(
         is CarSettingKind.LowPowerInfo, is CarSettingKind.LowPowerPhone -> AppListRow(
             title = "低电量提醒", summary = summary, value = "设置", onClick = onOpenDetail,
         )
-        is CarSettingKind.Toggle -> if (item.configId in RadarSettings.configIds && !kind.valueKnown) {
+        is CarSettingKind.Toggle -> if ((item.configId in RadarSettings.configIds || item.configId == "62") && !kind.valueKnown) {
             AppActionPreference(
                 title = item.title,
                 summary = "$summary · 状态未知，等待车辆回读",
@@ -1655,7 +1662,8 @@ private fun CarSettingRow(
             summary = if (observed == null) "$summary · 状态未知，等待配置或回读" else summary,
             enabled = enabled && observed is CarSettingKind.Toggle,
         )
-        is CarSettingKind.Choice -> if (observed == null) AppActionPreference(
+        is CarSettingKind.Choice -> if (observed == null ||
+            (item.configId == "62" && (!kind.valueKnown || kind.selectedIndex !in kind.options.indices))) AppActionPreference(
             title = item.title, summary = summary, value = "未知", enabled = enabled, onClick = onOpenDetail,
         ) else AppPopupPreference(
             title = item.title,

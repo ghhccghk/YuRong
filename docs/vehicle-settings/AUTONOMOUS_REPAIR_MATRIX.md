@@ -131,6 +131,16 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 
 A44 Fake复核覆盖TTP容量/开关/档位映射、缓存与LIVE隔离、VIN/序号拒绝、非法值撤销LIVE、精确命令/云端目标及写入后等待新回读；结果见`AUTONOMOUS_REPAIR_HISTORY.md`。无生产代码改动。
 
+### A45：ID62 座椅加热配置来源与 UNKNOWN 编辑保护
+
+| 项目 | 复核结果 |
+|---|---|
+| Smali证据 | `vehicle/viewmodel/VehicleSettingViewModel.smali:21201–21275、23887–24022`从TTP回填`seatHeatSwitchStatus`、`seatHeatLevelStatus`；`s20.smali:1045–1112`构造开关/档位更新字段`seatHeating`、`seatHeatingLevel`及参数`SEAT_HEATING`/`SEAT_HEATING_LEVEL`；此写入证据不证明同名字段用于`selectBikeSettingByVin`读取回填。 |
+| 修正 | KMP `CloudCarSettingMapper`不再将DTO中的`seatHeating`、`seatHeatingLevel`映射成configuredValue；confId 62仍由有效TTP分别回填开关/档位，并保留已证实的云端/BLE写入构建。初始未知Toggle不再以未选中的开关呈现，未知或非法档位显示禁用“未知”；Controller的草稿和直接提交入口均要求ID62存在有效已知配置/车辆/缓存值。 |
+| 状态 | 即时开关/档位保留`PARTIAL`：KMP读取以TTP为依据，写入参数有Smali证据；没有找到原App加热任务CRUD在KMP的对应实现，且同名DTO字段的原App配置读取绑定尚未证实。不得将ID62标为COMPLETE。 |
+
+A45验证与精确提交记录见`AUTONOMOUS_REPAIR_HISTORY.md`；无真实App运行、云端写入、BLE或车辆验证。
+
 ### A24：69/70/78 雷达开关（独立复审及验证完成）
 
 - `vehicle/radar/RadarBaseActivity.getSettingConfigIdList:548–658`分别收集三个配置项的confId；`VehicleSettingViewModel.j1:27878–27900`对69/70/78逐项识别。此前KMP把三个开关都挂在69上，导致车型目录和`isAuth`门控不准确；现改为每个真实confId独立生成稳定条目，保留各自分组/排序/权限。
