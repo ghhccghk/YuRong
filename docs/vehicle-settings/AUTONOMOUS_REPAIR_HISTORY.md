@@ -502,3 +502,12 @@
 - Android/Desktop：`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。`git diff --check`退出0。
 - 状态：ID47读取修正达到`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；ID48本批为静态复核。未执行App运行、云端请求、BLE或车辆操作，故无`RUNTIME_VERIFIED`/`VEHICLE_VERIFIED`。
 - 功能提交：`569a0e98d54abd1c599bff0a61f7a854b7a2bd34`（`fix: complete vehicle setting charge power readback`），5个文件，内容仅限ID47/48、测试和三份审计文档。提交后HEAD为该Hash；tracked/index干净，既有untracked文件保持未暂存。
+
+## A44：ID60/62 电池容量与座椅加热链路复核
+
+- 起始HEAD：`7c28f1085ce795da15ced4894f27bc45a7f7fe05`，分支`master`；开始时tracked/index干净；既有untracked日志、APK、截图、文档和JADX目录保留。
+- ID60证据：`CapacitySettingActivity.getSettingConfigId:297`=60；`VehicleSettingViewModel.smali:12282–12290`将`CarSettingBean.capacity`回填，Bean声明在`CarSettingBean.smali:59`；TTP字段在`l76.smali:11619–11635`解析、VM `21305–21368`回填；`s20.smali:1222、1254`对应`BATT_BD_SETTING`与`BATT_V_A_CAP_MODEL`。KMP以云端capacity回填配置值、以TTP回填开关/容量车辆值，并通过已校验的独立Gateway/命令路径提交。原Bean无容量开关字段，未知配置不猜测。
+- ID62证据：`HeatedSeatsActivity.getSettingConfigId:2596`=62；`l76.smali:11140–11156`解析开关/档位TTP字段，VM `21201–21275、23887–24022`回填；`s20.smali:1045–1064`和VM更新分支构造`seatHeating`、`seatHeatingLevel`及`SEAT_HEATING_LEVEL`；`qg.smali:1244–1263`映射命令。KMP即时开关/档位链路区分配置、缓存、实时TTP和回读确认。原Activity另含独立加热任务增删改流程，KMP没有对应任务CRUD；本次没有证据证明`seatHeatingLevel`是原App配置读取绑定字段，故整个页面仍PARTIAL。
+- 独立复审未发现本批范围内可安全修复的生产代码缺陷；本批只更新矩阵、队列和历史，不改命令、参数、网络或BLE协议。
+- 验证：`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.BatterySettingsSafetyTest" --offline --console=plain`通过17/17（Fake-only）；`git diff --check`通过。文档-only批次未运行编译或Android/Desktop构建。验证等级`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`；无`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`、`RUNTIME_VERIFIED`或`VEHICLE_VERIFIED`。
+- 本批无生产修复提交；本次审计文档的精确Git提交在验证后记录。

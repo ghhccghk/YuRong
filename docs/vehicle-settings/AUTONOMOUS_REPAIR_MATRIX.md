@@ -122,6 +122,15 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 - Fake解析测试覆盖TTP raw4→200W、raw10→500W、raw20→1000W、raw0xFF→UNKNOWN哨兵；ID48未发现需改生产逻辑的证据差异。
 - 验证结果及提交记录见`AUTONOMOUS_REPAIR_HISTORY.md`的A43条目；无真实云端、BLE、车辆或App运行验证。
 
+### A44：ID60/62 电池容量与座椅加热链路复核
+
+| ID | 原 App 证据 | 当前 KMP 链路 | 结论与缺口 |
+|---|---|---|---|
+|60|`CapacitySettingActivity.getSettingConfigId:297`返回60；`VehicleSettingViewModel.smali:12282–12290`将`CarSettingBean.capacity`回填，`CarSettingBean.smali:59`声明该字段；`l76.smali:11619–11635`解码`capacitySettingStatus`和`capacitySwitchStatus`；VM `21305–21368`回填两项TTP；`s20.smali:1222、1254`构造`BATT_BD_SETTING`、`BATT_V_A_CAP_MODEL`。|Gateway将`capacity`映射到configuredValue及13/15/22/25/32/38Ah档位；`CarSettings.kt:1415–1425`仅从TTP写vehicleValue；Controller沿用同VIN、新鲜LIVE_TTP、观察序号和回读匹配确认；BatterySettings、CloudBuilder及VehicleSettingCommands校验配置与命令。|即时容量配置读写/车辆回读链路`STATIC_FLOW_VERIFIED`。原`CarSettingBean`没有容量开关字段，KMP不推测云端开关映射；开关只由TTP回填，未知时保持UNKNOWN。未做运行或车辆验证。|
+|62|`HeatedSeatsActivity.getSettingConfigId:2596`返回62；`l76.smali:11140–11156`解析`seatHeatSwitchStatus`、`seatHeatLevelStatus`；VM `21201–21275、23887–24022`回填开关与原始0/1/2档；`s20.smali:1045–1064`及VM更新分支构造`seatHeating`、`seatHeatingLevel`、`SEAT_HEATING_LEVEL`；`qg.smali:1244–1263`映射命令。该Activity另有任务增删改流程。|`CarSettings.kt:1312–1323`将TTP分别回填到开关和档位；`BatterySettings`限制档位0..2；CloudBuilder与VehicleSettingCommands分别构造云端和BLE写入；Controller仅在新鲜同VIN回读匹配后确认。KMP没有加热任务CRUD/排程。|即时开关/档位`STATIC_FLOW_VERIFIED`；原页面整体`PARTIAL`，缺独立加热任务流程。本次未找到`seatHeatingLevel`对应的原App云端读取绑定证据，不将KMP字段映射视为原App读取证据。未做运行或车辆验证。|
+
+A44 Fake复核覆盖TTP容量/开关/档位映射、缓存与LIVE隔离、VIN/序号拒绝、非法值撤销LIVE、精确命令/云端目标及写入后等待新回读；结果见`AUTONOMOUS_REPAIR_HISTORY.md`。无生产代码改动。
+
 ### A24：69/70/78 雷达开关（独立复审及验证完成）
 
 - `vehicle/radar/RadarBaseActivity.getSettingConfigIdList:548–658`分别收集三个配置项的confId；`VehicleSettingViewModel.j1:27878–27900`对69/70/78逐项识别。此前KMP把三个开关都挂在69上，导致车型目录和`isAuth`门控不准确；现改为每个真实confId独立生成稳定条目，保留各自分组/排序/权限。
