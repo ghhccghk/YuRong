@@ -4,7 +4,7 @@
 
 ## 正在处理
 
-- A28：ID52证据审计完成，无代码改动；独立标定的BLE阶段/结果存储与云端`bleDistance`映射缺原App绑定证据，保持BLOCKED。下一项审计ID8。
+- A30：ID25密码解锁证据审计中。A29（ID8）已完成精确提交，详情见历史；服务端接受与车辆回读仍分离。
 
 ## 待处理（候选，须先证据复核）
 
@@ -30,6 +30,8 @@
 每批开始读本文件、地图、历史、HEAD和staged/unstaged/untracked；只从最近成功提交后继续。禁止清理或暂存用户原有12项未跟踪内容。未通过测试、构建、自审及精确diff时不提交；不调用真实网络/车辆。
 
 ## 已完成
+
+- A29：ID8 Smali确认`sendCode=10`、`smsScene=10`，短信验证后调用`common-cmd/low-freq/set-param/loss`，`value=00/01`；云端状态`lossState=0`表示开启。KMP已有独立短信/报失Gateway、Controller和诊断UI；修正2xx响应缺少`success=true`时误报成功。修正过期Fake对签名表单的断言。Fake整类过滤6/6，跨平台编译与Android/Desktop构建通过；服务端接受仍不是车辆确认，无真实请求/App/车辆操作。提交记录见历史。
 
 - A27：ID1一键开机距离档位写入安全，精确提交记录在`AUTONOMOUS_REPAIR_HISTORY.md`；普通档位链路已复核，用户写入结果不冒充车辆确认；原有12组untracked保持。
 

@@ -33,7 +33,8 @@ class VehicleDiagnosticsTest {
                 override suspend fun execute(request: HttpRequest): HttpResponse {
                     assertEquals("POST", request.method)
                     assertTrue(request.url.endsWith(YadeaVehicleFaultGateway.PATH))
-                    assertTrue(request.body!!.contains("modelNo"))
+                    assertTrue(request.body!!.contains("gatewaySign"))
+                    assertTrue(request.body!!.contains("gatewayTimestamp"))
                     return HttpResponse(200, encrypted(plain))
                 }
             },
@@ -153,6 +154,31 @@ class VehicleDiagnosticsTest {
         assertTrue(requests[0].url.endsWith(YadeaLostModeGateway.SEND_CODE_PATH))
         assertTrue(requests[1].url.endsWith(YadeaLostModeGateway.VERIFY_CODE_PATH))
         assertTrue(requests[2].url.contains("vin=VIN&value=00"))
+    }
+
+    @Test
+    fun lostModeDoesNotTreatUnknownBusinessResponseAsSuccess() = runBlocking {
+        val responses = ArrayDeque(
+            listOf(
+                HttpResponse(200, encrypted("{}")),
+                HttpResponse(200, encrypted("{\"success\":false}")),
+            ),
+        )
+        val gateway = YadeaLostModeGateway(
+            transport = object : HttpTransport {
+                override suspend fun execute(request: HttpRequest): HttpResponse = responses.removeFirst()
+            },
+            tokenProvider = { "token" },
+            timestampProvider = { 1L },
+        )
+
+        val unknown = gateway.setLostMode("VIN", enabled = true)
+        val rejected = gateway.setLostMode("VIN", enabled = true)
+
+        assertFalse(unknown.success)
+        assertEquals("响应状态未知", unknown.message)
+        assertFalse(rejected.success)
+        assertEquals("请求失败", rejected.message)
     }
 
     private fun ttpInfoWithFaults(): TtpInfo = TtpInfoParser.parse(faultTestFrame())

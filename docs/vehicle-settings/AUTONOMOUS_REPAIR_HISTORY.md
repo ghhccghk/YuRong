@@ -365,3 +365,14 @@
 - Smali：`OneKeyOpenActivity.getSettingConfigId:4197`检查bikeConfigVos中是否有52并据此选择页面埋点；`CustomPowerOnDistancesActivity.initBleDistances:382+`观察蓝牙连接/状态并注册测距状态监听；`startRanging:1143+`改变测距中/等待UI；ViewModel `c1:300+`发送`COMMAND_CONST_CUSTOM_BLE_RANGING`，`b1:265+`发送`COMMAND_CONST_BLE_RANGING_END`；Activity断开/中断分支发送`COMMAND_CONST_BLE_RANGING_INTERRUPT`；ViewModel `d1:333+`在结束流程调用`phoneBluetoothRecord/add`，提交`bluetoothSignalValue`、phone/model/account、MAC、VIN、`operationType=1`。当前找到的标定链没有证明将测距结果写入`CarSettingBean.bleDistance`。
 - KMP已有`cloud:52:distance`读取/写入构建映射`bleDistance`，但缺失时用`3`回退且将云端读数钳位到1..12；由于原App独立页的字段联系未证实，不把Smali之外的字段名当业务绑定，未作代码修改。
 - 状态：BLOCKED/PARTIAL。下一步需要可定位的原App设置详情/云端写入调用者或抓包证据来证明bleDistance绑定及范围；本批不发送命令、不做网络或车辆操作。只更新矩阵、队列、历史。
+
+## A29（ID8一键报失响应安全）
+
+- 起始HEAD：`d32f797a483de921c09bffc371c81cea6975927a`，分支`master`；tracked/index干净，保留12组既有untracked内容。
+- Smali：`LostReportModeActivity.getSettingConfigId:549`为8，`onSwClick:387–408`进入验证；`SmsCodeVerifyViewModel$getMsgCode$1.invokeSuspend:191–237`使用`user/sendCode`、`sendCode=10`；`$checkCode$1.invokeSuspend:198–257`使用`user/verifySmsCode`、`appName=YADEA`、`smsScene=10`；`Z0:297–411`短信验证后POST `common-cmd/low-freq/set-param/loss`，VIN及`value=00`开/`01`关；`handleReportLossResult:156–324`以返回`value=00`回填开启并触发云状态字段更新；`VehicleDataBean.isLoss:4309–4336`将`lossState=0`视为开。
+- KMP原有实际链路：诊断页→`LostModeController`→`YadeaLostModeGateway`；完成短信发送、验证、报失写入后刷新当前云状态。非BLE独立云端流程。
+- 缺陷：`postSigned`仅在`success == false`时报失败，缺失/无法解析的success会被当作成功，导致控制器可能显示“已开启/已关闭”。修正为仅`success == true`接受；未知响应返回失败且不更新成功状态。
+- 修改：`shared/src/commonMain/kotlin/top/ghhccghk/yadea/vehicle/LostModeGateway.kt`、`shared/src/jvmTest/kotlin/top/ghhccghk/yadea/vehicle/VehicleDiagnosticsTest.kt`、功能矩阵、队列与本历史。
+- 验证：初次完整过滤发现既有Fake错误要求请求body明文包含`modelNo`；生产使用`GatewaySigner.formBody`，传输表单字段实际为`gatewaySign`/`gatewayTimestamp`。仅修正此测试断言，不改生产请求。最终`VehicleDiagnosticsTest` 6/6通过（含ID8未知响应、失败响应测试）；`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。
+- 验证等级：STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；未运行App/真实云端/车辆，服务端接受不等于车辆实际回读确认，状态PARTIAL。
+- 精确提交：待最终Git复核后记录。

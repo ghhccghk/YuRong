@@ -120,10 +120,12 @@ class YadeaLostModeGateway(
         val decoded = Crypto.urlDecode(response.body.trim())
         val plain = Crypto.aesEcbPkcs5Decrypt(GatewaySigner.AES_KEY, decoded) ?: decoded
         NetworkLog.write("LOST_MODE plain path=$path ${NetworkLog.maskSensitive(plain)}")
-        if (JsonSupport.boolean(plain, "success") == false) {
+        if (JsonSupport.boolean(plain, "success") != true) {
             return LostModeResult(
                 success = false,
-                message = JsonSupport.string(plain, "msg").orEmpty().ifBlank { "请求失败" },
+                message = JsonSupport.string(plain, "msg").orEmpty().ifBlank {
+                    if (JsonSupport.boolean(plain, "success") == false) "请求失败" else "响应状态未知"
+                },
             )
         }
         return LostModeResult(true)
