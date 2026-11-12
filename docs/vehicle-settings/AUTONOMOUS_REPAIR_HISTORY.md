@@ -491,3 +491,14 @@
 - KMP证据：`CarSettingsScreen`只在`emergencyContactController != null`时创建联系人Sheet；全仓构造调用只在`androidApp/MainActivity.kt`。Desktop `main.kt`未传联系人Controller；iOS、web、wasm入口也未传入。`shared/src/jvmMain/.../HttpTransport.jvm.kt`有JVM HTTP实现，但JS、Wasm、iOS `createHttpTransport()`返回`UnavailableHttpTransport`。Android请求初始化还使用持久化loginId/bootstrap deviceId及Android package/build/vehicle series组成的`GatewayClientInfo`；其他平台当前没有等价注入来源。
 - 结论：ID24/85的Controller、Gateway及Fake链路已在commonMain，但其他平台运行能力不完整。不能用默认Android `os`、空deviceId或`UnavailableHttpTransport`假装读写成功；本批不改请求、签名或通用HTTP层。后续需在明确的平台网络/身份架构授权和证据下逐平台接入。
 - 本批只更新矩阵、队列和历史，不改代码，不运行测试或构建。验证等级为STATIC_FLOW_VERIFIED；没有运行平台App或真实云端请求。
+
+## A43：ID47/48 充电设置读取映射复核与 ID47 修正
+
+- 起始HEAD：`473a6f44b437812e82fd4c4bf76b4a690fe08438`，分支`master`；tracked与index干净，既有untracked内容全部保留。
+- Smali/APK复核：ID47原页范围200..1000W；`l76.smali:10299–10308`将TTP `0x71`原始值乘`0x32`（50）回填；KMP原先误乘2，导致UI范围校验过滤掉真实读数。修为×50。ID48原页布局min75/max100，云配置字段`chargeUlVal`与TTP枚举保持来源分离；云端整数字段和BLE 5%档位分流维持现状。
+- 文件：`TtpInfo.kt`、`TtpInfoParserTest.kt`、`AUTONOMOUS_REPAIR_MATRIX.md`、`AUTONOMOUS_REPAIR_QUEUE.md`、本文件。未改Writer、BLE命令、帧编码、云端接口或其他设置。
+- 精准过滤测试：`:shared:jvmTest --tests 'top.ghhccghk.yadea.vehicle.TtpInfoParserTest' --tests 'top.ghhccghk.yadea.carsetting.BatterySettingsSafetyTest' --offline --console=plain`退出0；58/58（解析器41，电池安全17）。
+- 共享编译：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0。
+- Android/Desktop：`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。`git diff --check`退出0。
+- 状态：ID47读取修正达到`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；ID48本批为静态复核。未执行App运行、云端请求、BLE或车辆操作，故无`RUNTIME_VERIFIED`/`VEHICLE_VERIFIED`。
+- 提交前与提交后HEAD、文件清单、工作区状态在本节提交完成后追加。

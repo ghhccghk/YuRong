@@ -203,7 +203,7 @@ data class TtpExtendedInfo(
     val cumulativeCarbonEmissions: Float,
     /** 充电功率状态。`0x70` bit4-5。 */
     val batteryChargingPowerStatus: Int,
-    /** 充电功率原始值乘 2。 */
+    /** 充电功率原始值乘 50 W。 */
     val batteryChargingPowerValue: Int,
     /** 充电上限。`0x70` bit3-5。 */
     val batteryChargingLimitValue: Int,
@@ -595,7 +595,7 @@ internal object TtpInfoParser {
             batteryChargingPowerValue = if (powerRaw == Ttp.INVALID_I) {
                 Ttp.INVALID_I
             } else {
-                powerRaw * 2
+                powerRaw * 50
             },
             batteryChargingLimitValue = Ttp.C(d, 0x70, 3),
             batteryTemperature = if (tempRaw == Ttp.INVALID_I) {

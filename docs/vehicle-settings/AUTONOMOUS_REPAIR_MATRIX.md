@@ -54,8 +54,8 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 | 44 婴儿车模式 | com/yadea/smartmoto/vehicle/view/HelpPromoteActivity.smali:144 | helpCarState | STROLLER_CLOSE, STROLLER_OPEN | A10：严格已知开关/稳定ID/无效观察；45改用原页constSpeedState | P0 / COMPLETE / A10（BLE；无运行/实车验证） |
 | 45 定速巡航 | com/yadea/smartmoto/vehicle/view/ConstantSpeedModeActivity.smali:144 | constSpeedState | CONST_SPEED_CLOSE, CONST_SPEED_OPEN | A10：严格已知开关/稳定ID/无效观察；45改用原页constSpeedState | P0 / COMPLETE / A10（BLE；无运行/实车验证） |
 | 46 陡坡缓降 | com/yadea/smartmoto/vehicle/activity/SlopeDescentActivity.smali:154 | steepSlopeState | BLE_SLOP_DESCENT_CLOSE, BLE_SLOP_DESCENT_OPEN | A07：严格已知开关、稳定ID、失效观察降级；TCS0..7合法域；同VIN新鲜回读确认 | P0 / COMPLETE / A07（BLE；无运行/实车验证） |
-| 47 充电功率 | com/yadea/smartmoto/vehicle/view/ChargingPowerActivity.smali:628 | batteryChargingPowerStatus, batteryChargingPowerValue | COMMAND_CONST_CHARGING_POWER_STATE, COMMAND_CONST_CHARGING_POWER_STATE, COMMAND_CONST_CHARGING_POWER_VALUE | 已确认默认/钳位写入缺陷；原始参数复核后修复 | P0 / PARTIAL / A01 |
-| 48 充电上限 | com/yadea/smartmoto/vehicle/view/ChargeCapActivity.smali:438 | 无 Controller 分支；独立流程另查 | COMMAND_CONST_CHARGING_LIMIT_VALUE | 已确认默认/钳位写入缺陷；原始参数复核后修复 | P0 / PARTIAL / A01 |
+| 47 充电功率 | com/yadea/smartmoto/vehicle/view/ChargingPowerActivity.smali:628 | batteryChargingPowerStatus, batteryChargingPowerValue | COMMAND_CONST_CHARGING_POWER_SWITCH/0xC9, COMMAND_CONST_CHARGING_POWER_VALUE/0xCA | A43复核：页面200..1000W；l76.z读取0x71原始值并×50，KMP此前错误×2，A43修正。云端与LIVE_TTP分离；写入限制200..1000W且50W档 | P1 / PARTIAL（静态/Fake/构建；无运行及实车验证） / A01+A43 |
+| 48 充电上限 | com/yadea/smartmoto/vehicle/view/ChargeCapActivity.smali:438 | batteryChargingLimitValue，TTP 0x70 bit3..5 | COMMAND_CONST_CHARGING_LIMIT_VALUE/0xCB | A43复核APK资源`layout_charging_cap.xml`明确SeekBar 75..100；`VehicleSettingViewModel`将云配置`chargeUlVal`限制75..100并回退75，TTP raw0/1→75、2..6→80..100。KMP保留UNKNOWN配置占位；云端接受75..100整数，BLE仅编码5%档，不把显示刻度标签误作强制步进 | P2 / PARTIAL（无运行及实车验证） / A01+A43 |
 | 49 坡道驻停 | com/yadea/smartmoto/vehicle/view/RampStopsActivity.smali:144 | rampSlopeState | BLE_RAMP_SLOP_CLOSE, BLE_RAMP_SLOP_OPEN | A07：严格已知开关、稳定ID、失效观察降级；TCS0..7合法域；同VIN新鲜回读确认 | P0 / COMPLETE / A07（BLE；无运行/实车验证） |
 | 50 仪表风格切换 | com/yadea/smartmoto/vehicle/activity/GaugeStyleHandOffActivity.smali:522 | panelThemeCurrent | COMMAND_BIKE_PANEL_THEME_TYPE | A03：TTP回填已核；显式Choice→Controller→forItem→MappedWriter，最终边界拒绝未知/越界/伪造选项；无云端猜测 | P0 / COMPLETE / A03 |
 | 51 仪表时间同步 | BleMeterTimeSyncActivity:onSwClick67–189；$setListener$2:60–85；VM23115–23165,k2:28292；MainActivityLogic.W0:2037,q0:6464 | syncTimeResultStatus仅原页回显，不作持续设置/事务回执 | 0xC1开关0/1；延迟事件→0xC0实际校时，当前无编码 | A18：独立TimeSyncStatusReport保留原页回显及VIN/缓存/live来源；Controller/实际Writer/Mapper拒绝未知或伪造目标；UI明确本次校时未确认，开关真实值保持UNKNOWN | P0 / PARTIAL；实际0xC0校时及事务确认BLOCKED / A18（无运行/实车验证） |
@@ -112,6 +112,15 @@ KMP 读取代码位置为 CarSettings.kt 的 applyVehicleStatus；写入索引�
 - ID51 syncTimeResultStatus 已被排除车辆实际值确认；没有关联事务证据时不建立确认。
 
 ## 批次证据
+
+### A43：ID47/48 充电设置读取映射复核与 ID47 修正
+
+- 开始HEAD：`473a6f44b437812e82fd4c4bf76b4a690fe08438`，分支`master`；tracked/index原先干净。保留所有预先存在的untracked文件；未暂存或清理。
+- ID47证据：`ChargingPowerActivity.getSettingConfigId:628–635`为47；APK `res/layout/layout_charging_power.xml`声明`isb_min=200`、`isb_max=1000`；`VehicleSettingViewModel.smali:23388–23433`将TTP字段原值回填LiveData；`l76.smali:10299–10308`从TTP `0x71`取原始值后乘寄存器`v7=0x32`（50）写入`batteryChargingPowerValue`。云端字段`chargeWattVal`在VM配置读取分支与KMP Mapper独立映射；原始TTP状态通过`CarSettings.kt`进入vehicleValue。KMP解析器原错误乘2，导致功率实际档位转换错误并在200..1000校验时被丢弃；A43改为乘50。
+- ID47写入不变：原页监听器把当前Slider整数作为目标；VM以`CHARGE_WATT_VAL`写云端参数。KMP保持已证实200..1000/50W约束，命令`0xCA`只在可表示参数范围内构造；云端配置、草稿、提交目标与LIVE_TTP仍分离。
+- ID48证据：`ChargeCapActivity.getSettingConfigId:438–445`为48；APK `res/layout/layout_charging_cap.xml`声明`isb_min=75`、`isb_max=100`及6个tick label，`charge_cap_array`仅端点文字为75%/100%。`ChargeCapActivity$onSeekChangeListener$1.b:119–124`保存整数seek进度，停止拖动分支把`mCurrentProgress`交给VM；`VehicleSettingViewModel.smali:12394–12427`读取`chargeUlVal`并限定75..100，非法时回退75（KMP不采信该回退为已知值）；`23454–23570`的TTP raw0/1→75、raw2..6→80..100。`VehicleSettingViewModel.smali:10672–10706`以`CHARGE_UL_VAL`提交整数。KMP云端可提交75..100整数；原`qg.smali`及最终命令约束的BLE路径为70..100、5%档，因此非5倍数不路由BLE；保留现有范围，不擅自扩大到70。
+- Fake解析测试覆盖TTP raw4→200W、raw10→500W、raw20→1000W、raw0xFF→UNKNOWN哨兵；ID48未发现需改生产逻辑的证据差异。
+- 验证结果及提交记录见`AUTONOMOUS_REPAIR_HISTORY.md`的A43条目；无真实云端、BLE、车辆或App运行验证。
 
 ### A24：69/70/78 雷达开关（独立复审及验证完成）
 

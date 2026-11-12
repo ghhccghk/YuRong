@@ -352,7 +352,7 @@ class TtpInfoParserTest {
         assertEquals(2, e.lightBeltColor)
         assertEquals(3, e.batteryChargingLimitValue)
         assertEquals(2, e.batteryChargingPowerStatus)
-        assertEquals(20, e.batteryChargingPowerValue)
+        assertEquals(500, e.batteryChargingPowerValue)
         assertEquals(VehicleNaviType.AV, e.carNaviType)
         assertEquals(2, e.seatHeatSwitchStatus)
         assertEquals(1, e.seatHeatLevelStatus)
@@ -362,6 +362,16 @@ class TtpInfoParserTest {
         assertEquals(5, e.customDriveLevelStatus)
         assertEquals(1, e.frontCollisionWarning)
         assertEquals(2, e.turnToSoundReminders)
+    }
+
+    @Test
+    fun parse_chargingPowerScalesRawStepsAndPreservesUnknown() {
+        for ((raw, expected) in listOf(4 to 200, 10 to 500, 20 to 1_000, 0xFF to -1)) {
+            val d = packet(0xB0, 0x00)
+            d[0x71] = raw.toByte()
+
+            assertEquals(expected, TtpInfoParser.parse(d).extended.batteryChargingPowerValue)
+        }
     }
 
     @Test
