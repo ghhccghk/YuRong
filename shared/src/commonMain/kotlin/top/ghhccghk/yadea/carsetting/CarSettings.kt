@@ -307,6 +307,15 @@ data class CarSettingValueState(
     fun editableKind(fallback: CarSettingKind): CarSettingKind = displayKind() ?: fallback
 }
 
+enum class InstrumentInfoSyncPhase { SUBMITTING, CLOUD_ACCEPTED, FAILED, CANCELLED }
+
+/** An independent request receipt, never a setting value or vehicle confirmation. */
+data class InstrumentInfoSyncRequest(
+    val vin: String,
+    val operationId: Long,
+    val phase: InstrumentInfoSyncPhase,
+)
+
 data class CarSettingsState(
     val items: List<CarSettingItem> = emptyList(),
     /** 本地已知、但本次云端没有下发的设置；仅用于控制页调试与实验性操作。 */
@@ -321,6 +330,7 @@ data class CarSettingsState(
     val valueStates: Map<String, CarSettingValueState> = emptyMap(),
     /** RESULT_ONLY presentation is deliberately outside setting/confirmation values. */
     val timeSyncReport: TimeSyncStatusReport? = null,
+    val instrumentInfoSync: InstrumentInfoSyncRequest? = null,
 ) {
     val confirmationStatuses: Map<String, CarSettingConfirmationStatus>
         get() = valueStates.filterValues { it.operationId != null }.mapValues { it.value.confirmationStatus }
@@ -435,6 +445,7 @@ class CarSettingsController(
     private var nextOperationId = 0L
     private var lastSourceSequence = -1L
     private val activeOperations = mutableMapOf<String, WriteOperation>()
+    private var instrumentInfoSyncOperation: WriteOperation? = null
 
     private data class WriteOperation(
         val id: Long,
@@ -460,6 +471,54 @@ class CarSettingsController(
 
     val cloudAvailable: Boolean
         get() = gateway != null
+
+    fun canRefreshInstrumentInfo(vin: String): Boolean {
+        val normalizedVin = vin.trim()
+        val current = _state.value
+        if (gateway == null || normalizedVin.isBlank() || normalizedVin != vinProvider().trim() ||
+            current.vin != normalizedVin || !current.loadedFromCloud || current.loading ||
+            instrumentInfoSyncOperation?.vin == normalizedVin) return false
+        val item = current.items.find { it.id == "cloud:71" && it.configId == "71" } ?: return false
+        val value = current.valueState(item.id)
+        val configured = value.configuredValue as? CarSettingKind.Toggle ?: return false
+        return CarSettingItemAccess.canWrite(item) && configured.valueKnown && configured.checked &&
+            value.draftValue == null && value.submittedValue == null && !value.busy
+    }
+
+    suspend fun refreshInstrumentInfo(vin: String): Boolean {
+        val activeGateway = gateway ?: return false
+        if (!canRefreshInstrumentInfo(vin)) return false
+        val operation = WriteOperation(++nextOperationId, vin.trim(), loadGeneration)
+        instrumentInfoSyncOperation = operation
+        fun isCurrent(): Boolean = instrumentInfoSyncOperation == operation &&
+            loadGeneration == operation.loadGeneration && _state.value.vin == operation.vin &&
+            vinProvider().trim() == operation.vin
+        _state.value = _state.value.copy(instrumentInfoSync = InstrumentInfoSyncRequest(
+            operation.vin, operation.id, InstrumentInfoSyncPhase.SUBMITTING,
+        ))
+        try {
+            val accepted = try {
+                activeGateway.refreshInstrumentInfo(operation.vin)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                false
+            }
+            if (!isCurrent()) return false
+            _state.value = _state.value.copy(instrumentInfoSync = InstrumentInfoSyncRequest(
+                operation.vin, operation.id,
+                if (accepted) InstrumentInfoSyncPhase.CLOUD_ACCEPTED else InstrumentInfoSyncPhase.FAILED,
+            ))
+            return accepted
+        } catch (cancelled: CancellationException) {
+            if (isCurrent()) _state.value = _state.value.copy(instrumentInfoSync = InstrumentInfoSyncRequest(
+                operation.vin, operation.id, InstrumentInfoSyncPhase.CANCELLED,
+            ))
+            throw cancelled
+        } finally {
+            if (instrumentInfoSyncOperation == operation) instrumentInfoSyncOperation = null
+        }
+    }
 
     private fun heatedSeatTaskContext(vin: String, requireWritable: Boolean): Boolean {
         val normalized = vin.trim()

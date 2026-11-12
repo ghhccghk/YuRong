@@ -68,6 +68,7 @@ interface CarSettingsGateway {
     suspend fun saveHeatedSeatTask(vin: String, draft: HeatedSeatTaskDraft, taskId: String? = null): Boolean = false
     suspend fun setHeatedSeatTaskStatus(vin: String, taskId: String, status: Int): Boolean = false
     suspend fun deleteHeatedSeatTask(vin: String, taskId: String): Boolean = false
+    suspend fun refreshInstrumentInfo(vin: String): Boolean = false
 }
 
 /** 已确认的云端设置写入字段。 */
@@ -437,6 +438,19 @@ class YadeaCarSettingsGateway(
         if (response.status !in 200..299) return null
         val decoded = Crypto.urlDecode(response.body.trim())
         return Crypto.aesEcbPkcs5Decrypt(GatewaySigner.AES_KEY, decoded) ?: decoded
+    }
+
+    override suspend fun refreshInstrumentInfo(vin: String): Boolean {
+        val normalizedVin = vin.trim()
+        val token = tokenProvider().trim()
+        if (normalizedVin.isBlank() || token.isBlank()) return false
+        // jp6.k:574–670: POST, VIN in both URL query and signed body.
+        val plain = postFields(
+            "protocol-lowfreq/bike-info-sync-name/refresh?vin=" + Crypto.urlEncode(normalizedVin),
+            mapOf("_gateway" to "True", "vin" to normalizedVin), token,
+        ) ?: return false
+        return JsonSupport.topLevelScalarText(plain, "success") == "true" &&
+            JsonSupport.topLevelScalarText(plain, "data") == "true"
     }
 
     override suspend fun loadRemainingMileageEligibility(vin: String): RemainingMileageEligibility? {

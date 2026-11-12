@@ -1,5 +1,16 @@
 # 自主修复历史
 
+## A59：ID71 仪表车辆信息立即同步
+
+- 起始 HEAD：`4ec625ad6e36bb603e8763bd214a5c3e2007c174`，master；tracked/index干净，保留原有14项untracked。A58实现提交为该HEAD。
+- 原App：`vehicle/view/GaugeSettingsActivity.refreshCarInfo:512–524`及`MsgAsyncActivity.refreshCarInfo:188–200`→`VehicleSettingViewModel.Z6:18732–18782`，只构造vin再调用`jp6.k:574–670`。`jp6.k`用`o71.K`/PostRequest，URL为`protocol-lowfreq/bike-info-sync-name/refresh?vin=...`；`f84.b:50–78`经`a:20–48`加入`_gateway`，`p4$f.<clinit>:39–74`对正式网关为True。业务body是vin，未加入开关值。`jp6$f.onSuccess/onError`只结束加载，未证明车辆执行完成。`GaugeSettingsActivity$observe$2.invoke`及`MsgAsyncActivity$observe$2.invoke`只在`bikeInfoSyncName==1`时显示同步区域。
+- 缺口：A25完成开关配置读取/写入及配置重读，但立即同步按钮没有真实调用。新增Gateway专用方法复用已有postFields、签名、header和响应解码，URL/字段严格照原调用；要求明确顶层success=true且data=true才记录接受，HTTP成功本身不足以报成功。
+- Controller：独立`InstrumentInfoSyncRequest`保存VIN、operationId、SUBMITTING/CLOUD_ACCEPTED/FAILED/CANCELLED；与开关的draft/submitted/configured/vehicle/cache/confirmation分离。要求当前VIN、已加载目录cloud:71、写权限、已确认云端启用、无草稿/提交/在途开关操作；防重复请求，旧VIN/旧刷新代次不发布成功，取消原异常传播，失败不改变已有配置值。
+- UI：cloud:71附加“立即同步车辆信息”动作，使用原AppActionPreference和两主题共同回调。请求由页面session作用域执行，显示“云端已接受；仪表未确认”等真实状态。未把special入口擅自映射为71，只有special:meter_gauge_sync而未下发71的车型仍PARTIAL，后续需独立门控/页面审计。
+- Fake-only：`InstrumentInfoSyncTest`7/7，`CloudConfiguredValueRefreshTest`37/37，共44/44；命令`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.InstrumentInfoSyncTest --tests top.ghhccghk.yadea.carsetting.CloudConfiguredValueRefreshTest --offline --console=plain`最终退出0。覆盖真实签名请求形状、缺/非法/关闭配置、权限、目录缺失、草稿、重复、VIN、请求代次、失败、取消，以及接受不改变车辆值/确认。初次测试源码构造器误用位置参数，退出1；改具名timestampProvider后通过。复审补齐_gateway后再次44/44通过，未放宽校验。
+- 构建：共享JVM/JS/Wasm和测试源码离线编译退出0；Android Debug/Desktop离线构建退出0；git diff --check退出0。独立复审重走原页/VM/模型→UI→Controller→Gateway→Fake HTTP，无通用网络层、帧编码、TTP原始解析或其他设置参数修改。
+- 等级：STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED。整体ID71仍PARTIAL，无RUNTIME_VERIFIED/VEHICLE_VERIFIED；原响应未提供可关联车辆执行事务，不建立车辆完成状态。实现提交标题`fix: complete vehicle setting instrument info sync`，提交哈希见下一批恢复记录。
+
 ## A58：联系人、密码管理与 SOS 的宿主 Controller 传递
 
 - 起始 HEAD：`e04daa5bab2d22457c31eb256b3565793d226341`，master；index 无内容差异。上轮撤回 ID51 试作后四处仅换行/stat 状态已逐文件与 HEAD blob 核对；非本批内容未纳入提交。既有14项 untracked 状态保持原样。

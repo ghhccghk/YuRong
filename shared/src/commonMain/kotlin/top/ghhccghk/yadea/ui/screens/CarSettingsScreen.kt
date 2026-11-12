@@ -42,6 +42,7 @@ import top.ghhccghk.yadea.carsetting.SettingConfirmationState
 import top.ghhccghk.yadea.carsetting.CarSettingWriteChannel
 import top.ghhccghk.yadea.carsetting.SettingReadbackState
 import top.ghhccghk.yadea.carsetting.TimeSyncStatusReport
+import top.ghhccghk.yadea.carsetting.InstrumentInfoSyncPhase
 import top.ghhccghk.yadea.carsetting.CarSettingsController
 import top.ghhccghk.yadea.carsetting.CarSettingsState
 import top.ghhccghk.yadea.carsetting.SecondPhaseSettings
@@ -429,6 +430,23 @@ fun CarSettingsScreen(
                                 submitSettingUpdate(item, transform)
                             },
                         )
+                        if (item.id == "cloud:71") {
+                            AppActionPreference(
+                                title = "立即同步车辆信息",
+                                summary = when (state.instrumentInfoSync?.phase) {
+                                    InstrumentInfoSyncPhase.SUBMITTING -> "正在请求同步…"
+                                    InstrumentInfoSyncPhase.CLOUD_ACCEPTED -> "云端已接受同步请求；仪表结果尚未确认"
+                                    InstrumentInfoSyncPhase.FAILED -> "同步请求未被确认，请重试"
+                                    InstrumentInfoSyncPhase.CANCELLED -> "同步请求已取消；执行结果未知"
+                                    null -> "请先启用车辆信息同步；此操作不修改开关配置"
+                                },
+                                value = "同步",
+                                enabled = controller.canRefreshInstrumentInfo(state.vin),
+                                onClick = {
+                                    settingScope.launch { controller.refreshInstrumentInfo(state.vin) }
+                                },
+                            )
+                        }
                         if (item.id == "cloud:25" && passwordController != null) {
                             AppActionPreference(
                                 title = "密码管理",
