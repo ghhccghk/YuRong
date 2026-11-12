@@ -519,5 +519,5 @@
 - 修复：`CarSettingsGateway.kt`移除ID62 `seatHeating`/`seatHeatingLevel`配置读映射，保留confId目录中的未知项、TTP回填和原有云端/BLE写入字段。复审发现UNKNOWN Toggle此前可能显示为unchecked并接受操作；`CarSettingsScreen.kt`将未知开关/档位显示为禁用“未知”，`CarSettings.kt`要求ID62编辑和直接提交前存在合法已知值，避免UI或Controller把UNKNOWN当作关闭/默认选择。没有改变请求、命令、值域或写入字段。
 - 测试：`:shared:jvmTest --tests 'top.ghhccghk.yadea.carsetting.BatterySettingsSafetyTest' --offline --console=plain`通过19/19（Fake-only）。
 - 构建：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。
-- 自审：ID62未知Toggle不会渲染成OFF开关，未确认档位不会以`selectedIndex=-1`交给Choice控件；Controller草稿与直接更新入口都要求合法已知值。已知值仍保留当前TTP/配置/缓存来源分离；写入接受不等于回读确认。验证等级`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；无运行或车辆验证。精确本地提交Hash在提交后补录。
+- 自审：ID62未知Toggle不会渲染成OFF开关，未确认档位不会以`selectedIndex=-1`交给Choice控件；Controller草稿与直接更新入口都要求合法已知值。已知值仍保留当前TTP/配置/缓存来源分离；写入接受不等于回读确认。验证等级`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；无运行或车辆验证。实现提交：`ab7b99b663d4c30e1718c527aa3d88111352f44b`（`fix: preserve unknown seat heating state`）。
 - 状态：ID62即时加热仍为`PARTIAL`，独立排程CRUD未实现，云端读取字段绑定未证实。未运行App、真实网络、BLE或车辆操作。

@@ -35,7 +35,7 @@
 
 ## 已完成
 
-- A45：ID62移除未经Smali读取绑定证实的`seatHeating`/`seatHeatingLevel` configuredValue映射；未知开关/档位不再显示为OFF或默认选择，Controller阻止UNKNOWN目标编辑/提交。Fake 19/19、跨平台编译和Android/Desktop构建通过；精确提交Hash见历史记录。
+- A45：ID62移除未经Smali读取绑定证实的`seatHeating`/`seatHeatingLevel` configuredValue映射；未知开关/档位不再显示为OFF或默认选择，Controller阻止UNKNOWN目标编辑/提交。Fake 19/19、跨平台编译和Android/Desktop构建通过；实现提交`ab7b99b663d4c30e1718c527aa3d88111352f44b`。
 
 - A44：ID60容量配置及TTP回读、ID62即时加热开关/档位静态复核完成；云端容量开关无原App回填证据，不加映射。ID62独立排程仍待审/未实现，整体PARTIAL。Fake隔离测试通过；无代码改动。
 
