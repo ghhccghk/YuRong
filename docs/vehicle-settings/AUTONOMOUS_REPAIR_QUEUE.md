@@ -4,7 +4,7 @@
 
 ## 正在处理
 
-- A33：校正ID80动态`bikeConfigVos`开关方向的过期聚合断言；记录独立`OTDActivity`反向参数路径，不改生产映射。
+- 无。A33已提交`1c139fa10e89b80fffb8fb254796f14406e24f74`；下一批从当前HEAD重新恢复检查。
 
 ## 待处理（候选，须先证据复核）
 
@@ -32,7 +32,7 @@
 
 ## 已完成
 
-- A33：区分ID80动态`bikeConfigVos`内联写入与独立`OTDActivity`的反向参数行为；KMP动态路径符合内联Smali，校正Phase4回归断言并新增精确Fake用例。精确提交待复核。
+- A33：区分ID80动态`bikeConfigVos`内联写入与独立`OTDActivity`的反向参数行为；KMP动态路径符合内联Smali，校正Phase4回归断言并新增精确Fake用例。提交`1c139fa10e89b80fffb8fb254796f14406e24f74`。
 
 - A32：区分ID72动态`bikeConfigVos`内联写入与独立Activity两种不同极性；KMP动态路径符合内联Smali，修正回归聚合断言并新增精确Fake用例。提交`5b357d6011d21b21edade275b78cdc046b15e284`。
 
