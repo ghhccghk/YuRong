@@ -397,3 +397,11 @@
 - 修改文件：`CarSettingsGateway.kt`、`VehicleSettingCommands.kt`、`CloudConfiguredValueRefreshTest.kt`、`Phase4CarSettingsTest.kt`及本矩阵/队列/历史。
 - 验证：Fake过滤命令`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.CloudConfiguredValueRefreshTest" --tests "top.ghhccghk.yadea.carsetting.Phase4CarSettingsTest.cloudFieldsCoverConfirmedRequestShapes" --tests "top.ghhccghk.yadea.carsetting.Phase4CarSettingsTest.mapperCreatesSecondBatchControls" --tests "top.ghhccghk.yadea.carsetting.BatterySettingsSafetyTest" --offline --console=plain`通过56/56（37+2+17，失败/错误/跳过0）。测试包括配置未知与只读、伪造可写对象在最终Writer边界被拒绝且BLE/云端调用均为0。宽过滤探测`Phase4CarSettingsTest`另有ID72 `LONG_ENDURANCE_SETTING`方向断言与当前实现不符；该测试及ID72实现不属于A31，已记录为后续审计项。`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm :androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；A31提交前后`git diff --check`退出0。
 - 状态：UNKNOWN伪造与未经证实的云/BLE写入路径已关闭；ID52字段关联及测距结果持久化仍`BLOCKED/PARTIAL`，不宣称功能闭环，无真实网络/App/车辆验证。精确提交：`f6cb9ad285aca3797e790e1a3d92d964059fe630`（`fix: keep unverified manual distance unknown`）。
+
+## A32（ID72双页面命令语义及回归夹具）
+
+- 起始HEAD：`e2146151d89a1bdca25d95b8cd8d08dcf3932684`，分支`master`；仅原有12组untracked，tracked/index干净。
+- Smali：动态页`SimpleSwitchItemView.v:~962–999`读取已切换后的`isChecked`并将目标布尔传入`CarSettingsInlineOperationHelper.y`；`y:2481+`的ID72分支调`s`，`CarSettingsInlineOperationHelper.s:1866–1870`执行`p3 xor 1`并发`LONG_ENDURANCE_SETTING`，故动态目标checked=true映射参数0。独立`EnduranceModeActivity.setListener$lambda$2:200–250`从`isChecked`推导后再xor，checked=true映射参数1。两页面同命令但参数极性不一致，保留为PARTIAL，不擅自改变KMP动态目录语义。
+- 修改：更新Phase4聚合测试中ID72断言以覆盖KMP当前动态`bikeConfigVos`入口对应的原App内联路径；仅修测试夹具，不改变生产代码。矩阵和队列记录两页面证据差异。
+- 验证：`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.Phase4CarSettingsTest.dynamicEnduranceSwitchUsesInlineOperationPolarity" --tests "top.ghhccghk.yadea.carsetting.SimpleToggleSettingsSafetyTest.enduranceRawZeroIsOnWhileOtherThreeReportOneAsOnAndCommandPolarityMatchesPage" --offline --console=plain`通过2/2；JVM/JS/Wasm/测试源码编译、Android Debug和Desktop构建命令退出0。宽过滤`Phase4CarSettingsTest`/`SimpleToggleSettingsSafetyTest`仍失败于其他旧断言或夹具（包括ID80参数方向、其他开关旧状态夹具），不据此扩改本批。`git diff --check`和提交信息待补。
+- 状态：KMP动态列表路径STATIC_FLOW_VERIFIED、UNIT_TESTED、BUILD_VERIFIED；独立Activity与动态内联路径仍存在冲突，整体PARTIAL，无App运行/车辆验证。提交待记录。

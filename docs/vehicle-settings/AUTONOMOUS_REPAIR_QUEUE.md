@@ -4,13 +4,14 @@
 
 ## 正在处理
 
-- 无。A31已于`f6cb9ad285aca3797e790e1a3d92d964059fe630`提交，验证记录见历史；继续下一批前复核当前HEAD和工作区。
+- 无。A32仅测试/审计文档变更，已通过本批精确验证，待提交。
 
 ## 待处理（候选，须先证据复核）
 
 - 雷达告警模式/音量：`COMMAND_RADAR_ALARM`/0x12F的完整允许值、UI边界及可信回填尚未证实；补齐Smali资源/绑定或其他可靠证据前不得接入。
 - 回归维护补充：EighthRoundValueStateTest、SixthRoundActivityBatchTest仍有音量3..7旧夹具，后续专项按三档Smali修正；不得放宽生产范围。
-- 回归维护：Phase4CarSettingsTest的62原始档位索引和10围栏完整快照夹具已在A31同步修正；仍有ID72 `LONG_ENDURANCE_SETTING`方向断言与当前Writer映射不一致，需单独Smali复核，勿在其他设置批次顺手改写。
+- 回归维护：Phase4CarSettingsTest的62索引、10围栏快照及ID72动态页方向夹具已在A31/A32按对应调用路径修正；ID72独立页与动态页行为差异仍需保留审计，不合并语义。Phase4聚合过滤仍报ID80方向旧断言。
+- 回归维护：`SimpleToggleSettingsSafetyTest`整类过滤仍有若干旧夹具/期望失败（未映射为A32产品缺陷）；需逐项核对Smali和测试隔离，禁止为绿测修改其他设置业务。
 - 其他全部项：按功能地图逐项核对读取、写入、门控及独立流程；发现安全问题优先插队。
 - 基线4/58/61/55/92、5/7/11/39、9/82：检查当前代码并回归，避免重复历史修复。
 
@@ -30,6 +31,8 @@
 每批开始读本文件、地图、历史、HEAD和staged/unstaged/untracked；只从最近成功提交后继续。禁止清理或暂存用户原有12项未跟踪内容。未通过测试、构建、自审及精确diff时不提交；不调用真实网络/车辆。
 
 ## 已完成
+
+- A32：区分ID72动态`bikeConfigVos`内联写入与独立Activity两种不同极性；KMP动态路径符合内联Smali，修正回归聚合断言并新增精确Fake用例。提交待精确复核后记录。
 
 - A31：ID52未知距离值保持UNKNOWN/只读，移除未经Smali证实的云字段映射，并在最终Writer拒绝Slider以阻断BLE/云端旁路。56项Fake过滤测试、JVM/JS/Wasm/测试源码编译、Android/Desktop构建通过；ID52测距字段关系仍BLOCKED。提交`f6cb9ad285aca3797e790e1a3d92d964059fe630`。
 

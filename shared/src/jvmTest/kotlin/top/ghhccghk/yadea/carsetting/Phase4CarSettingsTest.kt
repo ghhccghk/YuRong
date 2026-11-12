@@ -95,7 +95,7 @@ class Phase4CarSettingsTest {
             ),
         )
         assertEquals(
-            VehicleSettingCommand("LONG_ENDURANCE_SETTING", 0xDD, 1),
+            VehicleSettingCommand("LONG_ENDURANCE_SETTING", 0xDD, 0),
             VehicleSettingCommands.forConfigId("72", CarSettingKind.Toggle(true)),
         )
         // Bare BLE omits the original branch's cloud metadata update.
@@ -106,6 +106,19 @@ class Phase4CarSettingsTest {
         )
         // Quiet mode uses an independent order-39 frame, never an ordinary 3E setting.
         assertNull(VehicleSettingCommands.forConfigId("93", CarSettingKind.Toggle(true)))
+    }
+
+    @Test
+    fun dynamicEnduranceSwitchUsesInlineOperationPolarity() {
+        // The KMP directory mirrors bikeConfigVos' inline row (helper.s XORs checked).
+        assertEquals(
+            VehicleSettingCommand("LONG_ENDURANCE_SETTING", 0xDD, 0),
+            VehicleSettingCommands.forConfigId("72", CarSettingKind.Toggle(true)),
+        )
+        assertEquals(
+            VehicleSettingCommand("LONG_ENDURANCE_SETTING", 0xDD, 1),
+            VehicleSettingCommands.forConfigId("72", CarSettingKind.Toggle(false)),
+        )
     }
 
     @Test
