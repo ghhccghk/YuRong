@@ -591,7 +591,7 @@ class CarSettingsController(
         if (_state.value.vin.isNotBlank() && _state.value.vin != vinProvider().trim()) return false
         if (!hasKnownSettingValue(item)) return false
         val target = transform(editable)
-        if (!validRadarTarget(item, target) || !validDraftTarget(originalKind, target) || !validSpeedTarget(item, target) ||
+        if (!validRadarTarget(item, target) || !validDraftTarget(originalKind, target) || !validOneKeyDistanceTarget(item, target) || !validSpeedTarget(item, target) ||
             !validSecondPhaseTarget(item, target) || !validBatteryTarget(item, target) || !validTimerTarget(item, target) ||
             !validSimpleChoiceTarget(item, target) || !validAtmosphereTarget(item, target) ||
             (item.configId == "10" && !GeofenceSettings.validItem(item.copy(kind = target)))
@@ -623,7 +623,23 @@ class CarSettingsController(
     private fun validRadarTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
         item.configId !in RadarSettings.configIds || RadarSettings.validTarget(item, target)
 
+    private fun isValidOneKeyDistance(kind: CarSettingKind): Boolean =
+        (kind as? CarSettingKind.Slider)?.let {
+            it.valueKnown && it.range == 0f..7f && it.rangeKnown && it.value.isFinite() &&
+                it.value % 1f == 0f && it.value in 0f..7f
+        } == true
+
+    private fun validOneKeyDistanceTarget(item: CarSettingItem, target: CarSettingKind): Boolean =
+        item.id != "cloud:1:distance" || (item.configId == "1" && isValidOneKeyDistance(target) &&
+            (item.kind as? CarSettingKind.Slider)?.let { target is CarSettingKind.Slider && target.range == it.range } == true)
+
     private fun hasKnownSettingValue(item: CarSettingItem): Boolean {
+        if (item.id == "cloud:1:distance" && item.configId == "1") {
+            val state = _state.value.valueState(item.id)
+            return listOfNotNull(state.configuredValue,
+                (state.vehicleValue as? VehicleSettingValue.Known)?.kind, state.cachedValue?.kind
+            ).any(::isValidOneKeyDistance)
+        }
         if (item.configId == "71") {
             return (_state.value.valueState(item.id).configuredValue as? CarSettingKind.Toggle)
                 ?.valueKnown == true
@@ -832,7 +848,7 @@ class CarSettingsController(
             _state.value = current.copy(message = "请确认关闭定位提示后再保存")
             return false
         }
-        if (!validRadarTarget(item, target) || !validTarget(originalKind, target) || !validSpeedTarget(item, target) ||
+        if (!validRadarTarget(item, target) || !validTarget(originalKind, target) || !validOneKeyDistanceTarget(item, target) || !validSpeedTarget(item, target) ||
             !validSecondPhaseTarget(item, target) || !validBatteryTarget(item, target) || !validTimerTarget(item, target) ||
             !validSimpleChoiceTarget(item, target) || !validAtmosphereTarget(item, target) ||
             (item.configId == "10" && (!GeofenceSettings.validItem(item.copy(kind = target)) ||

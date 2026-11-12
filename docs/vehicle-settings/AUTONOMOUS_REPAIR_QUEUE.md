@@ -4,7 +4,7 @@
 
 ## 正在处理
 
-- 暂无。A26已提交；下一批候选先完成只读复核。
+- 暂无。A27已完成并提交；从ID52校准及其他尚未逐项复核的功能继续。
 
 ## 待处理（候选，须先证据复核）
 
@@ -21,13 +21,15 @@
 - 3：Binding.H5→VM.w0→TTP pushModeStatus；KMP原始解析缺失，读取BLOCKED；现有11/12写入经严格UNKNOWN/稳定ID保护，UI继续UNKNOWN禁用。
 - 2：原页关闭可能按车型1021/29+39状态选择AC。无对应车型来源/既有AC编码时阻止不确定关闭；39未下发或有效LIVE锁状态0时可以证明10安全。保持PARTIAL，不新增帧。
 - 75：原页和内联均读iotRemoveAlarm；P4/s20对非null Boolean固定写tamperProofIotEnable=1，0关闭缺证据，已阻止。原FA帧受保护边界限制；不补帧、不将字段名当云端配置读取证据。
-- 1/52 校准、51 事务关联、77 排程、33 模式、93 当前值、1005 特定名称、复杂独立页面：复核后逐项列出BLOCKED/PARTIAL原因；此处不是最终判定。
+- 52校准、51事务关联、77排程、33模式、93当前值、1005特定名称、复杂独立页面：复核后逐项列出BLOCKED/PARTIAL原因；此处不是最终判定。
 
 ## 恢复规则
 
 每批开始读本文件、地图、历史、HEAD和staged/unstaged/untracked；只从最近成功提交后继续。禁止清理或暂存用户原有12项未跟踪内容。未通过测试、构建、自审及精确diff时不提交；不调用真实网络/车辆。
 
 ## 已完成
+
+- A27：ID1一键开机距离档位写入安全，精确提交记录在`AUTONOMOUS_REPAIR_HISTORY.md`；普通档位链路已复核，用户写入结果不冒充车辆确认；原有12组untracked保持。
 
 - A26：ID24/85联系人流程跨VIN状态隔离，提交`e305f2bdc19f90f8a748f3eb709d30779df38e67`；专属Fake测试9/9（含Controller 8项、Gateway 1项）、共享JVM/JS/Wasm/测试源码编译、Android/Desktop构建及diff检查退出0。非Android Gateway注入/服务端字段回读确认仍PARTIAL；原有12项untracked保持。
 

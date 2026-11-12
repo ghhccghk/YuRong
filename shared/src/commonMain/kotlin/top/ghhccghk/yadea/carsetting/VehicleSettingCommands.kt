@@ -24,6 +24,7 @@ data class VehicleSettingCommand(
         // fallback/clamping turn an invalid direct command into a valid write.
         when (commandId) {
             0x55 -> require(parameter in 0..3)
+            0x37 -> require(commandType == "NEARBY_BLE_UNLOCK" && parameter in 0..7)
             0x5E -> require(parameter in 0..2)
             0x2E -> require(parameter in 0..2) // ch.d also defines THEME_2; ID5 exposes only 0/1.
             0xC9, 0xD2, 0xD4 -> require(parameter in 0..1)
@@ -952,10 +953,14 @@ object VehicleSettingCommands {
             )
             "cloud:1:distance" -> {
                 val slider = item.kind as? CarSettingKind.Slider ?: return null
+                if (item.configId != "1" || !slider.valueKnown || slider.range != 0f..7f ||
+                    !slider.rangeKnown || !slider.value.isFinite() || slider.value % 1f != 0f ||
+                    slider.value !in 0f..7f
+                ) return null
                 return VehicleSettingCommand(
                     commandType = "NEARBY_BLE_UNLOCK",
                     commandId = 0x37,
-                    parameter = slider.value.toInt().coerceIn(0, 7),
+                    parameter = slider.value.toInt(),
                 )
             }
             "cloud:25" -> return toggle(

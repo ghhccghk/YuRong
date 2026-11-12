@@ -37,7 +37,9 @@ object VehicleSettingFrameEncoder {
         // OneKeyOpenActivity：NEAR_UNLOCK_OPEN / CLOSE，只有版本/绑定前缀不同。
         0x0D, 0x0E -> "FF".repeat(25)
         // OneKeyOpenActivity / OneKeyDistanceActivity：距离档位 0..7。
-        0x37 -> hex2((command.parameter.coerceIn(0, 7) + 0xF8)) + "FF".repeat(24)
+        0x37 -> if (command.commandType == "NEARBY_BLE_UNLOCK" && command.parameter in 0..7) {
+            hex2(command.parameter + 0xF8) + "FF".repeat(24)
+        } else null
         // PassWordUnlockActivity：密码解锁开关。
         0x80 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7FFFFFFF"
         0x81 -> "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF3FFFFFFF"

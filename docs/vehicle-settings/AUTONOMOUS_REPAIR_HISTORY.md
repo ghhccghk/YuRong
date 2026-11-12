@@ -346,3 +346,15 @@
 - Fake过滤测试首次因既有Emoji边界测试缺少保留区间外的U+1F7FF失败；仅修正expected样本，没有改变生产过滤范围。重跑`EmergencyContactValidationTest` 8/8、`YadeaEmergencyContactGatewayTest` 1/1，退出0。
 - `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无App运行/真实云端/车辆验证。非Android Controller装配及服务端写入后字段值比对仍未闭环，保持PARTIAL。
 - 本批提交`e305f2bdc19f90f8a748f3eb709d30779df38e67`（`fix: isolate emergency contacts by vehicle VIN`），精确5文件；提交后tracked工作区干净，master相对上游ahead 47/behind 0，原有12组untracked保持。
+
+## A27（ID1一键开机距离档位写入安全）
+
+- 起始HEAD：`796fcb509bd2e708c337d5823bebdc99dd5f0e3d`，master；开始时staged/tracked修改为空，原有12组untracked保留，未fetch或切分支。
+- Smali：`OneKeyDistanceActivity.getSettingConfigId:779`、`OneKeyOpenActivity.getSettingConfigId:4224`；`ModeGearView$onSeekChangeListener$1.a:87–178`以滑块thumb减1构造`AUTO_TURN_ON_OFF`或`NEARBY_BLE_UNLOCK`；`VehicleSettingViewModel`回填`bleKeyDistanceLevel/bleKeyStatus`。`l76.C:3bit`把全1值7标为INVALID；因此7是命令合法域端点，但不是有效TTP回读值。
+- KMP原缺陷：ID1未经过`hasKnownSettingValue`门槛；Slider未知占位值0可生成命令；小数会经`toInt()`截断，越界值和最终帧参数被`coerceIn(0,7)`改写成有效写入。
+- 修复：Controller草稿和即时提交入口要求有有效已知距离值，目标须是known、0..7整数和固定范围；`forItem`拒绝未知、非整数、越界及错confId；`VehicleSettingCommand`和最终0x37编码边界拒绝非法参数，不再钳位。TTP `raw7`继续UNKNOWN；合法命令7仍可构造。
+- Fake测试覆盖未知Controller编辑/提交阻止、同VIN实时值回填后编辑、越VIN不回填、0/7合法命令、未知/负值/小数/越界映射拒绝、直接命令构造边界及写入接受与车辆回读分离。
+- 过滤测试早期两次失败：测试误用了不存在的确认枚举名；随后测试假设TTP raw7有效，与Smali提取器全1无效语义冲突。只修正测试断言/夹具，没有放宽生产校验。最终过滤`FifthRoundDistanceRegressionTest` 4/4与`VehicleSettingGoldenFrameTest` 3/3通过（Fake/离线）。
+- 共享编译`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；Android/Desktop `:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。`git diff --check`退出0。
+- 独立复审覆盖可写门控→Controller两入口→`forItem`→命令参数→0x37最终帧编码；未知值不能被占位值替代，来源状态未改，其他设置未改。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无App运行或实车验证。普通档位安全写入完成，ID1自定义距离标定仍BLOCKED/PARTIAL。
+- 本批提交标题`fix: harden one-key distance setting writes`；提交Hash及精确文件在下一批起点记录。仅本地提交，不push。
