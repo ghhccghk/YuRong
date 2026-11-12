@@ -477,3 +477,10 @@
 - 独立复审：Smali位域→`TtpInfoParser`→`TtpExtendedInfo`→`CarSettingsController.applyVehicleStatus`→设置项Toggle。raw非0/1不被当作有效开关；首次无效观察保持UNKNOWN；不改云端configuredValue、缓存语义、Writer、BLE命令或其他设置项。写入接受与车辆回读确认仍分离。
 - 验证：`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.SimpleToggleSettingsSafetyTest" --tests "top.ghhccghk.yadea.vehicle.TtpInfoParserTest" --offline --console=plain`通过54/54（最终重跑覆盖raw 2无效映射）；`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0（仅有既有弃用/unchecked 警告）；`git diff --check`及staged check通过。
 - 当前状态：ID3/13读取达到STATIC_FLOW_VERIFIED、UNIT_TESTED；整体仍PARTIAL（未运行App、无真实车辆读回验证）。低层写入链未在本批变更，云端配置字段仍不作推断。
+
+## A41（ID2边撑感应车型关闭分支复核）
+
+- 起始HEAD：`5eb700dd67f0a027704ffca34d6fec9be10ab2e5`，分支`master`；tracked/index干净；保留既存untracked内容。
+- Smali证据：`TempleInductionActivity.onSwClick:42–153`在开关目标为关闭时，只有w2非空、`H6()==true`、`F1()==true`且`VehicleDataManager.W0()==true`才发送`BRACE_CLOSE_LOCKER_CLOSE`；否则发送`SLIDE_BRACE_OFF`。`VehicleDataManager.W0:10500–10634`要求`VehicleDataBean.vehicleConfig`存在父configId `1021`，并在其childConfigs中找到可解析为整数`29`的configId。页面ID为2（`getSettingConfigId:209+`）。
+- KMP复核：`SideBraceSettings.canClose`继续拒绝不能证明安全的状态；当前只在同VIN有效实时状态满足既有约束时允许安全的`SLIDE_BRACE_OFF`路径。未找到可证明KMP状态模型等价于原App `w2/H6/F1/W0`组合条件的来源映射，故特定车型命令仍BLOCKED；不放宽Controller、Writer或Mapper限制。
+- 本批只更新功能矩阵及队列，不改代码，不运行测试或构建。验证等级为STATIC_FLOW_VERIFIED；无RUNTIME_VERIFIED或VEHICLE_VERIFIED。

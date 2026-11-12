@@ -23,7 +23,7 @@
 - 42：A14已追清jp6.h/i→cal2→VM.x→k5。资格响应缺失/非法时阻止开启；未运行App或实车验证。
 - 13：A40已接通`l76`解析→`TtpExtendedInfo`→Controller→ID13 UI的LIVE_TTP读取；只接受raw 0/1。原写入路径保留，运行态/车辆确认未验证。
 - 3：A40已接通`l76`解析→`TtpExtendedInfo`→Controller→ID3 UI的LIVE_TTP读取；只接受raw 0/1。现有11/12写入保持原状，运行态/车辆确认未验证。
-- 2：原页关闭可能按车型1021/29+39状态选择AC。无对应车型来源/既有AC编码时阻止不确定关闭；39未下发或有效LIVE锁状态0时可以证明10安全。保持PARTIAL，不新增帧。
+- 2：A41确认原页特定关闭命令要求w2非空、H6/F1为true且W0为true；W0检查VehicleDataBean.vehicleConfig父1021及子29。KMP未证实H6/F1对应来源，特定车型分支保持BLOCKED；继续仅允许已有证明安全的路径，不新增帧或推断权限映射。
 - 75：原页和内联均读iotRemoveAlarm；P4/s20对非null Boolean固定写tamperProofIotEnable=1，0关闭缺证据，已阻止。原FA帧受保护边界限制；不补帧、不将字段名当云端配置读取证据。
 - 51事务关联、77排程、33模式、93当前值、复杂独立页面：复核后逐项列出BLOCKED/PARTIAL原因；此处不是最终判定。
 
