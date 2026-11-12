@@ -576,3 +576,13 @@
 - KMP复核：`CarSettingsGateway.kt`将`BLUETOOTH_KEY_IDS={66}`映射为只读Info，`toItems`排除通用写权限；未找到ID66的Controller、TTP值或云端更新字段构建。该门控避免把车辆能力项误作普通开关。KMP没有实现原App一键开机校准/结果事务。
 - 结论：目录项66保持`CONDITIONAL/PARTIAL`；校准执行与结果确认`BLOCKED`，原因是完整RangingState依赖、校准命令/参数与车辆完成结果协议未闭环。不得新增Cloud/BLE普通设置映射；本批只更新矩阵和队列。
 - 验证：静态Smali/KMP调用链审计、`git diff --check`；未运行测试、构建、App、云端、BLE或车辆操作。仅`STATIC_FLOW_VERIFIED`，没有`UNIT_TESTED`、`BUILD_VERIFIED`、`RUNTIME_VERIFIED`或`VEHICLE_VERIFIED`。
+
+## A52：设置页面入口普查与 ID5/7/11/39 只读复核
+
+- 起始HEAD：`ba6097f4bacfbd1b89fb212213224c59129fe0a7`，分支`master`；tracked工作区与index干净。既有12项untracked日志、APK、截图、JADX和用户文档保持原样。
+- Smali入口普查：在`F:\android app code\YadeaHook\temp_smali`的`com/yadea/smartmoto`树中解析直接返回字符串的`getSettingConfigId()Ljava/lang/String;`，得到72个方法、70个唯一ID，均已出现在功能矩阵。另发现`RadarBaseActivity.getSettingConfigIdList`、`LowPowerBaseActivity.getSettingConfigIdList`从当前BikeConfig取动态ID；`SosContactActivity.getSettingConfigIdList:1083–1096`明确返回24/91。该检查只核对直接页面入口和动态列表入口，不宣称覆盖运行时所有车型功能。
+- ID5证据：`OldVehicleSoundEffectsActivity.getSettingConfigId:506–514`返回5；监听`onCheckedChanged`以`ALARM_THEME_0/1`分别提交0/1（约`64–100`）；`l76.smali:9739–9741`回填`alarmRingThemeCurrent`，`VehicleSettingViewModel.smali:21046–21050`读取并回填该TTP字段。KMP `TtpInfo.kt`解析同字段，`CarSettings.kt:1334`仅接收0/1，`CarSettingsScreen.kt:1687–1697`未知时显示未知入口并让用户显式选择，`SecondPhaseSettings.validTarget`和`VehicleSettingCommands.kt`最终限制known Choice 0/1。未发现可安全补充的新映射。
+- ID7/39证据：`AutoShutDownActivity.getSettingConfigId:505–512`返回7，`BraceAutoShutDownActivity.getSettingConfigId:376–383`返回39；两页开关处理均先调用`VehicleDataManager.W0()`（`onSwClick`），再使用`LEAVE_THE_CAR_AUTO_LOCK_ON/OFF`。时间/开关状态在`l76.smali:9492–9501`写入`leaveVehicleAutoLockStatus`和`leaveVehicleAutoLockTimeStatus`；ViewModel在`20333–20628`读取并回填。现有KMP `CarSettings.kt:1335–1342`分开映射开关和时间，`SecondPhaseSettings.kt`保持未知原始值未知，时间子项需要同VIN有效LIVE_TTP父开关开启且没有父草稿/提交/在途写入。原页`VehicleDataManager.W0`进一步检查的车型父/子配置映射在KMP没有已证实的等价来源，故不扩大可写范围。
+- ID11证据：`AutoOnOffActivity.getSettingConfigId:187–194`返回11；开关处理提交`AUTO_TURN_ON_OFF_OPEN/CLOSE`，`l76.smali:9340–9351`回填`bleAutoTurnOnOffStatus/GearStatus`；ViewModel `19729–19960`消费两字段。KMP解析及`CarSettings.kt:1344–1348`分别回填开关和距离Choice，Controller、UI及最终命令检查父开关LIVE/同VIN门控和合法选项。未找到新增可安全补充的缺口。
+- 结论：本批只读静态复核，没有生产代码变更。ID5、ID11的静态字段/命令映射无新增缺口；ID7/39车型条件来源仍`BLOCKED`，总体继续`PARTIAL`。不得把现有Fake和静态审计描述成运行或车辆验证。
+- 修改文件：仅功能矩阵、任务队列和本历史。验证：`git diff --check`；未运行测试、构建、App、真实网络、BLE或车辆操作。验证等级仅`STATIC_FLOW_VERIFIED`，无`UNIT_TESTED`、`BUILD_VERIFIED`、`RUNTIME_VERIFIED`或`VEHICLE_VERIFIED`。
