@@ -338,10 +338,11 @@
 - 最新代码验证：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。
 - 本批提交`3bf4645616b18f93e4db058e94d2797796d57597`（`fix: complete vehicle setting gauge sync configuration`），精确7文件；提交后tracked工作区干净，分支相对上游ahead 45/behind 0，原有12组untracked保持。
 
-## A26（ID24/85联系人跨VIN隔离，待提交）
+## A26（ID24/85联系人跨VIN隔离，已提交）
 
 - Smali：`EmergencyContactActivity.getSettingConfigId:964`返回24；`SosContactActivity.getSettingConfigId:1933`返回85、`getSettingConfigIdList:1083`包含24/91。`VehicleSettingViewModel.R6:16868`请求`vehiclebase/bikeEmergencyContact/select`并以VIN查询，`Y3`提供联系人数据。两页都构造`vin/name/mobile/type`并经`s6:30618`请求`vehiclebase/bikeEmergencyContact/insert`；Owner callback传"1"，Emergency callback传"2"。无BLE车辆命令。
 - KMP `CarSettingsScreen.kt:423–433,1353–1438`让24/85复用联系人BottomSheet；Android `MainActivity.kt:300`注入Gateway和当前VIN。只读审计发现Controller旧VIN联系人可残留/被新VIN保存使用、`runCatching`吞取消、晚返回的旧请求可覆盖新状态。
 - A26以请求代次和VIN保护读写；切换VIN立即清理异VIN数据；保存需要同VIN已回填联系人；晚返回结果不更新当前状态；`CancellationException`显式传播。字段、API和手机号校验不变。
 - Fake过滤测试首次因既有Emoji边界测试缺少保留区间外的U+1F7FF失败；仅修正expected样本，没有改变生产过滤范围。重跑`EmergencyContactValidationTest` 8/8、`YadeaEmergencyContactGatewayTest` 1/1，退出0。
 - `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无App运行/真实云端/车辆验证。非Android Controller装配及服务端写入后字段值比对仍未闭环，保持PARTIAL。
+- 本批提交`e305f2bdc19f90f8a748f3eb709d30779df38e67`（`fix: isolate emergency contacts by vehicle VIN`），精确5文件；提交后tracked工作区干净，master相对上游ahead 47/behind 0，原有12组untracked保持。

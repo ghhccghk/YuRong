@@ -4,7 +4,7 @@
 
 ## 正在处理
 
-- A26：ID24/85联系人流程跨VIN状态隔离。Smali/KMP链路已核实；实现、Fake测试、共享多平台编译及Android/Desktop构建通过，待最终diff复审、历史记录更新并精确提交。非Android Gateway注入未补，联系人仍标PARTIAL。
+- 暂无。A26已提交；下一批候选先完成只读复核。
 
 ## 待处理（候选，须先证据复核）
 
@@ -28,6 +28,8 @@
 每批开始读本文件、地图、历史、HEAD和staged/unstaged/untracked；只从最近成功提交后继续。禁止清理或暂存用户原有12项未跟踪内容。未通过测试、构建、自审及精确diff时不提交；不调用真实网络/车辆。
 
 ## 已完成
+
+- A26：ID24/85联系人流程跨VIN状态隔离，提交`e305f2bdc19f90f8a748f3eb709d30779df38e67`；专属Fake测试9/9（含Controller 8项、Gateway 1项）、共享JVM/JS/Wasm/测试源码编译、Android/Desktop构建及diff检查退出0。非Android Gateway注入/服务端字段回读确认仍PARTIAL；原有12项untracked保持。
 
 - A25：71仪表同步配置开关，提交`3bf4645616b18f93e4db058e94d2797796d57597`；35/35 Fake过滤测试、JVM/JS/Wasm/测试源码编译、Android/Desktop构建及`git diff --check`退出0。云端配置写入/复读已完成，仪表执行确认和独立立即同步流程仍PARTIAL；提交前保留12项既有untracked内容。
 
