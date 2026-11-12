@@ -1,5 +1,17 @@
 # 自主修复历史
 
+## A61：基线回归、特殊页面收尾与最终能力地图
+
+- 起始HEAD：`f63bc5944592900f59eca48befdde84e3a409701`，master；tracked/index干净；A60即该实现提交。保留全部14项原有untracked，无外部提交。
+- 重新追踪4/58/61配置来源、车型上下限及TTP观察，55/92两页四字段提交及不可变命令payload，9/82独立可空配置/组合字段/时间编辑/统一Sheet；移除地图“无Controller分支/待核/仍需回归”的过期占位。没有重复实现或改变业务代码。
+- 特殊页：WallpaperSkinActivity.queryHasData:235–390、showFragment:686–733证明云端资源目录；KMP仪表Tab已有本地壁纸/皮肤上传，缺口是目录/选择应用事务和入口，不能写成完全不存在。MsgAsyncActivity已证实与71共享刷新动作，但special-only权限未闭环。FamilyCarSettingActivity$initView$1明确用户身份与个人参数；LabExplorationActivity→VM.a1→x20/y20仍含独立条件，不能硬编码复制聚合目录。设备详情与KMP Info Tab数据契约未证实完全等价。
+- 补充5个无固定ID实体：ReadyP读readyP、写COMMAND_READY_P/0xE4，但无可信目录绑定及既有编码；LowPowerModeInfo属于独立低功耗控制，不是低电量提醒；Multifunction弹窗只显示所选文本；StartLight缺完整来源/提交；TemperatureUnit只更新本页文字且onCreate为native。均明确BLOCKED原因。SmartBoot为外设配对，排除计数；ConfigSetting组合页不重复计数。
+- 最终Fake回归7类126/126，失败/错误/跳过0：FirstPhase24、LowPower29、SOS4、EmergencyContact8、Password17、InstrumentSync7、CloudConfigured37。所有底层为Fake/内存，未调用真实网络或车辆；过滤命令及完整退出码见最终报告。此前两类基线回归53/53、A60专项12/12也已通过，不叠加为唯一测试数量。
+- 代码最后变更为A60；其共享JVM/JS/Wasm/测试源码离线编译、Android Debug/Desktop构建退出0。A61仅更新文档，不重复构建；最终diff及矩阵统计检查通过后精确文档提交。
+- 范围偏差复核：累计diff发现A27提交d971f7a修改过VehicleSettingFrameEncoder的0x37钳位分支，违反本任务帧编码保护边界；最终报告明确披露。未重写历史、未擅自撤销安全校验、未追加协议改动。后续处置需独立授权；不能宣称全任务从未修改编码器。ID51 C0试作已撤回，未保留在代码。
+- 状态：93个实体，COMPLETE41、PARTIAL35、CONDITIONAL9、BLOCKED7、NOT_APPLICABLE1；READ_ONLY/WRITE_ONLY/UI_ONLY/NOT_IMPLEMENTED均0（指顶层整体，子流程按行列出）。COMPLETE仅静态/Fake链路，不是运行/实车。所有可定位且在当前证据和边界内的修复已处理；剩余项按原因留待证据、平台或专项授权。
+
+
 ## A60：SOS 双向提交联系人门槛
 
 - 起始HEAD：`7092deba14a246bc12b301639fbee52b76746dc0`，master；tracked/index干净，保留原有14项untracked。A59实现提交即该HEAD。
