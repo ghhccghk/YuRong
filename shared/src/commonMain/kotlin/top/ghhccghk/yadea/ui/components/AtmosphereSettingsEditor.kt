@@ -66,7 +66,7 @@ internal fun AtmosphereSettingsEditor(
     customizationSwitch: @Composable () -> Unit = {},
 ) {
     val dimensions = AppDesign.dimensions
-    val colorEditable = draft.showMode == 1 || draft.showMode == 3
+    val colorModeEditable = draft.showMode == 1 || draft.showMode == 3
     Column(modifier.fillMaxWidth().heightIn(max = 640.dp)) {
         Column(
             Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
@@ -77,7 +77,7 @@ internal fun AtmosphereSettingsEditor(
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     AppText("灯光模式", Modifier.weight(1f), style = AppDesign.typography.itemTitle)
                     AppText(
-                        if (!hasSelection) "未选择" else if (colorEditable) "该模式单色/双色可选" else "该模式仅支持单色",
+                        if (!hasSelection) "未选择" else if (colorModeEditable) "该模式单色/双色可选" else "该模式仅支持单色",
                         Modifier.weight(1.4f),
                         style = AppDesign.typography.caption,
                         color = AppDesign.colors.onSurfaceVariant,
@@ -129,7 +129,7 @@ internal fun AtmosphereSettingsEditor(
             Column(verticalArrangement = Arrangement.spacedBy(dimensions.controlSpacing)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     AppText("灯光颜色", Modifier.weight(1f), style = AppDesign.typography.itemTitle)
-                    if (colorEditable && hasSelection) {
+                    if (colorModeEditable && hasSelection) {
                         AppSegmentedControl(
                             options = listOf("单色", "双色"),
                             selectedIndex = if (draft.singleColor) 0 else 1,
@@ -140,12 +140,12 @@ internal fun AtmosphereSettingsEditor(
                     }
                 }
                 AtmosphereDivider()
-                // The original page shows a color preview, not hue editors, for steady/flashing modes.
+                // All modes allow the primary color; only breathing/running modes allow a second color.
                 if (!hasSelection) {
                     AtmosphereColorLabel("颜色", null)
-                } else if (colorEditable) {
+                } else {
                     AppAtmosphereColor(
-                        label = if (draft.singleColor) "颜色" else "颜色A",
+                        label = if (colorModeEditable && !draft.singleColor) "颜色A" else "颜色",
                         color = atmosphereRgb(draft.red1, draft.green1, draft.blue1),
                         enabled = enabled,
                         onColorChange = { color ->
@@ -153,7 +153,7 @@ internal fun AtmosphereSettingsEditor(
                             onEdit { it.copy(red1 = (rgb shr 16) and 255, green1 = (rgb shr 8) and 255, blue1 = rgb and 255) }
                         },
                     )
-                    if (!draft.singleColor) {
+                    if (colorModeEditable && !draft.singleColor) {
                         AppAtmosphereColor(
                             label = "颜色B",
                             color = atmosphereRgb(draft.red2, draft.green2, draft.blue2),
@@ -164,8 +164,6 @@ internal fun AtmosphereSettingsEditor(
                             },
                         )
                     }
-                } else {
-                    AtmosphereColorLabel("颜色", atmosphereRgb(draft.red1, draft.green1, draft.blue1))
                 }
             }
             AppText(status, style = AppDesign.typography.caption, color = AppDesign.colors.onSurfaceVariant)

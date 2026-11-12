@@ -855,10 +855,10 @@ fun CarSettingsScreen(
                                 toggle == null -> "状态未知，等待配置或回读"
                                 else -> "车辆当前值：${vehicleValueLabel(switchState)}"
                             },
-                            checked = toggle?.checked ?: false,
+                            checked = toggle?.checked?.let { switchCheckedForUi(item.configId, it) } ?: false,
                             enabled = toggle != null && settingControlEnabled(item) && atmosphereTarget.id !in state.pendingIds,
                             onCheckedChange = { checked ->
-                                settingSwitchTarget(switchState, checked)?.let { target ->
+                                settingSwitchTarget(switchState, switchTargetFromUi(item.configId, checked))?.let { target ->
                                     submitSettingUpdate(item) { target }
                                 }
                             },
@@ -1549,6 +1549,12 @@ private val BLE_POWER_SETTING_IDS = setOf("37", "38", "86", "17", "18", "33")
 internal fun settingSwitchTarget(state: CarSettingValueState, targetChecked: Boolean): CarSettingKind.Toggle? =
     (state.displayKind() as? CarSettingKind.Toggle)?.copy(checked = targetChecked, valueKnown = true)
 
+internal val INVERTED_SWITCH_UI_IDS = setOf("13", "73")
+
+internal fun switchCheckedForUi(configId: String, checked: Boolean): Boolean =
+    if (configId in INVERTED_SWITCH_UI_IDS) !checked else checked
+internal fun switchTargetFromUi(configId: String, checked: Boolean): Boolean = switchCheckedForUi(configId, checked)
+
 internal fun isAuditedThreeTickSlider(item: CarSettingItem): Boolean =
     item.id == "cloud:14" || item.id == "cloud:64:level" || item.id == "cloud:89:level"
 
@@ -1695,9 +1701,9 @@ private fun CarSettingRow(
                 onClick = {},
             )
         } else AppSwitchPreference(
-            checked = (observed as? CarSettingKind.Toggle)?.checked ?: false,
+            checked = (observed as? CarSettingKind.Toggle)?.checked?.let { switchCheckedForUi(item.configId, it) } ?: false,
             onCheckedChange = { checked ->
-                settingSwitchTarget(valueState, checked)?.let { target -> onUpdate { target } }
+                settingSwitchTarget(valueState, switchTargetFromUi(item.configId, checked))?.let { target -> onUpdate { target } }
             },
             title = item.title,
             summary = if (observed == null) "$summary · 状态未知，等待配置或回读" else summary,
