@@ -285,6 +285,28 @@ class CarSettingsControllerTest {
         assertEquals(9, long.selectedIndex)
         assertTrue(short.valueKnown)
         assertTrue(long.valueKnown)
+
+        for (raw in 9..14) {
+            val probe = CarSettingsController(items, writer = null)
+            probe.updateVehicleStatus("VIN", sampleStatus(customFunctionShort = raw, customFunctionLong = raw))
+            val shortReadback = probe.state.value.items.first { it.id == "cloud:1005:short" }
+                .kind as CarSettingKind.Choice
+            val longReadback = probe.state.value.items.first { it.id == "cloud:1005:long" }
+                .kind as CarSettingKind.Choice
+            assertEquals(raw.toString(), 9, shortReadback.selectedIndex)
+            assertEquals(raw.toString(), 9, longReadback.selectedIndex)
+            assertTrue(shortReadback.valueKnown)
+            assertTrue(longReadback.valueKnown)
+        }
+
+        val invalidProbe = CarSettingsController(items, writer = null)
+        invalidProbe.updateVehicleStatus("VIN", sampleStatus(customFunctionShort = 15, customFunctionLong = 15))
+        assertFalse(
+            (invalidProbe.state.value.items.first { it.id == "cloud:1005:short" }.kind as CarSettingKind.Choice).valueKnown,
+        )
+        assertFalse(
+            (invalidProbe.state.value.items.first { it.id == "cloud:1005:long" }.kind as CarSettingKind.Choice).valueKnown,
+        )
     }
     @Test
     fun writeResultDefaultsDoNotClaimConfirmation() {

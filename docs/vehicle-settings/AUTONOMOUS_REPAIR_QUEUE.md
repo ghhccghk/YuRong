@@ -4,7 +4,7 @@
 
 ## 正在处理
 
-- 无。A34已提交`292f9c3040fa417006faea0034b85d15e7e2001e`；当前待处理候选仍需独立Smali复核。
+- 无。A35实现及验证完成；本地提交Hash将在提交后写回历史记录。
 
 ## 待处理（候选，须先证据复核）
 
@@ -24,7 +24,7 @@
 - 3：Binding.H5→VM.w0→TTP pushModeStatus；KMP原始解析缺失，读取BLOCKED；现有11/12写入经严格UNKNOWN/稳定ID保护，UI继续UNKNOWN禁用。
 - 2：原页关闭可能按车型1021/29+39状态选择AC。无对应车型来源/既有AC编码时阻止不确定关闭；39未下发或有效LIVE锁状态0时可以证明10安全。保持PARTIAL，不新增帧。
 - 75：原页和内联均读iotRemoveAlarm；P4/s20对非null Boolean固定写tamperProofIotEnable=1，0关闭缺证据，已阻止。原FA帧受保护边界限制；不补帧、不将字段名当云端配置读取证据。
-- 51事务关联、77排程、33模式、93当前值、1005特定名称、复杂独立页面：复核后逐项列出BLOCKED/PARTIAL原因；此处不是最终判定。
+- 51事务关联、77排程、33模式、93当前值、复杂独立页面：复核后逐项列出BLOCKED/PARTIAL原因；此处不是最终判定。
 
 ## 恢复规则
 
@@ -33,6 +33,8 @@
 ## 已完成
 
 - A34：隔离ID3/13的WRITE_ONLY/读取BLOCKED状态测试；确保无原始TTP字段时车辆值/缓存继续UNKNOWN，写入后只保持WAITING_READBACK，并按Smali验证0x11/0x12及0x62/0x63命令码。13项Fake过滤测试、JVM/JS/Wasm/Android/Desktop构建通过。提交`292f9c3040fa417006faea0034b85d15e7e2001e`。
+
+- A35：ID1005短按/长按自定义按键。保留Smali回填语义（0..8显示对应功能，其他有效nibble显示“无定义”，0xF按UNKNOWN）；禁止UNKNOWN占位值提交，拒绝伪造条目ID、非法Choice索引、错配命令类型/ID和额外参数。4个Fake用例通过；JVM/JS/Wasm/测试源码编译及Android/Desktop离线构建通过；无App运行/实车验证。提交Hash见历史。
 
 - A33：区分ID80动态`bikeConfigVos`内联写入与独立`OTDActivity`的反向参数行为；KMP动态路径符合内联Smali，校正Phase4回归断言并新增精确Fake用例。提交`1c139fa10e89b80fffb8fb254796f14406e24f74`。
 

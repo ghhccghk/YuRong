@@ -422,3 +422,14 @@
 - 修改：测试将有已建模回读字段的ID与3/13 WRITE_ONLY/读取BLOCKED项分别断言；后两者确认实时/缓存值保持UNKNOWN，写入提交后`WAITING_READBACK`不因其他字段变化而伪造确认；添加精确Smali命令ID期望。未修改生产代码或TTP解析。
 - 验证：`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.SimpleToggleSettingsSafetyTest" --offline --console=plain`13/13通过。`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm :androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`和staged check退出0。
 - 状态：Fake回归语义UNIT_TESTED，JVM/JS/Wasm/Android/Desktop BUILD_VERIFIED；ID3/13车辆读取仍BLOCKED、命令静态映射可复核；无App运行/车辆验证。精确提交：`292f9c3040fa417006faea0034b85d15e7e2001e`（`test: preserve unknown readback for write-only settings`）。
+
+## A35（ID1005自定义按键命令边界）
+
+- 起始HEAD：`eecc462997593985a683efd17d9e6a8801dbaa2f`，`master`；开始时staged及tracked unstaged为空。保留全部既有untracked文件/目录，包括日志、APK和文档，不纳入本批。
+- Smali证据：`CustomizeKeyActivity.getFunctionId:107+`将功能映射到0..8，“无定义”映射14，未匹配名称为15；`getFunctionName:303+`对0..8返回名称、其他ID返回“无定义”。`l76.d:652–671`从指定4-bit提取nibble，raw 15返回-1哨兵；`l76:12288–12300`将byte 0x6C低/高nibble分别回填`customFunctionLong`/`customFunctionShort`。`qv:3025–3070`仅跳过`-1`哨兵并消费有效raw 0..14。`CustomizeKeyActivity:590–604`提交短/长按的名称映射结果；`qg:2447–2463,6970–6984`分别分派0x131短按、0x130长按。
+- Smali语义校正：raw 9..14不是解析哨兵；原UI名称映射对它们统一显示“无定义”。KMP原`customKeyIndex`将非负raw映射至“无定义”选项、负值保持原UNKNOWN，这与原页面显示一致，故保留该回填行为，不错误地把9..14判成UNKNOWN。显式选择“无定义”写入raw 14；raw 15仅是读取无效哨兵。
+- 原缺陷：`keyFunctionCommand`将所有异常Choice索引通过`coerceIn(0,15)`转成可写参数；`forItem`对伪造的`configId=1005`条目ID可落入通用confId fallback；最终`VehicleSettingCommand`没有校验0x130/0x131类型及参数域。
+- 修复：`supports`/`supportsItem`保留未知值控件能力；实际写入要求已知Choice、10个选项且索引0..9；1005在`forItem`中采用封闭的精确短/长ID分支；映射只允许0..8或14且不钳位；命令构造边界验证0x130/0x131与Long/Short类型配对、参数域和无附加参数。帧编码定义不变。
+- 修改文件：`VehicleSettingCommands.kt`、`CustomKeySettingsSafetyTest.kt`、`CarSettingsControllerTest.kt`、本矩阵、队列和历史。Fake测试覆盖两个命令方向、0..8及14映射、未知占位能力但阻止写入、非法条目/索引不触达Fake sink、直接命令边界，以及raw 9..14显示兼容与raw 15 UNKNOWN。
+- 验证：专用过滤`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.CustomKeySettingsSafetyTest" --tests "top.ghhccghk.yadea.carsetting.CarSettingsControllerTest.customKeyFunctionsReadBackFromCustomFunctionBits" --offline --console=plain`通过4/4。较早一次测试在伪造条目ID用例失败，发现通用fallback可绕过精确ID分支；修复为ID1005封闭分流后重跑4/4通过。`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。
+- 自审结论：BLE Writer仍只接收`forItem`构造的已验证命令；命令对象本身也拒绝越界与错配，且编码器仍按现有bit 0x1F 低/高nibble编码。读取映射和UNKNOWN未改变，不涉及其他设置。状态`STATIC_FLOW_VERIFIED`、`UNIT_TESTED`、`TEST_SOURCE_COMPILED`、`BUILD_VERIFIED`；未执行App、真实网络、BLE或车辆验证，运行态保持`PARTIAL`。本批提交Hash待提交后补录。

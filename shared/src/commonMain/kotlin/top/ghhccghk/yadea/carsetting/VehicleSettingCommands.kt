@@ -47,6 +47,7 @@ data class VehicleSettingCommand(
             0x46 -> require(parameter in 0..7) // Raw command domain; the volume page exposes only 0/1/2.
             0x134 -> require(parameter in 0..100)
             0x135 -> require(parameter in 0..1)
+            0x130, 0x131 -> require(parameters.isEmpty() && (parameter in 0..8 || parameter == 14))
             0x133 -> require(parameter == 1) // HibernateModeActivity only enters (1); no guessed exit.
             0x3C -> require(parameter in 0..7) // Raw protocol; EnergyRecoveryActivity exposes 1/2/3.
         }
@@ -60,6 +61,19 @@ data class VehicleSettingCommand(
             require(commandId == 0xF7 && commandType == "ATMOSPHERE_CONFIG" && parameters is AtmosphereCommandParameters) {
                 "ATMOSPHERE_CONFIG requires an explicit valid mode-dependent configuration"
             }
+        }
+        if (commandId in setOf(0x130, 0x131) || commandType in setOf(
+                "CUSTOMIZE_KEYS_CONFIG_LONG",
+                "CUSTOMIZE_KEYS_CONFIG_SHORT",
+            )
+        ) {
+            require(
+                parameters.isEmpty() && when (commandId) {
+                    0x130 -> commandType == "CUSTOMIZE_KEYS_CONFIG_LONG" && (parameter in 0..8 || parameter == 14)
+                    0x131 -> commandType == "CUSTOMIZE_KEYS_CONFIG_SHORT" && (parameter in 0..8 || parameter == 14)
+                    else -> false
+                },
+            ) { "Custom key commands require a matching type and a defined function ID" }
         }
     }
 }
@@ -245,6 +259,7 @@ object VehicleSettingCommands {
             (configId == "73" && (kind is CarSettingKind.Atmosphere || kind is CarSettingKind.Toggle)) ||
             (configId in setOf("55", "92") && kind is CarSettingKind.Customize) ||
             (configId in setOf("4", "58", "61") && kind is CarSettingKind.Slider) ||
+            (configId == "1005" && kind is CarSettingKind.Choice && kind.options.size == 10) ||
             (configId in SecondPhaseSettings.ids && when (configId) {
                 "5" -> kind is CarSettingKind.Choice
                 else -> kind is CarSettingKind.Toggle || kind is CarSettingKind.Choice
@@ -254,6 +269,8 @@ object VehicleSettingCommands {
 
     fun supportsItem(item: CarSettingItem): Boolean =
         if (item.configId in RadarSettings.configIds) RadarSettings.isToggleItem(item)
+        else if (item.configId == "1005") item.id in setOf("cloud:1005:short", "cloud:1005:long") &&
+            (item.kind as? CarSettingKind.Choice)?.options?.size == 10
         else if (item.configId in setOf("4", "58", "61", "55", "92") || item.configId in SecondPhaseSettings.ids ||
             item.configId in BatterySettings.ids || item.configId in TimerSettings.ids ||
             item.configId in SimpleChoiceSettings.ids || item.configId in SimpleToggleSettings.ids ||
@@ -985,9 +1002,12 @@ object VehicleSettingCommands {
                 )
             }
         }
-        when (item.id) {
-            "cloud:1005:short" -> return keyFunctionCommand(item.kind, short = true)
-            "cloud:1005:long" -> return keyFunctionCommand(item.kind, short = false)
+        if (item.configId == "1005") {
+            return when (item.id) {
+                "cloud:1005:short" -> keyFunctionCommand(item.kind, short = true)
+                "cloud:1005:long" -> keyFunctionCommand(item.kind, short = false)
+                else -> null
+            }
         }
         // 自适应推行与总开关共用 confId 64，需要按条目 id 区分。
         if (item.id.endsWith(":adaptive") && item.configId in setOf("64", "89")) {
@@ -1017,6 +1037,7 @@ object VehicleSettingCommands {
         short: Boolean,
     ): VehicleSettingCommand? {
         val choice = kind as? CarSettingKind.Choice ?: return null
+        if (!choice.valueKnown || choice.options.size != 10 || choice.selectedIndex !in 0..9) return null
         val functionId = if (choice.selectedIndex == 9) 14 else choice.selectedIndex
         return VehicleSettingCommand(
             commandType = if (short) {
@@ -1025,7 +1046,7 @@ object VehicleSettingCommands {
                 "CUSTOMIZE_KEYS_CONFIG_LONG"
             },
             commandId = if (short) 0x131 else 0x130,
-            parameter = functionId.coerceIn(0, 15),
+            parameter = functionId,
         )
     }
 
