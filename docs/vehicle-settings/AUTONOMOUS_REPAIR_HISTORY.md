@@ -420,5 +420,5 @@
 - Smali证据：ID3 `SeatCushionSensorActivity.onSwClick`发`CARRY_OUT_OPEN/CLOSE`，命令映射0x11/0x12；ID13 `VehicleAlarmActivity.onSwClick`发`WARING_SOUND_OPEN/CLOSE`，命令映射0x62/0x63。当前KMP原始TTP模型没有两项对应回读字段，故继续保持车辆值UNKNOWN，不借用其他字段。
 - 原测试缺陷：聚合回读断言把其他设置的TTP状态套给ID3/13；命令码默认分支也将两项误期望为0xC7。Fake用例还假定缺失车辆字段会产生缓存值或读回确认。
 - 修改：测试将有已建模回读字段的ID与3/13 WRITE_ONLY/读取BLOCKED项分别断言；后两者确认实时/缓存值保持UNKNOWN，写入提交后`WAITING_READBACK`不因其他字段变化而伪造确认；添加精确Smali命令ID期望。未修改生产代码或TTP解析。
-- 验证：`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.SimpleToggleSettingsSafetyTest" --offline --console=plain`13/13通过。跨平台编译/Android/Desktop构建、diff检查和提交待补。
-- 状态：Fake回归语义UNIT_TESTED；ID3/13车辆读取仍BLOCKED、命令静态映射可复核；无App运行/车辆验证。提交待记录。
+- 验证：`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.SimpleToggleSettingsSafetyTest" --offline --console=plain`13/13通过。`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm :androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`和staged check退出0。
+- 状态：Fake回归语义UNIT_TESTED，JVM/JS/Wasm/Android/Desktop BUILD_VERIFIED；ID3/13车辆读取仍BLOCKED、命令静态映射可复核；无App运行/车辆验证。精确提交：`292f9c3040fa417006faea0034b85d15e7e2001e`（`test: preserve unknown readback for write-only settings`）。

@@ -4,7 +4,7 @@
 
 ## 正在处理
 
-- A34：修正ID3/13回归测试，将可观察状态集合与WRITE_ONLY/读取BLOCKED设置分离；修正ID3/13独立命令码期望，不改生产行为。
+- 无。A34已提交`292f9c3040fa417006faea0034b85d15e7e2001e`；当前待处理候选仍需独立Smali复核。
 
 ## 待处理（候选，须先证据复核）
 
@@ -32,7 +32,7 @@
 
 ## 已完成
 
-- A34：隔离ID3/13的WRITE_ONLY/读取BLOCKED状态测试；确保无原始TTP字段时车辆值/缓存继续UNKNOWN，写入后只保持WAITING_READBACK，并按Smali验证0x11/0x12及0x62/0x63命令码。过滤测试通过；待构建与提交复核。
+- A34：隔离ID3/13的WRITE_ONLY/读取BLOCKED状态测试；确保无原始TTP字段时车辆值/缓存继续UNKNOWN，写入后只保持WAITING_READBACK，并按Smali验证0x11/0x12及0x62/0x63命令码。13项Fake过滤测试、JVM/JS/Wasm/Android/Desktop构建通过。提交`292f9c3040fa417006faea0034b85d15e7e2001e`。
 
 - A33：区分ID80动态`bikeConfigVos`内联写入与独立`OTDActivity`的反向参数行为；KMP动态路径符合内联Smali，校正Phase4回归断言并新增精确Fake用例。提交`1c139fa10e89b80fffb8fb254796f14406e24f74`。
 
