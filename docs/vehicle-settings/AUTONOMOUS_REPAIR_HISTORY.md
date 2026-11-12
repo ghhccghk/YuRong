@@ -459,3 +459,12 @@
 - Smali：`vehicle/radar/RadarActivity$a.smali`的`b`回调取`seekParams.e`写入`RadarActivity.mCurrentPosition`；`a`回调在`VehicleSettingViewModel.e5()`或`F2()`任一为true时，以该position构造`COMMAND_RADAR_ALARM`并经`SettingBaseActivity.sendVehicleSetting`提交。`qg.smali:7118–7135`将该命令映射为`0x12F`。`RadarActivity.refreshSeekbarStatus`根据相关LiveData门控SeekBar，禁用时将UI进度置0；此UI重置不构成有效业务值证据。`VehicleSettingViewModel.smali:25082+`将TTP `fcwRadarMode`写入独立LiveData，未证实其与告警滑杆参数相连。
 - 结论：`COMMAND_RADAR_ALARM`参数允许域、刻度/枚举含义及可信回填字段无法由现有静态证据确认。保持BLOCKED，不新增映射或写入能力；等待布局/资源绑定或其他可靠证据。未修改生产代码，未运行测试、构建、App或车辆操作。
 - 文档复核：更新功能矩阵及任务队列；`git diff --check`在提交前检查。验证等级仅为STATIC_FLOW_VERIFIED（命令分派及独立TTP字段静态可见），功能整体BLOCKED，无UNIT_TESTED、BUILD_VERIFIED、RUNTIME_VERIFIED或VEHICLE_VERIFIED。
+
+## A39（ID5/7/11/39 依赖开关实时状态门控）
+
+- 起始HEAD：`3456482`，分支`master`；tracked/index干净；既有untracked日志、APK、文档、截图和工具目录均保留。
+- Smali/KMP复核：ID5继续使用`alarmRingThemeCurrent`，仅raw 0/1进入两项Choice；ID7/39分别回填`leaveVehicleAutoLockStatus`、`leaveVehicleAutoLockTimeStatus`并结合`sideBraceStatus`，ID11分别回填`bleAutoTurnOnOffStatus`和`bleAutoTurnOnOffGearStatus`。子项门控此前通过`displayKind()`取得父值，允许缓存/草稿/提交态误作可编辑依据。
+- 修复：ID7/11/39子项现在要求父项存在同VIN、`LIVE_TTP`、`live=true`、`readbackState=VALID`且已开启的车辆观察；父项有草稿、提交目标或写入在途时禁用。字段、命令、取值映射和通道不变。原App 7/39的`VehicleDataManager.W0`车型条件无法由KMP可靠证明，继续UNKNOWN/PARTIAL。
+- 测试：Fake新增缓存、父草稿、父提交中拒绝子项编辑；修正旧测试，在父开关写入被接受后先提供新LIVE_TTP，再测试子项提交。`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.VehicleSettingsSecondPhaseTest" --offline --console=plain`通过27/27。
+- 构建：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。Fake-only；无真实网络、App或车辆验证。
+- 结论：STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；7/39车型条件仍PARTIAL/UNKNOWN，无RUNTIME_VERIFIED/VEHICLE_VERIFIED。

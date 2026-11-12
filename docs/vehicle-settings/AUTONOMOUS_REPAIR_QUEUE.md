@@ -4,7 +4,7 @@
 
 ## 正在处理
 
-- 无。A38 雷达告警参数已完成证据复核，因参数范围及回填映射无法证实而转为 BLOCKED；记录见矩阵和历史。
+- 无。A39 已修复 ID7/11/39 子项依赖开关可由非实时值满足的问题；过滤测试及所需编译/构建均通过。
 
 ## 待处理（候选，须先证据复核）
 
@@ -13,7 +13,8 @@
 - 回归维护：Phase4CarSettingsTest的62索引、10围栏快照及ID72/80动态页方向夹具已按对应调用路径修正；ID72/80独立页与动态页行为差异仍需保留审计，不合并语义。
 - 回归维护：A34已修正`SimpleToggleSettingsSafetyTest`对ID3/13的回读假设与命令码默认分支；整类 Fake 13/13通过。读取仍BLOCKED，不修改原始TTP解析。
 - 其他全部项：按功能地图逐项核对读取、写入、门控及独立流程；发现安全问题优先插队。
-- 基线4/58/61/55/92、5/7/11/39、9/82：检查当前代码并回归，避免重复历史修复。
+- 基线4/58/61/55/92、9/82：检查当前代码并回归，避免重复历史修复。
+- ID5/7/11/39：A39已收紧子项父开关状态门控；7/39车型门控证据仍不足，继续保留UNKNOWN/PARTIAL，不用默认值放开。
 
 ## 证据限制候选
 
@@ -35,6 +36,8 @@
 - A37：001/002/003 X1 TTP/百分比档位映射及002开启门控；Fake测试7/7，JVM/JS/Wasm、Android Debug、Desktop构建通过；无App/实车验证。提交`4e20f45`。
 
 - A38：雷达告警滑杆静态复核；未改业务代码。Smali确认 `RadarActivity$a.a` 在允许条件下提交 `COMMAND_RADAR_ALARM(mCurrentPosition)`，`qg.smali` 将其映射到 `0x12F`；`VehicleSettingViewModel` 将 `fcwRadarMode` 单独写入 LiveData，现有证据未证明它就是该滑杆值。范围、选项/单位及可信回填仍 BLOCKED。文档提交后停止本批；无测试或构建（仅文档更新），无 App/车辆验证。
+
+- A39：ID7/11/39子项门控此前读取`displayKind()`，缓存、草稿或提交目标可能被当作父开关依据。现要求父项为同VIN、有效LIVE_TTP开启观察，且无草稿/提交/在途写入。Fake测试27/27；JVM/JS/Wasm/测试源码编译及Android Debug/Desktop构建通过。7/39的`VehicleDataManager.W0`车型条件仍无法由KMP证明，保持PARTIAL/UNKNOWN，无App/实车验证。
 
 - A36：ID20音量回归夹具改用Smali证实的0..2三档，并模拟UI编辑的`valueKnown`语义；7项Fake过滤测试、跨平台编译、Android Debug/Desktop构建通过。提交`e5b9b968055a7841f1612ff06f10cfc0a3a2ff06`。
 

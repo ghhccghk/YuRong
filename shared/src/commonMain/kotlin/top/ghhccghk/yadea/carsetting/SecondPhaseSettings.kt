@@ -47,8 +47,11 @@ internal object SecondPhaseSettings {
         if (item.configId !in setOf("7", "11", "39") || item.kind !is CarSettingKind.Choice) return true
         val parentId = "cloud:${item.configId}"
         val parent = state.valueState(parentId)
-        val enabled = parent.displayKind() as? CarSettingKind.Toggle
-        return enabled?.valueKnown == true && enabled.checked && !parent.busy
+        val observed = parent.vehicleValue as? VehicleSettingValue.Known ?: return false
+        val enabled = observed.kind as? CarSettingKind.Toggle ?: return false
+        return observed.vin == state.vin && observed.source == SettingValueSource.LIVE_TTP && observed.live &&
+            parent.readbackState == SettingReadbackState.VALID && enabled.valueKnown && enabled.checked &&
+            parent.draftValue == null && parent.submittedValue == null && !parent.busy
     }
 
     /** 7 and 39 expose the same BLE flag and time command, not separate settings. */

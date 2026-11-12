@@ -139,6 +139,10 @@ class VehicleSettingsSecondPhaseTest {
         val expected = listOf(0x2E to 1, 0x53 to -1, 0x55 to 3, 0x5C to -1,
             0x5E to 2, 0x53 to -1, 0x55 to 3)
         for ((index, id) in keys.withIndex()) {
+            if (id in listOf("cloud:7:time", "cloud:11:distance", "cloud:39:time")) {
+                // A prior parent-switch write is not a vehicle observation; require a new LIVE TTP first.
+                observe(c, status(sound = 1, lock = 1, time = 3, power = 1, distance = 2, brace = 1), index + 2L)
+            }
             assertTrue(c.update(id) { it })
             assertEquals(expected[index], commands.last().let { it.commandId to it.parameter })
             assertEquals(SettingConfirmationState.WAITING_READBACK, c.state.value.valueState(id).confirmationState)
@@ -309,6 +313,49 @@ class VehicleSettingsSecondPhaseTest {
             // Current time may be unknown: a deliberately selected independent target is safe.
             assertTrue(c.editDraft(id) { (it as CarSettingKind.Choice).copy(selectedIndex = 1, valueKnown = true) })
             assertTrue(c.submitDraft(id))
+        }
+    }
+
+    @Test
+    fun dependentChoicesRequireFreshLiveParentWithoutDraftOrSubmission() = runBlocking {
+        for ((configId, childId) in listOf(
+            "7" to "cloud:7:time",
+            "11" to "cloud:11:distance",
+            "39" to "cloud:39:time",
+        )) {
+            val cachedController = controller()
+            assertTrue(cachedController.refresh())
+            observe(
+                cachedController,
+                status(lock = 1, power = 1, brace = 1),
+                1,
+                origin = VehicleStatusOrigin.CACHED_TTP,
+            )
+            assertFalse(cachedController.editDraft(childId) { (it as CarSettingKind.Choice).copy(selectedIndex = 1) })
+
+            observe(cachedController, status(lock = 1, power = 1, brace = 1), 2)
+            assertTrue(cachedController.editDraft("cloud:$configId") {
+                (it as CarSettingKind.Toggle).copy(checked = false, valueKnown = true)
+            })
+            assertFalse(cachedController.editDraft(childId) { (it as CarSettingKind.Choice).copy(selectedIndex = 1) })
+
+            val receipt = CompletableDeferred<CarSettingWriteResult>()
+            val submittedController = controller(writer = FakeWriter { receipt.await() })
+            assertTrue(submittedController.refresh())
+            observe(submittedController, status(lock = 1, power = 1, brace = 1), 1)
+            var parentWriteSucceeded = false
+            val job = launch(start = CoroutineStart.UNDISPATCHED) {
+                parentWriteSucceeded = submittedController.update("cloud:$configId") {
+                    (it as CarSettingKind.Toggle).copy(checked = false, valueKnown = true)
+                }
+            }
+            assertNotNull(submittedController.state.value.valueState("cloud:$configId").submittedValue)
+            assertFalse(submittedController.editDraft(childId) {
+                (it as CarSettingKind.Choice).copy(selectedIndex = 1, valueKnown = true)
+            })
+            receipt.complete(CarSettingWriteResult(true, CarSettingWriteChannel.BLE))
+            job.join()
+            assertTrue(parentWriteSucceeded)
         }
     }
 
