@@ -4,7 +4,7 @@
 
 ## 正在处理
 
-- 无。A35实现及验证完成；本地提交Hash将在提交后写回历史记录。
+- 无。A35实现及验证完成；功能提交`0e462bd093173a7c343ec42677b277a9eec6eeee`，哈希也已写入历史。
 
 ## 待处理（候选，须先证据复核）
 
@@ -34,7 +34,7 @@
 
 - A34：隔离ID3/13的WRITE_ONLY/读取BLOCKED状态测试；确保无原始TTP字段时车辆值/缓存继续UNKNOWN，写入后只保持WAITING_READBACK，并按Smali验证0x11/0x12及0x62/0x63命令码。13项Fake过滤测试、JVM/JS/Wasm/Android/Desktop构建通过。提交`292f9c3040fa417006faea0034b85d15e7e2001e`。
 
-- A35：ID1005短按/长按自定义按键。保留Smali回填语义（0..8显示对应功能，其他有效nibble显示“无定义”，0xF按UNKNOWN）；禁止UNKNOWN占位值提交，拒绝伪造条目ID、非法Choice索引、错配命令类型/ID和额外参数。4个Fake用例通过；JVM/JS/Wasm/测试源码编译及Android/Desktop离线构建通过；无App运行/实车验证。提交Hash见历史。
+- A35：ID1005短按/长按自定义按键。保留Smali回填语义（0..8显示对应功能，其他有效nibble显示“无定义”，0xF按UNKNOWN）；禁止UNKNOWN占位值提交，拒绝伪造条目ID、非法Choice索引、错配命令类型/ID和额外参数。4个Fake用例通过；JVM/JS/Wasm/测试源码编译及Android/Desktop离线构建通过；无App运行/实车验证。功能提交`0e462bd093173a7c343ec42677b277a9eec6eeee`。
 
 - A33：区分ID80动态`bikeConfigVos`内联写入与独立`OTDActivity`的反向参数行为；KMP动态路径符合内联Smali，校正Phase4回归断言并新增精确Fake用例。提交`1c139fa10e89b80fffb8fb254796f14406e24f74`。
 
