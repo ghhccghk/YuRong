@@ -423,6 +423,7 @@ class CarSettingsController(
     private val debounceMs: Long = 1_000L,
     private val statusPollAttempts: Int = 30,
     private val statusPollIntervalMs: Long = 1_000L,
+    private val sosContactReadyProvider: (String) -> Boolean = { false },
 ) {
     private val _state = MutableStateFlow(CarSettingsState(initialItems))
     val state: StateFlow<CarSettingsState> = _state.asStateFlow()
@@ -960,6 +961,12 @@ class CarSettingsController(
         }
         if (!hasKnownSettingValue(item)) return false
         val target = transform(editable)
+        if (item.configId == "91" && target is CarSettingKind.Toggle && target.checked &&
+            !sosContactReadyProvider(vin)
+        ) {
+            _state.value = current.copy(message = "请先补齐当前车辆的车主和紧急联系人信息")
+            return false
+        }
         val hibernateCurrent = current.valueState(id).copy(draftValue = null).editableKind(item.kind) as? CarSettingKind.Toggle
         if (item.id == "cloud:77" && (!confirmHibernate || hibernateCurrent?.let { it.valueKnown && !it.checked } != true)) {
             _state.value = current.copy(message = "请确认立即休眠；已休眠车辆请按车辆说明唤醒")

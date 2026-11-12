@@ -56,6 +56,7 @@ import top.ghhccghk.yadea.carsetting.CustomSoundOperationStatus
 import top.ghhccghk.yadea.carsetting.createSoundPreviewPlayer
 import top.ghhccghk.yadea.vehicle.ContactType
 import top.ghhccghk.yadea.vehicle.EmergencyContactController
+import top.ghhccghk.yadea.vehicle.hasCompleteSosContactInfo
 import top.ghhccghk.yadea.vehicle.PasswordFlow
 import top.ghhccghk.yadea.vehicle.PasswordWriteState
 import top.ghhccghk.yadea.vehicle.VehiclePasswordController
@@ -207,6 +208,10 @@ fun CarSettingsScreen(
             "正在刷新设置"
         } else if (item.configId == "93") {
             "静音控制通道尚未实现，暂不可操作"
+        } else if (item.configId == "91" &&
+            !hasCompleteSosContactInfo(contactState?.contacts, state.vin)
+        ) {
+            "请先补齐当前车辆的车主和紧急联系人信息"
         } else if (item.configId in BLE_POWER_SETTING_IDS &&
             (!vehicleConnected || vehiclePowerOn != true)
         ) {
@@ -446,12 +451,12 @@ fun CarSettingsScreen(
                                 onClick = { showHeatedSeatTasks = true },
                             )
                         }
-                        if (item.configId in setOf("24", "85") &&
+                        if (item.configId in setOf("24", "85", "91") &&
                             emergencyContactController != null
                         ) {
                             AppActionPreference(
                                 title = "编辑车主与紧急联系人",
-                                summary = "车主和紧急联系人分别保存；开启提醒前需要至少填写紧急联系人",
+                                summary = "开启 SOS 前请补齐车主与紧急联系人信息",
                                 value = "编辑",
                                 onClick = {
                                     emergencyContactController.clearMessage()

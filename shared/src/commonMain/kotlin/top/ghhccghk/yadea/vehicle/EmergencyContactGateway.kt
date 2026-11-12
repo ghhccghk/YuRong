@@ -25,6 +25,13 @@ data class EmergencyContacts(
     val emergencyMobile: String = "",
 )
 
+internal fun hasCompleteSosContactInfo(contacts: EmergencyContacts?, vin: String): Boolean {
+    val currentVin = vin.trim()
+    return currentVin.isNotEmpty() && contacts?.vin?.trim() == currentVin &&
+        contacts.ownerName.isNotBlank() && contacts.ownerMobile.isNotBlank() &&
+        contacts.emergencyName.isNotBlank() && contacts.emergencyMobile.isNotBlank()
+}
+
 interface EmergencyContactGateway {
     suspend fun load(vin: String): EmergencyContacts?
     suspend fun save(vin: String, type: ContactType, name: String, mobile: String): Boolean

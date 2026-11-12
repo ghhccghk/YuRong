@@ -71,6 +71,7 @@ import top.ghhccghk.yadea.vehicle.VehicleControlSink
 import top.ghhccghk.yadea.vehicle.VehicleCloudControlSink
 import top.ghhccghk.yadea.vehicle.VehicleStatusSource
 import top.ghhccghk.yadea.vehicle.EmergencyContactController
+import top.ghhccghk.yadea.vehicle.hasCompleteSosContactInfo
 import top.ghhccghk.yadea.vehicle.VehiclePasswordController
 import top.ghhccghk.yadea.wifi.WifiConnectionManager
 import top.ghhccghk.yadea.wifi.WifiP2pManager
@@ -301,12 +302,16 @@ fun MainScreen(
         carSettingsGateway,
         resolvedProfileSource,
         carSettingsModelKey(vehicleProfile),
+        emergencyContactController,
     ) {
         CarSettingsController(
             initialItems = emptyList(),
             writer = resolvedCarSettingWriter,
             gateway = carSettingsGateway,
             vinProvider = { resolvedProfileSource.profile.value?.vin.orEmpty() },
+            sosContactReadyProvider = { vin ->
+                hasCompleteSosContactInfo(emergencyContactController?.state?.value?.contacts, vin)
+            },
         )
     }
     val customSoundController = remember(carSettingsGateway, resolvedProfileSource) {
