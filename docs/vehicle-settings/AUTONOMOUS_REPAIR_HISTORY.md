@@ -563,8 +563,8 @@
 - 起始HEAD：`62b8fb0b00746d66bda08a9cc718f7046e3e91ce`，分支`master`；tracked与index干净；保留所有原有untracked日志、APK、截图、JADX和文档。
 - Smali证据：`SosContactActivity.getSettingConfigIdList:1083`同页列出24/91；`onSwClick:1222–1380`检查车主姓名/手机号、紧急联系人姓名/手机号均非空后才调用`VehicleSettingViewModel.d9`，否则提示补联系人；`VehicleSettingViewModel.smali:10841–10945`以confId 91更新`CarSettingBean.sosEmergencyCall`，字段名和值随后写入更新Map；`VehicleSettingViewModel.smali:12574–12595`以字段值1回填两个SOS开关状态。未发现ID91的TTP车辆状态绑定。
 - 缺陷与修复：KMP的ID91已有云端configuredValue和云端更新构建，但通用Toggle没有原App四项联系人门槛。新增同VIN、四个姓名/手机号全部非空校验；Controller最终更新入口拒绝无证明的开启，关闭不受限；UI解释阻止原因，并从ID91行提供联系人编辑入口。联系人仍经现有EmergencyContactController/Gateway加载和保存；不改变ID91字段、请求或BLE映射。
-- 修改文件：`CarSettings.kt`、`CarSettingsGateway.kt`（无修改）、`MainScreen.kt`、`CarSettingsScreen.kt`、`EmergencyContactGateway.kt`、`SosEmergencyCallSafetyTest.kt`、本矩阵/队列/历史。只有列表内实际变更文件会进入提交。
+- 修改文件：`CarSettings.kt`、`MainScreen.kt`、`CarSettingsScreen.kt`、`EmergencyContactGateway.kt`、`SosEmergencyCallSafetyTest.kt`、本矩阵/队列/历史。
 - Fake-only验证：`SosEmergencyCallSafetyTest` 3/3；覆盖四项完整性、同VIN、缺字段、空联系人、Controller直接调用拦截、具备当前VIN联系人时放行及缺资料时允许关闭。首次运行仅测试夹具使用不存在的`CarSettingChannel.CLOUD`而编译失败，改为项目现有`IOT`后通过，生产校验未调整。
 - 构建：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；专项测试退出0；`git diff --check`通过。
 - 独立复审：原页四项门槛→联系人Gateway同VIN加载→共享UI禁用/引导编辑→Controller重验→既有CloudWriter/Builder；关闭不受门槛影响；cloud configuredValue、写入接受及vehicleValue语义未混淆。没有真实App、云端或车辆验证。
-- 状态：ID91配置读写为`STATIC_FLOW_VERIFIED`；门槛为`UNIT_TESTED`；共享跨平台编译、Android/Desktop构建通过；整体运行态仍`PARTIAL`，无`RUNTIME_VERIFIED`或`VEHICLE_VERIFIED`。本记录中的提交哈希待本批提交后补录。
+- 状态：ID91配置读写为`STATIC_FLOW_VERIFIED`；门槛为`UNIT_TESTED`；共享跨平台编译、Android/Desktop构建通过；整体运行态仍`PARTIAL`，无`RUNTIME_VERIFIED`或`VEHICLE_VERIFIED`。功能提交：`25b1e1f`（`fix: gate SOS enablement on contact readiness`）。
