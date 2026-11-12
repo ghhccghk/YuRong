@@ -209,7 +209,7 @@ class CloudCarSettingWriter(
             return CarSettingWriteResult(receipt.accepted, CarSettingWriteChannel.CLOUD, resultId = receipt.resultId)
         }
         val bleAvailable = bleAvailableProvider()
-        if (bleAvailable && item.configId != "10") {
+        if (bleAvailable && item.configId !in setOf("10", "71")) {
             val fallback = bleFallback?.writeWithResult(item)
             if (vinProvider().trim() != vin) return CarSettingWriteResult(false)
             if (fallback?.success == true) return fallback

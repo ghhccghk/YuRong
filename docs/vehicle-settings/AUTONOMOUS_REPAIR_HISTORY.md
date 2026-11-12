@@ -322,4 +322,17 @@
 - 原提交入口`RadarActivity$e/$c/$d`分别传`COMMAND_FRONT_COLLISION`、`COMMAND_RADAR_RCW`、`COMMAND_RADAR_BSD`及显式0/1；`qg.smali:2759–2870,3197–3218`映射0x12D/0x12E/0x13A。KMP按稳定itemId和对应confId构命令；UI/Controller/Writer保持UNKNOWN保护、每项权限门控及接受/车辆回读分离。移除未使用且类型名不符的旧confId 69通用分支。
 - 同页`RadarActivity$a`→`COMMAND_RADAR_ALARM`→qg 0x12F尚无足够证据确定SeekBar合法范围及回填，继续BLOCKED；本批不实现。
 - `RadarSettingsSafetyTest` 7/7通过；测试命令`:shared:jvmTest --tests top.ghhccghk.yadea.carsetting.RadarSettingsSafetyTest --offline --console=plain`退出0。验证到raw2语义后修正映射和夹具；新增全1哨兵UNKNOWN覆盖。所有测试均Fake/内存隔离。
-- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`在提交前执行。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无App运行或实车验证。待精确提交。
+- `:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`在提交前执行。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无App运行或实车验证。
+
+### A24提交核对 / A25起点
+
+- A24已提交`d4dbcf46e402b7e4d056fa5c46fae7e93adec2f5`（`fix: complete radar vehicle setting readback`），9文件。A25起点即该HEAD，master；tracked/index干净，保留原有12项untracked。
+
+## A25（ID71仪表同步配置开关）
+
+- Smali证据：`GaugeSettingsActivity.getSettingConfigId:621–629`返回71；`observe$2.invoke`读取`CarSettingBean.bikeInfoSyncName`，只有整数1显示开启；`syncCarInfo:525–598`读取旧开关并取反后调用VM.Z8。`VehicleSettingViewModel.Z8:18810–18857`构造`bikeInfoSyncName`整数及VIN并调用`jp6.o`；`jp6.o:977–1039`发至`vehiclebase/bike-setting/updateBikeSetting`，`jp6$i.onSuccess`接收Boolean结果。原字段声明见`CarSettingBean.smali:35`。
+- 分离流程：`GaugeSettingsActivity.refreshCarInfo:512–523`调用VM.Z6；`Z6:18732–18783`以VIN调用`jp6.k`；`jp6.k:574–666`请求`protocol-lowfreq/bike-info-sync-name/refresh?vin=...`并带VIN body，返回只结束loading，未产生仪表状态回读。`GaugeSettingsActivity$e.onClick:95–153`另有车机配对跳转/车辆供电门控。本批不混同配置开关、即时刷新和配对入口。
+- KMP原缺口：`bikeInfoSyncName`只在Cloud DTO允许字段列表里，缺少ID71的`configuredValue`映射和Builder字段绑定；`kindOf(71)`是连接页入口，配置未知时保留该入口。A25使云端明确0/1值产生可编辑开关；未知或非法值不启用编辑。更新Builder只允许valueKnown目标，按原类型Integer和目标值1/0提交到既有updateBikeSetting；Controller直接入口同样要求已知配置及当前VIN代次。
+- 写入成功后使用现有`selectBikeSettingByVin`读取配置并比较目标。匹配只更新configuredValue并清除已读回的提交草稿，confirmationState仍UNKNOWN、readbackState=UNSUPPORTED、vehicleValue仍UNKNOWN；不调用通用confId结果轮询，不声称仪表执行或车辆确认。独立即时刷新动作未接入，保持PARTIAL。
+- 新增5项Fake-only用例覆盖精确字段/类型、缺失非法值拒绝、配置回填、云端复读与车辆确认分离（包括云端接受但复读不一致）及真实Cloud Writer路由不触发BLE fallback。最新过滤测试`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.CloudConfiguredValueRefreshTest" --offline`通过，35/35，失败/错误/跳过均0；没有真实网络/车辆请求。
+- 最新代码验证：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0；`git diff --check`退出0。STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；无RUNTIME_VERIFIED/VEHICLE_VERIFIED。

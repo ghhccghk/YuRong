@@ -124,6 +124,7 @@ object CloudCarSettingUpdateBuilder {
     // Schema support is independent of completeness; build() still rejects unknown siblings.
     fun supports(configId: String, kind: CarSettingKind): Boolean =
         (configId == "77" && (kind is CarSettingKind.Toggle || kind is CarSettingKind.AutoHibernate)) ||
+        (configId == "71" && kind is CarSettingKind.Toggle) ||
         BatterySettings.supports(configId, kind) || CloudSwitchSettings.supports(configId, kind) || TrackerSettings.supports(configId, kind) ||
             (configId == "10" && (kind is CarSettingKind.Toggle || kind is CarSettingKind.Slider)) ||
             (configId == "9" && kind is CarSettingKind.LowPowerInfo) ||
@@ -149,6 +150,7 @@ object CloudCarSettingUpdateBuilder {
         if (configId in CloudSwitchSettings.ids && !CloudSwitchSettings.validTarget(kind)) return null
         if (configId in TrackerSettings.ids && !TrackerSettings.validTarget(configId, kind)) return null
         if (configId == "77" && !HibernateSettings.validTarget(kind)) return null
+        if (configId == "71" && (kind as? CarSettingKind.Toggle)?.valueKnown != true) return null
         val fields = linkedMapOf<String, Any?>("_gateway" to "True", "vin" to vin)
         val path: CloudCarSettingUpdatePath
         when (kind) {
@@ -304,6 +306,7 @@ object CloudCarSettingUpdateBuilder {
 
     /** smali `s20.f()` 与 `VehicleSettingViewModel.P4()` 能直接对应的开关。 */
     private val TOGGLE_FIELDS = mapOf(
+        "71" to "bikeInfoSyncName",
         "16" to "dumpAlarm",
         "24" to "emergencyContact",
         "25" to "passwordUnlockEnable",
@@ -317,7 +320,7 @@ object CloudCarSettingUpdateBuilder {
         "95" to "wxhlBind",
     )
 
-    private val TOGGLE_INTEGER_FIELDS = setOf("75", "82")
+    private val TOGGLE_INTEGER_FIELDS = setOf("71", "75", "82")
 
     private val SLIDER_FIELDS = mapOf(
         "52" to "bleDistance",
@@ -998,6 +1001,8 @@ object CloudCarSettingMapper {
     /** Explicit response fields only; item defaults never establish a configuration value. */
     internal fun configuredValue(cloud: CloudCarSettings, item: CarSettingItem): CarSettingKind? {
         if (item.id == AutoHibernateSettings.ID && item.kind is CarSettingKind.AutoHibernate) return cloud.autoHibernate
+        if (item.configId == "71") return cloud.boolValue("bikeInfoSyncName")
+            ?.let { CarSettingKind.Toggle(checked = it, valueKnown = true) }
         // DTO declarations alone do not prove these pages use the similarly named
         // cloud fields. Their current value is established by the verified TTP path.
         if (item.configId in SecondPhaseSettings.ids || item.configId in TimerSettings.ids) return null
@@ -1108,7 +1113,8 @@ object CloudCarSettingMapper {
                 // 云端没有下发 isAuth 时按“未禁止”处理；只有明确 false 才只读。
                 writable = config.isAuth != false &&
                     confId !in BLUETOOTH_KEY_IDS && (
-                    VehicleSettingCommands.supports(confId, kind) ||
+                    (confId == "71" && cloud.boolValue("bikeInfoSyncName") != null) ||
+                        VehicleSettingCommands.supports(confId, kind) ||
                         CloudCarSettingUpdateBuilder.supports(confId, kind)
                     ),
                 sort = config.sort.toIntOrNull() ?: 0,
@@ -2090,7 +2096,7 @@ object CloudCarSettingMapper {
         "75", "76", "77", "82", "85", "91",
     )
     private val IOT_IDS = setOf(
-        "8", "9", "10", "16", "24", "40", "47", "48", "60", "61", "62", "75", "76", "82", "91",
+        "8", "9", "10", "16", "24", "40", "47", "48", "60", "61", "62", "71", "75", "76", "82", "91",
     )
     private val ENTRANCE_IDS = setOf(
         "9", "10", "14", "15", "17", "18", "20", "24",

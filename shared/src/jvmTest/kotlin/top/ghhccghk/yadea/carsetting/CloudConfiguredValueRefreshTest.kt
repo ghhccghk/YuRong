@@ -35,20 +35,33 @@ class CloudConfiguredValueRefreshTest {
 
     private class FakeGateway(body: String?) : CarSettingsGateway {
         val transport = FakeTransport(body)
+        var checkStatusCalls = 0
+        var updateCalls = 0
+        var lastUpdate: CloudCarSettingUpdate? = null
         private val decoder = YadeaCarSettingsGateway(
             transport = transport, tokenProvider = { "fake-token" }, timestampProvider = { 1_700_000_000_000L },
             baseUrl = "https://example.invalid/",
         )
         override suspend fun load(vin: String) = decoder.load(vin)
-        override suspend fun checkStatus(configId: String) = true
+        override suspend fun checkStatus(configId: String): Boolean? {
+            checkStatusCalls++
+            return true
+        }
+        override suspend fun update(vin: String, update: CloudCarSettingUpdate): Boolean {
+            updateCalls++
+            lastUpdate = update
+            return true
+        }
     }
 
     private class FakeWriter : CarSettingWriter {
         val items = mutableListOf<CarSettingItem>()
         var result = true
         var wait: CompletableDeferred<Boolean>? = null
+        var beforeReturn: ((CarSettingItem) -> Unit)? = null
         override suspend fun write(item: CarSettingItem): Boolean {
             items += item
+            beforeReturn?.invoke(item)
             return wait?.await() ?: result
         }
         override suspend fun writeWithResult(item: CarSettingItem) =
@@ -108,6 +121,98 @@ class CloudConfiguredValueRefreshTest {
             assertNull(raw, c.value().configuredValue)
             assertNull(raw, c.value().displayKind())
         }
+    }
+
+    @Test fun instrumentSyncNameUsesOnlyExplicitCloudValueAndIntegerUpdateField() = runBlocking {
+        val known = CarSettingKind.Toggle(checked = true, valueKnown = true)
+        val update = requireNotNull(CloudCarSettingUpdateBuilder.build("71", known, "VIN-A"))
+        assertEquals(CloudCarSettingUpdatePath.BIKE_SETTING, update.path)
+        assertEquals(mapOf("_gateway" to "True", "vin" to "VIN-A", "bikeInfoSyncName" to 1), update.fields)
+        assertEquals(0, CloudCarSettingUpdateBuilder.build("71", CarSettingKind.Toggle(false), "VIN-A")
+            ?.fields?.get("bikeInfoSyncName"))
+        assertNull(CloudCarSettingUpdateBuilder.build("71", CarSettingKind.Toggle(false, valueKnown = false), "VIN-A"))
+        assertTrue(CloudCarSettingUpdateBuilder.supports("71", CarSettingKind.Toggle(false, valueKnown = false)))
+
+        val parsed = FakeGateway(response("\"bikeInfoSyncName\":1", ids = listOf("71")))
+        val controller = controller(parsed)
+        assertTrue(controller.refresh())
+        val state = controller.value("cloud:71")
+        assertEquals(CarSettingKind.Toggle(true, valueKnown = true), state.configuredValue)
+        assertEquals(VehicleSettingValue.Unknown, state.vehicleValue)
+        val item = controller.state.value.items.first { it.configId == "71" }
+        assertEquals(CarSettingChannel.IOT, item.channel)
+        assertTrue(item.writable)
+    }
+
+    @Test fun missingOrInvalidInstrumentSyncNameCannotBeEditedOrSubmitted() = runBlocking {
+        for (raw in listOf("", "2", "-1", "null", "\"invalid\"")) {
+            val values = if (raw.isBlank()) "" else "\"bikeInfoSyncName\":$raw"
+            val gateway = FakeGateway(response(values, ids = listOf("71")))
+            val writer = FakeWriter()
+            val controller = controller(gateway, writer)
+            assertTrue(controller.refresh())
+            assertNull(raw, controller.value("cloud:71").configuredValue)
+            assertFalse(raw, controller.editDraft("cloud:71") { CarSettingKind.Toggle(true) })
+            assertFalse(raw, controller.update("cloud:71") { CarSettingKind.Toggle(true) })
+            assertTrue(raw, writer.items.isEmpty())
+        }
+    }
+
+    @Test fun instrumentCloudWriteRefreshesConfigurationWithoutClaimingVehicleConfirmation() = runBlocking {
+        val gateway = FakeGateway(response("\"bikeInfoSyncName\":1", ids = listOf("71")))
+        val writer = FakeWriter().apply {
+            beforeReturn = {
+                gateway.transport.body = response("\"bikeInfoSyncName\":0", ids = listOf("71"))
+            }
+        }
+        val controller = controller(gateway, writer)
+        assertTrue(controller.refresh())
+        assertTrue(controller.update("cloud:71") { CarSettingKind.Toggle(false, valueKnown = true) })
+        val state = controller.value("cloud:71")
+        assertEquals(CarSettingKind.Toggle(false, valueKnown = true), state.configuredValue)
+        assertNull(state.submittedValue)
+        assertEquals(SettingWriteState.CLOUD_ACCEPTED, state.writeState)
+        assertEquals(SettingConfirmationState.UNKNOWN, state.confirmationState)
+        assertEquals(SettingReadbackState.UNSUPPORTED, state.readbackState)
+        assertEquals(VehicleSettingValue.Unknown, state.vehicleValue)
+        assertEquals(0, gateway.checkStatusCalls)
+        assertTrue(requireNotNull(controller.state.value.message).contains("仪表是否执行同步未确认"))
+    }
+
+    @Test fun acceptedInstrumentWriteWithMismatchedCloudReadbackRemainsUnconfirmed() = runBlocking {
+        val gateway = FakeGateway(response("\"bikeInfoSyncName\":1", ids = listOf("71")))
+        val writer = FakeWriter()
+        val writeController = controller(gateway, writer)
+        assertTrue(writeController.refresh())
+        assertFalse(writeController.update("cloud:71") { CarSettingKind.Toggle(false, valueKnown = true) })
+        val state = writeController.value("cloud:71")
+        assertEquals(SettingWriteState.CLOUD_ACCEPTED, state.writeState)
+        assertEquals(SettingConfirmationState.UNKNOWN, state.confirmationState)
+        assertEquals(VehicleSettingValue.Unknown, state.vehicleValue)
+        assertEquals(CarSettingKind.Toggle(false, valueKnown = true), state.submittedValue)
+        assertTrue(requireNotNull(state.error).contains("配置未读回一致"))
+        assertEquals(0, gateway.checkStatusCalls)
+    }
+
+    @Test fun instrumentSettingUsesCloudWriterWithoutTryingBleFallback() = runBlocking {
+        val gateway = FakeGateway(response("\"bikeInfoSyncName\":1", ids = listOf("71")))
+        val cloud = YadeaCarSettingsGateway(
+            transport = gateway.transport, tokenProvider = { "fake-token" },
+            timestampProvider = { 1_700_000_000_000L }, baseUrl = "https://example.invalid/",
+        ).load("A")!!
+        val item = CloudCarSettingMapper.toItems(cloud, "A").first { it.configId == "71" }
+            .copy(kind = CarSettingKind.Toggle(false, valueKnown = true))
+        val bleFallback = FakeWriter()
+        val writer = CloudCarSettingWriter(gateway, vinProvider = { "A" },
+            bleFallback = bleFallback, bleAvailableProvider = { true })
+
+        val result = writer.writeWithResult(item)
+
+        assertTrue(result.success)
+        assertEquals(CarSettingWriteChannel.CLOUD, result.channel)
+        assertEquals(1, gateway.updateCalls)
+        assertEquals(0, gateway.lastUpdate?.fields?.get("bikeInfoSyncName"))
+        assertTrue(bleFallback.items.isEmpty())
     }
 
     @Test fun fractionalOverflowNullAndOutOfPolicyRadiusNeverBecomeAValidDefault() = runBlocking {

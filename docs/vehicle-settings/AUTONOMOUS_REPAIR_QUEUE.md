@@ -4,7 +4,7 @@
 
 ## 正在处理
 
-- A24：69/70/78雷达开关；起点870cfb186c6383fd292d779754843e821eb9a35c。独立复审、7项Fake过滤测试、跨平台编译、Android/Desktop构建均通过，文档已更新，待精确提交。COMMAND_RADAR_ALARM(0x12F)参数/回填证据仍不足，保持BLOCKED。
+- A25：71仪表同步配置开关；起点d4dbcf46e402b7e4d056fa5c46fae7e93adec2f5。Smali复核、CloudConfiguredValueRefreshTest 35/35、JVM/JS/Wasm/测试源码编译、Android/Desktop构建及git diff --check均通过；待最终staged diff复核和精确本地提交。独立“立即同步”接口暂不接入，仪表执行状态无可靠回读，保持PARTIAL。
 
 ## 待处理（候选，须先证据复核）
 
@@ -28,6 +28,8 @@
 每批开始读本文件、地图、历史、HEAD和staged/unstaged/untracked；只从最近成功提交后继续。禁止清理或暂存用户原有12项未跟踪内容。未通过测试、构建、自审及精确diff时不提交；不调用真实网络/车辆。
 
 ## 已完成
+
+- A24：69/70/78雷达开关，提交`d4dbcf46e402b7e4d056fa5c46fae7e93adec2f5`；7项Fake过滤测试及跨平台编译、Android/Desktop构建退出0；`COMMAND_RADAR_ALARM`/0x12F仍BLOCKED。原有12项untracked保持。
 
 - A23：64/89自适应推行写入安全，提交`870cfb186c6383fd292d779754843e821eb9a35c`；55项过滤测试及全部离线构建退出0，原有未跟踪内容保持。
 

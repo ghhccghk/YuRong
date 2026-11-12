@@ -344,6 +344,7 @@ object CarSettingItemAccess {
 
     fun canWrite(item: CarSettingItem): Boolean {
         if (!item.writable) return false
+        if (item.configId == "71") return item.id == "cloud:71"
         if (item.configId in RadarSettings.configIds) {
             return RadarSettings.isToggleItem(item) && VehicleSettingCommands.supportsItem(item)
         }
@@ -529,7 +530,9 @@ class CarSettingsController(
                     configuredValue = configured,
                     submittedValue = if (item.configId == "77" && !retained.busy && configured != null &&
                         (configured !is CarSettingKind.AutoHibernate || configured.enabled != null && configured.dayCount != null))
-                        null else retained.submittedValue,
+                        null else if (item.configId == "71" && !retained.busy &&
+                            configured != null && configured == retained.submittedValue) null
+                        else retained.submittedValue,
                 )
             },
         )
@@ -582,11 +585,13 @@ class CarSettingsController(
         if (_state.value.loading) return false
         val item = findItem(id) ?: return false
         val editable = _state.value.valueState(id).editableKind(item.kind)
+        val originalKind = if (item.configId == "71")
+            _state.value.valueState(id).configuredValue ?: item.kind else item.kind
         if (!CarSettingItemAccess.canWrite(item) || hasActiveSettingWrite(item)) return false
         if (_state.value.vin.isNotBlank() && _state.value.vin != vinProvider().trim()) return false
         if (!hasKnownSettingValue(item)) return false
         val target = transform(editable)
-        if (!validRadarTarget(item, target) || !validDraftTarget(item.kind, target) || !validSpeedTarget(item, target) ||
+        if (!validRadarTarget(item, target) || !validDraftTarget(originalKind, target) || !validSpeedTarget(item, target) ||
             !validSecondPhaseTarget(item, target) || !validBatteryTarget(item, target) || !validTimerTarget(item, target) ||
             !validSimpleChoiceTarget(item, target) || !validAtmosphereTarget(item, target) ||
             (item.configId == "10" && !GeofenceSettings.validItem(item.copy(kind = target)))
@@ -619,6 +624,10 @@ class CarSettingsController(
         item.configId !in RadarSettings.configIds || RadarSettings.validTarget(item, target)
 
     private fun hasKnownSettingValue(item: CarSettingItem): Boolean {
+        if (item.configId == "71") {
+            return (_state.value.valueState(item.id).configuredValue as? CarSettingKind.Toggle)
+                ?.valueKnown == true
+        }
         if (item.configId == "73" && item.kind is CarSettingKind.Atmosphere) {
             val state = _state.value.valueState(item.id)
             return listOfNotNull((state.vehicleValue as? VehicleSettingValue.Known)?.kind, state.cachedValue?.kind)
@@ -778,7 +787,14 @@ class CarSettingsController(
         val missingItem = current.missingCloudItems.firstOrNull { it.id == id }
         val item = regularItem ?: missingItem ?: return false
         val isMissingCloudItem = regularItem == null
+        if (item.configId == "71" &&
+            (_state.value.valueState(id).configuredValue as? CarSettingKind.Toggle)?.valueKnown != true) {
+            _state.value = current.copy(message = "仪表同步配置未知，请刷新后再修改")
+            return false
+        }
         val editable = current.valueState(id).editableKind(item.kind)
+        val originalKind = if (item.configId == "71")
+            current.valueState(id).configuredValue ?: item.kind else item.kind
         if (!CarSettingItemAccess.canWrite(item)) {
             _state.value = current.copy(message = "该设置项当前不可写")
             return false
@@ -816,7 +832,7 @@ class CarSettingsController(
             _state.value = current.copy(message = "请确认关闭定位提示后再保存")
             return false
         }
-        if (!validRadarTarget(item, target) || !validTarget(item.kind, target) || !validSpeedTarget(item, target) ||
+        if (!validRadarTarget(item, target) || !validTarget(originalKind, target) || !validSpeedTarget(item, target) ||
             !validSecondPhaseTarget(item, target) || !validBatteryTarget(item, target) || !validTimerTarget(item, target) ||
             !validSimpleChoiceTarget(item, target) || !validAtmosphereTarget(item, target) ||
             (item.configId == "10" && (!GeofenceSettings.validItem(item.copy(kind = target)) ||
@@ -961,6 +977,28 @@ class CarSettingsController(
                 _state.value = _state.value.copy(message = message)
                 return matches
             }
+            if (item.configId == "71") {
+                changeValueState(id) {
+                    it.copy(writeState = phase, writeChannel = writeResult.channel,
+                        confirmationState = SettingConfirmationState.UNKNOWN,
+                        readbackState = SettingReadbackState.UNSUPPORTED)
+                }
+                val cloud = try { gateway?.load(vin) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { null }
+                if (!isCurrentOperation(id, operation)) return false
+                val configured = cloud?.let { CloudCarSettingMapper.configuredValue(it, submitted) }
+                val matches = (configured as? CarSettingKind.Toggle)?.let {
+                    it.valueKnown && it.checked == (target as CarSettingKind.Toggle).checked
+                } == true
+                val message = if (matches) "仪表同步配置已从云端读回一致；仪表是否执行同步未确认"
+                    else "云端已接受仪表同步设置，但配置未读回一致；仪表状态未确认"
+                changeValueState(id) { it.copy(configuredValue = configured,
+                    submittedValue = if (matches) null else target,
+                    error = if (matches) null else message) }
+                _state.value = _state.value.copy(message = message)
+                return matches
+            }
             pendingVehicleConfirmations[id] = PendingVehicleConfirmation(target, observedGeneration, operation.id)
             changeValueState(id) {
                 it.copy(writeState = phase, writeChannel = writeResult.channel,
@@ -982,7 +1020,7 @@ class CarSettingsController(
             )
             val statusGateway = gateway
             val needsCloudConfirmation = writeResult.channel == CarSettingWriteChannel.CLOUD &&
-                cloudUpdate && submitted.configId != "75" &&
+                cloudUpdate && submitted.configId !in setOf("71", "75") &&
                 !isMissingCloudItem
             if (statusGateway != null && needsCloudConfirmation) {
                 val resultId = if (submitted.configId in setOf("76", "77")) writeResult.resultId?.takeIf { it.isNotBlank() }
