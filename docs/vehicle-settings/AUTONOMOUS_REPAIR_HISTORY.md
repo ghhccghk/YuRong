@@ -468,3 +468,12 @@
 - 测试：Fake新增缓存、父草稿、父提交中拒绝子项编辑；修正旧测试，在父开关写入被接受后先提供新LIVE_TTP，再测试子项提交。`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.VehicleSettingsSecondPhaseTest" --offline --console=plain`通过27/27。
 - 构建：`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0。Fake-only；无真实网络、App或车辆验证。
 - 结论：STATIC_FLOW_VERIFIED、UNIT_TESTED、TEST_SOURCE_COMPILED、BUILD_VERIFIED；7/39车型条件仍PARTIAL/UNKNOWN，无RUNTIME_VERIFIED/VEHICLE_VERIFIED。
+
+## A40（ID3/13 TTP读取补全）
+
+- 起始HEAD：`70c42febc3199a7a540b20197a8311f8747750bc`，分支`master`；开始时tracked修改仅限本批四个源码/测试文件，index为空；另有既存untracked日志、APK、截图、工具目录和文档，均保留且不纳入提交。
+- Smali证据：`l76.smali:9314–9321`将byte `0x1A` bit0–1写入`alarmSoundSwitchAfterStatus`；`l76.smali:9503–9524`将byte `0x25` bit4–5写入`pushModeStatus`。`VehicleSettingViewModel.smali:20178+`回填ID13的`u0`，`20241+`回填ID3的`w0`；原页仅raw 0/1有效，raw 0为开。原有BLE写入命令ID13 `0x62/0x63`、ID3 `0x11/0x12`未修改。
+- 修改：`TtpInfo.kt`新增两个原始TTP字段及精确位域解析；`CarSettings.kt`在对应confId分支独立回填；`SimpleToggleSettings.zeroIsOn`严格映射0→开、1→关、其他值→UNKNOWN。UI沿用动态设置项和既有Toggle，不引入云端配置映射或默认值。Fake用例覆盖位域解析、开关极性、同VIN LIVE回填、invalid UNKNOWN。
+- 独立复审：Smali位域→`TtpInfoParser`→`TtpExtendedInfo`→`CarSettingsController.applyVehicleStatus`→设置项Toggle。raw非0/1不被当作有效开关；首次无效观察保持UNKNOWN；不改云端configuredValue、缓存语义、Writer、BLE命令或其他设置项。写入接受与车辆回读确认仍分离。
+- 验证：`:shared:jvmTest --tests "top.ghhccghk.yadea.carsetting.SimpleToggleSettingsSafetyTest" --tests "top.ghhccghk.yadea.vehicle.TtpInfoParserTest" --offline --console=plain`通过54/54（最终重跑覆盖raw 2无效映射）；`:shared:compileKotlinJvm :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileTestKotlinJvm --offline --console=plain`退出0；`:androidApp:assembleDebug :desktopApp:build --offline --console=plain`退出0（仅有既有弃用/unchecked 警告）；`git diff --check`及staged check通过。
+- 当前状态：ID3/13读取达到STATIC_FLOW_VERIFIED、UNIT_TESTED；整体仍PARTIAL（未运行App、无真实车辆读回验证）。低层写入链未在本批变更，云端配置字段仍不作推断。

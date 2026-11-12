@@ -1378,6 +1378,7 @@ class CarSettingsController(
                 }
                 in RadarSettings.configIds -> item.withToggle(RadarSettings.observedValue(item, status))
                 "2" -> item.withToggle(SimpleToggleSettings.flag(status.extended.sideBraceStatus))
+                "3" -> item.withToggle(SimpleToggleSettings.zeroIsOn(status.extended.pushModeStatus))
                 "32" -> item.withToggle(SimpleToggleSettings.flag(status.extended.tiltWarningStatus))
                 "45" -> item.withToggle(SimpleToggleSettings.flag(status.extended.constSpeedState))
                 "27" -> item.withIndex(
@@ -1463,6 +1464,7 @@ class CarSettingsController(
                     else -> item
                 }
                 "25" -> item.withToggle(passwordUnlockStatusFlag(status.extended.passwordUnlockStatus))
+                "13" -> item.withToggle(SimpleToggleSettings.zeroIsOn(status.extended.alarmSoundSwitchAfterStatus))
                 "73" -> when (item.kind) {
                     is CarSettingKind.Atmosphere -> AtmosphereSettings.observe(status.extended)?.let { item.copy(kind = it) } ?: item
                     else -> item.withToggle(status.extended.ambientStatus.takeIf { it in 0..1 }?.let { it == 1 })

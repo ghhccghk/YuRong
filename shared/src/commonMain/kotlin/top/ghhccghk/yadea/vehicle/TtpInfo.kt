@@ -363,6 +363,10 @@ data class TtpExtendedInfo(
     val leaveVehicleAutoLockStatus: Int = Ttp.INVALID_I,
     /** l76.z: C(data, 0x24, 4); 0/1/2/3 mean 3/5/10/15 seconds. */
     val leaveVehicleAutoLockTimeStatus: Int = Ttp.INVALID_I,
+    /** l76.z: G(data, 0x25, 4); SeatCushionSensorActivity uses raw 0/1. */
+    val pushModeStatus: Int = Ttp.INVALID_I,
+    /** l76.z: G(data, 0x1A, 0); VehicleAlarmActivity uses raw 0/1. */
+    val alarmSoundSwitchAfterStatus: Int = Ttp.INVALID_I,
 )
 
 /**
@@ -575,6 +579,8 @@ internal object TtpInfoParser {
             alarmWarningMode = Ttp.C(d, 0x33, 0),
             alarmSensitivityStatus = Ttp.C(d, 0x1C, 2),
             alarmRingThemeCurrent = Ttp.G(d, 0x32, 0),
+            alarmSoundSwitchAfterStatus = Ttp.G(d, 0x1A, 0),
+            pushModeStatus = Ttp.G(d, 0x25, 4),
             leaveVehicleAutoLockStatus = Ttp.G(d, 0x24, 2),
             leaveVehicleAutoLockTimeStatus = Ttp.C(d, 0x24, 4),
             alarmWarningVolumeLevel = Ttp.C(d, 0x33, 3),

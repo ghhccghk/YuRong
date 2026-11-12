@@ -4,14 +4,14 @@
 
 ## 正在处理
 
-- 无。A39 已修复 ID7/11/39 子项依赖开关可由非实时值满足的问题；过滤测试及所需编译/构建均通过。
+- 无。A40 已补 ID3/13 Smali 证实的TTP读取与同VIN实时状态回填；过滤测试及跨平台/Android/Desktop构建通过，原写入路径未变。
 
 ## 待处理（候选，须先证据复核）
 
 - 雷达告警模式/音量（A38）：`COMMAND_RADAR_ALARM`/0x12F 的参数来自 `RadarActivity.mCurrentPosition`，但完整允许值、UI边界和该参数与任何 TTP 字段之间的映射尚未证实；保持 BLOCKED，不接入写入。若后续获得可信资源/绑定或抓包证据再复核。
 - 回归维护补充：A36已提交，EighthRoundValueStateTest和SixthRoundActivityBatchTest中ID20的合法编辑/命令夹具限定到原页三档0..2；3..6及解析哨兵-1仅作为UNKNOWN拒绝样本。
 - 回归维护：Phase4CarSettingsTest的62索引、10围栏快照及ID72/80动态页方向夹具已按对应调用路径修正；ID72/80独立页与动态页行为差异仍需保留审计，不合并语义。
-- 回归维护：A34已修正`SimpleToggleSettingsSafetyTest`对ID3/13的回读假设与命令码默认分支；整类 Fake 13/13通过。读取仍BLOCKED，不修改原始TTP解析。
+- A38雷达告警继续BLOCKED；ID3/13读取缺口已由A40解决，写入接受仍不等于车辆确认。
 - 其他全部项：按功能地图逐项核对读取、写入、门控及独立流程；发现安全问题优先插队。
 - 基线4/58/61/55/92、9/82：检查当前代码并回归，避免重复历史修复。
 - ID5/7/11/39：A39已收紧子项父开关状态门控；7/39车型门控证据仍不足，继续保留UNKNOWN/PARTIAL，不用默认值放开。
@@ -21,8 +21,8 @@
 - 52：A31已关闭缺省`bleDistance=3`伪造、未证实字段回填/云更新和最终Writer BLE fallback。`CustomPowerOnDistancesActivity`/`CustomPowerOnDistancesViewModel`运行独立测距流程并上报`phoneBluetoothRecord/add`；测距结果与云端`bleDistance`关联仍未证实，保持BLOCKED，不增命令。
 
 - 42：A14已追清jp6.h/i→cal2→VM.x→k5。资格响应缺失/非法时阻止开启；未运行App或实车验证。
-- 13：原页TTP alarmSoundSwitchAfterStatus已有Smali证据，但KMP原始TTP模型/解析缺失；本任务禁止修改原始解析，读链路BLOCKED，保持UNKNOWN。低层写入WRITE_ONLY；UI无已知值时继续禁用，不猜测DTO字段。
-- 3：Binding.H5→VM.w0→TTP pushModeStatus；KMP原始解析缺失，读取BLOCKED；现有11/12写入经严格UNKNOWN/稳定ID保护，UI继续UNKNOWN禁用。
+- 13：A40已接通`l76`解析→`TtpExtendedInfo`→Controller→ID13 UI的LIVE_TTP读取；只接受raw 0/1。原写入路径保留，运行态/车辆确认未验证。
+- 3：A40已接通`l76`解析→`TtpExtendedInfo`→Controller→ID3 UI的LIVE_TTP读取；只接受raw 0/1。现有11/12写入保持原状，运行态/车辆确认未验证。
 - 2：原页关闭可能按车型1021/29+39状态选择AC。无对应车型来源/既有AC编码时阻止不确定关闭；39未下发或有效LIVE锁状态0时可以证明10安全。保持PARTIAL，不新增帧。
 - 75：原页和内联均读iotRemoveAlarm；P4/s20对非null Boolean固定写tamperProofIotEnable=1，0关闭缺证据，已阻止。原FA帧受保护边界限制；不补帧、不将字段名当云端配置读取证据。
 - 51事务关联、77排程、33模式、93当前值、复杂独立页面：复核后逐项列出BLOCKED/PARTIAL原因；此处不是最终判定。
@@ -32,6 +32,8 @@
 每批开始读本文件、地图、历史、HEAD和staged/unstaged/untracked；只从最近成功提交后继续。禁止清理或暂存用户原有12项未跟踪内容。未通过测试、构建、自审及精确diff时不提交；不调用真实网络/车辆。
 
 ## 已完成
+
+- A40：ID3/13读取补全；Fake过滤测试54/54，JVM/JS/Wasm及测试源码编译通过；Android/Desktop构建通过。矩阵已更新；无App运行或实车验证。
 
 - A37：001/002/003 X1 TTP/百分比档位映射及002开启门控；Fake测试7/7，JVM/JS/Wasm、Android Debug、Desktop构建通过；无App/实车验证。提交`4e20f45`。
 

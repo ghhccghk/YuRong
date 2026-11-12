@@ -138,6 +138,48 @@ class SimpleToggleSettingsSafetyTest {
         }
     }
 
+    @Test fun id3AndId13ReadOnlyFromTheirSmaliBoundTtpFields() = runBlocking {
+        val gateway = Gateway {
+            CloudCarSettings(configs = SimpleToggleSettings.ids.map { CloudBikeConfig(it) }, values = emptyMap())
+        }
+        val c = CarSettingsController(writer = Writer(), gateway = gateway, vinProvider = { "VIN-A" }, debounceMs = 0)
+        assertTrue(c.refresh())
+
+        for (raw in 0..1) {
+            val bytes = ByteArray(256) { 0xFF.toByte() }
+            bytes[0x25] = ((bytes[0x25].toInt() and 0xCF) or (raw shl 4)).toByte()
+            bytes[0x1A] = ((bytes[0x1A].toInt() and 0xFC) or raw).toByte()
+            val parsed = TtpInfoParser.parse(bytes)
+            assertEquals(raw, parsed.extended.pushModeStatus)
+            assertEquals(raw, parsed.extended.alarmSoundSwitchAfterStatus)
+            c.updateVehicleObservation(VehicleStatusObservation("VIN-A", parsed, VehicleStatusOrigin.LIVE_TTP, raw + 1L))
+            for (id in listOf("3", "13")) {
+                val value = c.state.value.valueState("cloud:$id")
+                val live = value.vehicleValue as VehicleSettingValue.Known
+                assertTrue(live.live)
+                assertEquals(raw == 0, (live.kind as CarSettingKind.Toggle).checked)
+                assertEquals(SettingReadbackState.VALID, value.readbackState)
+            }
+        }
+
+        val invalidBytes = ByteArray(256) { 0xFF.toByte() }
+        invalidBytes[0x25] = ((invalidBytes[0x25].toInt() and 0xCF) or (2 shl 4)).toByte()
+        invalidBytes[0x1A] = ((invalidBytes[0x1A].toInt() and 0xFC) or 2).toByte()
+        val invalid = TtpInfoParser.parse(invalidBytes)
+        assertEquals(2, invalid.extended.pushModeStatus)
+        assertEquals(2, invalid.extended.alarmSoundSwitchAfterStatus)
+        val unknownController = CarSettingsController(
+            writer = Writer(), gateway = gateway, vinProvider = { "VIN-A" }, debounceMs = 0,
+        )
+        assertTrue(unknownController.refresh())
+        unknownController.updateVehicleObservation(
+            VehicleStatusObservation("VIN-A", invalid, VehicleStatusOrigin.LIVE_TTP, 1),
+        )
+        for (id in listOf("3", "13")) {
+            assertEquals(VehicleSettingValue.Unknown, unknownController.state.value.valueState("cloud:$id").vehicleValue)
+        }
+    }
+
     @Test fun cacheWrongVinAndOldSequenceCannotClaimFreshReadback() = runBlocking {
         val c = controller(); assertTrue(c.refresh()); observe(c, 1, origin = VehicleStatusOrigin.CACHED_TTP)
         for (id in readbackIds) {

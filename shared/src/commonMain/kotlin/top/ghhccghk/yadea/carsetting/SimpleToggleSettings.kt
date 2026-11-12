@@ -6,6 +6,7 @@ internal object SimpleToggleSettings {
         "80", "84", "90", "94", "32", "43", "44", "45", "13", "3")
     fun flag(raw: Int): Boolean? = when (raw) { 0 -> false; 1 -> true; else -> null }
     fun invertedFlag(raw: Int): Boolean? = flag(raw)?.not()
+    fun zeroIsOn(raw: Int): Boolean? = when (raw) { 0 -> true; 1 -> false; else -> null }
     fun tcs(raw: Int): Boolean? = raw.takeIf { it in 0..7 }?.let { it == 0 }
     fun valid(kind: CarSettingKind): Boolean = kind is CarSettingKind.Toggle && kind.valueKnown
     fun validItem(item: CarSettingItem): Boolean = item.id == "cloud:${item.configId}" && valid(item.kind)
