@@ -64,7 +64,7 @@ class SimpleToggleSettingsSafetyTest {
             val command = sent.last()
             assertEquals(when (id) {
                 "3" -> if (on) 0x11 else 0x12
-                "13" -> if (on) 0x62 else 0x63
+                "13" -> if (on) 0x63 else 0x62
                 "19" -> if (on) 0x25 else 0x26
                 "26" -> if (on) 0x23 else 0x24
                 "36" -> if (on) 0x9B else 0x9C

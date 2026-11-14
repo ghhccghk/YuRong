@@ -647,8 +647,9 @@ object VehicleSettingCommands {
                 offType = "COMMAND_FEEL_LIGHT_SETTING_STATE",
                 onId = 0xC3,
                 offId = 0xC3,
-                onParameter = 0,
-                offParameter = 1,
+                // Vehicle testing confirmed target polarity; do not invert the UI state.
+                onParameter = 1,
+                offParameter = 0,
             )
             "51" -> if (!TimeSyncSettings.validTarget(kind)) null else toggle(
                 kind = kind,
@@ -661,10 +662,11 @@ object VehicleSettingCommands {
             )
             "13" -> toggle(
                 kind = kind,
-                onType = "WARING_SOUND_OPEN",
-                offType = "WARING_SOUND_CLOSE",
-                onId = 0x62,
-                offId = 0x63,
+                // Preserve original command labels/IDs; vehicle testing confirmed their target direction.
+                onType = "WARING_SOUND_CLOSE",
+                offType = "WARING_SOUND_OPEN",
+                onId = 0x63,
+                offId = 0x62,
             )
             // BodyStabilityActivity：value 0=开启，1=关闭。
             "37" -> toggle(
@@ -1060,13 +1062,7 @@ object VehicleSettingCommands {
             onId = 0x53,
             offId = 0x54,
         )
-        "light.find_sound" -> toggle(
-            item = item,
-            onType = "WARING_SOUND_OPEN",
-            offType = "WARING_SOUND_CLOSE",
-            onId = 0x62,
-            offId = 0x63,
-        )
+        "light.find_sound" -> forConfigId("13", item.kind)
         "ride.cruise" -> toggle(
             item = item,
             onType = "CRUISE_CONTROL_OPEN",

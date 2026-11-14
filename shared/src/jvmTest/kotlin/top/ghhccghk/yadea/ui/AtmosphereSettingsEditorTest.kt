@@ -48,18 +48,6 @@ class AtmosphereSettingsEditorTest {
     }
 
     @Test
-    fun alarmAndAtmosphereSwitchUiValuesAreTranslatedWithoutChangingOtherSwitches() {
-        for (configId in listOf("13", "73")) {
-            assertEquals(false, switchCheckedForUi(configId, true))
-            assertEquals(true, switchCheckedForUi(configId, false))
-            assertEquals(false, switchTargetFromUi(configId, true))
-            assertEquals(true, switchTargetFromUi(configId, false))
-        }
-        assertEquals(true, switchCheckedForUi("19", true))
-        assertEquals(false, switchTargetFromUi("19", false))
-    }
-
-    @Test
     fun unknownAndKnownDraftsRenderWithoutEditingOrSubmittingInBothThemes() {
         UiThemeStyle.entries.forEach { style ->
             listOf(AppThemeMode.Light, AppThemeMode.Dark).forEach { mode ->

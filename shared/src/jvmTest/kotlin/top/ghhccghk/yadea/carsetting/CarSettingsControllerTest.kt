@@ -394,7 +394,7 @@ class CarSettingsControllerTest {
             VehicleSettingCommands.forItem(items.getValue("security.auto_lock")),
         )
         assertEquals(
-            VehicleSettingCommand("WARING_SOUND_CLOSE", 0x63),
+            VehicleSettingCommand("WARING_SOUND_OPEN", 0x62),
             VehicleSettingCommands.forItem(
                 items.getValue("light.find_sound").copy(
                     kind = CarSettingKind.Toggle(false),

@@ -74,7 +74,7 @@ class CloudSwitchSettingsSafetyTest {
         for (on in listOf(false, true)) {
             val target = CarSettingKind.Toggle(on)
             assertTrue(mapped.write(item(c, "13").copy(kind = target)))
-            assertEquals(if (on) 0x62 else 0x63, sent.last().commandId); assertEquals(-1, sent.last().parameter)
+            assertEquals(if (on) 0x63 else 0x62, sent.last().commandId); assertEquals(-1, sent.last().parameter)
             assertNotNull(VehicleSettingFrameEncoder.encode(sent.last()))
             assertNull(CloudCarSettingUpdateBuilder.build("13", target, "VIN-A"))
         }
@@ -117,7 +117,7 @@ class CloudSwitchSettingsSafetyTest {
         })
         val w = CloudCarSettingWriter(g, { "VIN-A" }, mapped, { true })
         for (id in ids) assertTrue(w.write(item(c, id).copy(kind = CarSettingKind.Toggle(true))))
-        assertEquals(listOf(0x62), commands.map { it.commandId })
+        assertEquals(listOf(0x63), commands.map { it.commandId })
         assertEquals(listOf("16", "40"), g.sent.map { it.second.configId })
         assertFalse(CloudCarSettingWriter(g, { "VIN-A" }).write(item(c, "13").copy(kind = CarSettingKind.Toggle(true))))
     }
@@ -141,16 +141,26 @@ class CloudSwitchSettingsSafetyTest {
         }
     }
 
-    @Test fun uncorrelatedTtpCannotConfirmTheseCloudOrMissingParserValues() = runBlocking {
+    @Test fun cloudOnlyValuesStayUnconfirmedAndAlarmRequiresLiveReadback() = runBlocking {
         val c = controller(); assertTrue(c.refresh())
         for (id in ids) assertTrue(c.update("cloud:$id") { CarSettingKind.Toggle(true) })
         val ttp = TtpInfoParser.parse(ByteArray(256))
         for (origin in listOf(VehicleStatusOrigin.CACHED_TTP, VehicleStatusOrigin.LIVE_TTP)) {
             c.updateVehicleObservation(VehicleStatusObservation("VIN-A", ttp, origin, if (origin == VehicleStatusOrigin.LIVE_TTP) 2 else 1))
-            for (id in ids) {
+            for (id in ids.filterNot { it == "13" }) {
                 val s = c.state.value.valueState("cloud:$id")
                 assertEquals(VehicleSettingValue.Unknown, s.vehicleValue); assertNull(s.cachedValue)
                 assertEquals(SettingConfirmationState.WAITING_READBACK, s.confirmationState)
+            }
+            val alarm = c.state.value.valueState("cloud:13")
+            assertNull(alarm.configuredValue)
+            if (origin == VehicleStatusOrigin.CACHED_TTP) {
+                assertEquals(VehicleSettingValue.Unknown, alarm.vehicleValue)
+                assertEquals(CarSettingKind.Toggle(true), alarm.cachedValue?.kind)
+                assertEquals(SettingConfirmationState.WAITING_READBACK, alarm.confirmationState)
+            } else {
+                assertEquals(CarSettingKind.Toggle(true), (alarm.vehicleValue as VehicleSettingValue.Known).kind)
+                assertEquals(SettingConfirmationState.READBACK_MATCHED, alarm.confirmationState)
             }
         }
     }
