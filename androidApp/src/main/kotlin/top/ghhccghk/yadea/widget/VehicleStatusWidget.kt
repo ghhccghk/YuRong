@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.datastore.preferences.core.MutablePreferences
@@ -58,7 +59,6 @@ import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.RowScope
 import androidx.glance.layout.Spacer
-import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -1076,19 +1076,7 @@ internal data class VehicleStatusWidgetState(
 @Composable
 private fun VehicleStatusWidgetContent(state: VehicleStatusWidgetState) {
     val context = LocalContext.current
-    val widgetSize = LocalSize.current
-    val wide = widgetSize.width >= 220.dp
-    val compact = widgetSize.height < 150.dp
-    val iconOnly = !wide && compact
-    val vehicleStageScale = if (compact) 0.56f else 0.52f
-    val vehicleStageWidth = (widgetSize.width.value * vehicleStageScale).dp
-    val wideCompact = wide && widgetSize.height < 180.dp
-    val detailedCompact = wide && widgetSize.height < 320.dp
-    val detailedStageHeight = if (widgetSize.height >= 320.dp) {
-        (widgetSize.height.value * 0.50f).dp
-    } else {
-        48.dp
-    }
+    val layout = widgetLayout(LocalSize.current, context.resources.configuration.fontScale)
     val darkTheme = resolveDarkTheme(context, state.themeMode)
     val seedColor = Color(state.seedColorArgb.toLong() and 0xFFFFFFFFL)
     val palette = widgetPalette(
@@ -1139,271 +1127,203 @@ private fun VehicleStatusWidgetContent(state: VehicleStatusWidgetState) {
             modifier = GlanceModifier.fillMaxSize(),
             contentAlignment = Alignment.TopStart,
         ) {
-            when {
-                wideCompact && state.uiStyle == UiThemeStyle.Miuix -> MiuixWideWidgetContent(
-                    state,
-                    palette,
-                    vehicleBitmap,
-                    compact,
-                    vehicleStageWidth,
-                )
-                wideCompact -> MaterialWideWidgetContent(
-                    state,
-                    palette,
-                    vehicleBitmap,
-                    compact,
-                    vehicleStageWidth,
-                )
-                wide && state.uiStyle == UiThemeStyle.Miuix -> MiuixDetailedWidgetContent(
-                    state = state,
-                    palette = palette,
-                    vehicleBitmap = vehicleBitmap,
-                    compact = detailedCompact,
-                    stageHeight = detailedStageHeight,
-                )
-                wide -> MaterialDetailedWidgetContent(
-                    state = state,
-                    palette = palette,
-                    vehicleBitmap = vehicleBitmap,
-                    compact = detailedCompact,
-                    stageHeight = detailedStageHeight,
-                )
-                state.uiStyle == UiThemeStyle.Miuix -> MiuixWidgetContent(
-                    state = state,
-                    palette = palette,
-                    compact = compact,
-                    iconOnly = iconOnly,
-                    vehicleBitmap = vehicleBitmap,
-                )
-                else -> MaterialWidgetContent(
-                    state = state,
-                    palette = palette,
-                    compact = compact,
-                    iconOnly = iconOnly,
-                    vehicleBitmap = vehicleBitmap,
-                )
-            }
+            ResponsiveWidgetContent(state, palette, vehicleBitmap, layout)
         }
     }
 }
 
+/** Sizes are in launcher-provided dp, rather than an assumed home-screen cell count. */
+private data class WidgetLayout(
+    val horizontal: Boolean,
+    val compact: Boolean,
+    val showSubtitle: Boolean,
+    val showSummary: Boolean,
+    val iconOnly: Boolean,
+    val horizontalPadding: Dp,
+    val topPadding: Dp,
+    val bottomPadding: Dp,
+    val gap: Dp,
+    val headerHeight: Dp,
+    val metricsHeight: Dp,
+    val tightMetrics: Boolean,
+    val summaryHeight: Dp,
+    val actionsHeight: Dp,
+    val stageHeight: Dp,
+    val stageWidth: Dp,
+)
+
+private fun widgetLayout(size: DpSize, fontScale: Float): WidgetLayout {
+    val scale = fontScale.coerceAtLeast(1f)
+    val narrow = size.width < 220.dp
+    val compact = narrow || size.height < 210.dp
+    val horizontalPadding = if (narrow) 8.dp else 14.dp
+    val topPadding = if (compact) 6.dp else 14.dp
+    val bottomPadding = if (compact) 16.dp else 20.dp
+    val gap = if (compact) 4.dp else 8.dp
+    val showSubtitle = size.height >= 230.dp && size.width >= 180.dp
+    val showSummary = size.height.value >= 150f * scale
+    val iconOnly = size.width < 180.dp || size.height.value < 160f * scale
+    val headerHeight = ((if (showSubtitle) 36f else 18f) * scale).dp
+    val desiredMetricsHeight = ((if (compact) 30f else 46f) * scale).dp
+    val summaryHeight = if (showSummary) ((if (compact) 15f else 18f) * scale).dp else 0.dp
+    val actionsHeight = if (iconOnly) 30.dp else (42f * scale).dp
+    val innerWidth = (size.width - horizontalPadding * 2).coerceAtLeast(0.dp)
+    // Reserve text and controls first. Only the vehicle area may consume the remaining height.
+    val reservedHeight = topPadding + bottomPadding + headerHeight + actionsHeight +
+        gap * 2 + if (showSummary) summaryHeight + gap else 0.dp
+    val bodyHeight = (size.height - reservedHeight).coerceAtLeast(0.dp)
+    val horizontal = (!narrow && size.height < 210.dp) ||
+        bodyHeight < desiredMetricsHeight + gap + 32.dp
+    val tightMetrics = horizontal && bodyHeight < desiredMetricsHeight
+    val metricsHeight = if (tightMetrics) bodyHeight else desiredMetricsHeight
+    val stageHeight = if (horizontal) {
+        bodyHeight.coerceAtMost(100.dp)
+    } else {
+        minOf(
+            (bodyHeight - metricsHeight - gap).coerceAtLeast(0.dp),
+            innerWidth * if (narrow) 0.60f else 0.48f,
+            size.height * 0.34f,
+            200.dp,
+        )
+    }
+    // Keep room for both readings, even at intermediate launcher resize widths.
+    val stageWidth = if (horizontal) {
+        minOf(innerWidth * 0.38f, (innerWidth - (116f * scale).dp - gap).coerceAtLeast(0.dp))
+    } else {
+        innerWidth
+    }
+    return WidgetLayout(
+        horizontal = horizontal,
+        compact = compact,
+        showSubtitle = showSubtitle,
+        showSummary = showSummary,
+        iconOnly = iconOnly,
+        horizontalPadding = horizontalPadding,
+        topPadding = topPadding,
+        bottomPadding = bottomPadding,
+        gap = gap,
+        headerHeight = headerHeight,
+        metricsHeight = metricsHeight,
+        tightMetrics = tightMetrics,
+        summaryHeight = summaryHeight,
+        actionsHeight = actionsHeight,
+        stageHeight = stageHeight,
+        stageWidth = stageWidth,
+    )
+}
+
 @Composable
-private fun MiuixWideWidgetContent(
+private fun ResponsiveWidgetContent(
     state: VehicleStatusWidgetState,
     palette: WidgetPalette,
     vehicleBitmap: Bitmap?,
-    compact: Boolean,
-    vehicleStageWidth: Dp,
+    layout: WidgetLayout,
 ) {
+    val miuix = state.uiStyle == UiThemeStyle.Miuix
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .padding(if (compact) 10.dp else 15.dp),
+            .padding(
+                start = layout.horizontalPadding,
+                top = layout.topPadding,
+                end = layout.horizontalPadding,
+                bottom = layout.bottomPadding,
+            ),
     ) {
-        MiuixHeader(
-            state = state,
-            palette = palette,
-            showSubtitle = false,
-            compact = compact,
-        )
-        Spacer(GlanceModifier.height(if (compact) 3.dp else 6.dp))
-        Row(
-            modifier = GlanceModifier
-                .fillMaxWidth()
-                .height(if (compact) 54.dp else 68.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Box(
+            modifier = GlanceModifier.fillMaxWidth().height(layout.headerHeight),
+            contentAlignment = Alignment.CenterStart,
         ) {
-            WideMetrics(
-                state = state,
-                palette = palette,
-                compact = compact,
-                modifier = GlanceModifier.defaultWeight(),
-            )
-            Spacer(GlanceModifier.width(if (compact) 6.dp else 10.dp))
+            if (miuix) {
+                MiuixHeader(state, palette, layout.showSubtitle, layout.compact)
+            } else {
+                MaterialHeader(state, palette, layout.showSubtitle, layout.compact)
+            }
+        }
+        Spacer(GlanceModifier.height(layout.gap))
+        if (layout.horizontal) {
+            Row(
+                modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                WidgetMetrics(
+                    state, palette, layout,
+                    modifier = GlanceModifier.defaultWeight(),
+                )
+                if (layout.stageWidth > 0.dp) {
+                    Spacer(GlanceModifier.width(layout.gap))
+                    VehicleStage(
+                        state = state,
+                        bitmap = vehicleBitmap,
+                        palette = palette,
+                        height = layout.stageHeight,
+                        radius = if (miuix) 14.dp else 0.dp,
+                        useStageColor = miuix,
+                        modifier = GlanceModifier.width(layout.stageWidth).height(layout.stageHeight),
+                    )
+                }
+            }
+        } else {
             Box(
-                modifier = GlanceModifier
-                    .fillMaxHeight()
-                    .width(vehicleStageWidth),
+                modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
+                contentAlignment = Alignment.Center,
             ) {
                 VehicleStage(
                     state = state,
                     bitmap = vehicleBitmap,
                     palette = palette,
-                    height = 0.dp,
-                    radius = if (compact) 14.dp else 18.dp,
-                    modifier = GlanceModifier.fillMaxSize(),
+                    height = layout.stageHeight,
+                    radius = if (miuix) 20.dp else 0.dp,
+                    useStageColor = miuix,
                 )
             }
+            Spacer(GlanceModifier.height(layout.gap))
+            WidgetMetrics(state, palette, layout)
         }
-        Spacer(GlanceModifier.height(if (compact) 4.dp else 10.dp))
-        WidgetActions(state, palette, compact = compact)
-    }
-}
-
-@Composable
-private fun MaterialWideWidgetContent(
-    state: VehicleStatusWidgetState,
-    palette: WidgetPalette,
-    vehicleBitmap: Bitmap?,
-    compact: Boolean,
-    vehicleStageWidth: Dp,
-) {
-    Column(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .padding(if (compact) 10.dp else 15.dp),
-    ) {
-        MaterialHeader(
-            state = state,
-            palette = palette,
-            showSubtitle = false,
-            compact = compact,
-        )
-        Spacer(GlanceModifier.height(if (compact) 3.dp else 6.dp))
-        Row(
-            modifier = GlanceModifier
-                .fillMaxWidth()
-                .height(if (compact) 54.dp else 68.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            WideMetrics(
-                state = state,
-                palette = palette,
-                compact = compact,
-                modifier = GlanceModifier.defaultWeight(),
-            )
-            Spacer(GlanceModifier.width(if (compact) 6.dp else 10.dp))
+        if (layout.showSummary) {
+            Spacer(GlanceModifier.height(layout.gap))
             Box(
-                modifier = GlanceModifier
-                    .fillMaxHeight()
-                    .width(vehicleStageWidth),
+                modifier = GlanceModifier.fillMaxWidth().height(layout.summaryHeight),
+                contentAlignment = Alignment.CenterStart,
             ) {
-                VehicleStage(
-                    state = state,
-                    bitmap = vehicleBitmap,
-                    palette = palette,
-                    height = 0.dp,
-                    radius = 0.dp,
-                    useStageColor = false,
-                    modifier = GlanceModifier.fillMaxSize(),
+                // Status has one dedicated row; action feedback temporarily replaces it.
+                val summary = state.displaySummary()
+                Text(
+                    text = if (layout.compact && summary == state.statusSummary) {
+                        summary.replace("已锁车", "已锁").replace("未锁车", "未锁")
+                            .replace("已开机", "开机").replace("已关机", "关机")
+                    } else {
+                        summary
+                    },
+                    modifier = GlanceModifier.fillMaxWidth(),
+                    style = widgetTextStyle(palette.secondaryText, if (layout.compact) 9.sp else 10.sp),
+                    maxLines = 1,
                 )
             }
         }
-        Spacer(GlanceModifier.height(if (compact) 4.dp else 10.dp))
-        WidgetActions(state, palette, compact = compact)
+        Spacer(GlanceModifier.height(layout.gap))
+        WidgetActions(state, palette, layout)
     }
 }
 
 @Composable
-private fun MiuixDetailedWidgetContent(
+private fun WidgetMetrics(
     state: VehicleStatusWidgetState,
     palette: WidgetPalette,
-    vehicleBitmap: Bitmap?,
-    compact: Boolean,
-    stageHeight: Dp,
+    layout: WidgetLayout,
+    modifier: GlanceModifier = GlanceModifier.fillMaxWidth(),
 ) {
-    Column(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .padding(if (compact) 12.dp else 18.dp),
-    ) {
-        MiuixHeader(
-            state = state,
-            palette = palette,
-            showSubtitle = true,
-            compact = compact,
-        )
-        Spacer(GlanceModifier.height(if (compact) 6.dp else 10.dp))
-        VehicleStage(
-            state = state,
-            bitmap = vehicleBitmap,
-            palette = palette,
-            height = stageHeight,
-            radius = if (compact) 20.dp else 28.dp,
-        )
-        Spacer(GlanceModifier.height(if (compact) 6.dp else 10.dp))
-        DetailedMetrics(
-            state = state,
-            palette = palette,
-            compact = compact,
-        )
-        Spacer(GlanceModifier.height(if (compact) 5.dp else 8.dp))
-        Text(
-            text = state.displaySummary(),
-            modifier = GlanceModifier.fillMaxWidth(),
-            style = widgetTextStyle(
-                color = palette.secondaryText,
-                size = if (compact) 9.sp else 11.sp,
-            ),
-            maxLines = 2,
-        )
-        Spacer(GlanceModifier.defaultWeight())
-        WidgetActions(state, palette, compact = false)
-    }
-}
-
-@Composable
-private fun MaterialDetailedWidgetContent(
-    state: VehicleStatusWidgetState,
-    palette: WidgetPalette,
-    vehicleBitmap: Bitmap?,
-    compact: Boolean,
-    stageHeight: Dp,
-) {
-    Column(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .padding(if (compact) 12.dp else 18.dp),
-    ) {
-        MaterialHeader(
-            state = state,
-            palette = palette,
-            showSubtitle = true,
-            compact = compact,
-        )
-        Spacer(GlanceModifier.height(if (compact) 6.dp else 10.dp))
-        VehicleStage(
-            state = state,
-            bitmap = vehicleBitmap,
-            palette = palette,
-            height = stageHeight,
-            radius = 0.dp,
-            useStageColor = false,
-        )
-        Spacer(GlanceModifier.height(if (compact) 6.dp else 10.dp))
-        DetailedMetrics(
-            state = state,
-            palette = palette,
-            compact = compact,
-        )
-        Spacer(GlanceModifier.height(if (compact) 5.dp else 8.dp))
-        Text(
-            text = state.displaySummary(),
-            modifier = GlanceModifier.fillMaxWidth(),
-            style = widgetTextStyle(
-                color = palette.secondaryText,
-                size = if (compact) 9.sp else 11.sp,
-            ),
-            maxLines = 2,
-        )
-        Spacer(GlanceModifier.defaultWeight())
-        WidgetActions(state, palette, compact = false)
-    }
-}
-
-@Composable
-private fun DetailedMetrics(
-    state: VehicleStatusWidgetState,
-    palette: WidgetPalette,
-    compact: Boolean,
-) {
+    val miuix = state.uiStyle == UiThemeStyle.Miuix
+    // Move the unit into the caption so a long range never loses its numeric digits.
+    val range = state.rangeLabel.trim()
+    val rangeHasUnit = range.endsWith("km", ignoreCase = true)
+    val rangeValue = if (rangeHasUnit) range.dropLast(2).trim() else range
     Row(
-        modifier = GlanceModifier
-            .fillMaxWidth()
-            .height(if (compact) 44.dp else 56.dp)
-            .background(ColorProvider(palette.stage))
-            .cornerRadius(if (compact) 14.dp else 18.dp)
-            .padding(horizontal = if (compact) 8.dp else 12.dp),
+        modifier = modifier
+            .height(layout.metricsHeight)
+            .background(ColorProvider(if (miuix) palette.stage else Color.Transparent))
+            .cornerRadius(if (miuix) 14.dp else 0.dp)
+            .padding(horizontal = if (miuix) 8.dp else 0.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Metric(
@@ -1411,216 +1331,25 @@ private fun DetailedMetrics(
             value = state.batteryLabel,
             palette = palette,
             modifier = GlanceModifier.defaultWeight(),
-            valueSize = if (compact) 14.sp else 18.sp,
+            valueSize = when {
+                layout.tightMetrics -> 10.sp
+                layout.compact -> 13.sp
+                else -> 20.sp
+            },
+            labelSize = if (layout.tightMetrics) 6.sp else 8.sp,
         )
-        Spacer(GlanceModifier.width(8.dp))
+        Spacer(GlanceModifier.width(6.dp))
         Metric(
-            label = "续航",
-            value = state.rangeLabel,
+            label = if (rangeHasUnit) "续航 km" else "续航",
+            value = rangeValue,
             palette = palette,
             modifier = GlanceModifier.defaultWeight(),
-            valueSize = if (compact) 14.sp else 18.sp,
-        )
-        Spacer(GlanceModifier.width(8.dp))
-        Metric(
-            label = "车况",
-            value = state.statusSummary,
-            palette = palette,
-            modifier = GlanceModifier.defaultWeight(),
-            valueSize = if (compact) 10.sp else 12.sp,
-            maxLines = 2,
-        )
-    }
-}
-
-@Composable
-private fun WideMetrics(
-    state: VehicleStatusWidgetState,
-    palette: WidgetPalette,
-    compact: Boolean,
-    modifier: GlanceModifier,
-) {
-    val battery = state.batteryLabel.replace(" ", "")
-    val range = state.rangeLabel.replace(" ", "")
-    if (compact) {
-        Column(
-            modifier = modifier,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Row(
-                modifier = GlanceModifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Metric(
-                    label = "电量",
-                    value = battery,
-                    palette = palette,
-                    modifier = GlanceModifier.defaultWeight(),
-                    valueSize = 15.sp,
-                )
-                Spacer(GlanceModifier.width(5.dp))
-                Metric(
-                    label = "续航",
-                    value = range,
-                    palette = palette,
-                    modifier = GlanceModifier.defaultWeight(),
-                    valueSize = 15.sp,
-                )
-            }
-            Spacer(GlanceModifier.height(2.dp))
-            Text(
-                text = state.statusSummary,
-                style = widgetTextStyle(
-                    color = palette.secondaryText,
-                    size = 8.sp,
-                    weight = FontWeight.Medium,
-                ),
-                maxLines = 2,
-            )
-        }
-    } else {
-        Row(
-            modifier = modifier,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Metric(
-                label = "电量",
-                value = battery,
-                palette = palette,
-                modifier = GlanceModifier.defaultWeight(),
-                valueSize = 17.sp,
-            )
-            Spacer(GlanceModifier.width(8.dp))
-            Metric(
-                label = "续航",
-                value = range,
-                palette = palette,
-                modifier = GlanceModifier.defaultWeight(),
-                valueSize = 17.sp,
-            )
-            Spacer(GlanceModifier.width(8.dp))
-            Metric(
-                label = "车况",
-                value = state.statusSummary,
-                palette = palette,
-                modifier = GlanceModifier.defaultWeight(),
-                valueSize = 11.sp,
-                maxLines = 2,
-            )
-        }
-    }
-}
-
-@Composable
-private fun MiuixWidgetContent(
-    state: VehicleStatusWidgetState,
-    palette: WidgetPalette,
-    compact: Boolean,
-    iconOnly: Boolean,
-    vehicleBitmap: Bitmap?,
-) {
-    Column(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .padding(if (compact) 6.dp else 12.dp),
-    ) {
-        MiuixHeader(
-            state = state,
-            palette = palette,
-            showSubtitle = !compact,
-            compact = compact,
-        )
-        Spacer(GlanceModifier.height(if (compact) 1.dp else 5.dp))
-        VehicleStage(
-            state = state,
-            bitmap = vehicleBitmap,
-            palette = palette,
-            height = if (compact) 44.dp else 58.dp,
-            radius = if (compact) 14.dp else 20.dp,
-        )
-        Spacer(GlanceModifier.height(if (compact) 1.dp else 5.dp))
-        if (compact) {
-            CompactMetrics(state, palette)
-        } else {
-            MiuixMetrics(state, palette)
-        }
-        Text(
-            text = state.displaySummary(),
-            modifier = GlanceModifier.fillMaxWidth(),
-            style = widgetTextStyle(
-                color = palette.secondaryText,
-                size = if (compact) 8.sp else 10.sp,
-            ),
-            maxLines = 2,
-        )
-        Spacer(GlanceModifier.defaultWeight())
-        WidgetActions(
-            state = state,
-            palette = palette,
-            compact = compact,
-            iconOnly = iconOnly,
-        )
-    }
-}
-
-@Composable
-private fun MaterialWidgetContent(
-    state: VehicleStatusWidgetState,
-    palette: WidgetPalette,
-    compact: Boolean,
-    iconOnly: Boolean,
-    vehicleBitmap: Bitmap?,
-) {
-    Column(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .padding(if (compact) 6.dp else 11.dp),
-    ) {
-        MaterialHeader(
-            state = state,
-            palette = palette,
-            showSubtitle = !compact,
-            compact = compact,
-        )
-        Spacer(GlanceModifier.height(if (compact) 1.dp else 3.dp))
-        VehicleStage(
-            state = state,
-            bitmap = vehicleBitmap,
-            palette = palette,
-            height = if (compact) 42.dp else 54.dp,
-            radius = 0.dp,
-            useStageColor = false,
-        )
-        Spacer(GlanceModifier.height(if (compact) 1.dp else 3.dp))
-        if (!compact) {
-            Spacer(
-                modifier = GlanceModifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(ColorProvider(palette.outline)),
-            )
-            Spacer(GlanceModifier.height(3.dp))
-        }
-        if (compact) {
-            CompactMetrics(state, palette)
-        } else {
-            MaterialMetrics(state, palette)
-        }
-        Text(
-            text = state.displaySummary(),
-            modifier = GlanceModifier.fillMaxWidth(),
-            style = widgetTextStyle(
-                color = palette.secondaryText,
-                size = if (compact) 8.sp else 10.sp,
-            ),
-            maxLines = 2,
-        )
-        Spacer(GlanceModifier.defaultWeight())
-        WidgetActions(
-            state = state,
-            palette = palette,
-            compact = compact,
-            iconOnly = iconOnly,
+            valueSize = when {
+                layout.tightMetrics -> 10.sp
+                layout.compact -> 13.sp
+                else -> 20.sp
+            },
+            labelSize = if (layout.tightMetrics) 6.sp else 8.sp,
         )
     }
 }
@@ -1642,41 +1371,38 @@ private fun VehicleStatusWidgetState.displaySummary(
 private fun WidgetActions(
     state: VehicleStatusWidgetState,
     palette: WidgetPalette,
-    compact: Boolean,
-    iconOnly: Boolean = false,
+    layout: WidgetLayout,
 ) {
     if (state.hasVehicleIdentity) {
         WidgetControls(
             state = state,
             palette = palette,
-            compact = compact,
-            iconOnly = iconOnly,
+            layout = layout,
         )
     } else {
-        ConnectVehicleBar(palette, compact)
+        ConnectVehicleBar(palette, layout)
     }
-    Spacer(GlanceModifier.height(12.dp))
 }
 
 @Composable
 private fun ConnectVehicleBar(
     palette: WidgetPalette,
-    compact: Boolean,
+    layout: WidgetLayout,
 ) {
     val context = LocalContext.current
     val openAppAction = actionStartActivity(buildOpenAppIntent(context))
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
-            .height(if (compact) 20.dp else 34.dp)
+            .height(layout.actionsHeight)
             .background(ColorProvider(palette.stage))
-            .cornerRadius(if (compact) 7.dp else 16.dp)
+            .cornerRadius(12.dp)
             .clickable(openAppAction)
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        if (!compact) {
+        if (!layout.iconOnly) {
             Image(
                 provider = ImageProvider(R.drawable.ic_widget_bluetooth),
                 contentDescription = null,
@@ -1689,7 +1415,7 @@ private fun ConnectVehicleBar(
             text = "打开应用连接车辆",
             style = widgetTextStyle(
                 color = palette.primaryText,
-                size = if (compact) 7.sp else 9.sp,
+                size = if (layout.compact) 8.sp else 9.sp,
                 weight = FontWeight.Medium,
             ),
             maxLines = 1,
@@ -1701,20 +1427,15 @@ private fun ConnectVehicleBar(
 private fun WidgetControls(
     state: VehicleStatusWidgetState,
     palette: WidgetPalette,
-    compact: Boolean,
-    iconOnly: Boolean,
+    layout: WidgetLayout,
 ) {
     val context = LocalContext.current
-    val rowModifier = if (compact) {
-        GlanceModifier.fillMaxWidth()
-    } else {
-        GlanceModifier
-            .fillMaxWidth()
-            .height(36.dp)
-            .background(ColorProvider(palette.stage))
-            .cornerRadius(16.dp)
-            .padding(3.dp)
-    }
+    val rowModifier = GlanceModifier
+        .fillMaxWidth()
+        .height(layout.actionsHeight)
+        .background(ColorProvider(palette.stage))
+        .cornerRadius(if (layout.iconOnly) 10.dp else 16.dp)
+        .padding(3.dp)
     Row(
         modifier = rowModifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -1738,8 +1459,7 @@ private fun WidgetControls(
                 ),
             ),
             palette = palette,
-            compact = compact,
-            iconOnly = iconOnly,
+            layout = layout,
         )
         Spacer(GlanceModifier.width(3.dp))
         WidgetControlButton(
@@ -1750,8 +1470,7 @@ private fun WidgetControls(
                 actionParametersOf(WidgetControlActionKey to WIDGET_ACTION_FIND),
             ),
             palette = palette,
-            compact = compact,
-            iconOnly = iconOnly,
+            layout = layout,
         )
         Spacer(GlanceModifier.width(3.dp))
         WidgetControlButton(
@@ -1768,8 +1487,7 @@ private fun WidgetControls(
                 ),
             ),
             palette = palette,
-            compact = compact,
-            iconOnly = iconOnly,
+            layout = layout,
         )
         Spacer(GlanceModifier.width(3.dp))
         WidgetControlButton(
@@ -1778,8 +1496,7 @@ private fun WidgetControls(
             enabled = true,
             action = actionStartActivity(buildVehicleInfoIntent(context)),
             palette = palette,
-            compact = compact,
-            iconOnly = iconOnly,
+            layout = layout,
         )
     }
 }
@@ -1791,47 +1508,27 @@ private fun RowScope.WidgetControlButton(
     enabled: Boolean,
     action: Action,
     palette: WidgetPalette,
-    compact: Boolean,
-    iconOnly: Boolean,
+    layout: WidgetLayout,
 ) {
     Box(
         modifier = GlanceModifier
             .defaultWeight()
-            .height(if (compact) 22.dp else 30.dp)
-            .background(
-                ColorProvider(
-                    when {
-                        compact && enabled -> palette.stage
-                        !enabled -> palette.neutralPill
-                        else -> Color.Transparent
-                    },
-                ),
-            )
-            .cornerRadius(if (compact) 7.dp else 10.dp)
+            .height(layout.actionsHeight - 6.dp)
+            .background(ColorProvider(if (enabled) Color.Transparent else palette.neutralPill))
+            .cornerRadius(8.dp)
             .clickable(action),
         contentAlignment = Alignment.Center,
     ) {
-        if (compact && iconOnly) {
+        if (layout.iconOnly) {
             Image(
                 provider = ImageProvider(iconRes),
                 contentDescription = label,
-                modifier = GlanceModifier.size(14.dp),
+                modifier = GlanceModifier.size(16.dp),
                 colorFilter = ColorFilter.tint(
                     ColorProvider(
                         if (enabled) palette.primaryText else palette.secondaryText,
                     ),
                 ),
-            )
-        } else if (compact) {
-            Text(
-                text = label,
-                style = widgetTextStyle(
-                    color = if (enabled) palette.primaryText else palette.secondaryText,
-                    size = 7.sp,
-                    weight = FontWeight.Medium,
-                    textAlign = TextAlign.Center,
-                ),
-                maxLines = 1,
             )
         } else {
             Column(
@@ -1849,7 +1546,7 @@ private fun RowScope.WidgetControlButton(
                     ),
                 )
                 Text(
-                    text = label,
+                    text = if (label == "车辆信息" && LocalSize.current.width < 300.dp) "信息" else label,
                     style = widgetTextStyle(
                         color = if (enabled) palette.primaryText else palette.secondaryText,
                         size = 8.sp,
@@ -2017,85 +1714,13 @@ private fun VehicleStage(
 }
 
 @Composable
-private fun MiuixMetrics(
-    state: VehicleStatusWidgetState,
-    palette: WidgetPalette,
-) {
-    Row(
-        modifier = GlanceModifier
-            .fillMaxWidth()
-            .background(ColorProvider(palette.stage))
-            .cornerRadius(14.dp)
-            .padding(horizontal = 8.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Metric(
-            label = "电量",
-            value = state.batteryLabel,
-            palette = palette,
-            modifier = GlanceModifier.fillMaxWidth(),
-        )
-        Spacer(GlanceModifier.width(8.dp))
-        Metric(
-            label = "续航",
-            value = state.rangeLabel,
-            palette = palette,
-            modifier = GlanceModifier.fillMaxWidth(),
-        )
-    }
-}
-
-@Composable
-private fun MaterialMetrics(
-    state: VehicleStatusWidgetState,
-    palette: WidgetPalette,
-) {
-    Row(
-        modifier = GlanceModifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Metric(
-            label = "电量",
-            value = state.batteryLabel,
-            palette = palette,
-            modifier = GlanceModifier.fillMaxWidth(),
-        )
-        Spacer(GlanceModifier.width(8.dp))
-        Metric(
-            label = "续航",
-            value = state.rangeLabel,
-            palette = palette,
-            modifier = GlanceModifier.fillMaxWidth(),
-        )
-    }
-}
-
-@Composable
-private fun CompactMetrics(
-    state: VehicleStatusWidgetState,
-    palette: WidgetPalette,
-) {
-    val battery = state.batteryLabel.replace(" ", "")
-    val range = state.rangeLabel.replace(" ", "")
-    Text(
-        text = "电量 $battery   续航 $range",
-        modifier = GlanceModifier.fillMaxWidth(),
-        style = widgetTextStyle(
-            color = palette.primaryText,
-            size = 7.sp,
-            weight = FontWeight.Medium,
-        ),
-        maxLines = 1,
-    )
-}
-
-@Composable
 private fun Metric(
     label: String,
     value: String,
     palette: WidgetPalette,
     modifier: GlanceModifier,
     valueSize: androidx.compose.ui.unit.TextUnit = 12.sp,
+    labelSize: androidx.compose.ui.unit.TextUnit = 8.sp,
     maxLines: Int = 1,
 ) {
     Column(modifier = modifier) {
@@ -2103,7 +1728,7 @@ private fun Metric(
             text = label,
             style = widgetTextStyle(
                 color = palette.secondaryText,
-                size = 8.sp,
+                size = labelSize,
             ),
             maxLines = 1,
         )
