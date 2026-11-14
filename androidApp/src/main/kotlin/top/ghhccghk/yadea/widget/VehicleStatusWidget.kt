@@ -1157,7 +1157,6 @@ private fun widgetLayout(size: DpSize, fontScale: Float): WidgetLayout {
     val narrow = size.width < 220.dp
     val compact = narrow || size.height < 210.dp
     val horizontalPadding = if (narrow) 8.dp else 14.dp
-    val topPadding = if (compact) 6.dp else 14.dp
     val bottomPadding = if (compact) 16.dp else 20.dp
     val gap = if (compact) 4.dp else 8.dp
     val showSubtitle = size.height >= 230.dp && size.width >= 180.dp
@@ -1168,12 +1167,19 @@ private fun widgetLayout(size: DpSize, fontScale: Float): WidgetLayout {
     val summaryHeight = if (showSummary) ((if (compact) 15f else 18f) * scale).dp else 0.dp
     val actionsHeight = if (iconOnly) 30.dp else (42f * scale).dp
     val innerWidth = (size.width - horizontalPadding * 2).coerceAtLeast(0.dp)
-    // Reserve text and controls first. Only the vehicle area may consume the remaining height.
-    val reservedHeight = topPadding + bottomPadding + headerHeight + actionsHeight +
+    val fixedContentHeight = bottomPadding + headerHeight + actionsHeight +
         gap * 2 + if (showSummary) summaryHeight + gap else 0.dp
+    // Leave breathing room below the host's rounded top edge, including App Vault stacks.
+    // At the minimum resize height, keep enough space for readings and all four controls.
+    val preferredTopPadding = if (compact) 16.dp else 24.dp
+    val maximumTopPadding = (size.height - fixedContentHeight - (21f * scale).dp)
+        .coerceAtLeast(6.dp)
+    val topPadding = minOf(preferredTopPadding, maximumTopPadding)
+    // Reserve text and controls first. Only the vehicle area may consume the remaining height.
+    val reservedHeight = topPadding + fixedContentHeight
     val bodyHeight = (size.height - reservedHeight).coerceAtLeast(0.dp)
     val horizontal = (!narrow && size.height < 210.dp) ||
-        bodyHeight < desiredMetricsHeight + gap + 32.dp
+        bodyHeight < desiredMetricsHeight + gap + 24.dp
     val tightMetrics = horizontal && bodyHeight < desiredMetricsHeight
     val metricsHeight = if (tightMetrics) bodyHeight else desiredMetricsHeight
     val stageHeight = if (horizontal) {
